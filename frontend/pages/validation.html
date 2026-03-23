@@ -1,0 +1,101 @@
+<div class="container-fluid p-3 h-100">
+    <div class="row h-100">
+
+        <div class="col-md-3 h-100 d-flex flex-column">
+            <div class="card shadow-sm border-0 flex-grow-1">
+                <div class="card-header bg-dark text-white py-3">
+                    <h6 class="mb-0 fw-bold"><i class="bi bi-pen me-2"></i>Bandeja de Firma</h6>
+                    <small class="opacity-75">Informes listos para validar (<span id="badgeParaFirma">0</span>)</small>
+
+                    <div class="mt-3">
+                        <label class="small fw-bold text-white-50 mb-1">Mi Perfil (Radiólogo Activo):</label>
+                        <select class="form-select form-select-sm bg-secondary text-white border-secondary fw-bold"
+                            id="filtroRadiologoActivo" onchange="renderValidationStudies()">
+                            <option value="ALL">Vista Global (Todos los informes)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="list-group list-group-flush overflow-auto flex-grow-1" id="validationStudies"
+                    style="max-height: calc(100vh - 180px);">
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-9 h-100 d-flex flex-column">
+            <div class="card shadow-sm border-0 flex-grow-1">
+
+                <div class="card-header bg-white py-3 border-bottom" id="infoPacienteValidacion">
+                    <div class="text-center text-muted p-5">
+                        <i class="bi bi-check2-square fs-1 d-block mb-3 text-success"></i>
+                        Seleccione un informe transcrito para revisar y firmar.
+                    </div>
+                </div>
+
+                <div class="card-body d-flex flex-column bg-light p-3">
+
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="text-primary small fw-bold" id="examenesValidacion"></div>
+                        <button class="btn btn-sm btn-outline-secondary fw-bold bg-white" onclick="generarVistaPrevia()"
+                            id="btnPreview" disabled>
+                            <i class="bi bi-file-pdf me-1"></i> Ver PDF Preliminar
+                        </button>
+                    </div>
+
+                    <div class="flex-grow-1 d-flex flex-column bg-white border rounded shadow-sm p-4 overflow-auto"
+                        id="papelInforme">
+
+                        <div id="docHeader" class="border-bottom pb-3 mb-3 d-none">
+                            <div class="text-center mb-4">
+                                <h3 class="fw-bold text-dark mb-0" id="docClinicaNombre">CENTRO MÉDICO RIS PRO</h3>
+                                <small class="text-muted d-block" id="docClinicaDireccion"><i
+                                        class="bi bi-geo-alt-fill me-1"></i>Dirección del Centro</small>
+                            </div>
+
+                            <div class="text-center mb-3">
+                                <h5 class="fw-bold text-dark border p-2 bg-light mb-1">INFORME IMAGENOLÓGICO</h5>
+                                <small class="text-muted fw-bold" id="docIdCita"></small>
+                            </div>
+
+                            <div class="row small mt-3">
+                                <div class="col-7">
+                                    <strong>Paciente:</strong> <span id="docPaciente"></span><br>
+                                    <strong>RUT:</strong> <span id="docRut"></span><br>
+                                    <strong>Edad:</strong> <span id="docEdad"></span>
+                                </div>
+                                <div class="col-5 text-end">
+                                    <strong>Fecha Atención:</strong> <span id="docFecha"></span><br>
+                                    <strong>Médico Solicitante:</strong> <span id="docDerivante"></span><br>
+                                    <strong>Examen:</strong> <span id="docExamen"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <textarea id="finalReportText" class="form-control border-0 flex-grow-1 p-0"
+                            style="resize: none; font-size: 1.05rem; line-height: 1.6; background-color: transparent;"
+                            disabled></textarea>
+
+                        <div id="firmaFalsa" class="mt-4 pt-3 border-top text-end d-none">
+                            <p class="mb-0 fw-bold text-dark" id="firmaNombre">Dr. Radiólogo</p>
+                            <small class="text-muted">Médico Radiólogo - Registro Interno</small><br>
+                            <small class="text-success fw-bold"><i class="bi bi-shield-check me-1"></i>Firma Electrónica
+                                Pendiente</small>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="card-footer bg-white py-3 d-flex justify-content-between border-top">
+                    <button class="btn btn-outline-danger fw-bold" id="btnRechazar" onclick="rechazarInforme()"
+                        disabled>
+                        <i class="bi bi-x-circle me-1"></i> Rechazar y Devolver a Secretaria
+                    </button>
+                    <button class="btn btn-success fw-bold px-5 shadow" id="btnAprobar" onclick="firmarInforme()"
+                        disabled>
+                        <i class="bi bi-pen-fill me-1"></i> APROBAR Y FIRMAR INFORME
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>

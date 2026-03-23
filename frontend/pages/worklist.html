@@ -1,0 +1,164 @@
+<div class="container-fluid p-3">
+
+    <div id="alertasInsumosContainer" class="mb-3"></div>
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="mb-0 fw-bold text-primary"><i class="bi bi-list-task me-2"></i>Worklist Operativa</h5>
+                <small class="text-muted">Pacientes en espera de atención técnica</small>
+            </div>
+            <div class="d-flex gap-2">
+                <select id="filterMachine" class="form-select form-select-sm" style="width: 180px;"
+                    onchange="renderWorklist()">
+                    <option value="">Todas las Salas</option>
+                </select>
+                <input type="text" id="searchPatient" class="form-control form-control-sm"
+                    placeholder="Buscar RUT o Nombre..." onkeyup="renderWorklist()">
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" id="worklistTable">
+                    <thead class="bg-light">
+                        <tr>
+                            <th>Paciente / RUT</th>
+                            <th>Estudios en la Cadena</th>
+                            <th>Salas Asignadas</th>
+                            <th>Prioridad</th>
+                            <th>Estado Actual</th>
+                            <th class="text-center">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalAtencion" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title"><i class="bi bi-person-bounding-box me-2"></i>Atención Integral de Paciente</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light">
+
+                <div class="card border-0 shadow-sm mb-3">
+                    <div
+                        class="card-body bg-primary text-white rounded shadow-sm d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 id="atencionNombre" class="mb-0 fw-bold">CARGANDO...</h3>
+                            <span id="atencionRut" class="fs-5 opacity-75">--.---.---.-</span>
+                        </div>
+                        <div class="text-end">
+                            <div id="atencionSala" class="badge bg-white text-primary fs-6 mb-1">SALAS...</div>
+                            <div class="small opacity-75">Cadena ID: <span id="atencionId">000</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-md-5">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body">
+                                <h6 class="fw-bold text-primary mb-3"><i class="bi bi-link-45deg me-2"></i>1. Cadena de
+                                    Estudios (Turno Global)</h6>
+                                <p class="small text-muted mb-3">Todos los estudios listados a continuación compartirán
+                                    un único <strong>Accession Number</strong> para las Modalidades.</p>
+
+                                <div id="atencionEstudios" class="list-group mb-4 shadow-sm">
+                                </div>
+
+                                <button id="btnDicom" onclick="enviarADicom()"
+                                    class="btn btn-info w-100 fw-bold py-3 shadow-sm text-white fs-6">
+                                    <i class="bi bi-broadcast me-2"></i> CREAR A.N. Y ENVIAR A EQUIPOS
+                                </button>
+                                <div id="dicomStatus" class="mt-2 text-center small fw-bold"></div>
+                                <div id="globalAccessionDisplay"
+                                    class="mt-2 text-center fw-bold text-primary fs-5 d-none"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-7">
+                        <div class="card border-0 shadow-sm mb-3">
+                            <div class="card-body">
+                                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-chat-left-text me-2"></i>2.
+                                    Síntomas / Anamnesis Global</h6>
+                                <textarea id="txtAnamnesis" class="form-control" rows="3"
+                                    placeholder="Describa síntomas generales válidos para todos los estudios..."></textarea>
+                            </div>
+                        </div>
+
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-body">
+                                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-box-seam me-2"></i>3. Registro de
+                                    Insumos Extrídos</h6>
+                                <p class="small text-muted mb-3">Los ítems seleccionados se restarán del inventario
+                                    central automáticamente.</p>
+
+                                <div class="row g-2 mb-3">
+                                    <div class="col-md-4">
+                                        <select id="insumoTipo" class="form-select form-select-sm border-secondary"
+                                            onchange="actualizarListaInsumos()">
+                                            <option value="">Categoría...</option>
+                                            <option value="CONTRASTE">Contraste / Sueros</option>
+                                            <option value="FUNGIBLE">Fungibles / Agujas</option>
+                                            <option value="PROTECCION">Protección Rad.</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <select id="insumoItem" class="form-select form-select-sm border-secondary">
+                                            <option value="">Seleccione Insumo...</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button onclick="agregarInsumo()"
+                                            class="btn btn-sm btn-dark w-100 fw-bold">Añadir</button>
+                                    </div>
+                                </div>
+
+                                <div class="table-responsive">
+                                    <table class="table table-sm small table-bordered align-middle"
+                                        id="tablaInsumosAsignados">
+                                        <thead class="bg-light">
+                                            <tr>
+                                                <th>Insumo Médico</th>
+                                                <th width="100" class="text-center">Cant. Extr.</th>
+                                                <th width="50" class="text-center">Anular</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer bg-white shadow-sm d-flex justify-content-between">
+                <div class="d-flex gap-2">
+                    <button onclick="deshacerEstado()" class="btn btn-outline-secondary btn-sm"
+                        title="Revertir estado clínico anterior">
+                        <i class="bi bi-arrow-counterclockwise"></i> Deshacer
+                    </button>
+                    <button onclick="devolverAAgenda()" class="btn btn-outline-danger btn-sm">
+                        <i class="bi bi-reply-all"></i> Devolver a Recepción
+                    </button>
+                </div>
+
+                <div>
+                    <button type="button" class="btn btn-light fw-bold px-4" data-bs-dismiss="modal">CERRAR</button>
+                    <button onclick="finalizarAtencion()" class="btn btn-success px-4 fw-bold shadow ms-2">
+                        <i class="bi bi-send-check me-2"></i> FINALIZAR CADENA
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

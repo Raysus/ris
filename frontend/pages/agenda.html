@@ -1,0 +1,284 @@
+<div class="container-fluid p-2">
+    <div class="row mb-3 align-items-center">
+        <div class="col-md-4">
+            <h4 class="mb-0 text-primary fw-bold"><i class="bi bi-calendar-week me-2"></i>Agenda Central</h4>
+        </div>
+        <div class="col-md-4 offset-md-4">
+            <div class="input-group shadow-sm">
+                <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                <input type="text" id="searchAgenda" class="form-control border-start-0"
+                    placeholder="Buscar paciente por RUT o Apellido...">
+            </div>
+        </div>
+    </div>
+    <div
+        class="d-flex flex-wrap gap-4 mb-3 p-2 px-4 bg-white rounded-pill shadow-sm border justify-content-center align-items-center">
+        <div class="d-flex align-items-center" title="Reserva tentativa, faltan datos">
+            <span class="rounded-circle d-inline-block me-2 shadow-sm"
+                style="width: 12px; height: 12px; background-color: #8b5cf6;"></span>
+            <span class="small fw-bold text-muted">Pre-agendado</span>
+        </div>
+        <div class="d-flex align-items-center" title="Cita formalizada">
+            <span class="rounded-circle d-inline-block me-2 shadow-sm"
+                style="width: 12px; height: 12px; background-color: #10b981;"></span>
+            <span class="small fw-bold text-muted">Agendado</span>
+        </div>
+        <div class="d-flex align-items-center" title="Paciente confirmó que asistirá">
+            <span class="rounded-circle d-inline-block me-2 shadow-sm"
+                style="width: 12px; height: 12px; background-color: #3b82f6;"></span>
+            <span class="small fw-bold text-muted">Confirmado</span>
+        </div>
+        <div class="d-flex align-items-center" title="Paciente en la clínica esperando ser llamado">
+            <span class="rounded-circle d-inline-block me-2 shadow-sm"
+                style="width: 12px; height: 12px; background-color: #f59e0b;"></span>
+            <span class="small fw-bold text-muted">En Espera / Recepcionado</span>
+        </div>
+        <div class="d-flex align-items-center" title="Cita cancelada o paciente no asiste">
+            <span class="rounded-circle d-inline-block me-2 shadow-sm"
+                style="width: 12px; height: 12px; background-color: #ef4444;"></span>
+            <span class="small fw-bold text-muted">Anulado / No Asiste</span>
+        </div>
+        <div class="d-flex align-items-center" title="Cita atendida, paciente ya fue llamado">
+           <span class="rounded-circle d-inline-block me-2 shadow-sm"
+                 style="width: 12px; height: 12px; background-color: grey"></span>
+            <small class="text-muted fw-bold"><i class="bi bi-lock-fill"></i> Atendido</small>
+        </div>
+    </div>
+    <div id="calendar" class="shadow-sm border rounded bg-white"></div>
+</div>
+
+<div class="modal fade" id="appointmentModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg overflow-hidden" style="border-radius: 15px;">
+
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold" id="modalTitle"><i class="bi bi-calendar-plus me-2"></i>Nueva Cita
+                    Médica</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
+            </div>
+
+            <form id="formCita">
+                <div class="modal-body bg-white p-4">
+
+                    <div class="row g-2 mb-4 bg-light p-3 rounded border">
+                        <div class="col-md-2">
+                            <label class="mini-label fw-bold">RUT *</label>
+                            <input type="text" id="pRut" class="form-control form-control-sm"
+                                placeholder="Ej: 12.345.678-9" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="mini-label fw-bold">Primer Apellido *</label>
+                            <input type="text" id="pLastName" class="form-control form-control-sm" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="mini-label fw-bold">Segundo Apellido</label>
+                            <input type="text" id="pSecondLastName" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="mini-label fw-bold">Nombres *</label>
+                            <input type="text" id="pName" class="form-control form-control-sm" required>
+                        </div>
+
+                        <div class="col-md-2 mt-2">
+                            <label class="mini-label fw-bold">Sexo</label>
+                            <select id="pSex" class="form-select form-select-sm">
+                                <option value="M">Masculino</option>
+                                <option value="F">Femenino</option>
+                                <option value="O">Otro</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 mt-2">
+                            <label class="mini-label fw-bold">F. Nacimiento</label>
+                            <input type="date" id="pBirthDate" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-1 mt-2">
+                            <label class="mini-label fw-bold">Edad</label>
+                            <input type="number" id="pAge" class="form-control form-control-sm bg-white" readonly>
+                        </div>
+                        <div class="col-md-3 mt-2">
+                            <label class="mini-label fw-bold">Previsión</label>
+                            <select id="pInsurance" class="form-select form-select-sm">
+                                <option value="FONASA">FONASA</option>
+                                <option value="ISAPRE">ISAPRE</option>
+                                <option value="PARTICULAR">PARTICULAR</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mt-2">
+                            <label class="mini-label fw-bold">Plan</label>
+                            <input type="text" id="pPlan" class="form-control form-control-sm"
+                                placeholder="Ej: Plan Base 100%">
+                        </div>
+
+                        <div class="col-md-6 mt-2">
+                            <label class="mini-label fw-bold">Correo Electrónico</label>
+                            <input type="email" id="pEmail" class="form-control form-control-sm"
+                                placeholder="ejemplo@correo.com">
+                        </div>
+                        <div class="col-md-6 mt-2">
+                            <label class="mini-label fw-bold">Teléfono Celular</label>
+                            <input type="text" id="pPhone" class="form-control form-control-sm"
+                                placeholder="+56 9 1234 5678">
+                        </div>
+                    </div>
+
+                    <div class="row g-2 mb-4">
+                        <div class="col-md-3">
+                            <label class="mini-label fw-bold text-success">Estado de Cita</label>
+                            <select id="agendaStatus"
+                                class="form-select form-select-sm border-success fw-bold text-success">
+                                <option value="pre-agendado">Pre-Agendado</option>
+                                <option value="agendado">Agendado</option>
+                                <option value="espera">En Sala de Espera</option>
+                                <option value="confirmado">Confirmado</option>
+                                <option value="anulado">Anulado</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="mini-label fw-bold text-danger">Médico Tratante</label>
+                            <select id="mTratante" class="form-select form-select-sm"></select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="mini-label fw-bold">Médico Destinado</label>
+                            <select id="mDestinado" class="form-select form-select-sm"></select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="mini-label fw-bold">Prioridad</label>
+                            <select id="mPriority" class="form-select form-select-sm">
+                                <option value="Normal">Normal</option>
+                                <option value="Alta">Alta</option>
+                                <option value="Urgencia">Urgencia</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="mini-label fw-bold">Procedencia</label>
+                            <select id="mProcedencia" class="form-select form-select-sm">
+                                <option value="Ambulatorio">Ambulatorio</option>
+                                <option value="Hospitalizado">Hospitalizado</option>
+                                <option value="Urgencia">Urgencia</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-end mb-2">
+                            <label class="fw-bold text-primary"><i class="bi bi-ui-checks-grid me-1"></i> Detalle de
+                                Exámenes</label>
+                            <button type="button" class="btn btn-sm btn-outline-primary fw-bold shadow-sm"
+                                onclick="addStudyRow('primo')">
+                                <i class="bi bi-plus-lg"></i> Agregar Examen
+                            </button>
+                        </div>
+                        <div class="table-responsive border rounded shadow-sm">
+                            <table class="table table-sm table-borderless mb-0" id="tableStudies">
+                                <thead class="table-light small border-bottom">
+                                    <tr>
+                                        <th style="width: 15%">Sala (Equipo)</th>
+                                        <th style="width: 25%">Examen</th>
+                                        <th style="width: 20%">Sub-Examen</th>
+                                        <th style="width: 8%" class="text-center">Cant.</th>
+                                        <th style="width: 12%" class="text-center">Código</th>
+                                        <th style="width: 15%">Valor ($)</th>
+                                        <th style="width: 5%"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="studyBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="mb-4 p-3 bg-light border rounded shadow-sm">
+                        <label class="fw-bold text-secondary mb-3"><i class="bi bi-box-seam me-1"></i> Insumos
+                            Adicionales</label>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6" id="insumosButtons">
+                            </div>
+                            <div class="col-md-6">
+                                <select id="insumoIndividualSelect" class="form-select form-select-sm border-secondary">
+                                    <option value="">+ Agregar insumo individual...</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="insumosListContainer" class="small bg-white p-2 rounded border">
+                            <table class="table table-sm mb-0">
+                                <tbody id="insumosListBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="row g-2 mb-3 border-top pt-4">
+                        <div class="col-md-3">
+                            <label class="mini-label fw-bold">Tipo Bono</label>
+                            <select id="pTipoBono" class="form-select form-select-sm">
+                                <option value="Sin Bono">Sin Bono</option>
+                                <option value="Manual">Manual</option>
+                                <option value="Electrónico">Electrónico</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="mini-label fw-bold">Forma de Pago</label>
+                            <select id="payMethod" class="form-select form-select-sm">
+                                <option value="Efectivo">Efectivo</option>
+                                <option value="Cheque">Cheque</option>
+                                <option value="Tarjeta">Tarjeta</option>
+                                <option value="Transbank">Transbank</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="mini-label fw-bold">Entidad Pagadora</label>
+                            <input type="text" id="pEntidadPagadora" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-3">
+                            <label id="lblTransactionCode" class="mini-label fw-bold text-primary">Cód.
+                                Transacción</label>
+                            <input type="text" id="pTransactionCode"
+                                class="form-control form-control-sm border-primary">
+                        </div>
+                    </div>
+
+                    <div
+                        class="d-flex justify-content-between align-items-center mt-4 bg-dark text-white p-3 rounded shadow-sm">
+                        <div>
+                            <button type="button" id="btnScan" class="btn btn-sm btn-light fw-bold shadow-sm"
+                                onclick="escanearDocumento('orden')">
+                                <i class="bi bi-upc-scan text-danger me-1"></i> ORDEN
+                            </button>
+                            <button type="button" id="btnEncuesta" class="btn btn-sm btn-light fw-bold shadow-sm ms-2"
+                                onclick="escanearDocumento('encuesta')">
+                                <i class="bi bi-file-earmark-pdf text-info me-1"></i> ENCUESTA
+                            </button>
+                            <div id="scanStatus" class="small mt-2 opacity-75">Sin documentos digitalizados.</div>
+
+                            <input type="hidden" id="docOrdenMedica">
+                            <input type="hidden" id="docEncuesta">
+                        </div>
+                        <div class="text-end">
+                            <h6 class="mb-0 opacity-75">Copago Total</h6>
+                            <h2 class="mb-0 fw-bold text-success" id="totalCopay"
+                                style="text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">$0</h2>
+                        </div>
+                    </div>
+
+                    <input type="hidden" id="appointmentId">
+                    <input type="hidden" id="selectedStart">
+
+                </div>
+                <div class="modal-footer bg-light d-flex justify-content-between">
+                    <button type="button" class="btn btn-outline-danger fw-bold" id="btnEliminarCita"
+                        onclick="eliminarCita()" style="display: none;">
+                        <i class="bi bi-trash me-1"></i> Eliminar Cita
+                    </button>
+
+                    <div>
+                        <button type="button" class="btn btn-secondary fw-bold"
+                            data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-primary fw-bold shadow px-4" onclick="guardarCita()">
+                            <i class="bi bi-save me-1"></i> Guardar Cita
+                        </button>
+                    </div>
+                </div>
+
+            </form>
+        </div>
+    </div>
+</div>

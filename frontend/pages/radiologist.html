@@ -1,0 +1,112 @@
+<div class="container-fluid p-3 h-100">
+    <div class="row h-100">
+
+        <div class="col-md-3 h-100 d-flex flex-column">
+            <div class="card shadow-sm border-0 flex-grow-1">
+                <div class="card-header bg-dark text-white py-3">
+                    <h6 class="mb-0 fw-bold"><i class="bi bi-inbox me-2"></i>Bandeja de Informes</h6>
+                    <small class="opacity-75">Estudios listos para lectura (<span
+                            id="badgePendientesInformar">0</span>)</small>
+
+                    <div class="mt-3">
+                        <label class="small fw-bold text-white-50 mb-1">Mi Perfil (Radiólogo Activo):</label>
+                        <select class="form-select form-select-sm bg-secondary text-white border-secondary fw-bold"
+                            id="filtroRadiologoActivo" onchange="renderRadiologistStudies()">
+                            <option value="ALL">Vista Global (Todos los exámenes)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="list-group list-group-flush overflow-auto flex-grow-1" id="radiologistStudies"
+                    style="max-height: calc(100vh - 180px);">
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-9 h-100 d-flex flex-column">
+            <div class="card shadow-sm border-0 flex-grow-1">
+
+                <div class="card-header bg-white py-3 border-bottom" id="infoPacienteRadiologo">
+                    <div class="text-center text-muted p-5">
+                        <i class="bi bi-file-earmark-medical fs-1 d-block mb-3"></i>
+                        Seleccione un estudio del panel izquierdo para comenzar a informar.
+                    </div>
+                </div>
+
+                <div class="card-body d-flex flex-column bg-light p-3">
+
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="dropdown">
+                            <button id="btnPlantilla"
+                                class="btn btn-sm btn-outline-primary dropdown-toggle fw-bold bg-white" type="button"
+                                data-bs-toggle="dropdown">
+                                <i class="bi bi-journal-text me-1"></i> Insertar Plantilla Normal
+                            </button>
+                            <ul class="dropdown-menu shadow-sm">
+                                <li><a class="dropdown-item" href="javascript:void(0);"
+                                        onclick="aplicarPlantilla('normal_torax')">Rx
+                                        Tórax Normal</a></li>
+                                <li><a class="dropdown-item" href="javascript:void(0);"
+                                        onclick="aplicarPlantilla('normal_eco')">Eco
+                                        Abdominal Normal</a></li>
+                                <li><a class="dropdown-item" href="javascript:void(0);"
+                                        onclick="aplicarPlantilla('normal_tc_cerebro')">TC
+                                        Cerebro Normal</a></li>
+                            </ul>
+                        </div>
+                        <button class="btn btn-sm btn-secondary fw-bold" onclick="abrirVisorDicom()">
+                            <i class="bi bi-display me-1"></i> ABRIR VISOR PACS
+                        </button>
+                    </div>
+
+                    <div id="listaExamenesRadiologo" class="mb-2 text-primary small ps-1"></div>
+
+                    <textarea id="textoInforme" class="form-control border-0 shadow-sm flex-grow-1 mb-3 p-3"
+                        style="resize: none; font-size: 1rem; line-height: 1.5;"
+                        placeholder="Escriba aquí el informe o utilice el dictado por voz..." disabled></textarea>
+
+                    <div
+                        class="bg-white p-3 rounded border shadow-sm d-flex align-items-center justify-content-between">
+                        <div>
+                            <h6 class="fw-bold mb-1"><i class="bi bi-mic-fill text-danger me-1"></i>Dictado Digital</h6>
+                            <small class="text-muted">Grabe el informe para que la secretaria lo transcriba.</small>
+                        </div>
+                        <div class="d-flex align-items-center gap-3">
+                            <div id="recordingPulse" class="d-none text-danger fw-bold d-flex align-items-center">
+                                <span class="spinner-grow spinner-grow-sm me-2" role="status"></span> GRABANDO...
+                            </div>
+
+                            <audio id="audioPreview" controls class="d-none" style="height: 35px;"></audio>
+
+                            <button id="btnRecord" class="btn btn-danger fw-bold shadow-sm" disabled>
+                                <i class="bi bi-mic me-1"></i> INICIAR DICTADO
+                            </button>
+                            <button id="btnStop" class="btn btn-dark fw-bold d-none shadow-sm">
+                                <i class="bi bi-stop-circle me-1"></i> DETENER
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="card-footer bg-white py-3 d-flex justify-content-between border-top">
+                    <button class="btn btn-outline-danger fw-bold" id="btnDevolver" onclick="devolverATecnologo()"
+                        disabled title="Si la imagen está mal tomada, devolver al Tecnólogo">
+                        <i class="bi bi-arrow-return-left me-1"></i> Devolver a T.M.
+                    </button>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-outline-info fw-bold text-dark" id="btnGrabarAudio"
+                            onclick="enviarATranscripcion()" disabled
+                            title="Envía el audio a la bandeja de la secretaria">
+                            <i class="bi bi-headphones me-1"></i> Enviar a Transcripción
+                        </button>
+                        <button class="btn btn-success fw-bold px-4 shadow" id="btnFirmarDirecto"
+                            onclick="firmarDirecto()" disabled title="Firma y libera el examen inmediatamente">
+                            <i class="bi bi-pen me-1"></i> Firmar y Liberar
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>

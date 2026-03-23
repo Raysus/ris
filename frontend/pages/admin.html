@@ -1,0 +1,558 @@
+<div class="container-fluid p-4 h-100 d-flex flex-column">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h3 class="fw-bold text-primary mb-0"><i class="bi bi-sliders me-2"></i>Centro de Administración RIS</h3>
+            <small class="text-muted">Gestión integral de Usuarios, Inventario, Salas, Honorarios y
+                Configuración</small>
+        </div>
+    </div>
+
+    <ul class="nav nav-tabs fw-bold mb-3 shadow-sm rounded-top" id="adminTabs" role="tablist"
+        style="background-color: #f8f9fa;">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active text-dark" data-bs-toggle="tab" data-bs-target="#tab-usuarios" type="button"
+                role="tab">
+                <i class="bi bi-people-fill me-2 text-primary"></i>Usuarios
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link text-dark" data-bs-toggle="tab" data-bs-target="#tab-insumos" type="button"
+                role="tab">
+                <i class="bi bi-boxes me-2 text-warning"></i>Inventario
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link text-dark" data-bs-toggle="tab" data-bs-target="#tab-salas" type="button"
+                role="tab">
+                <i class="bi bi-display me-2 text-info"></i>Salas y Equipos
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link text-dark" data-bs-toggle="tab" data-bs-target="#tab-catalogo" type="button"
+                role="tab">
+                <i class="bi bi-tags-fill me-2 text-danger"></i>Aranceles y Exámenes
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link text-dark" data-bs-toggle="tab" data-bs-target="#tab-honorarios" type="button"
+                role="tab">
+                <i class="bi bi-cash-coin me-2 text-success"></i>Honorarios
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link text-dark" data-bs-toggle="tab" data-bs-target="#tab-examenes" type="button"
+                role="tab">
+                <i class="bi bi-file-medical me-2 text-primary"></i>Producción Mensual
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link text-dark" data-bs-toggle="tab" data-bs-target="#tab-config" type="button"
+                role="tab">
+                <i class="bi bi-gear-fill me-2 text-secondary"></i>Ajustes Generales
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content flex-grow-1 overflow-hidden" id="adminTabsContent">
+
+        <div class="tab-pane fade show active h-100" id="tab-usuarios" role="tabpanel">
+            <div class="d-flex flex-column h-100">
+                <div class="d-flex justify-content-between mb-3">
+                    <div class="input-group shadow-sm" style="width: 350px;">
+                        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
+                        <input type="text" id="searchUsuario" class="form-control border-start-0"
+                            placeholder="Buscar usuario..." onkeyup="renderListaUsuariosAdmin()">
+                    </div>
+                    <button class="btn btn-primary fw-bold shadow px-4" onclick="nuevoUsuario()">
+                        <i class="bi bi-person-plus-fill me-2"></i>Nuevo Usuario
+                    </button>
+                </div>
+                <div class="card shadow-sm border-0 flex-grow-1 overflow-auto">
+                    <table class="table table-hover align-middle mb-0" id="tablaUsuariosAdmin">
+                        <thead class="bg-light sticky-top">
+                            <tr>
+                                <th class="ps-4">Usuario / Identidad</th>
+                                <th>RUT</th>
+                                <th>Roles de Sistema</th>
+                                <th>Credenciales</th>
+                                <th class="text-center pe-4">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade h-100" id="tab-insumos" role="tabpanel">
+            <div class="d-flex flex-column h-100">
+                <div class="d-flex justify-content-between mb-3">
+                    <div class="input-group shadow-sm" style="width: 350px;">
+                        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
+                        <input type="text" id="searchInsumo" class="form-control border-start-0"
+                            placeholder="Buscar insumo..." onkeyup="renderListaInsumosAdmin()">
+                    </div>
+                    <button class="btn btn-warning text-dark fw-bold shadow px-4" onclick="nuevoInsumo()">
+                        <i class="bi bi-box-seam-fill me-2"></i>Registrar Insumo
+                    </button>
+                </div>
+                <div class="card shadow-sm border-0 flex-grow-1 overflow-auto">
+                    <table class="table table-hover align-middle mb-0" id="tablaInsumosAdmin">
+                        <thead class="bg-light sticky-top">
+                            <tr>
+                                <th class="ps-4">Categoría</th>
+                                <th>Nombre del Insumo / Fármaco</th>
+                                <th class="text-center">Stock Disponible</th>
+                                <th class="text-center">Capacidad Máxima</th>
+                                <th class="text-center pe-4">Estado / Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade h-100" id="tab-salas" role="tabpanel">
+            <div class="d-flex flex-column h-100">
+                <div class="d-flex justify-content-between mb-3">
+                    <div class="input-group shadow-sm" style="width: 350px;">
+                        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
+                        <input type="text" id="searchSala" class="form-control border-start-0"
+                            placeholder="Buscar sala o equipo..." onkeyup="renderListaSalasAdmin()">
+                    </div>
+                    <button class="btn btn-info text-white fw-bold shadow px-4" onclick="nuevaSala()">
+                        <i class="bi bi-display me-2"></i>Registrar Equipo/Sala
+                    </button>
+                </div>
+                <div class="card shadow-sm border-0 flex-grow-1 overflow-auto">
+                    <table class="table table-hover align-middle mb-0" id="tablaSalasAdmin">
+                        <thead class="bg-light sticky-top">
+                            <tr>
+                                <th class="ps-4">ID Sistema</th>
+                                <th>Nombre de la Sala / Equipo</th>
+                                <th>Modalidad (Grupo DICOM)</th>
+                                <th class="text-center pe-4">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade h-100" id="tab-catalogo" role="tabpanel">
+            <div class="d-flex flex-column h-100">
+                <div class="d-flex justify-content-between mb-3">
+                    <div class="input-group shadow-sm" style="width: 350px;">
+                        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
+                        <input type="text" id="searchCat" class="form-control border-start-0"
+                            placeholder="Buscar examen..." onkeyup="renderCatalogoAdmin()">
+                    </div>
+                    <button class="btn btn-danger text-white fw-bold shadow px-4" onclick="nuevoExamen()">
+                        <i class="bi bi-tags-fill me-2"></i>Nueva Prestación
+                    </button>
+                </div>
+                <div class="card shadow-sm border-0 flex-grow-1 overflow-auto">
+                    <table class="table table-hover align-middle mb-0" id="tablaCatalogoAdmin">
+                        <thead class="bg-light sticky-top">
+                            <tr>
+                                <th class="ps-4">Grupo (Modalidad)</th>
+                                <th>Nombre del Examen</th>
+                                <th>Código FONASA/Interno</th>
+                                <th class="text-end">Arancel (Precio Base)</th>
+                                <th class="text-center pe-4">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade h-100" id="tab-honorarios" role="tabpanel">
+            <div class="d-flex flex-column h-100">
+                <div class="card bg-white border-0 shadow-sm mb-3">
+                    <div class="card-body py-3 d-flex justify-content-between align-items-end">
+                        <div class="d-flex gap-4">
+                            <div>
+                                <label class="form-label small fw-bold text-muted mb-1"><i
+                                        class="bi bi-calendar-month me-1"></i>Mes Producción</label>
+                                <input type="month" id="mesHonorarios" class="form-control fw-bold text-primary"
+                                    onchange="renderReporteHonorarios()">
+                            </div>
+                            <div>
+                                <label class="form-label small fw-bold text-muted mb-1"><i
+                                        class="bi bi-percent me-1"></i>Comisión Rad.</label>
+                                <div class="input-group">
+                                    <input type="number" id="porcentajeComision"
+                                        class="form-control fw-bold text-center" value="25" min="1" max="100"
+                                        style="width: 80px;" onchange="renderReporteHonorarios()">
+                                    <span class="input-group-text bg-light">%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <h6 class="small fw-bold text-muted mb-1">Total a Pagar (Mes)</h6>
+                            <h3 class="mb-0 fw-bold text-success" id="totalHonorariosGlobal">$0</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="card shadow-sm border-0 flex-grow-1 overflow-auto">
+                    <table class="table table-hover align-middle mb-0" id="tablaHonorariosAdmin">
+                        <thead class="bg-light sticky-top">
+                            <tr>
+                                <th class="ps-4">Médico Radiólogo</th>
+                                <th class="text-center">Informes Firmados</th>
+                                <th class="text-center">Exámenes Totales</th>
+                                <th class="text-end">Producción (Facturado)</th>
+                                <th class="text-end pe-4 text-success">Honorarios a Pagar</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="text-end mt-3">
+                    <button class="btn btn-outline-success fw-bold shadow-sm" onclick="exportarExcelHonorarios()">
+                        <i class="bi bi-file-earmark-excel-fill me-2"></i>Exportar Honorarios a Excel
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade h-100" id="tab-examenes" role="tabpanel">
+            <div class="d-flex flex-column h-100">
+                <div class="card bg-white border-0 shadow-sm mb-3">
+                    <div class="card-body py-3 d-flex justify-content-between align-items-end">
+                        <div class="d-flex gap-4">
+                            <div>
+                                <label class="form-label small fw-bold text-muted mb-1"><i
+                                        class="bi bi-calendar-month me-1"></i>Mes a Consultar</label>
+                                <input type="month" id="mesExamenes" class="form-control fw-bold text-primary"
+                                    onchange="renderReporteExamenes()">
+                            </div>
+                        </div>
+                        <div>
+                            <h6 class="small fw-bold text-muted mb-1">Total Exámenes</h6>
+                            <h3 class="mb-0 fw-bold text-primary" id="totalExamenesGlobal">0</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="card shadow-sm border-0 flex-grow-1 overflow-auto">
+                    <table class="table table-hover align-middle mb-0" id="tablaExamenesAdmin">
+                        <thead class="bg-light sticky-top">
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Paciente (RUT)</th>
+                                <th>Estudio Realizado</th>
+                                <th>Modalidad / Sala</th>
+                                <th>Estado Actual</th>
+                                <th>Médico Asignado</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="text-end mt-3">
+                    <button class="btn btn-outline-primary fw-bold shadow-sm" onclick="exportarExcelExamenes()">
+                        <i class="bi bi-file-earmark-excel-fill me-2"></i>Exportar Exámenes a Excel
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade h-100" id="tab-config" role="tabpanel">
+            <div class="card shadow-sm border-0 p-4 h-100 overflow-auto bg-white">
+                <h5 class="fw-bold text-secondary mb-4"><i class="bi bi-building-gear me-2"></i>Identidad Institucional
+                    y Operaciones</h5>
+
+                <form id="formConfigCentro">
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted">Nombre de la Clínica / Centro de
+                                Imagenología</label>
+                            <input type="text" class="form-control" id="cfgNombre"
+                                placeholder="Ej. Centro de Diagnóstico RIS PRO">
+                            <div class="form-text">Este nombre aparecerá en la cabecera de los informes médicos.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted">Dirección Comercial</label>
+                            <input type="text" class="form-control" id="cfgDireccion"
+                                placeholder="Ej. Av. Las Araucarias 1020">
+                            <div class="form-text">Aparecerá en las impresiones y etiquetas.</div>
+                        </div>
+                    </div>
+
+                    <h6 class="fw-bold text-secondary mb-3 mt-4 border-bottom pb-2">Configuración de la Agenda</h6>
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small text-muted">Hora de Apertura</label>
+                            <input type="time" class="form-control" id="cfgHoraInicio">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small text-muted">Hora de Cierre</label>
+                            <input type="time" class="form-control" id="cfgHoraFin">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small text-muted">Intervalo Base (Bloques)</label>
+                            <select class="form-select" id="cfgIntervalo">
+                                <option value="00:10:00">10 Minutos</option>
+                                <option value="00:15:00">15 Minutos</option>
+                                <option value="00:20:00">20 Minutos</option>
+                                <option value="00:30:00">30 Minutos</option>
+                                <option value="01:00:00">1 Hora</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 pt-3 border-top text-end">
+                        <button type="button" class="btn btn-secondary fw-bold px-5 shadow-sm"
+                            onclick="guardarConfigCentro()">
+                            <i class="bi bi-save me-2"></i>Guardar Ajustes Generales
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<div class="modal fade" id="modalUsuario" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-dark text-white py-3">
+                <h5 class="modal-title fw-bold"><i class="bi bi-person-badge me-2"></i>Ficha de Usuario</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light p-4">
+                <form id="adminForm">
+                    <h6 class="fw-bold text-primary mb-3 border-bottom pb-2">1. Identidad Personal</h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">RUT</label>
+                            <input type="text" class="form-control req-user" id="uRut" placeholder="12.345.678-9">
+                        </div>
+                        <div class="col-md-8"><label class="form-label small fw-bold">Nombres</label><input type="text"
+                                class="form-control req-user" id="uNombres"></div>
+                        <div class="col-md-6"><label class="form-label small fw-bold">Ap. Paterno</label><input
+                                type="text" class="form-control req-user" id="uPrimerApellido"></div>
+                        <div class="col-md-6"><label class="form-label small fw-bold">Ap. Materno</label><input
+                                type="text" class="form-control" id="uSegundoApellido"></div>
+                    </div>
+                    <h6 class="fw-bold text-primary mb-3 border-bottom pb-2">2. Privilegios de Sistema</h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">Título</label>
+                            <select class="form-select" id="uTitulo">
+                                <option value="">Ninguno</option>
+                                <option value="Dr.">Dr.</option>
+                                <option value="Dra.">Dra.</option>
+                                <option value="T.M.">T.M.</option>
+                                <option value="Sr.">Sr.</option>
+                                <option value="Sra.">Sra.</option>
+                            </select>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label small fw-bold">Roles</label>
+                            <div class="d-flex flex-wrap gap-2 mt-1">
+                                <div class="form-check form-check-inline m-0"><input class="form-check-input role-check"
+                                        type="checkbox" value="admin" id="rolAdmin"><label
+                                        class="form-check-label badge bg-dark text-white" for="rolAdmin">Admin</label>
+                                </div>
+                                <div class="form-check form-check-inline m-0"><input class="form-check-input role-check"
+                                        type="checkbox" value="recepcion" id="rolRec"><label
+                                        class="form-check-label badge bg-success text-white"
+                                        for="rolRec">Recepción</label></div>
+                                <div class="form-check form-check-inline m-0"><input class="form-check-input role-check"
+                                        type="checkbox" value="tecnologo" id="rolTM"><label
+                                        class="form-check-label badge bg-info text-dark" for="rolTM">Tecnólogo</label>
+                                </div>
+                                <div class="form-check form-check-inline m-0"><input class="form-check-input role-check"
+                                        type="checkbox" value="radiologo" id="rolRad"><label
+                                        class="form-check-label badge bg-danger text-white"
+                                        for="rolRad">Radiólogo</label></div>
+                                <div class="form-check form-check-inline m-0"><input class="form-check-input role-check"
+                                        type="checkbox" value="transcriptor" id="rolSec"><label
+                                        class="form-check-label badge bg-warning text-dark"
+                                        for="rolSec">Transcriptor</label></div>
+                            </div>
+                        </div>
+                    </div>
+                    <h6 class="fw-bold text-primary mb-3 border-bottom pb-2">3. Credenciales e Integración</h6>
+                    <div class="row g-3">
+                        <div class="col-md-6"><label class="form-label small fw-bold">Username</label><input type="text"
+                                class="form-control req-user" id="uUsername"></div>
+                        <div class="col-md-6"><label class="form-label small fw-bold">Contraseña</label><input
+                                type="password" class="form-control req-user" id="uPassword"></div>
+                        <div class="col-md-6"><label class="form-label small fw-bold">PACS AE Title</label><input
+                                type="text" class="form-control" id="uAeTitle" placeholder="Ej. RAD_1"></div>
+                        <div class="col-md-6"><label class="form-label small fw-bold">Perfil Dragon</label><input
+                                type="text" class="form-control" id="uDragonProfile" placeholder="Ej. DrPerez_Voz">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-danger" id="btnEliminarUsuario"
+                    onclick="eliminarUsuario()">Revocar Acceso</button>
+                <div>
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary fw-bold px-4"
+                        onclick="guardarUsuario()">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalInsumo" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-warning text-dark py-3">
+                <h5 class="modal-title fw-bold"><i class="bi bi-box-seam me-2"></i>Ficha de Insumo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light p-4">
+                <form id="formInsumo">
+                    <input type="hidden" id="insId">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Categoría del Insumo</label>
+                        <select class="form-select req-ins" id="insCategoria">
+                            <option value="CONTRASTE">Contraste / Sueros</option>
+                            <option value="FUNGIBLE">Fungibles / Agujas</option>
+                            <option value="PROTECCION">Protección Radiológica</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Nombre del Insumo</label>
+                        <input type="text" class="form-control req-ins" id="insNombre" placeholder="Ej. Jeringa 20cc">
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold small text-muted">Stock Actual</label>
+                            <input type="number" class="form-control req-ins text-center" id="insStock" min="0">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold small text-muted">Capacidad Máxima</label>
+                            <input type="number" class="form-control req-ins text-center" id="insTotal" min="1">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-danger" id="btnEliminarInsumo"
+                    onclick="eliminarInsumo()">Eliminar</button>
+                <div>
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-warning fw-bold text-dark px-4"
+                        onclick="guardarInsumo()">Guardar Stock</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalSala" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-info text-white py-3">
+                <h5 class="modal-title fw-bold"><i class="bi bi-display me-2"></i>Configuración de Sala/Equipo</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light p-4">
+                <form id="formSala">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">ID Interno del Sistema</label>
+                        <input type="text" class="form-control req-sala" id="salaId" placeholder="Ej. res_rx3">
+                        <div class="form-text" style="font-size: 0.7rem;">Debe ser único, sin espacios.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Nombre Comercial de la Sala</label>
+                        <input type="text" class="form-control req-sala" id="salaNombre"
+                            placeholder="Ej. Sala de Rayos X Principal">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Modalidad / Grupo DICOM</label>
+                        <select class="form-select req-sala" id="salaGrupo">
+                            <option value="RX">Radiología Convencional (RX)</option>
+                            <option value="CT">Tomografía / Scanner (CT)</option>
+                            <option value="MRI">Resonancia Magnética (MRI)</option>
+                            <option value="ECO">Ecografía / Ultrasonido (US)</option>
+                            <option value="MAMO">Mamografía (MG)</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-danger" id="btnEliminarSala"
+                    onclick="eliminarSala()">Eliminar Sala</button>
+                <div>
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-info fw-bold text-white px-4" onclick="guardarSala()">Guardar
+                        Sala</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalExamen" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-danger text-white py-3">
+                <h5 class="modal-title fw-bold"><i class="bi bi-tags-fill me-2"></i>Prestación / Examen</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light p-4">
+                <form id="formExamen">
+                    <input type="hidden" id="catGrupoOriginal">
+                    <input type="hidden" id="catNombreOriginal">
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Grupo Base / Modalidad</label>
+                        <select class="form-select req-cat" id="catGrupo">
+                            <option value="RX">Radiología (RX)</option>
+                            <option value="CT">Scanner (CT)</option>
+                            <option value="MRI">Resonancia (MRI)</option>
+                            <option value="ECO">Ecografía (ECO)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Nombre del Examen</label>
+                        <input type="text" class="form-control req-cat" id="catNombre"
+                            placeholder="Ej. TC de Abdomen y Pelvis">
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold small text-muted">Código FONASA/Interno</label>
+                            <input type="text" class="form-control req-cat" id="catCodigo" placeholder="Ej. 04-02-005">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold small text-muted">Arancel Base ($)</label>
+                            <input type="number" class="form-control req-cat" id="catPrecio" min="0"
+                                placeholder="Ej. 120000">
+                        </div>
+                    </div>
+                    <div class="mb-1">
+                        <label class="form-label fw-bold small text-muted">Sub-Exámenes / Variantes</label>
+                        <input type="text" class="form-control" id="catSubs"
+                            placeholder="Ej. Con Contraste, Sin Contraste">
+                        <div class="form-text" style="font-size: 0.7rem;">Sepárelos por comas. Déjelo en blanco si no
+                            tiene variantes.</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-danger" id="btnEliminarExamen"
+                    onclick="eliminarExamen()">Eliminar Prestación</button>
+                <div>
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger fw-bold text-white px-4"
+                        onclick="guardarExamen()">Guardar Arancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,49 @@
+<div class="container-fluid p-3 h-100">
+    <div class="card shadow-sm border-0 h-100 d-flex flex-column">
+
+        <div class="card-header bg-white py-4 border-bottom">
+            <div class="row align-items-center">
+                <div class="col-md-5">
+                    <h4 class="mb-0 fw-bold text-primary"><i class="bi bi-envelope-paper me-2"></i>Entrega de Resultados
+                    </h4>
+                    <small class="text-muted">Informes médicos firmados listos para retiro</small>
+                </div>
+                <div class="col-md-7">
+                    <div class="input-group input-group-lg shadow-sm">
+                        <span class="input-group-text bg-white border-end-0 text-primary"><i
+                                class="bi bi-search"></i></span>
+                        <input type="text" id="searchEntrega" class="form-control border-start-0 ps-0"
+                            placeholder="Escanee o escriba el RUT / Nombre del paciente..."
+                            onkeyup="renderTablaEntrega()">
+                        <select id="filtroEstadoEntrega" class="form-select" style="max-width: 200px;"
+                            onchange="renderTablaEntrega()">
+                            <option value="entregable">Pendientes de Retiro</option>
+                            <option value="entregado">Ya Entregados</option>
+                            <option value="todos">Mostrar Todos</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-body p-0 flex-grow-1 overflow-auto">
+            <div class="table-responsive h-100">
+                <table class="table table-hover align-middle mb-0" id="tablaEntrega">
+                    <thead class="bg-light sticky-top shadow-sm" style="z-index: 10;">
+                        <tr>
+                            <th class="ps-4">Paciente</th>
+                            <th>RUT</th>
+                            <th>Exámenes Solicitados</th>
+                            <th>Fecha Firma</th>
+                            <th>Estado</th>
+                            <th class="text-center pe-4">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
