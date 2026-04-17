@@ -38,51 +38,72 @@
                         <div class="dropdown">
                             <button id="btnPlantilla"
                                 class="btn btn-sm btn-outline-primary dropdown-toggle fw-bold bg-white" type="button"
-                                data-bs-toggle="dropdown">
+                                data-bs-toggle="dropdown" disabled>
                                 <i class="bi bi-journal-text me-1"></i> Insertar Plantilla Normal
                             </button>
                             <ul class="dropdown-menu shadow-sm">
                                 <li><a class="dropdown-item" href="javascript:void(0);"
-                                        onclick="aplicarPlantilla('normal_torax')">Rx
-                                        Tórax Normal</a></li>
+                                        onclick="aplicarPlantilla('normal_torax')">Rx Tórax Normal</a></li>
                                 <li><a class="dropdown-item" href="javascript:void(0);"
-                                        onclick="aplicarPlantilla('normal_eco')">Eco
-                                        Abdominal Normal</a></li>
+                                        onclick="aplicarPlantilla('normal_eco')">Eco Abdominal Normal</a></li>
                                 <li><a class="dropdown-item" href="javascript:void(0);"
-                                        onclick="aplicarPlantilla('normal_tc_cerebro')">TC
-                                        Cerebro Normal</a></li>
+                                        onclick="aplicarPlantilla('normal_tc_cerebro')">TC Cerebro Normal</a></li>
                             </ul>
                         </div>
-                        <button class="btn btn-sm btn-secondary fw-bold" onclick="abrirVisorDicom()">
-                            <i class="bi bi-display me-1"></i> ABRIR VISOR PACS
-                        </button>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-info text-white fw-bold shadow-sm" id="btnHistorialPaciente"
+                                onclick="abrirHistorialSeleccionado()" disabled
+                                title="Ver informes anteriores del paciente">
+                                <i class="bi bi-clock-history me-1"></i> HISTORIAL
+                            </button>
+                            <button class="btn btn-sm btn-secondary fw-bold shadow-sm" onclick="abrirVisorDicom()">
+                                <i class="bi bi-display me-1"></i> ABRIR VISOR PACS
+                            </button>
+                        </div>
                     </div>
 
                     <div id="listaExamenesRadiologo" class="mb-2 text-primary small ps-1"></div>
 
-                    <textarea id="textoInforme" class="form-control border-0 shadow-sm flex-grow-1 mb-3 p-3"
+                    <textarea id="textoInforme"
+                        class="form-control border-0 shadow-sm flex-grow-1 mb-3 p-3 transition-all"
                         style="resize: none; font-size: 1rem; line-height: 1.5;"
-                        placeholder="Escriba aquí el informe o utilice el dictado por voz..." disabled></textarea>
+                        placeholder="Redacte aquí el informe o utilice Dragon Medical..." disabled></textarea>
 
-                    <div
-                        class="bg-white p-3 rounded border shadow-sm d-flex align-items-center justify-content-between">
-                        <div>
-                            <h6 class="fw-bold mb-1"><i class="bi bi-mic-fill text-danger me-1"></i>Dictado Digital</h6>
-                            <small class="text-muted">Grabe el informe para que la secretaria lo transcriba.</small>
-                        </div>
-                        <div class="d-flex align-items-center gap-3">
-                            <div id="recordingPulse" class="d-none text-danger fw-bold d-flex align-items-center">
-                                <span class="spinner-grow spinner-grow-sm me-2" role="status"></span> GRABANDO...
+                    <div class="row g-2 mb-1">
+                        <div class="col-md-6">
+                            <div
+                                class="bg-white p-3 rounded border shadow-sm h-100 d-flex flex-column justify-content-center text-center">
+                                <h6 class="fw-bold mb-1 text-success"><i class="bi bi-soundwave me-1"></i>Dictado
+                                    Directo (Dragon)</h6>
+                                <small class="text-muted mb-2">Dicte el informe directamente en pantalla.</small>
+                                <button id="btnDragon" class="btn btn-sm btn-outline-success fw-bold w-100"
+                                    onclick="activarDragon()" disabled>
+                                    <i class="bi bi-cursor-text me-1"></i> ACTIVAR DRAGON
+                                </button>
                             </div>
+                        </div>
 
-                            <audio id="audioPreview" controls class="d-none" style="height: 35px;"></audio>
+                        <div class="col-md-6">
+                            <div
+                                class="bg-white p-3 rounded border shadow-sm h-100 d-flex flex-column justify-content-center text-center">
+                                <h6 class="fw-bold mb-1 text-danger"><i class="bi bi-mic-fill me-1"></i>Audio a
+                                    Transcripción</h6>
+                                <small class="text-muted mb-2">Grabe para que la secretaría lo tipee.</small>
 
-                            <button id="btnRecord" class="btn btn-danger fw-bold shadow-sm" disabled>
-                                <i class="bi bi-mic me-1"></i> INICIAR DICTADO
-                            </button>
-                            <button id="btnStop" class="btn btn-dark fw-bold d-none shadow-sm">
-                                <i class="bi bi-stop-circle me-1"></i> DETENER
-                            </button>
+                                <div class="d-flex justify-content-center align-items-center gap-2">
+                                    <div id="recordingPulse" class="d-none text-danger fw-bold small">
+                                        <span class="spinner-grow spinner-grow-sm me-1"></span> Grabando...
+                                    </div>
+                                    <audio id="audioPreview" controls class="d-none w-100"
+                                        style="height: 30px;"></audio>
+                                    <button id="btnRecord" class="btn btn-sm btn-danger fw-bold w-100" disabled>
+                                        <i class="bi bi-mic me-1"></i> INICIAR GRABACIÓN
+                                    </button>
+                                    <button id="btnStop" class="btn btn-sm btn-dark fw-bold w-100 d-none">
+                                        <i class="bi bi-stop-circle me-1"></i> DETENER
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -106,6 +127,23 @@
                     </div>
                 </div>
 
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalHistorialPaciente" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title fw-bold"><i class="bi bi-clock-history me-2"></i>Historial Clínico del Paciente
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light">
+                <h6 id="historialNombrePaciente" class="fw-bold text-primary mb-3">Cargando...</h6>
+                <div id="contenedorHistorial">
+                </div>
             </div>
         </div>
     </div>

@@ -2,320 +2,599 @@
 
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
-            <h3 class="fw-bold text-primary mb-0"><i class="bi bi-sliders me-2"></i>Centro de Administración RIS</h3>
-            <small class="text-muted">Gestión integral de Usuarios, Inventario, Salas, Honorarios y
-                Configuración</small>
+            <h3 class="fw-bold text-primary mb-0"><i class="bi bi-sliders me-2"></i>Centro de Administración</h3>
         </div>
     </div>
 
-    <ul class="nav nav-tabs fw-bold mb-3 shadow-sm rounded-top" id="adminTabs" role="tablist"
-        style="background-color: #f8f9fa;">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active text-dark" data-bs-toggle="tab" data-bs-target="#tab-usuarios" type="button"
-                role="tab">
-                <i class="bi bi-people-fill me-2 text-primary"></i>Usuarios
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link text-dark" data-bs-toggle="tab" data-bs-target="#tab-insumos" type="button"
-                role="tab">
-                <i class="bi bi-boxes me-2 text-warning"></i>Inventario
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link text-dark" data-bs-toggle="tab" data-bs-target="#tab-salas" type="button"
-                role="tab">
-                <i class="bi bi-display me-2 text-info"></i>Salas y Equipos
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link text-dark" data-bs-toggle="tab" data-bs-target="#tab-catalogo" type="button"
-                role="tab">
-                <i class="bi bi-tags-fill me-2 text-danger"></i>Aranceles y Exámenes
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link text-dark" data-bs-toggle="tab" data-bs-target="#tab-honorarios" type="button"
-                role="tab">
-                <i class="bi bi-cash-coin me-2 text-success"></i>Honorarios
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link text-dark" data-bs-toggle="tab" data-bs-target="#tab-examenes" type="button"
-                role="tab">
-                <i class="bi bi-file-medical me-2 text-primary"></i>Producción Mensual
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link text-dark" data-bs-toggle="tab" data-bs-target="#tab-config" type="button"
-                role="tab">
-                <i class="bi bi-gear-fill me-2 text-secondary"></i>Ajustes Generales
-            </button>
-        </li>
-    </ul>
+    <div class="row flex-grow-1 overflow-auto mt-3">
 
-    <div class="tab-content flex-grow-1 overflow-hidden" id="adminTabsContent">
+        <div class="col-md-3 col-lg-2 h-100 overflow-auto border-end pe-3 pb-4">
+            <div class="nav flex-column nav-pills fw-bold gap-1" id="adminTabs" role="tablist"
+                aria-orientation="vertical">
 
-        <div class="tab-pane fade show active h-100" id="tab-usuarios" role="tabpanel">
-            <div class="d-flex flex-column h-100">
-                <div class="d-flex justify-content-between mb-3">
-                    <div class="input-group shadow-sm" style="width: 350px;">
-                        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
-                        <input type="text" id="searchUsuario" class="form-control border-start-0"
-                            placeholder="Buscar usuario..." onkeyup="renderListaUsuariosAdmin()">
-                    </div>
-                    <button class="btn btn-primary fw-bold shadow px-4" onclick="nuevoUsuario()">
-                        <i class="bi bi-person-plus-fill me-2"></i>Nuevo Usuario
-                    </button>
-                </div>
-                <div class="card shadow-sm border-0 flex-grow-1 overflow-auto">
-                    <table class="table table-hover align-middle mb-0" id="tablaUsuariosAdmin">
-                        <thead class="bg-light sticky-top">
-                            <tr>
-                                <th class="ps-4">Usuario / Identidad</th>
-                                <th>RUT</th>
-                                <th>Roles de Sistema</th>
-                                <th>Credenciales</th>
-                                <th class="text-center pe-4">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
+                <span class="small text-muted text-uppercase fw-bolder mb-1 mt-2 px-2"
+                    style="font-size: 0.7rem;">Directorio</span>
+                <button class="nav-link active text-start px-3 py-2 text-dark" data-bs-toggle="tab"
+                    data-bs-target="#tab-usuarios" type="button" role="tab">
+                    <i class="bi bi-people-fill me-2 text-primary"></i>Usuarios
+                </button>
+                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
+                    data-bs-target="#tab-pacientes" type="button" role="tab">
+                    <i class="bi bi-person-vcard me-2 text-success"></i>Pacientes
+                </button>
+
+                <span class="small text-muted text-uppercase fw-bolder mb-1 mt-3 px-2"
+                    style="font-size: 0.7rem;">Operación Clínica</span>
+                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab" data-bs-target="#tab-salas"
+                    type="button" role="tab">
+                    <i class="bi bi-display me-2 text-info"></i>Salas y Equipos
+                </button>
+                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
+                    data-bs-target="#tab-previsiones" type="button" role="tab">
+                    <i class="bi bi-heart-pulse-fill me-2 text-danger"></i>Previsiones
+                </button>
+                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
+                    data-bs-target="#tab-planes" type="button" role="tab">
+                    <i class="bi bi-shield-check me-2 text-primary"></i>Planes y Convenios
+                </button>
+                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
+                    data-bs-target="#tab-catalogo" type="button" role="tab">
+                    <i class="bi bi-tags-fill me-2 text-danger"></i>Aranceles / Exámenes
+                </button>
+                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
+                    data-bs-target="#tab-servicios" type="button" role="tab">
+                    <i class="bi bi-hospital me-2 text-info"></i>Servicios Clínicos
+                </button>
+                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
+                    data-bs-target="#tab-insumos" type="button" role="tab">
+                    <i class="bi bi-boxes me-2 text-warning"></i>Inventario
+                </button>
+                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
+                    data-bs-target="#tab-plantillas" type="button" role="tab">
+                    <i class="bi bi-file-earmark-text-fill me-2 text-warning"></i>Plantillas Médicas
+                </button>
+                <span class="small text-muted text-uppercase fw-bolder mb-1 mt-3 px-2"
+                    style="font-size: 0.7rem;">Reportes</span>
+                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
+                    data-bs-target="#tab-honorarios" type="button" role="tab">
+                    <i class="bi bi-cash-coin me-2 text-success"></i>Honorarios
+                </button>
+                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
+                    data-bs-target="#tab-examenes" type="button" role="tab">
+                    <i class="bi bi-file-medical me-2 text-primary"></i>Producción Mensual
+                </button>
+
+                <span class="small text-muted text-uppercase fw-bolder mb-1 mt-3 px-2"
+                    style="font-size: 0.7rem;">Sistema</span>
+                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
+                    data-bs-target="#tab-config" type="button" role="tab">
+                    <i class="bi bi-gear-fill me-2 text-secondary"></i>Ajustes Generales
+                </button>
             </div>
         </div>
 
-        <div class="tab-pane fade h-100" id="tab-insumos" role="tabpanel">
-            <div class="d-flex flex-column h-100">
-                <div class="d-flex justify-content-between mb-3">
-                    <div class="input-group shadow-sm" style="width: 350px;">
-                        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
-                        <input type="text" id="searchInsumo" class="form-control border-start-0"
-                            placeholder="Buscar insumo..." onkeyup="renderListaInsumosAdmin()">
-                    </div>
-                    <button class="btn btn-warning text-dark fw-bold shadow px-4" onclick="nuevoInsumo()">
-                        <i class="bi bi-box-seam-fill me-2"></i>Registrar Insumo
-                    </button>
-                </div>
-                <div class="card shadow-sm border-0 flex-grow-1 overflow-auto">
-                    <table class="table table-hover align-middle mb-0" id="tablaInsumosAdmin">
-                        <thead class="bg-light sticky-top">
-                            <tr>
-                                <th class="ps-4">Categoría</th>
-                                <th>Nombre del Insumo / Fármaco</th>
-                                <th class="text-center">Stock Disponible</th>
-                                <th class="text-center">Capacidad Máxima</th>
-                                <th class="text-center pe-4">Estado / Acción</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+        <div class="col-md-9 col-lg-10 h-100 d-flex flex-column ps-lg-4">
 
-        <div class="tab-pane fade h-100" id="tab-salas" role="tabpanel">
-            <div class="d-flex flex-column h-100">
-                <div class="d-flex justify-content-between mb-3">
-                    <div class="input-group shadow-sm" style="width: 350px;">
-                        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
-                        <input type="text" id="searchSala" class="form-control border-start-0"
-                            placeholder="Buscar sala o equipo..." onkeyup="renderListaSalasAdmin()">
-                    </div>
-                    <button class="btn btn-info text-white fw-bold shadow px-4" onclick="nuevaSala()">
-                        <i class="bi bi-display me-2"></i>Registrar Equipo/Sala
-                    </button>
-                </div>
-                <div class="card shadow-sm border-0 flex-grow-1 overflow-auto">
-                    <table class="table table-hover align-middle mb-0" id="tablaSalasAdmin">
-                        <thead class="bg-light sticky-top">
-                            <tr>
-                                <th class="ps-4">ID Sistema</th>
-                                <th>Nombre de la Sala / Equipo</th>
-                                <th>Modalidad (Grupo DICOM)</th>
-                                <th class="text-center pe-4">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
 
-        <div class="tab-pane fade h-100" id="tab-catalogo" role="tabpanel">
-            <div class="d-flex flex-column h-100">
-                <div class="d-flex justify-content-between mb-3">
-                    <div class="input-group shadow-sm" style="width: 350px;">
-                        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
-                        <input type="text" id="searchCat" class="form-control border-start-0"
-                            placeholder="Buscar examen..." onkeyup="renderCatalogoAdmin()">
-                    </div>
-                    <button class="btn btn-danger text-white fw-bold shadow px-4" onclick="nuevoExamen()">
-                        <i class="bi bi-tags-fill me-2"></i>Nueva Prestación
-                    </button>
-                </div>
-                <div class="card shadow-sm border-0 flex-grow-1 overflow-auto">
-                    <table class="table table-hover align-middle mb-0" id="tablaCatalogoAdmin">
-                        <thead class="bg-light sticky-top">
-                            <tr>
-                                <th class="ps-4">Grupo (Modalidad)</th>
-                                <th>Nombre del Examen</th>
-                                <th>Código FONASA/Interno</th>
-                                <th class="text-end">Arancel (Precio Base)</th>
-                                <th class="text-center pe-4">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+            <div class="tab-content flex-grow-1 overflow-auto" id="adminTabsContent">
 
-        <div class="tab-pane fade h-100" id="tab-honorarios" role="tabpanel">
-            <div class="d-flex flex-column h-100">
-                <div class="card bg-white border-0 shadow-sm mb-3">
-                    <div class="card-body py-3 d-flex justify-content-between align-items-end">
-                        <div class="d-flex gap-4">
-                            <div>
-                                <label class="form-label small fw-bold text-muted mb-1"><i
-                                        class="bi bi-calendar-month me-1"></i>Mes Producción</label>
-                                <input type="month" id="mesHonorarios" class="form-control fw-bold text-primary"
-                                    onchange="renderReporteHonorarios()">
+                <div class="tab-pane fade show active h-100" id="tab-usuarios" role="tabpanel">
+                    <div class="d-flex flex-column h-100">
+                        <div class="d-flex justify-content-between mb-3">
+                            <div class="input-group shadow-sm" style="width: 350px;">
+                                <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
+                                <input type="text" id="searchUsuario" class="form-control border-start-0"
+                                    placeholder="Buscar usuario..." onkeyup="renderListaUsuariosAdmin()">
                             </div>
-                            <div>
-                                <label class="form-label small fw-bold text-muted mb-1"><i
-                                        class="bi bi-percent me-1"></i>Comisión Rad.</label>
-                                <div class="input-group">
-                                    <input type="number" id="porcentajeComision"
-                                        class="form-control fw-bold text-center" value="25" min="1" max="100"
-                                        style="width: 80px;" onchange="renderReporteHonorarios()">
-                                    <span class="input-group-text bg-light">%</span>
+                            <button class="btn btn-primary fw-bold shadow px-4" onclick="nuevoUsuario()">
+                                <i class="bi bi-person-plus-fill me-2"></i>Nuevo Usuario
+                            </button>
+                        </div>
+                        <div class="card shadow-sm border-0 flex-grow-1 overflow-auto">
+                            <table class="table table-hover align-middle mb-0" id="tablaUsuariosAdmin">
+                                <thead class="bg-light sticky-top">
+                                    <tr>
+                                        <th class="ps-4">Usuario / Identidad</th>
+                                        <th>RUT</th>
+                                        <th>Rol Principal</th>
+                                        <th>Roles Secundarios</th>
+                                        <th>PACS / Reconocimiento</th>
+                                        <th class="text-center pe-4">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="tab-pane fade h-100" id="tab-pacientes" role="tabpanel">
+                    <div class="card shadow-sm border-0 h-100">
+                        <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+                            <h5 class="mb-0 fw-bold text-dark"><i
+                                    class="bi bi-person-vcard me-2 text-success"></i>Directorio de
+                                Pacientes</h5>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-success fw-bold text-white shadow-sm"
+                                    style="display: none;">
+                                    <i class="bi bi-plus-lg me-1"></i> Nuevo
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0" id="tablaPacientesAdmin">
+                                    <thead class="bg-light text-secondary">
+                                        <tr>
+                                            <th class="ps-4">RUT</th>
+                                            <th>Nombre Completo</th>
+                                            <th>Género</th>
+                                            <th>Teléfono</th>
+                                            <th class="text-center pe-4">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tabla-pacientes-body">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="tab-pane fade h-100" id="tab-insumos" role="tabpanel">
+                    <div class="d-flex flex-column h-100">
+                        <div class="d-flex justify-content-between mb-3">
+                            <div class="input-group shadow-sm" style="width: 350px;">
+                                <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
+                                <input type="text" id="searchInsumo" class="form-control border-start-0"
+                                    placeholder="Buscar insumo..." onkeyup="renderListaInsumosAdmin()">
+                            </div>
+                            <button class="btn btn-warning text-dark fw-bold shadow px-4" onclick="nuevoInsumo()">
+                                <i class="bi bi-box-seam-fill me-2"></i>Registrar Insumo
+                            </button>
+                        </div>
+                        <div class="card shadow-sm border-0 flex-grow-1 overflow-auto">
+                            <table class="table table-hover align-middle mb-0" id="tablaInsumosAdmin">
+                                <thead class="bg-light sticky-top">
+                                    <tr>
+                                        <th class="ps-4">Categoría</th>
+                                        <th>Nombre del Insumo / Fármaco</th>
+                                        <th class="text-center">Stock Disponible</th>
+                                        <th class="text-center">Capacidad Máxima</th>
+                                        <th class="text-center pe-4">Estado / Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade h-100" id="tab-salas" role="tabpanel">
+                    <div class="d-flex flex-column h-100">
+                        <div class="d-flex justify-content-between mb-3">
+                            <div class="input-group shadow-sm" style="width: 350px;">
+                                <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
+                                <input type="text" id="searchSala" class="form-control border-start-0"
+                                    placeholder="Buscar sala o equipo..." onkeyup="renderListaSalasAdmin()">
+                            </div>
+                            <button class="btn btn-info text-white fw-bold shadow px-4" onclick="nuevaSala()">
+                                <i class="bi bi-display me-2"></i>Registrar Equipo/Sala
+                            </button>
+                        </div>
+                        <div class="card shadow-sm border-0 flex-grow-1 overflow-auto">
+                            <table class="table table-hover align-middle mb-0" id="tablaSalasAdmin">
+                                <thead class="bg-light sticky-top">
+                                    <tr>
+                                        <th class="ps-4">ID Sistema</th>
+                                        <th>Nombre de la Sala / Equipo</th>
+                                        <th>Modalidad (Grupo DICOM)</th>
+                                        <th class="text-center pe-4">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade h-100" id="tab-catalogo" role="tabpanel">
+                    <div class="d-flex flex-column h-100">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="fw-bold text-danger mb-0"><i class="bi bi-tags-fill me-2"></i>Catálogo de
+                                Prestaciones</h5>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-outline-success fw-bold shadow-sm"
+                                    onclick="$('#modalImportarExamenes').modal('show')">
+                                    <i class="bi bi-file-earmark-excel me-1"></i> Importar Excel
+                                </button>
+                                <button class="btn btn-sm btn-danger fw-bold shadow-sm" onclick="nuevoExamen()">
+                                    <i class="bi bi-plus-lg me-1"></i> Nuevo Examen
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card shadow-sm border-0 flex-grow-1 overflow-auto">
+                            <table class="table table-hover align-middle mb-0" id="tablaCatalogoAdmin">
+                                <thead class="bg-light sticky-top">
+                                    <tr>
+                                        <th class="ps-4">Grupo (Modalidad)</th>
+                                        <th>Nombre del Examen</th>
+                                        <th>Código FONASA/Interno</th>
+                                        <th class="text-end">Arancel (Precio Base)</th>
+                                        <th class="text-center pe-4">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade h-100" id="tab-honorarios" role="tabpanel">
+                    <div class="d-flex flex-column h-100">
+                        <div class="card bg-white border-0 shadow-sm mb-3">
+                            <div class="card-body py-3 d-flex justify-content-between align-items-end">
+                                <div class="d-flex gap-4">
+                                    <div>
+                                        <label class="form-label small fw-bold text-muted mb-1"><i
+                                                class="bi bi-calendar-month me-1"></i>Mes Producción</label>
+                                        <input type="month" id="mesHonorarios" class="form-control fw-bold text-primary"
+                                            onchange="renderReporteHonorarios()">
+                                    </div>
+                                    <div>
+                                        <label class="form-label small fw-bold text-muted mb-1"><i
+                                                class="bi bi-percent me-1"></i>Comisión Rad.</label>
+                                        <div class="input-group">
+                                            <input type="number" id="porcentajeComision"
+                                                class="form-control fw-bold text-center" value="25" min="1" max="100"
+                                                style="width: 80px;" onchange="renderReporteHonorarios()">
+                                            <span class="input-group-text bg-light">%</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <h6 class="small fw-bold text-muted mb-1">Total a Pagar (Mes)</h6>
+                                    <h3 class="mb-0 fw-bold text-success" id="totalHonorariosGlobal">$0</h3>
                                 </div>
                             </div>
                         </div>
-                        <div>
-                            <h6 class="small fw-bold text-muted mb-1">Total a Pagar (Mes)</h6>
-                            <h3 class="mb-0 fw-bold text-success" id="totalHonorariosGlobal">$0</h3>
+                        <div class="card shadow-sm border-0 flex-grow-1 overflow-auto">
+                            <table class="table table-hover align-middle mb-0" id="tablaHonorariosAdmin">
+                                <thead class="bg-light sticky-top">
+                                    <tr>
+                                        <th class="ps-4">Médico Radiólogo</th>
+                                        <th class="text-center">Informes Firmados</th>
+                                        <th class="text-center">Exámenes Totales</th>
+                                        <th class="text-end">Producción (Facturado)</th>
+                                        <th class="text-end pe-4 text-success">Honorarios a Pagar</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                        <div class="text-end mt-3">
+                            <button class="btn btn-outline-success fw-bold shadow-sm"
+                                onclick="exportarExcelHonorarios()">
+                                <i class="bi bi-file-earmark-excel-fill me-2"></i>Exportar Honorarios a Excel
+                            </button>
                         </div>
                     </div>
                 </div>
-                <div class="card shadow-sm border-0 flex-grow-1 overflow-auto">
-                    <table class="table table-hover align-middle mb-0" id="tablaHonorariosAdmin">
-                        <thead class="bg-light sticky-top">
-                            <tr>
-                                <th class="ps-4">Médico Radiólogo</th>
-                                <th class="text-center">Informes Firmados</th>
-                                <th class="text-center">Exámenes Totales</th>
-                                <th class="text-end">Producción (Facturado)</th>
-                                <th class="text-end pe-4 text-success">Honorarios a Pagar</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-                <div class="text-end mt-3">
-                    <button class="btn btn-outline-success fw-bold shadow-sm" onclick="exportarExcelHonorarios()">
-                        <i class="bi bi-file-earmark-excel-fill me-2"></i>Exportar Honorarios a Excel
-                    </button>
-                </div>
-            </div>
-        </div>
 
-        <div class="tab-pane fade h-100" id="tab-examenes" role="tabpanel">
-            <div class="d-flex flex-column h-100">
-                <div class="card bg-white border-0 shadow-sm mb-3">
-                    <div class="card-body py-3 d-flex justify-content-between align-items-end">
-                        <div class="d-flex gap-4">
-                            <div>
-                                <label class="form-label small fw-bold text-muted mb-1"><i
-                                        class="bi bi-calendar-month me-1"></i>Mes a Consultar</label>
-                                <input type="month" id="mesExamenes" class="form-control fw-bold text-primary"
-                                    onchange="renderReporteExamenes()">
+                <div class="tab-pane fade h-100" id="tab-examenes" role="tabpanel">
+                    <div class="d-flex flex-column h-100">
+                        <div class="card bg-white border-0 shadow-sm mb-3">
+                            <div class="card-body py-3 d-flex justify-content-between align-items-end">
+                                <div class="d-flex gap-4">
+                                    <div>
+                                        <label class="form-label small fw-bold text-muted mb-1"><i
+                                                class="bi bi-calendar-month me-1"></i>Mes a Consultar</label>
+                                        <input type="month" id="mesExamenes" class="form-control fw-bold text-primary"
+                                            onchange="renderReporteExamenes()">
+                                    </div>
+                                </div>
+                                <div>
+                                    <h6 class="small fw-bold text-muted mb-1">Total Exámenes</h6>
+                                    <h3 class="mb-0 fw-bold text-primary" id="totalExamenesGlobal">0</h3>
+                                </div>
                             </div>
                         </div>
-                        <div>
-                            <h6 class="small fw-bold text-muted mb-1">Total Exámenes</h6>
-                            <h3 class="mb-0 fw-bold text-primary" id="totalExamenesGlobal">0</h3>
+                        <div class="card shadow-sm border-0 flex-grow-1 overflow-auto">
+                            <table class="table table-hover align-middle mb-0" id="tablaExamenesAdmin">
+                                <thead class="bg-light sticky-top">
+                                    <tr>
+                                        <th class="ps-4">Nombre del Examen</th>
+                                        <th>Modalidad / Sala</th>
+                                        <th class="text-center pe-4">Total Realizados (Mes)</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                        <div class="text-end mt-3">
+                            <button class="btn btn-outline-primary fw-bold shadow-sm" onclick="exportarExcelExamenes()">
+                                <i class="bi bi-file-earmark-excel-fill me-2"></i>Exportar Exámenes a Excel
+                            </button>
                         </div>
                     </div>
                 </div>
-                <div class="card shadow-sm border-0 flex-grow-1 overflow-auto">
-                    <table class="table table-hover align-middle mb-0" id="tablaExamenesAdmin">
-                        <thead class="bg-light sticky-top">
-                            <tr>
-                                <th>Fecha</th>
-                                <th>Paciente (RUT)</th>
-                                <th>Estudio Realizado</th>
-                                <th>Modalidad / Sala</th>
-                                <th>Estado Actual</th>
-                                <th>Médico Asignado</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
+
+                <div class="tab-pane fade h-100 overflow-y-auto custom-scrollbar" id="tab-config" role="tabpanel">
+                    <div class="card shadow-sm border-0 p-4 min-vh-100 bg-white">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h5 class="fw-bold text-secondary mb-0"><i class="bi bi-building-gear me-2"></i>Identidad
+                                Institucional y Operaciones</h5>
+                            <button class="btn btn-sm btn-dark fw-bold shadow-sm d-none" id="btnNuevaMatriz"
+                                onclick="nuevaMatriz()">
+                                <i class="bi bi-building-add me-1"></i> Crear Nueva Casa Matriz
+                            </button>
+                        </div>
+
+                        <form id="formConfigCentro">
+                            <div class="row g-4 mb-3">
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold small text-muted">Tipo de Laboratorio *</label>
+                                    <select class="form-select" id="cfgTipo"></select>
+                                </div>
+                                <div class="col-md-8">
+                                    <label class="form-label fw-bold small text-muted">Nombre de la Clínica / Centro
+                                        Matriz</label>
+                                    <input type="text" class="form-control" id="cfgNombre">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold small text-muted">Dirección Comercial</label>
+                                    <input type="text" class="form-control" id="cfgDireccion"
+                                        placeholder="Ej. Av. Las Araucarias 1020">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold small text-muted">Ciudad</label>
+                                    <input type="text" class="form-control" id="cfgCiudad" placeholder="Ej. Temuco">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold small text-muted">Teléfono de Contacto</label>
+                                    <input type="text" class="form-control" id="cfgTelefono"
+                                        placeholder="Ej. +56 9 1234 5678">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold small text-muted">Correo Electrónico
+                                        Oficial</label>
+                                    <input type="email" class="form-control" id="cfgEmail"
+                                        placeholder="contacto@clinica.cl">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold text-secondary small">Logo del Centro
+                                        (JPG/PNG)</label>
+                                    <input type="file" id="cfgLogo" class="form-control" accept="image/png, image/jpeg">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold text-secondary small">Color del Texto
+                                        (Informe)</label>
+                                    <input type="color" id="cfgColorInforme"
+                                        class="form-control form-control-color w-100" title="Elegir color">
+                                </div>
+                            </div>
+
+                            <h6 class="fw-bold text-secondary mb-3 mt-4 border-bottom pb-2">Configuración de la Agenda
+                            </h6>
+                            <div class="row g-4 mb-4">
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold small text-muted">Hora de Apertura</label>
+                                    <input type="time" class="form-control" id="cfgHoraInicio">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold small text-muted">Hora de Cierre</label>
+                                    <input type="time" class="form-control" id="cfgHoraFin">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold small text-muted">Intervalo Base (Bloques)</label>
+                                    <select class="form-select" id="cfgIntervalo">
+                                        <option value="00:10:00">10 Minutos</option>
+                                        <option value="00:15:00">15 Minutos</option>
+                                        <option value="00:20:00">20 Minutos</option>
+                                        <option value="00:30:00">30 Minutos</option>
+                                        <option value="01:00:00">1 Hora</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="text-end mb-5">
+                                <button type="button" class="btn btn-secondary fw-bold px-5 shadow-sm"
+                                    onclick="guardarConfigCentroAdmin()">
+                                    <i class="bi bi-save me-2"></i>Guardar Ajustes Matriz
+                                </button>
+                            </div>
+                        </form>
+
+                        <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2 mt-4">
+                            <h5 class="fw-bold text-primary mb-0"><i class="bi bi-diagram-3-fill me-2"></i>Sucursales
+                                (Laboratorios Hijos)</h5>
+                            <button class="btn btn-sm btn-primary fw-bold shadow-sm" onclick="nuevaSucursal()">
+                                <i class="bi bi-plus-lg me-1"></i> Añadir Sucursal
+                            </button>
+                        </div>
+                        <div class="table-responsive border rounded shadow-sm">
+                            <table class="table table-hover align-middle mb-0" id="tablaSucursalesAdmin">
+                                <thead class="bg-light text-secondary small">
+                                    <tr>
+                                        <th class="ps-3">Nombre Sucursal</th>
+                                        <th>Dirección / Ciudad</th>
+                                        <th>Teléfono</th>
+                                        <th class="text-center">Estado</th>
+                                        <th class="text-center pe-3">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
-                <div class="text-end mt-3">
-                    <button class="btn btn-outline-primary fw-bold shadow-sm" onclick="exportarExcelExamenes()">
-                        <i class="bi bi-file-earmark-excel-fill me-2"></i>Exportar Exámenes a Excel
-                    </button>
+
+                <div class="tab-pane fade" id="tab-servicios" role="tabpanel">
+                    <div class="card shadow-sm border-0 h-100">
+                        <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+                            <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-hospital me-2 text-info"></i>Servicios
+                                Clínicos
+                            </h5>
+                            <button class="btn btn-info fw-bold text-white shadow-sm" onclick="nuevoServicio()">
+                                <i class="bi bi-plus-lg me-2"></i> Nuevo Servicio
+                            </button>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0" id="tablaServiciosAdmin">
+                                    <thead class="bg-light text-secondary">
+                                        <tr>
+                                            <th class="ps-4">ID</th>
+                                            <th>Nombre del Servicio</th>
+                                            <th>Descripción</th>
+                                            <th class="text-center pe-4">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade h-100" id="tab-planes" role="tabpanel">
+                    <div class="d-flex flex-column h-100">
+                        <div class="d-flex justify-content-between mb-3">
+                            <div class="input-group shadow-sm" style="width: 350px;">
+                                <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
+                                <input type="text" id="searchPlan" class="form-control border-start-0"
+                                    placeholder="Buscar convenio..." onkeyup="renderListaPlanesAdmin()">
+                            </div>
+                            <button class="btn btn-primary fw-bold shadow px-4" onclick="nuevoPlan()">
+                                <i class="bi bi-plus-lg me-2"></i>Nuevo Plan
+                            </button>
+                        </div>
+                        <div class="card shadow-sm border-0 flex-grow-1 overflow-auto">
+                            <table class="table table-hover align-middle mb-0" id="tablaPlanesAdmin">
+                                <thead class="bg-light sticky-top">
+                                    <tr>
+                                        <th class="ps-4">ID</th>
+                                        <th>Previsión (Aseguradora)</th>
+                                        <th>Nombre del Plan / Convenio</th>
+                                        <th class="text-center">Descuento (%)</th>
+                                        <th class="text-center pe-4">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade h-100" id="tab-previsiones" role="tabpanel">
+                    <div class="d-flex flex-column h-100">
+                        <div class="d-flex justify-content-between mb-3">
+                            <div class="input-group shadow-sm" style="width: 350px;">
+                                <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
+                                <input type="text" id="searchPrevision" class="form-control border-start-0"
+                                    placeholder="Buscar previsión..." onkeyup="renderListaPrevisionesAdmin()">
+                            </div>
+                            <button class="btn btn-danger fw-bold shadow px-4" onclick="nuevaPrevision()">
+                                <i class="bi bi-plus-lg me-2"></i>Nueva Previsión
+                            </button>
+                        </div>
+                        <div class="card shadow-sm border-0 flex-grow-1 overflow-auto">
+                            <table class="table table-hover align-middle mb-0" id="tablaPrevisionesAdmin">
+                                <thead class="bg-light sticky-top">
+                                    <tr>
+                                        <th class="ps-4">ID</th>
+                                        <th>Nombre Aseguradora / Institución</th>
+                                        <th class="text-center">Alcance</th>
+                                        <th class="text-center pe-4">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade h-100" id="tab-plantillas" role="tabpanel">
+                    <div class="d-flex flex-column h-100">
+                        <div class="d-flex justify-content-between mb-3">
+                            <div class="input-group shadow-sm" style="width: 350px;">
+                                <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
+                                <input type="text" id="searchPlantilla" class="form-control border-start-0"
+                                    placeholder="Buscar por título o modalidad..."
+                                    onkeyup="renderListaPlantillasAdmin()">
+                            </div>
+                            <button class="btn btn-warning fw-bold text-dark shadow px-4" onclick="nuevaPlantilla()">
+                                <i class="bi bi-plus-lg me-2"></i>Nueva Plantilla
+                            </button>
+                        </div>
+                        <div class="card shadow-sm border-0 flex-grow-1 overflow-auto">
+                            <table class="table table-hover align-middle mb-0" id="tablaPlantillasAdmin">
+                                <thead class="bg-light sticky-top">
+                                    <tr>
+                                        <th class="ps-4">Modalidad</th>
+                                        <th>Título de Plantilla</th>
+                                        <th class="text-center">Alcance</th>
+                                        <th class="text-center pe-4">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
+    </div>
+</div>
+<div class="modal fade" id="modalSucursal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold"><i class="bi bi-building me-2"></i>Ficha de Sucursal</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light">
+                <form id="formSucursal">
+                    <input type="hidden" id="sucId">
 
-        <div class="tab-pane fade h-100" id="tab-config" role="tabpanel">
-            <div class="card shadow-sm border-0 p-4 h-100 overflow-auto bg-white">
-                <h5 class="fw-bold text-secondary mb-4"><i class="bi bi-building-gear me-2"></i>Identidad Institucional
-                    y Operaciones</h5>
-
-                <form id="formConfigCentro">
-                    <div class="row g-4 mb-4">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold small text-muted">Nombre de la Clínica / Centro de
-                                Imagenología</label>
-                            <input type="text" class="form-control" id="cfgNombre"
-                                placeholder="Ej. Centro de Diagnóstico RIS PRO">
-                            <div class="form-text">Este nombre aparecerá en la cabecera de los informes médicos.</div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Tipo de Sucursal *</label>
+                        <select class="form-select req-suc" id="sucTipo"></select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Nombre de la Sucursal *</label>
+                        <input type="text" class="form-control req-suc" id="sucNombre">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Dirección</label>
+                        <input type="text" class="form-control" id="sucDireccion">
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold small text-muted">Ciudad</label>
+                            <input type="text" class="form-control" id="sucCiudad">
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold small text-muted">Dirección Comercial</label>
-                            <input type="text" class="form-control" id="cfgDireccion"
-                                placeholder="Ej. Av. Las Araucarias 1020">
-                            <div class="form-text">Aparecerá en las impresiones y etiquetas.</div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold small text-muted">Teléfono</label>
+                            <input type="text" class="form-control" id="sucTelefono">
                         </div>
                     </div>
-
-                    <h6 class="fw-bold text-secondary mb-3 mt-4 border-bottom pb-2">Configuración de la Agenda</h6>
-                    <div class="row g-4 mb-4">
-                        <div class="col-md-4">
-                            <label class="form-label fw-bold small text-muted">Hora de Apertura</label>
-                            <input type="time" class="form-control" id="cfgHoraInicio">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label fw-bold small text-muted">Hora de Cierre</label>
-                            <input type="time" class="form-control" id="cfgHoraFin">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label fw-bold small text-muted">Intervalo Base (Bloques)</label>
-                            <select class="form-select" id="cfgIntervalo">
-                                <option value="00:10:00">10 Minutos</option>
-                                <option value="00:15:00">15 Minutos</option>
-                                <option value="00:20:00">20 Minutos</option>
-                                <option value="00:30:00">30 Minutos</option>
-                                <option value="01:00:00">1 Hora</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="mt-4 pt-3 border-top text-end">
-                        <button type="button" class="btn btn-secondary fw-bold px-5 shadow-sm"
-                            onclick="guardarConfigCentro()">
-                            <i class="bi bi-save me-2"></i>Guardar Ajustes Generales
-                        </button>
+                    <div class="form-check form-switch mt-3">
+                        <input class="form-check-input" type="checkbox" id="sucActiva" checked>
+                        <label class="form-check-label fw-bold text-dark" for="sucActiva">Sucursal Operativa
+                            (Activa)</label>
                     </div>
                 </form>
             </div>
+            <div class="modal-footer d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-danger" id="btnEliminarSucursal"
+                    onclick="eliminarSucursal()">Eliminar</button>
+                <div>
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary fw-bold text-white px-4"
+                        onclick="guardarSucursal()">Guardar</button>
+                </div>
+            </div>
         </div>
-
     </div>
 </div>
 
@@ -327,7 +606,8 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body bg-light p-4">
-                <form id="adminForm">
+                <<form id="adminForm">
+                    <input type="hidden" id="uId">
                     <h6 class="fw-bold text-primary mb-3 border-bottom pb-2">1. Identidad Personal</h6>
                     <div class="row g-3 mb-4">
                         <div class="col-md-4">
@@ -355,28 +635,15 @@
                             </select>
                         </div>
                         <div class="col-md-8">
-                            <label class="form-label small fw-bold">Roles</label>
-                            <div class="d-flex flex-wrap gap-2 mt-1">
-                                <div class="form-check form-check-inline m-0"><input class="form-check-input role-check"
-                                        type="checkbox" value="admin" id="rolAdmin"><label
-                                        class="form-check-label badge bg-dark text-white" for="rolAdmin">Admin</label>
-                                </div>
-                                <div class="form-check form-check-inline m-0"><input class="form-check-input role-check"
-                                        type="checkbox" value="recepcion" id="rolRec"><label
-                                        class="form-check-label badge bg-success text-white"
-                                        for="rolRec">Recepción</label></div>
-                                <div class="form-check form-check-inline m-0"><input class="form-check-input role-check"
-                                        type="checkbox" value="tecnologo" id="rolTM"><label
-                                        class="form-check-label badge bg-info text-dark" for="rolTM">Tecnólogo</label>
-                                </div>
-                                <div class="form-check form-check-inline m-0"><input class="form-check-input role-check"
-                                        type="checkbox" value="radiologo" id="rolRad"><label
-                                        class="form-check-label badge bg-danger text-white"
-                                        for="rolRad">Radiólogo</label></div>
-                                <div class="form-check form-check-inline m-0"><input class="form-check-input role-check"
-                                        type="checkbox" value="transcriptor" id="rolSec"><label
-                                        class="form-check-label badge bg-warning text-dark"
-                                        for="rolSec">Transcriptor</label></div>
+                            <label class="form-label fw-bold text-secondary small">Laboratorios / Sucursales</label>
+                            <select id="uLaboratorio" class="form-select req-user" multiple size="3">
+                            </select>
+                            <small class="text-muted">Mantén presionado Ctrl (o Cmd) para seleccionar varios.</small>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label fw-bold small text-muted">Roles del Sistema *</label>
+                            <div id="contenedorRolesAdmin" class="d-flex flex-wrap gap-3 p-2 bg-white border rounded">
+                                <span class="text-muted small">Cargando roles...</span>
                             </div>
                         </div>
                     </div>
@@ -392,7 +659,14 @@
                                 type="text" class="form-control" id="uDragonProfile" placeholder="Ej. DrPerez_Voz">
                         </div>
                     </div>
-                </form>
+                    <div class="row g-3 mt-2">
+                        <div class="col-md-12"><label class="form-label small fw-bold">Firma Digitalizada</label> <input
+                                type="file" id="uFirma" class="form-control" accept="image/png, image/jpeg">
+                            <small class="text-muted">Recomendado: Imagen PNG con fondo transparente.</small>
+                        </div>
+
+                    </div>
+                    </form>
             </div>
             <div class="modal-footer d-flex justify-content-between">
                 <button type="button" class="btn btn-outline-danger" id="btnEliminarUsuario"
@@ -463,18 +737,19 @@
             </div>
             <div class="modal-body bg-light p-4">
                 <form id="formSala">
+                    <input type="hidden" id="salaIdOriginal">
                     <div class="mb-3">
                         <label class="form-label fw-bold small text-muted">ID Interno del Sistema</label>
-                        <input type="text" class="form-control req-sala" id="salaId" placeholder="Ej. res_rx3">
+                        <input type="hidden" class="form-control req-sala" id="salaId" placeholder="Ej. res_rx3">
                         <div class="form-text" style="font-size: 0.7rem;">Debe ser único, sin espacios.</div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">Nombre Comercial de la Sala</label>
+                        <label class="form-label fw-bold small text-muted">Nombre Comercial de la Sala *</label>
                         <input type="text" class="form-control req-sala" id="salaNombre"
                             placeholder="Ej. Sala de Rayos X Principal">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">Modalidad / Grupo DICOM</label>
+                        <label class="form-label fw-bold small text-muted">Modalidad / Grupo DICOM *</label>
                         <select class="form-select req-sala" id="salaGrupo">
                             <option value="RX">Radiología Convencional (RX)</option>
                             <option value="CT">Tomografía / Scanner (CT)</option>
@@ -482,6 +757,22 @@
                             <option value="ECO">Ecografía / Ultrasonido (US)</option>
                             <option value="MAMO">Mamografía (MG)</option>
                         </select>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold small text-muted">Fabricante (Opc.)</label>
+                            <input type="text" class="form-control" id="salaFabricante"
+                                placeholder="Ej: Siemens, GE...">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold small text-muted">Modelo (Opc.)</label>
+                            <input type="text" class="form-control" id="salaModelo" placeholder="Ej: Somatom Go">
+                        </div>
+                    </div>
+                    <div class="mb-1">
+                        <label class="form-label fw-bold small text-muted">Descripción / Ubicación (Opc.)</label>
+                        <textarea class="form-control" id="salaDescripcion" rows="2"
+                            placeholder="Ej: Sala 3, Primer Piso..."></textarea>
                     </div>
                 </form>
             </div>
@@ -507,7 +798,7 @@
             </div>
             <div class="modal-body bg-light p-4">
                 <form id="formExamen">
-                    <input type="hidden" id="catGrupoOriginal">
+                    <input type="hidden" id="catId"> <input type="hidden" id="catGrupoOriginal">
                     <input type="hidden" id="catNombreOriginal">
 
                     <div class="mb-3">
@@ -551,6 +842,300 @@
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
                     <button type="button" class="btn btn-danger fw-bold text-white px-4"
                         onclick="guardarExamen()">Guardar Arancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalServicio" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title fw-bold"><i class="bi bi-hospital me-2"></i> Configurar Servicio</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light">
+                <form id="formServicio">
+                    <input type="hidden" id="srvId">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Nombre del Servicio *</label>
+                        <input type="text" class="form-control req-srv" id="srvNombre"
+                            placeholder="Ej. Urgencias, UCI, Traumatología">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Descripción (Opcional)</label>
+                        <input type="text" class="form-control" id="srvDesc" placeholder="Detalles adicionales...">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-danger" id="btnEliminarServicio"
+                    onclick="eliminarServicio()">Eliminar</button>
+                <div>
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-info fw-bold text-white px-4"
+                        onclick="guardarServicio()">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalImportarExamenes" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-file-earmark-excel me-2"></i>Importar Aranceles</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light">
+                <div class="alert alert-info border-info shadow-sm mb-4">
+                    <h6 class="fw-bold mb-2"><i class="bi bi-info-circle-fill me-2"></i>¿Cómo importar?</h6>
+                    <p class="small mb-2">Descargue la plantilla base, llénela con sus exámenes y vuelva a subirla aquí.
+                        Las columnas obligatorias son:</p>
+                    <ul class="small mb-3 text-dark">
+                        <li><b>group_code:</b> Solo use RX, CT, MRI o ECO.</li>
+                        <li><b>name:</b> El nombre completo del examen.</li>
+                        <li><b>fonasa_code:</b> Código interno o Fonasa (Opcional).</li>
+                        <li><b>price:</b> Valor en pesos (sin puntos ni signos).</li>
+                    </ul>
+                    <button class="btn btn-sm btn-outline-info fw-bold w-100 bg-white"
+                        onclick="descargarPlantillaExamenes()">
+                        <i class="bi bi-download me-1"></i> Descargar Plantilla Excel (CSV)
+                    </button>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold small text-muted">Subir Archivo Listo</label>
+                    <input type="file" id="archivoExamenes" class="form-control" accept=".xlsx, .xls, .csv">
+                </div>
+                <div id="progresoImportacion" class="d-none">
+                    <div class="progress" style="height: 10px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-success"
+                            role="progressbar" style="width: 100%"></div>
+                    </div>
+                    <p class="text-center small mt-2 fw-bold text-success">Procesando datos, por favor espere...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-sm btn-success fw-bold px-3 shadow-sm"
+                    onclick="procesarImportacionExamenes()">
+                    <i class="bi bi-upload me-1"></i> Iniciar Carga
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalPlan" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-primary text-white py-3">
+                <h5 class="modal-title fw-bold"><i class="bi bi-shield-check me-2"></i>Ficha de Plan / Convenio</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light p-4">
+                <form id="formPlan">
+                    <input type="hidden" id="planId">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Previsión / Aseguradora *</label>
+                        <select class="form-select req-plan" id="planInsurance">
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Nombre del Plan *</label>
+                        <input type="text" class="form-control req-plan" id="planNombre"
+                            placeholder="Ej. Fonasa Nivel 1, Isapre Banmédica...">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Porcentaje de Descuento (%) *</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control req-plan text-center" id="planPorcentaje" min="0"
+                                max="100" step="0.1" placeholder="Ej. 10.5">
+                            <span class="input-group-text bg-white">%</span>
+                        </div>
+                        <div class="form-text small">Valor de 0 a 100. (Ej: 0 = Sin descuento, 100 = Gratuito).</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-danger" id="btnEliminarPlan"
+                    onclick="eliminarPlan()">Eliminar</button>
+                <div>
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary fw-bold px-4" onclick="guardarPlan()">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalPrevision" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-danger text-white py-3">
+                <h5 class="modal-title fw-bold"><i class="bi bi-heart-pulse-fill me-2"></i>Ficha de Previsión</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light p-4">
+                <form id="formPrevision">
+                    <input type="hidden" id="prevId">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Nombre de la Previsión / Empresa *</label>
+                        <input type="text" class="form-control req-prev" id="prevNombre"
+                            placeholder="Ej. Isapre CruzBlanca, Convenio Empresa X...">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-danger" id="btnEliminarPrevision"
+                    onclick="eliminarPrevision()">Eliminar</button>
+                <div>
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger fw-bold px-4 text-white"
+                        onclick="guardarPrevision()">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalPacienteDetalle" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-success text-white py-3">
+                <h5 class="modal-title fw-bold"><i class="bi bi-person-vcard me-2"></i>Ficha del Paciente</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light p-4">
+                <div class="row g-4">
+                    <div class="col-md-6 border-bottom pb-2">
+                        <label class="small fw-bold text-muted mb-1 d-block"><i
+                                class="bi bi-person-badge me-1"></i>RUT</label>
+                        <div id="detRut" class="fw-bold text-dark fs-6"></div>
+                    </div>
+                    <div class="col-md-6 border-bottom pb-2">
+                        <label class="small fw-bold text-muted mb-1 d-block"><i
+                                class="bi bi-person-fill me-1"></i>Nombre Completo</label>
+                        <div id="detNombre" class="fw-bold text-dark fs-6"></div>
+                    </div>
+                    <div class="col-md-6 border-bottom pb-2">
+                        <label class="small fw-bold text-muted mb-1 d-block"><i
+                                class="bi bi-envelope-at me-1"></i>Correo Electrónico</label>
+                        <div id="detEmail" class="text-dark"></div>
+                    </div>
+                    <div class="col-md-6 border-bottom pb-2">
+                        <label class="small fw-bold text-muted mb-1 d-block"><i
+                                class="bi bi-telephone me-1"></i>Teléfono de Contacto</label>
+                        <div id="detTelefono" class="text-dark"></div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="small fw-bold text-muted mb-1 d-block"><i
+                                class="bi bi-calendar-date me-1"></i>Fecha Nacimiento</label>
+                        <div id="detNacimiento" class="text-dark"></div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="small fw-bold text-muted mb-1 d-block"><i
+                                class="bi bi-gender-ambiguous me-1"></i>Género</label>
+                        <div id="detGenero" class="text-dark"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-white">
+                <button type="button" class="btn btn-secondary fw-bold px-4 shadow-sm"
+                    data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalMatriz" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-dark text-white py-3">
+                <h5 class="modal-title fw-bold"><i class="bi bi-building-add me-2"></i>Crear Nueva Casa Matriz</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light p-4">
+                <form id="formMatriz">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Tipo de Laboratorio / Clínica *</label>
+                        <select class="form-select req-matriz" id="matrizTipo"></select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Nombre Comercial *</label>
+                        <input type="text" class="form-control req-matriz" id="matrizNombre"
+                            placeholder="Ej. Centro Médico Vida Salud">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Dirección Principal</label>
+                        <input type="text" class="form-control" id="matrizDireccion">
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold small text-muted">Ciudad</label>
+                            <input type="text" class="form-control" id="matrizCiudad">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold small text-muted">Teléfono</label>
+                            <input type="text" class="form-control" id="matrizTelefono">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-dark fw-bold text-white px-4" onclick="guardarMatriz()">Crear
+                    Matriz</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalPlantilla" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-warning text-dark py-3">
+                <h5 class="modal-title fw-bold"><i class="bi bi-file-earmark-text-fill me-2"></i>Editor de Plantilla
+                    Médica</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light p-4">
+                <form id="formPlantilla">
+                    <input type="hidden" id="tplId">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small text-muted">Modalidad / Grupo *</label>
+                            <select class="form-select req-tpl" id="tplGrupo">
+                                <option value="RX">Radiología (RX)</option>
+                                <option value="CT">Scanner (CT)</option>
+                                <option value="MRI">Resonancia (MRI)</option>
+                                <option value="ECO">Ecografía (ECO)</option>
+                                <option value="MAMO">Mamografía (MAMO)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label fw-bold small text-muted">Título Descriptivo *</label>
+                            <input type="text" class="form-control req-tpl" id="tplTitulo"
+                                placeholder="Ej. Tórax Normal 2 Proyecciones">
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label fw-bold small text-muted">Contenido del Informe *</label>
+                        <textarea class="form-control req-tpl" id="tplContenido" rows="10"
+                            placeholder="Redacte la estructura base del informe aquí..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-danger" id="btnEliminarPlantilla"
+                    onclick="eliminarPlantilla()">Eliminar</button>
+                <div>
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-warning fw-bold text-dark px-4"
+                        onclick="guardarPlantilla()">Guardar</button>
                 </div>
             </div>
         </div>

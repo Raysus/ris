@@ -2,228 +2,231 @@
    MÓDULO DE VALIDACIÓN (validation.js)
    ========================================= */
 
+let currentValidationData = [];
 let currentValidationChain = null;
-let currentValStudy = null;
+let colorInformeGlobalValidation = "#333333";
 
 function initValidation() {
-    loadRISState();
-    llenarFiltroRadiologos();
-    renderValidationStudies();
-    setupSincronizacionValidacion();
+    cargarAjustesVisualesValidacion();
+    cargarListaValidacion();
+    setInterval(cargarListaValidacion, 30000);
+}
+async function cargarAjustesVisualesValidacion() {
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+    try {
+        const response = await fetch(`${API_URL}/settings`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+        const data = await response.json();
+
+        if (response.ok && data.success && data.data && data.data.settings && data.data.settings.colorInforme) {
+            colorInformeGlobalValidation = data.data.settings.colorInforme;
+            $("#finalReportText").css("color", colorInformeGlobalValidation);
+        }
+    } catch (e) { console.error("Error cargando ajustes visuales:", e); }
 }
 
-function llenarFiltroRadiologos() {
-    const select = $("#filtroRadiologoActivo");
-    select.find('option:not(:first)').remove();
+async function cargarListaValidacion() {
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+    const lista = $("#validationStudies");
 
-    (window.RIS.radiologists || []).forEach(rad => {
-        select.append(`<option value="${rad}">${rad}</option>`);
-    });
+    try {
+        const response = await fetch(`${API_URL}/radiologist/validations`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+        const data = await response.json();
 
-    const savedRad = localStorage.getItem('ris_current_radiologist');
-    if (savedRad) select.val(savedRad);
-
-    select.on('change', function () {
-        localStorage.setItem('ris_current_radiologist', $(this).val());
-        limpiarPantallaValidacion();
-    });
-}
-
-function setupSincronizacionValidacion() {
-    window.addEventListener('storage', (e) => {
-        if (e.key === 'ris_app_data') { loadRISState(); renderValidationStudies(); }
-    });
-    window.addEventListener('ris_updated', () => { renderValidationStudies(); });
+        if (response.ok && data.success) {
+            currentValidationData = data.data;
+            renderValidationStudies();
+        }
+    } catch (e) {
+        console.error("Error cargando validaciones:", e);
+        lista.html('<div class="p-4 text-center text-danger"><i class="bi bi-wifi-off fs-2 d-block mb-2"></i>Error de conexión</div>');
+    }
 }
 
 function renderValidationStudies() {
     const lista = $("#validationStudies");
-    if (!lista.length) return;
     lista.empty();
 
-    const radActivo = $("#filtroRadiologoActivo").val();
-    const cadenas = {};
-    let firmasCount = 0;
+    $("#badgeParaFirma").text(currentValidationData.length);
 
-    (window.RIS.worklist || []).forEach(item => {
-        if (radActivo !== 'ALL' && item.mDestinado && item.mDestinado !== radActivo) {
-            return;
-        }
+    if (currentValidationData.length === 0) {
+        return lista.append('<div class="p-4 text-center text-muted"><i class="bi bi-check2-all fs-2 d-block mb-2 text-success"></i>Bandeja vacía. Todo firmado.</div>');
+    }
 
-        let hasPending = false;
-        item.studies.forEach(s => {
-            if (s.reportStatus === 'para_firma') hasPending = true;
-        });
+    currentValidationData.forEach(cadena => {
+        const isActive = currentValidationChain && currentValidationChain.id === cadena.id ? 'active bg-primary text-white border-primary' : '';
+        const examenesStr = cadena.studies.map(s => s.exam).join(" + ");
 
-        if (hasPending) {
-            const acc = item.accessionNumber || item.id;
-            if (!cadenas[acc]) {
-                cadenas[acc] = { accessionNumber: acc, patient: item.patient, items: [], allExams: [] };
-                firmasCount++;
-            }
-            cadenas[acc].items.push(item);
-            item.studies.forEach(s => {
-                if (s.reportStatus === 'para_firma') cadenas[acc].allExams.push(s.exam);
-            });
-        }
-    });
-
-    $("#badgeParaFirma").text(firmasCount);
-    if (firmasCount === 0) return lista.append('<div class="p-4 text-center text-muted"><i class="bi bi-check2-all fs-2 d-block mb-2 text-success"></i>Bandeja vacía.</div>');
-
-    Object.values(cadenas).forEach(cadena => {
-        const isActive = currentValidationChain && currentValidationChain.accessionNumber === cadena.accessionNumber ? 'active bg-primary text-white border-primary' : '';
         lista.append(`
-            <button type="button" class="list-group-item list-group-item-action ${isActive} p-3 border-bottom" onclick="cargarValidacion('${cadena.accessionNumber}')">
+            <button type="button" class="list-group-item list-group-item-action ${isActive} p-3 border-bottom" onclick="cargarValidacion('${cadena.id}')">
                 <div class="d-flex justify-content-between align-items-center mb-1">
                     <strong class="text-truncate">${cadena.patient.lastName}, ${cadena.patient.name}</strong>
                 </div>
-                <div class="small fw-bold ${isActive ? 'text-white' : 'text-primary'} text-truncate"><i class="bi bi-file-text me-1"></i>${cadena.allExams.join(" + ")}</div>
+                <div class="small fw-bold ${isActive ? 'text-white' : 'text-primary'} text-truncate"><i class="bi bi-file-text me-1"></i>${examenesStr}</div>
             </button>
         `);
     });
 }
 
-function cargarValidacion(accessionNumber) {
-    const itemsInChain = window.RIS.worklist.filter(w => w.accessionNumber === accessionNumber || w.id === accessionNumber);
-    if (itemsInChain.length === 0) return;
-
-    currentValidationChain = {
-        accessionNumber: accessionNumber,
-        items: itemsInChain,
-        patient: itemsInChain[0].patient,
-        mTratante: itemsInChain[0].mTratante,
-        fechaAten: itemsInChain[0].start,
-        informeTexto: itemsInChain.find(i => i.informeTexto)?.informeTexto || "",
-        allExams: [],
-        machines: new Set()
-    };
-
-    itemsInChain.forEach(item => {
-        item.studies.forEach(s => currentValidationChain.allExams.push(s.exam));
-        currentValidationChain.machines.add(item.machine);
-    });
+function cargarValidacion(citaId) {
+    currentValidationChain = currentValidationData.find(c => String(c.id) === String(citaId));
+    if (!currentValidationChain) return;
 
     renderValidationStudies();
 
     $("#infoPacienteValidacion").addClass("d-none");
     $("#docHeader, #firmaFalsa").removeClass("d-none");
 
-    const clinicaNombre = (window.RIS.config && window.RIS.config.clinicName) ? window.RIS.config.clinicName : "Centro de Diagnóstico Integral RIS PRO";
-    const clinicaDireccion = (window.RIS.config && window.RIS.config.clinicAddress) ? window.RIS.config.clinicAddress : "Av. Las Araucarias 1020, Temuco, Chile";
-
-    $("#docClinicaNombre").text(clinicaNombre.toUpperCase());
-    $("#docClinicaDireccion").html(`<i class="bi bi-geo-alt-fill me-1"></i>${clinicaDireccion}`);
-
     const p = currentValidationChain.patient;
     $("#docPaciente").text(`${p.name} ${p.lastName} ${p.secondLastName || ''}`);
     $("#docRut").text(p.rut);
+
     $("#docEdad").text(p.age ? `${p.age} años` : 'No especificada');
 
     let fechaTexto = 'No registrada';
-    if (currentValidationChain.fechaAten) {
-        const fechaAtencionObj = new Date(currentValidationChain.fechaAten);
-        if (!isNaN(fechaAtencionObj)) fechaTexto = fechaAtencionObj.toLocaleDateString('es-CL');
+    if (currentValidationChain.start_time) {
+        const fechaObj = new Date(currentValidationChain.start_time);
+        if (!isNaN(fechaObj)) fechaTexto = fechaObj.toLocaleDateString('es-CL');
     }
-
     $("#docFecha").text(fechaTexto);
-    $("#docDerivante").text(currentValidationChain.mTratante || 'No indicado');
+    $("#docDerivante").text(currentValidationChain.referringDoctorName || 'No indicado');
+
     $("#docIdCita").text(`Accession Global: ${currentValidationChain.accessionNumber}`);
 
-    const examenesStr = currentValidationChain.allExams.join(" + ");
-    $("#docExamen").text(examenesStr);
-    $("#examenesValidacion").html(`<i class="bi bi-eye me-1"></i> Revisando Cadena: ${examenesStr}`);
+    const nombreFirma = currentValidationChain.destinationDoctorName
+        ? `Dr(a). ${currentValidationChain.destinationDoctorName}`
+        : "Dr. Radiólogo General";
 
-    const radActivo = $("#filtroRadiologoActivo").val();
-    const nombreFirma = radActivo !== 'ALL' ? radActivo : (currentValidationChain.items[0].mDestinado || "Dr. Radiólogo General");
-    $("#firmaNombre").text(nombreFirma);
+    const firmaImagenHtml = currentValidationChain.firmaUrl
+        ? `<img src="${currentValidationChain.firmaUrl}" style="max-height: 70px; max-width: 200px; margin-bottom: 5px; display: block; margin-left: auto; margin-right: auto;"><br>`
+        : ``;
 
-    $("#finalReportText").val(currentValidationChain.informeTexto).prop("disabled", false);
+    $("#firmaNombre").html(`${firmaImagenHtml}<b>${nombreFirma}</b>`);
+
+    let tabsHtml = '<div class="d-flex gap-2 flex-wrap">';
+    currentValidationChain.studies.forEach((study, index) => {
+        tabsHtml += `<button id="tab-val-${study.study_id}" class="study-tab-btn btn btn-sm btn-outline-primary fw-bold shadow-sm" onclick="cargarEstudioValidacion('${study.study_id}')">
+            <i class="bi bi-file-text me-1"></i>${study.exam}</button>`;
+    });
+    tabsHtml += '</div>';
+    $("#examenesValidacion").html(tabsHtml);
+
+    if (currentValidationChain.studies.length > 0) {
+        cargarEstudioValidacion(currentValidationChain.studies[0].study_id);
+    }
+
     $("#btnRechazar, #btnAprobar, #btnPreview").prop("disabled", false);
 }
 
-function firmarInforme() {
+function cargarEstudioValidacion(studyId) {
+    currentValStudy = currentValidationChain.studies.find(s => String(s.study_id) === String(studyId));
+
+    $(".study-tab-btn").removeClass("bg-primary text-white").addClass("btn-outline-primary");
+    $(`#tab-val-${studyId}`).removeClass("btn-outline-primary").addClass("bg-primary text-white");
+
+    $("#docExamen").text(currentValStudy.exam);
+    $("#finalReportText").val(currentValStudy.reportText || "").prop("disabled", false);
+}
+
+async function firmarInforme() {
     if (!currentValidationChain) return;
 
-    const textoFinal = $("#finalReportText").val().trim();
-    if (!textoFinal) return showToast("El informe no puede estar vacío.", "danger");
+    if (confirm("¿Confirmas que TODOS los informes están correctos y procedes a firmarlos digitalmente?")) {
+        const token = localStorage.getItem('ris_token');
+        const labId = localStorage.getItem('ris_lab_id');
+        const btn = $("#btnAprobar");
 
-    if (confirm("¿Confirmas que el informe global está correcto y procedes a firmarlo digitalmente?")) {
+        try {
+            btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Firmando...');
 
-        const fechaFirma = new Date().toLocaleString();
+            const paqueteInformes = currentValidationChain.studies.map(s => ({
+                id: s.study_id,
+                text: s.reportText
+            }));
 
-        const radActivo = $("#filtroRadiologoActivo").val();
-        const nombreFirma = radActivo !== 'ALL' ? radActivo : (currentValidationChain.items[0].mDestinado || "Dr. Radiólogo General");
+            const response = await fetch(`${API_URL}/radiologist/appointments/${currentValidationChain.id}/sign`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+                body: JSON.stringify({
+                    reports: paqueteInformes,
+                    dictation_method: 'transcripcion_revisada'
+                })
+            });
 
-        currentValidationChain.items.forEach(item => {
-            const wlIdx = window.RIS.worklist.findIndex(w => w.id === item.id);
-            if (wlIdx > -1) {
-                window.RIS.worklist[wlIdx].informeTexto = textoFinal;
-                window.RIS.worklist[wlIdx].status = 'entregable';
-                window.RIS.worklist[wlIdx].firmado = true;
-                window.RIS.worklist[wlIdx].fechaFirma = fechaFirma;
-                window.RIS.worklist[wlIdx].medicoFirmante = nombreFirma;
-
-                window.RIS.worklist[wlIdx].studies.forEach(s => {
-                    s.reportStatus = 'entregable';
-                    s.informeTexto = textoFinal;
-                    s.firmado = true;
-                    s.fechaFirma = fechaFirma;
-                    s.medicoFirmante = nombreFirma;
-                });
+            if (response.ok) {
+                showToast("✅ Informes firmados digitalmente y liberados.", "success");
+                limpiarPantallaValidacion();
+                cargarListaValidacion();
+            } else {
+                throw new Error("Error al firmar");
             }
-
-            const agendaIdx = window.RIS.agenda.findIndex(a => a.id === item.id);
-            if (agendaIdx > -1) {
-                window.RIS.agenda[agendaIdx].status = 'entregable';
-                if (window.RIS.agenda[agendaIdx].studies) {
-                    window.RIS.agenda[agendaIdx].studies.forEach(s => s.reportStatus = 'entregable');
-                }
-            }
-        });
-
-        saveRISState();
-        limpiarPantallaValidacion();
-        showToast("✅ Informe Global firmado digitalmente por " + nombreFirma, "success");
+        } catch (e) {
+            showToast("❌ Error en el servidor al firmar.", "danger");
+        } finally {
+            btn.prop('disabled', false).html('<i class="bi bi-pen-fill me-1"></i> APROBAR Y FIRMAR INFORME');
+        }
     }
 }
 
-function rechazarInforme() {
+async function rechazarInforme() {
     if (!currentValidationChain) return;
 
-    const motivo = prompt("Indique a la secretaria las correcciones que debe realizar al informe global:");
+    const motivo = prompt("Indique a la secretaria las correcciones que debe realizar al informe:");
 
-    if (motivo) {
-        currentValidationChain.items.forEach(item => {
-            const wlIdx = window.RIS.worklist.findIndex(w => w.id === item.id);
-            if (wlIdx > -1) {
-                window.RIS.worklist[wlIdx].informeTexto = $("#finalReportText").val().trim();
-                window.RIS.worklist[wlIdx].notasCorreccion = motivo;
-                window.RIS.worklist[wlIdx].status = 'en_transcripcion';
-                window.RIS.worklist[wlIdx].firmado = false;
+    if (motivo === null) return;
+    if (motivo.trim() === "") {
+        return showToast("⚠️ Debe ingresar un motivo para poder rechazarlo.", "warning");
+    }
 
-                window.RIS.worklist[wlIdx].studies.forEach(s => s.reportStatus = 'pendiente_transcripcion');
-            }
-            const agendaIdx = window.RIS.agenda.findIndex(a => a.id === item.id);
-            if (agendaIdx > -1) window.RIS.agenda[agendaIdx].status = 'en_transcripcion';
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+    const btn = $("#btnRechazar");
+
+    try {
+        btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Devolviendo...');
+
+        console.log("Enviando petición a la Cita ID:", currentValidationChain.id);
+
+        const response = await fetch(`${API_URL}/radiologist/appointments/${currentValidationChain.id}/reject-transcription`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`,
+                'X-Lab-Id': labId
+            },
+            body: JSON.stringify({ reason: motivo.trim() })
         });
 
-        saveRISState();
-        limpiarPantallaValidacion();
-        showToast("Estudio Global devuelto a la Bandeja de Transcripción", "warning");
+        if (response.ok) {
+            showToast("⚠️ Informe devuelto a la Bandeja de Transcripción.", "warning");
+            limpiarPantallaValidacion();
+            cargarListaValidacion();
+        } else {
+            const errorData = await response.text();
+            console.error("Error del backend:", errorData);
+            throw new Error(`Error ${response.status}`);
+        }
+    } catch (e) {
+        console.error("Error completo:", e);
+        showToast("❌ Error al devolver. Revisa la consola (F12).", "danger");
+    } finally {
+        btn.prop('disabled', false).html('<i class="bi bi-x-circle me-1"></i> Rechazar y Devolver a Secretaria');
     }
 }
 
 function limpiarPantallaValidacion() {
     currentValidationChain = null;
-    currentValStudy = null;
     $("#infoPacienteValidacion").removeClass("d-none");
     $("#docHeader, #firmaFalsa").addClass("d-none");
     $("#examenesValidacion").empty();
     $("#finalReportText").val("").prop("disabled", true);
     $("#btnRechazar, #btnAprobar, #btnPreview").prop("disabled", true);
-
-    renderValidationStudies();
 }
 
 function generarVistaPrevia() {
@@ -241,3 +244,13 @@ function generarVistaPrevia() {
         alert("Librería PDF no cargada.");
     }
 }
+
+$(document).ready(function () {
+    initValidation();
+
+    $(document).on("input", "#finalReportText", function () {
+        if (currentValStudy) {
+            currentValStudy.reportText = $(this).val();
+        }
+    });
+});

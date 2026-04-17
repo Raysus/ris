@@ -55,7 +55,7 @@
                 <a data-page="entrega">
                     <i class="bi bi-box-seam me-2"></i> <span>Entrega/Retiro</span>
                 </a>
-                <a data-page="admin" >
+                <a data-page="admin">
                     <i class="bi bi-gear-fill me-2 text-secondary"></i> <span>Administración</span>
                 </a>
                 <a data-page="dashboard">
@@ -72,6 +72,16 @@
                     </button>
                 </div>
                 <div class="right d-flex align-items-center gap-3">
+                    <div class="d-none me-3" id="navLabSelectorContainer">
+                        <div class="input-group input-group-sm shadow-sm">
+                            <span class="input-group-text bg-white border-primary text-primary">
+                                <i class="bi bi-building"></i>
+                            </span>
+                            <select class="form-select border-primary fw-bold text-primary bg-light" id="navLabSelector"
+                                style="cursor: pointer;">
+                            </select>
+                        </div>
+                    </div>
                     <div class="text-end lh-1">
                         <span id="userNameDisplay" class="fw-bold text-primary small d-block">Cargando...</span>
                         <span id="userRoleDisplay" class="text-muted"
@@ -96,6 +106,7 @@
     <div id="globalLoader">
         <div class="spinner-border text-primary" role="status"></div>
     </div>
+    <script src="js/app.js"></script>
 
     <script src="js/core/storage.js"></script>
     <script src="js/core/router.js"></script>
@@ -114,7 +125,7 @@
     <script src="js/integrations/pacs.js"></script>
     <script src="js/integrations/hl7.js"></script>
 
-    <script src="js/app.js"></script>
+
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {

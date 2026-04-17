@@ -1,22 +1,75 @@
 /* =========================================
-   MÓDULO WORKLIST (worklist.js) - Tecnólogo Médico
+   MÓDULO WORKLIST (worklist.js)
    ========================================= */
 
 let currentAtencionChain = null;
+let currentWorklistFromDB = [];
+let currentCadenas = {};
+let currentSuppliesFromDB = [];
+
+const pesosPrioridad = {
+    "Urgencia": 3,
+    "Alta": 2,
+    "Normal": 1
+};
 
 function initWorklist() {
-    loadRISState();
-    llenarFiltroSalas();
-    renderWorklist();
-    renderAlertasInsumos();
+    cargarInsumosBodega();
+    cargarWorklistDesdeServidor();
+
+    setInterval(cargarWorklistDesdeServidor, 30000);
 }
 
-function llenarFiltroSalas() {
-    const select = $("#filterMachine");
-    select.empty().append('<option value="">Todas las Salas</option>');
-    (window.RIS.resources || []).forEach(res => {
-        select.append(`<option value="${res.id}">${res.title}</option>`);
-    });
+async function cargarInsumosBodega() {
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+    try {
+        const response = await fetch(`${API_URL}/supplies`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
+        });
+        const data = await response.json();
+
+        if (response.ok && data.data) {
+            currentSuppliesFromDB = data.data;
+            const select = $("#insumoSelect");
+            select.empty().append('<option value="">Seleccione insumo...</option>');
+            currentSuppliesFromDB.forEach(ins => {
+                if (ins.stock > 0) {
+                    select.append(`<option value="${ins.id}" data-stock="${ins.stock}">${ins.category || 'Insumo'} - ${ins.name} (Disp: ${ins.stock})</option>`);
+                }
+            });
+            renderAlertasInsumos();
+        }
+    } catch (e) { console.error("Error cargando insumos", e); }
+}
+
+async function cargarWorklistDesdeServidor() {
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+    const tbody = $("#worklistTable tbody");
+
+    try {
+        const response = await fetch(`${API_URL}/worklist`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
+        });
+        const data = await response.json();
+
+        if (response.ok && data.data) {
+            currentWorklistFromDB = data.data;
+            renderWorklist();
+        } else {
+            tbody.html('<tr><td colspan="7" class="text-center text-muted p-4">No se pudo cargar la lista.</td></tr>');
+        }
+    } catch (e) {
+        console.error("Error Worklist:", e);
+        tbody.html('<tr><td colspan="7" class="text-center text-danger p-4"><i class="bi bi-wifi-off me-2"></i>Error de conexión al servidor</td></tr>');
+    }
+}
+
+function getBadgePrioridad(prioridad) {
+    if (prioridad === 'Urgencia') return '<span class="badge bg-danger fw-bold shadow-sm" style="animation: pulse 1.5s infinite;">🚨 Urgencia</span>';
+    if (prioridad === 'Alta') return '<span class="badge bg-warning text-dark fw-bold">Alta</span>';
+    return '<span class="badge bg-light text-secondary border">Normal</span>';
 }
 
 function renderWorklist() {
@@ -25,91 +78,96 @@ function renderWorklist() {
     const search = $("#searchPatient").val() ? $("#searchPatient").val().toLowerCase() : "";
 
     tbody.empty();
+    currentCadenas = {};
 
-    const cadenas = {};
-    (window.RIS.worklist || []).forEach(item => {
-        if (!['waiting', 'dicom_enviado'].includes(item.status)) return;
+    currentWorklistFromDB.forEach(study => {
+        const app = study.appointment;
+        if (!app) return;
+        if (!['confirmado', 'devuelto_worklist', 'dicom_enviado'].includes(app.status)) return;
+        if (filter && study.machine_id != filter) return;
 
-        const rut = item.patient.rut;
-        const dateStr = item.start ? item.start.split('T')[0] : 'nodate';
-        const chainId = rut + "_" + dateStr;
+        const p = app.patient?.persona || {};
+        const nombreCompleto = `${p.names || ''} ${p.last_name_1 || ''}`.trim() || 'Paciente';
+        const rutSeguro = p.rut || `NORUT-${app.id}`;
 
-        if (!cadenas[chainId]) {
-            cadenas[chainId] = {
+        if (search && !nombreCompleto.toLowerCase().includes(search) && !rutSeguro.toLowerCase().includes(search)) return;
+
+        const dateStr = String(app.start_time || new Date().toISOString()).split('T')[0];
+        const chainId = `${rutSeguro}_${dateStr}`;
+
+        if (!currentCadenas[chainId]) {
+            currentCadenas[chainId] = {
                 chainId: chainId,
-                patient: item.patient,
+                paciente: nombreCompleto,
+                rut: rutSeguro,
+                cleanTime: app.start_time,
+                citasIds: new Set(),
                 items: [],
-                machines: new Set(),
-                allStudies: [],
-                priority: item.priority || 'Normal',
-                status: 'waiting',
-                globalAccession: null,
-                referenceId: item.id,
-                notasDevolucion: null
+                insumosAsignados: [],
+                statusGlobal: app.status,
+                accessionGlobal: app.accession_number,
+                returnReason: app.return_reason
             };
         }
 
-        cadenas[chainId].items.push(item);
-        cadenas[chainId].machines.add(item.machine);
-        item.studies.forEach(s => cadenas[chainId].allStudies.push({ ...s, _machine: item.machine }));
+        currentCadenas[chainId].items.push(study);
+        currentCadenas[chainId].citasIds.add(app.id); // Registramos el ID de la cita
 
-        if (item.status === 'dicom_enviado') cadenas[chainId].status = 'dicom_enviado';
-        if (item.priority === 'Urgencia') cadenas[chainId].priority = 'Urgencia';
-        else if (item.priority === 'Alta' && cadenas[chainId].priority !== 'Urgencia') cadenas[chainId].priority = 'Alta';
-        if (item.accessionNumber) cadenas[chainId].globalAccession = item.accessionNumber;
-        if (item.notasDevolucion) cadenas[chainId].notasDevolucion = item.notasDevolucion;
+        if (app.status === 'dicom_enviado') {
+            currentCadenas[chainId].statusGlobal = 'dicom_enviado';
+            currentCadenas[chainId].accessionGlobal = app.accession_number; // 🔴 CAMBIO 1
+        }
+
+        if (app.return_reason) {
+            currentCadenas[chainId].returnReason = app.return_reason;
+        }
     });
 
-    const filtered = Object.values(cadenas).filter(cadena => {
-        const matchesMachine = filter === "" || Array.from(cadena.machines).includes(filter);
-        const p = cadena.patient;
-        const pName = p.name ? p.name.toLowerCase() : "";
-        const pLast = p.lastName ? p.lastName.toLowerCase() : "";
-        const pRut = p.rut ? p.rut.toLowerCase() : "";
-        const matchesSearch = pName.includes(search) || pLast.includes(search) || pRut.includes(search);
-        return matchesMachine && matchesSearch;
-    });
+    const cadenasArray = Object.values(currentCadenas);
 
-    if (filtered.length === 0) {
-        tbody.append('<tr><td colspan="6" class="text-center p-4 text-muted">No hay pacientes en espera</td></tr>');
+    if (cadenasArray.length === 0) {
+        tbody.append(`<tr><td colspan="7" class="text-center text-muted p-5"><i class="bi bi-cup-hot fs-1 d-block mb-3"></i>No hay pacientes en espera en este momento.</td></tr>`);
         return;
     }
 
-    filtered.forEach(cadena => {
-        const statusConfig = getStatusBadge(cadena.status);
-        const machinesBadges = Array.from(cadena.machines).map(m => `<span class="badge bg-light text-dark border me-1">${m}</span>`).join('');
-        const studiesBadges = cadena.allStudies.map(s => `<span class="badge bg-primary-subtle text-primary me-1 mb-1">${s.exam}</span>`).join('');
+    cadenasArray.sort((a, b) => new Date(a.cleanTime).getTime() - new Date(b.cleanTime).getTime());
 
-        const alertIcon = cadena.notasDevolucion
-            ? `<span class="blink-icon shadow-sm me-2" title="Devuelto por Radiólogo: ${cadena.notasDevolucion}" 
-                     style="display: inline-flex; align-items: center; justify-content: center; 
-                            width: 18px; height: 18px; background-color: red; color: white; 
-                            border-radius: 50%; font-weight: 900; font-size: 13px; 
-                            border: 1px solid white; flex-shrink: 0; box-shadow: 0 0 5px rgba(255,0,0,0.8);">!</span>`
+    cadenasArray.forEach(cadena => {
+        const salas = [...new Set(cadena.items.map(i => i.machine ? i.machine.name : `Sala ${i.machine_id}`))];
+        const examenes = cadena.items.map(i => `<i class="bi bi-check2 me-1"></i>${i.exam_name}`).join("<br>");
+        const badgesSalas = salas.map(s => `<span class="badge bg-secondary me-1">${s}</span>`).join('');
+        const horaStr = new Date(cadena.cleanTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        let statusText = cadena.statusGlobal === 'dicom_enviado'
+            ? '<span class="badge bg-info text-white"><i class="bi bi-cpu me-1"></i>En Modalidad</span>'
+            : '<span class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i>En Espera</span>';
+
+        const accLabel = cadena.accessionGlobal
+            ? `<div class="small fw-bold text-primary mt-1"><i class="bi bi-upc-scan me-1"></i>A.N: ${cadena.accessionGlobal}</div>` : '';
+
+        const alertaDevolucion = cadena.returnReason
+            ? `<div class="small fw-bold text-danger mt-1 bg-danger-subtle p-1 rounded border border-danger">
+                 <i class="bi bi-exclamation-triangle-fill"></i> Rechazado: ${cadena.returnReason}
+               </div>`
             : '';
 
-        const accLabel = cadena.globalAccession
-            ? `<div class="small fw-bold text-primary mt-1" style="${cadena.notasDevolucion ? 'margin-left: 26px;' : ''}"><i class="bi bi-upc-scan me-1"></i>A.N: ${cadena.globalAccession}</div>`
-            : '';
+        const badgePrioridad = getBadgePrioridad('Normal');
 
         tbody.append(`
-            <tr class="worklist-row align-middle">
-                <td>
-                    <div class="fw-bold text-dark d-flex align-items-center">
-                        ${alertIcon}
-                        <span class="text-truncate">${cadena.patient.lastName || ''} ${cadena.patient.secondLastName || ''}, ${cadena.patient.name || ''}</span>
-                    </div>
-                    <small class="text-muted d-block" style="${cadena.notasDevolucion ? 'margin-left: 26px;' : ''}">${cadena.patient.rut}</small>
+            <tr class="align-middle border-bottom">
+                <td class="fw-bold text-primary">${horaStr}</td>
+                <td class="fw-bold text-dark">
+                    ${cadena.paciente} <br>
+                    <small class="text-muted">${cadena.rut}</small>
                     ${accLabel}
-                </td>
-                <td>${studiesBadges}</td>
-                <td>${machinesBadges}</td>
-                <div class="small text-muted mt-1"><i class="bi bi-person-fill"></i> ${cadena.items[0].mDestinado || 'Dr. General'}</div>
-                <td><span class="text-${cadena.priority === 'Alta' || cadena.priority === 'Urgencia' ? 'danger fw-bold' : 'muted'}">${cadena.priority}</span></td>
-                <td>${statusConfig}</td>
+                    ${alertaDevolucion} </td>
+                <td class="small text-secondary fw-bold">${examenes}</td>
+                <td>${badgesSalas}</td>
+                <td class="text-center">${badgePrioridad}</td>
+                <td class="text-center">${statusText}</td>
                 <td class="text-center">
-                    <button onclick="abrirAtencion('${cadena.chainId}')" class="btn btn-sm btn-primary px-3 shadow-sm">
-                        <i class="bi bi-play-fill me-1"></i>Atender
+                    <button class="btn btn-primary btn-sm fw-bold px-3 shadow-sm" onclick="abrirAtencion('${cadena.chainId}')">
+                        <i class="bi bi-play-circle me-1"></i> Atender
                     </button>
                 </td>
             </tr>
@@ -118,220 +176,194 @@ function renderWorklist() {
 }
 
 function abrirAtencion(chainId) {
-    const parts = chainId.split('_');
-    const rut = parts[0];
-    const dateStr = parts[1];
+    currentAtencionChain = currentCadenas[chainId];
+    if (!currentAtencionChain) return;
 
-    const itemsInChain = window.RIS.worklist.filter(item => {
-        if (!['waiting', 'dicom_enviado'].includes(item.status)) return false;
-        const itemDate = item.start ? item.start.split('T')[0] : 'nodate';
-        return item.patient.rut === rut && itemDate === dateStr;
-    });
+    $("#atencionNombre").text(currentAtencionChain.paciente);
+    $("#atencionRut").text(currentAtencionChain.rut);
 
-    if (itemsInChain.length === 0) return;
+    $("#atencionId").text(chainId + ` (${currentAtencionChain.citasIds.size} Cita/s)`);
 
-    currentAtencionChain = {
-        items: itemsInChain,
-        patient: itemsInChain[0].patient,
-        allStudies: [],
-        machines: new Set(),
-        status: itemsInChain.some(i => i.status === 'dicom_enviado') ? 'dicom_enviado' : 'waiting',
-        globalAccession: itemsInChain[0].accessionNumber || null,
-        notasDevolucion: itemsInChain.find(i => i.notasDevolucion)?.notasDevolucion || null
-    };
+    const salas = [...new Set(currentAtencionChain.items.map(i => i.machine ? i.machine.name : `Sala ${i.machine_id}`))];
+    $("#atencionSala").text(salas.join(" + "));
 
-    itemsInChain.forEach(item => {
-        currentAtencionChain.machines.add(item.machine);
-        item.studies.forEach(s => currentAtencionChain.allStudies.push({ ...s, _machine: item.machine }));
-    });
-
-    $("#atencionNombre").text(`${currentAtencionChain.patient.name} ${currentAtencionChain.patient.lastName}`);
-    $("#atencionRut").text(currentAtencionChain.patient.rut);
-    $("#atencionSala").text(Array.from(currentAtencionChain.machines).join(" + "));
-    $("#atencionId").text(chainId);
-
-    const existingAnamnesis = itemsInChain.find(i => i.anamnesis)?.anamnesis || "";
-    $("#txtAnamnesis").val(existingAnamnesis);
-
-    const studiesDiv = $("#atencionEstudios");
-    studiesDiv.empty();
-    currentAtencionChain.allStudies.forEach((s) => {
-        studiesDiv.append(`
-            <div class="list-group-item d-flex justify-content-between align-items-center bg-white border-primary border-start border-4 mb-1">
-                <div>
-                    <strong class="text-dark">${s.exam}</strong>
-                    <small class="d-block text-muted">Sub-Examen: ${s.subExam || 'N/A'}</small>
-                </div>
-                <span class="badge bg-secondary">${s._machine}</span>
+    const listaHtml = currentAtencionChain.items.map(item => `
+        <div class="list-group-item d-flex justify-content-between align-items-center bg-white border-primary border-start border-4 mb-1">
+            <div>
+                <strong class="text-dark">${item.exam_name}</strong>
+                <small class="d-block text-muted">Sub-examen: ${item.sub_exam_name || 'N/A'}</small>
             </div>
-        `);
-    });
+            <span class="badge bg-primary rounded-pill">Cant: ${item.quantity}</span>
+        </div>
+    `).join('');
+    $("#atencionEstudios").html(listaHtml);
 
-    $("#alertDevolucion").remove();
-    if (currentAtencionChain.notasDevolucion) {
-        studiesDiv.before(`
-            <div id="alertDevolucion" class="alert border-danger bg-danger-subtle shadow-sm mb-3">
-                <h6 class="fw-bold text-danger mb-1"><i class="bi bi-exclamation-triangle-fill me-1"></i> ATENCIÓN: Estudio Devuelto por Radiólogo</h6>
-                <p class="mb-0 text-dark small"><strong>Motivo del rechazo:</strong> ${currentAtencionChain.notasDevolucion}</p>
-            </div>
-        `);
-    }
+    $("#txtAnamnesis").val("");
+    $("#insumoSelect").val("");
+    $("#insumoQty").val("1");
+    renderInsumosUsados();
 
-    setDicomUI(currentAtencionChain.status === 'dicom_enviado', currentAtencionChain.globalAccession);
-
-    $("#tablaInsumosAsignados tbody").empty();
-    $("#insumoTipo").val("");
-    $("#insumoItem").empty().append('<option value="">Seleccione Insumo...</option>');
+    const yaEnviado = currentAtencionChain.statusGlobal === 'dicom_enviado';
+    setDicomUI(yaEnviado, currentAtencionChain.accessionGlobal);
 
     $("#modalAtencion").modal('show');
 }
 
 function setDicomUI(enviado, acc = null) {
     if (acc) {
-        $("#globalAccessionDisplay").removeClass("d-none").text("Accession Global: " + acc);
-
+        $("#globalAccessionDisplay").removeClass("d-none").text("Accession: " + acc);
         if (enviado) {
             $("#btnDicom").attr("disabled", true).removeClass("btn-info").addClass("btn-secondary")
                 .html('<i class="bi bi-check-circle"></i> ENVIADO A MODALIDADES');
-            $("#dicomStatus").html('<span class="text-success fw-bold">● PACIENTE LISTO EN EQUIPOS</span>');
+            $("#dicomStatus").html('<span class="text-success fw-bold">● LISTO EN EQUIPOS</span>');
         } else {
             $("#btnDicom").attr("disabled", false).addClass("btn-info text-white").removeClass("btn-secondary")
                 .html('<i class="bi bi-broadcast"></i> RE-ENVIAR A EQUIPOS');
-            $("#dicomStatus").html('<span class="text-warning fw-bold"><i class="bi bi-exclamation-triangle-fill me-1"></i>Ya posee A.N. ¿Re-enviar DICOM?</span>');
+            $("#dicomStatus").html('<span class="text-warning fw-bold">¿Re-enviar DICOM?</span>');
         }
     } else {
         $("#btnDicom").attr("disabled", false).addClass("btn-info text-white").removeClass("btn-secondary")
-            .html('<i class="bi bi-broadcast"></i> CREAR A.N. Y ENVIAR A EQUIPOS');
+            .html('<i class="bi bi-broadcast"></i> CREAR A.N. Y ENVIAR');
         $("#dicomStatus").html('<span class="text-muted">Esperando envío DICOM...</span>');
         $("#globalAccessionDisplay").addClass("d-none").text("");
     }
 }
 
-function actualizarListaInsumos() {
-    const tipo = $("#insumoTipo").val();
-    const itemSelect = $("#insumoItem");
-    itemSelect.empty().append('<option value="">Seleccione Insumo...</option>');
+async function enviarADicom() {
+    if (!currentAtencionChain) return;
 
-    if (tipo && window.RIS.inventoryZero[tipo]) {
-        window.RIS.inventoryZero[tipo].forEach(ins => {
-            const lowStockTag = (ins.stock <= ins.total * 0.10) ? ' ⚠️ (Crítico)' : '';
-            itemSelect.append(`<option value="${ins.id}" data-stock="${ins.stock}">${ins.nombre} - Disp: ${ins.stock}${lowStockTag}</option>`);
-        });
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+    const btn = $("#btnDicom");
+
+    const citasInvolucradas = Array.from(currentAtencionChain.citasIds);
+
+    try {
+        btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>Sincronizando...');
+
+        let ultimoAccession = null;
+        let exitos = 0;
+        let fallidos = 0;
+
+        for (const citaId of citasInvolucradas) {
+            try {
+                const response = await fetch(`${API_URL}/appointments/${citaId}/dicom`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                        'X-Lab-Id': labId
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    ultimoAccession = data.accession_number;
+                    exitos++;
+                } else {
+                    console.error(`Error en Cita ID ${citaId}:`, await response.text());
+                    fallidos++;
+                }
+            } catch (err) {
+                fallidos++;
+            }
+        }
+
+        if (exitos > 0 && fallidos === 0) {
+            setDicomUI(true, ultimoAccession);
+            showToast(`📡 Sincronización exitosa: ${exitos} estudios enviados al PACS.`, "success");
+        } else if (exitos > 0 && fallidos > 0) {
+            setDicomUI(true, ultimoAccession);
+            showToast(`⚠️ Sincronización incompleta: ${exitos} OK, ${fallidos} errores.`, "warning");
+        } else {
+            showToast("❌ Error crítico: No se pudo comunicar con el servidor DICOM.", "danger");
+        }
+
+        await cargarWorklistDesdeServidor();
+
+    } catch (e) {
+        console.error("Error de red:", e);
+        showToast("🔌 Error de conexión con el servidor central.", "danger");
+    } finally {
+        btn.prop('disabled', false).html('<i class="bi bi-broadcast me-1"></i> ENVIAR A EQUIPOS');
     }
 }
 
-function agregarInsumo() {
-    const tipo = $("#insumoTipo").val();
-    const itemSelect = $("#insumoItem option:selected");
-    const itemId = itemSelect.val();
-    const currentStock = parseInt(itemSelect.data("stock"));
+function agregarInsumoAAtencion() {
+    const select = $("#insumoSelect option:selected");
+    const id = select.val();
+    const maxStock = parseInt(select.data("stock") || 0);
+    const qty = parseInt($("#insumoQty").val()) || 1;
 
-    if (!itemId) return;
-    if (currentStock <= 0) return showToast("Stock agotado para este insumo", "danger");
+    if (!id) return;
+    if (qty > maxStock) return showToast(`Solo quedan ${maxStock} unidades disponibles.`, "warning");
 
-    const insumo = window.RIS.inventoryZero[tipo].find(i => i.id === itemId);
-    insumo.stock -= 1;
+    const nombre = select.text().split(' (')[0];
 
-    saveRISState();
-    evaluarUmbralInsumo(insumo);
-    renderAlertasInsumos();
-    actualizarListaInsumos();
+    const existente = currentAtencionChain.insumosAsignados.find(i => String(i.id) === String(id));
+    if (existente) {
+        existente.qty += qty;
+    } else {
+        currentAtencionChain.insumosAsignados.push({ id: id, nombre: nombre, qty: qty });
+    }
 
-    const rowId = 'insrow-' + Date.now();
-    const row = `
-        <tr id="${rowId}" class="align-middle">
-            <td class="fw-bold">${insumo.nombre}</td>
-            <td style="width: 100px;">
-                <input type="number" class="form-control form-control-sm text-center ins-qty" 
-                value="1" min="1" data-id="${insumo.id}" data-tipo="${tipo}" data-prev="1" 
-                onchange="modificarCantidadInsumo('${rowId}')">
-            </td>
-            <td class="text-center">
-                <button onclick="removerInsumo('${rowId}', '${tipo}', '${insumo.id}')" class="btn btn-sm btn-outline-danger p-1">
-                    <i class="bi bi-trash"></i>
-                </button>
-            </td>
-        </tr>`;
-    $("#tablaInsumosAsignados tbody").append(row);
+    renderInsumosUsados();
+    $("#insumoSelect").val("");
+    $("#insumoQty").val("1");
 }
 
-function modificarCantidadInsumo(rowId) {
-    const input = $(`#${rowId} .ins-qty`);
-    const newVal = parseInt(input.val()) || 1;
-    const prevVal = parseInt(input.data("prev"));
-    const id = input.data("id");
-    const tipo = input.data("tipo");
+function renderInsumosUsados() {
+    const tbody = $("#tablaInsumosUsados tbody");
+    tbody.empty();
 
-    const insumo = window.RIS.inventoryZero[tipo].find(i => i.id === id);
-    const diff = newVal - prevVal;
-
-    if (insumo.stock < diff) {
-        showToast(`Solo quedan ${insumo.stock} unidades de ${insumo.nombre}`, "danger");
-        input.val(prevVal);
+    if (!currentAtencionChain || currentAtencionChain.insumosAsignados.length === 0) {
+        tbody.append('<tr><td colspan="3" class="text-center text-muted small py-3">Sin insumos registrados.</td></tr>');
         return;
     }
 
-    insumo.stock -= diff;
-    input.data("prev", newVal);
-
-    saveRISState();
-    evaluarUmbralInsumo(insumo);
-    renderAlertasInsumos();
-    actualizarListaInsumos();
+    currentAtencionChain.insumosAsignados.forEach((ins, index) => {
+        tbody.append(`
+            <tr>
+                <td class="ps-3 fw-bold text-dark">${ins.nombre}</td>
+                <td class="text-center"><span class="badge bg-secondary rounded-pill px-2">${ins.qty}</span></td>
+                <td class="text-center">
+                    <button class="btn btn-sm btn-outline-danger py-0 px-1 border-0" onclick="quitarInsumoAtencion(${index})">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </td>
+            </tr>
+        `);
+    });
 }
 
-function removerInsumo(rowId, tipo, insumoId) {
-    const qty = parseInt($(`#${rowId} .ins-qty`).val()) || 1;
-    const insumo = window.RIS.inventoryZero[tipo].find(i => i.id === insumoId);
-
-    insumo.stock += qty;
-    saveRISState();
-    renderAlertasInsumos();
-    actualizarListaInsumos();
-
-    $(`#${rowId}`).remove();
-    showToast(`${qty} ${insumo.nombre} devuelto(s) al stock`, "info");
-}
-
-function evaluarUmbralInsumo(insumo) {
-    const threshold = insumo.total * 0.10;
-    if (insumo.stock <= threshold) {
-        showToast(`⚠️ STOCK CRÍTICO: Quedan solo ${insumo.stock} unidades de ${insumo.nombre}`, "warning");
+function quitarInsumoAtencion(index) {
+    if (currentAtencionChain) {
+        currentAtencionChain.insumosAsignados.splice(index, 1);
+        renderInsumosUsados();
     }
 }
 
 function renderAlertasInsumos() {
     let container = $("#alertasInsumosContainer");
-    if (container.length === 0) {
-        $("#worklistTable").closest('.table-responsive').before('<div id="alertasInsumosContainer" class="mb-3"></div>');
-        container = $("#alertasInsumosContainer");
-    }
-
     container.empty();
     let alertasHtml = '';
-    let hayAlertas = false;
 
-    for (const tipo in window.RIS.inventoryZero) {
-        window.RIS.inventoryZero[tipo].forEach(insumo => {
-            const pct = (insumo.stock / insumo.total) * 100;
-            if (pct <= 10) {
-                hayAlertas = true;
-                const progressColor = pct <= 5 ? 'bg-danger' : 'bg-warning';
-                alertasHtml += `
-                    <span class="badge ${progressColor} text-dark me-2 mb-2 p-2 shadow-sm border border-dark">
-                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
-                        ${insumo.nombre}: ${insumo.stock} Disp. (${Math.round(pct)}%)
-                    </span>`;
-            }
-        });
-    }
+    currentSuppliesFromDB.forEach(insumo => {
+        if (insumo.stock <= 10) {
+            alertasHtml += `
+                <span class="badge bg-danger text-white me-2 mb-2 p-2 shadow-sm">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                    ${insumo.name}: Quedan ${insumo.stock}
+                </span>`;
+        }
+    });
 
-    if (hayAlertas) {
+    if (alertasHtml !== '') {
         container.html(`
-            <div class="alert border-warning shadow-sm py-2 mb-0 d-flex align-items-center" style="background-color: #fffbeb;">
+            <div class="alert border-danger shadow-sm py-2 mb-0 d-flex align-items-center" style="background-color: #fff5f5;">
                 <i class="bi bi-boxes fs-3 me-3 text-danger pulse-icon"></i>
                 <div>
-                    <strong class="d-block text-danger mb-1"><i class="bi bi-arrow-down-right"></i> Panel de Abastecimiento Clínico</strong>
+                    <strong class="d-block text-danger mb-1">Alertas de Inventario Clínico</strong>
                     <div>${alertasHtml}</div>
                 </div>
             </div>
@@ -340,137 +372,95 @@ function renderAlertasInsumos() {
     }
 }
 
-function finalizarAtencion() {
-    if (!currentAtencionChain || currentAtencionChain.items.length === 0) return;
+async function finalizarAtencion() {
+    if (!currentAtencionChain) return;
 
-    const anamnesis = $("#txtAnamnesis").val();
-    if (!anamnesis) return showToast("⚠️ La anamnesis clínica es obligatoria para el Radiólogo.", "warning");
+    const anamnesis = $("#txtAnamnesis").val().trim();
+    if (!anamnesis) return showToast("⚠️ La anamnesis/notas técnicas son obligatorias.", "warning");
 
-    currentAtencionChain.items.forEach(item => {
-        const wlIdx = window.RIS.worklist.findIndex(w => w.id === item.id);
-        if (wlIdx > -1) {
-            window.RIS.worklist[wlIdx].status = 'en_informe';
-            window.RIS.worklist[wlIdx].anamnesis = anamnesis;
-            window.RIS.worklist[wlIdx].atendidoEl = new Date().toLocaleString();
+    const btn = $("#btnFinalizar");
+    btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Finalizando...');
 
-            delete window.RIS.worklist[wlIdx].notasDevolucion;
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+    const citasInvolucradas = Array.from(currentAtencionChain.citasIds);
 
-            window.RIS.worklist[wlIdx].studies.forEach((study, sIdx) => {
-                study.studyUid = study.studyUid || `ST-${item.id}-${sIdx}`;
-                if (!study.reportStatus) {
-                    study.reportStatus = 'pendiente_radiologo';
-                    study.reportText = '';
-                    study.reportAudio = null;
-                    study.informadoPor = '';
-                }
+    try {
+        const payload = {
+            anamnesis: anamnesis,
+            supplies: currentAtencionChain.insumosAsignados.map(ins => ({ id: ins.id, quantity: ins.qty })),
+            status: 'en_informe'
+        };
+
+        for (const citaId of citasInvolucradas) {
+            await fetch(`${API_URL}/appointments/${citaId}/complete-worklist`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+                body: JSON.stringify(payload)
             });
         }
 
-        const agendaIdx = window.RIS.agenda.findIndex(a => a.id === item.id);
-        if (agendaIdx > -1) {
-            window.RIS.agenda[agendaIdx].status = 'en_informe';
-            if (wlIdx > -1) {
-                window.RIS.agenda[agendaIdx].studies = JSON.parse(JSON.stringify(window.RIS.worklist[wlIdx].studies));
-            }
-        }
-    });
-
-    saveRISState();
-    $("#modalAtencion").modal('hide');
-    renderWorklist();
-    window.dispatchEvent(new Event('ris_updated'));
-    showToast("✅ Cadena de estudios derivada exitosamente al Radiólogo", "success");
-}
-
-function enviarADicom() {
-    if (!currentAtencionChain || currentAtencionChain.items.length === 0) return;
-
-    const globalAcc = currentAtencionChain.globalAccession || "ACC-" + Date.now();
-
-    currentAtencionChain.items.forEach(item => {
-        const wlIdx = window.RIS.worklist.findIndex(w => w.id === item.id);
-        if (wlIdx > -1) {
-            window.RIS.worklist[wlIdx].accessionNumber = globalAcc;
-            window.RIS.worklist[wlIdx].status = 'dicom_enviado';
-        }
-
-        const agendaIdx = window.RIS.agenda.findIndex(a => a.id === item.id);
-        if (agendaIdx > -1) window.RIS.agenda[agendaIdx].status = 'dicom_enviado';
-    });
-
-    currentAtencionChain.status = 'dicom_enviado';
-    currentAtencionChain.globalAccession = globalAcc;
-
-    saveRISState();
-    setDicomUI(true, globalAcc);
-    renderWorklist();
-    window.dispatchEvent(new Event('ris_updated'));
-    showToast("📡 Accession Number Global generado y enviado a modalidades.", "info");
-}
-
-function deshacerEstado() {
-    if (!currentAtencionChain) return;
-
-    if (currentAtencionChain.status === 'dicom_enviado') {
-        currentAtencionChain.items.forEach(item => {
-            const wlIdx = window.RIS.worklist.findIndex(w => w.id === item.id);
-            if (wlIdx > -1) window.RIS.worklist[wlIdx].status = 'waiting';
-
-            const agendaIdx = window.RIS.agenda.findIndex(a => a.id === item.id);
-            if (agendaIdx > -1) window.RIS.agenda[agendaIdx].status = 'waiting';
-        });
-
-        currentAtencionChain.status = 'waiting';
-        saveRISState();
-        setDicomUI(false);
-        renderWorklist();
-        window.dispatchEvent(new Event('ris_updated'));
-        showToast("Cadena revertida a Sala de Espera.", "info");
-    } else {
-        showToast("No hay un estado técnico previo para deshacer.", "secondary");
-    }
-}
-
-function getStatusBadge(status) {
-    switch (status) {
-        case 'waiting': return '<span class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i>En Espera</span>';
-        case 'dicom_enviado': return '<span class="badge bg-info text-white"><i class=\"bi bi-cpu me-1\"></i>En Modalidad</span>';
-        default: return '<span class="badge bg-secondary">Pendiente</span>';
-    }
-}
-
-function devolverAAgenda() {
-    if (!currentAtencionChain) return;
-
-    if (confirm("¿Confirmas que deseas devolver al paciente a Recepción? Toda la cadena de estudios se eliminará de la lista técnica.")) {
-        currentAtencionChain.items.forEach(item => {
-            const agendaIdx = window.RIS.agenda.findIndex(a => a.id === item.id);
-            if (agendaIdx > -1) {
-                window.RIS.agenda[agendaIdx].status = 'confirmado';
-                window.RIS.agenda[agendaIdx].needsReview = true;
-            }
-            window.RIS.worklist = window.RIS.worklist.filter(w => w.id !== item.id);
-        });
-
-        saveRISState();
         $("#modalAtencion").modal('hide');
-        renderWorklist();
-        window.dispatchEvent(new Event('ris_updated'));
-        showToast("Paciente devuelto a Recepción.", "warning");
+        cargarWorklistDesdeServidor();
+        cargarInsumosBodega();
+        if (typeof showToast === 'function') showToast("✅ Estudios finalizados y derivados al Radiólogo.", "success");
+
+    } catch (error) {
+        console.error(error);
+        if (typeof showToast === 'function') showToast("❌ Error al finalizar la atención", "danger");
+    } finally {
+        btn.prop('disabled', false).html('<i class="bi bi-check-circle me-1"></i> FINALIZAR Y ENVIAR A PACS');
     }
 }
+async function devolverAAgenda() {
+    if (!currentAtencionChain) return;
 
-window.addEventListener('storage', (e) => {
-    if (e.key === 'ris_app_data') {
-        loadRISState();
-        renderWorklist();
-        renderAlertasInsumos();
-    }
-});
+    const motivo = prompt("Indique el motivo por el cual devuelve al paciente a recepción:\n(Ej: Paciente no tomó agua, orden incorrecta)");
+    if (motivo === null) return;
+    if (motivo.trim() === "") return showToast("⚠️ Debe ingresar un motivo.", "warning");
 
-window.addEventListener('ris_updated', () => {
-    if ($("#worklistTable").length) {
-        renderWorklist();
-        renderAlertasInsumos();
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+    const btn = $("#modalAtencion .btn-outline-danger");
+
+    const citasInvolucradas = currentAtencionChain.citasIds
+        ? Array.from(currentAtencionChain.citasIds)
+        : [currentAtencionChain.cita.id];
+
+    try {
+        btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Devolviendo...');
+
+        for (const citaId of citasInvolucradas) {
+            const response = await fetch(`${API_URL}/appointments/${citaId}/status`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                    'X-Lab-Id': labId
+                },
+                body: JSON.stringify({
+                    status: 'agendado',
+                    needs_review: true,
+                    return_reason: motivo
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.text();
+                console.error(`Error Backend (Cita ${citaId}):`, errorData);
+                throw new Error(`Fallo en el servidor: ${response.status}`);
+            }
+        }
+
+        $("#modalAtencion").modal('hide');
+        cargarWorklistDesdeServidor();
+        if (typeof showToast === 'function') showToast("Paciente devuelto a Recepción exitosamente.", "warning");
+
+    } catch (e) {
+        console.error("Error completo:", e);
+        if (typeof showToast === 'function') showToast("❌ Error al devolver. Revisa la consola (F12).", "danger");
+    } finally {
+        btn.prop('disabled', false).html('<i class="bi bi-reply-all"></i> Devolver a Recepción');
     }
-});
+}

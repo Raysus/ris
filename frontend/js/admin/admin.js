@@ -1,16 +1,39 @@
 /* =========================================
    MÓDULO DE ADMINISTRACIÓN (admin.js)
-   Pestañas: Usuarios, Insumos, Salas, Exámenes, Configuración
    ========================================= */
+let currentServicesFromDB = [];
+let currentUsersFromDB = [];
+let currentExamsFromDB = [];
+let currentMachinesFromDB = [];
+let currentAdminSuppliesFromDB = [];
+let currentSucursalesFromDB = [];
+let catalogRolesFromDB = [];
+let catalogLabTypes = [];
+let currentSucursalesAdmin = [];
+let currentPlanesFromDB = [];
+let catalogInsurances = [];
+let currentPacientesAdmin = [];
+let currentPlantillasFromDB = [];
+
+function esAdminLogueado() {
+    const perfil = localStorage.getItem('ris_user_profile') || '';
+
+    return perfil === 'sis_admin' || perfil === 'admin' || perfil === 'super_admin';
+}
 
 function initAdmin() {
     loadRISState();
-
     renderListaUsuariosAdmin();
     renderListaInsumosAdmin();
     renderListaSalasAdmin();
     renderCatalogoAdmin();
+    renderListaPlanesAdmin();
+    renderListaPlantillasAdmin();
+    cargarInsurancesAdmin();
     cargarConfigCentro();
+    cargarCatalogoRoles();
+
+    if (typeof cargarPacientes === "function") cargarPacientes();
 
     const fechaActual = new Date();
     const mesActual = `${fechaActual.getFullYear()}-${String(fechaActual.getMonth() + 1).padStart(2, '0')}`;
@@ -19,9 +42,7 @@ function initAdmin() {
 
     renderReporteHonorarios();
     renderReporteExamenes();
-
     setupAdminEvents();
-    setupAdminSync();
 }
 
 function setupAdminSync() {
@@ -70,65 +91,245 @@ function setupAdminEvents() {
             showToast("Identidad recuperada de la base de datos.", "info");
         }
     });
+    $('button[data-bs-target="#tab-config"]').on('shown.bs.tab', function (e) {
+        renderTablaSucursales();
+    });
 }
 
-/* =========================================
-   1. GESTIÓN DE USUARIOS
-   ========================================= */
-function renderListaUsuariosAdmin() {
-    const tbody = $("#tablaUsuariosAdmin tbody");
+async function renderListaServiciosAdmin() {
+    const tbody = $("#tablaServiciosAdmin tbody");
     if (!tbody.length) return;
-    tbody.empty();
 
-    const searchStr = $("#searchUsuario").val().toLowerCase();
-    const usuariosFiltrados = (window.RIS.users || []).filter(u => {
-        const p = (window.RIS.personas || []).find(per => per.rut === u.rut) || {};
-        const fullName = `${p.nombres || ''} ${p.apellidoPaterno || ''}`.toLowerCase();
-        return fullName.includes(searchStr) || u.rut.toLowerCase().includes(searchStr) || u.username.toLowerCase().includes(searchStr);
-    });
+    tbody.empty().append(`<tr><td colspan="4" class="text-center p-3"><span class="spinner-border spinner-border-sm text-info"></span> Cargando servicios...</td></tr>`);
 
-    if (usuariosFiltrados.length === 0) {
-        tbody.append(`<tr><td colspan="5" class="text-center text-muted p-4">No se encontraron usuarios.</td></tr>`);
-        return;
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(`${API_URL}/services`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+        const data = await response.json();
+        tbody.empty();
+
+        if (response.ok && data.success) {
+            currentServicesFromDB = data.data;
+
+            if (currentServicesFromDB.length === 0) {
+                return tbody.append(`<tr><td colspan="4" class="text-center text-muted p-4">No hay servicios clínicos creados.</td></tr>`);
+            }
+
+            currentServicesFromDB.forEach(srv => {
+                tbody.append(`
+                    <tr>
+                        <td class="ps-4 fw-bold text-secondary">#${srv.id}</td>
+                        <td class="fw-bold text-dark"><i class="bi bi-hospital me-2 text-muted"></i>${srv.name}</td>
+                        <td class="text-muted">${srv.description || '--'}</td>
+                        <td class="text-center pe-4">
+                            <button class="btn btn-sm btn-outline-info fw-bold text-dark" onclick="cargarServicio('${srv.id}')">
+                                <i class="bi bi-pencil-square"></i> Editar
+                            </button>
+                        </td>
+                    </tr>
+                `);
+            });
+        }
+    } catch (error) {
+        tbody.empty().append(`<tr><td colspan="4" class="text-center text-danger p-4">Error de conexión.</td></tr>`);
+    }
+}
+
+function nuevoServicio() {
+    $("#formServicio")[0].reset();
+    $("#srvId").val("");
+    $(".req-srv").removeClass("is-invalid");
+    $("#btnEliminarServicio").hide();
+    $("#modalServicio").modal('show');
+}
+
+function cargarServicio(id) {
+    const srv = currentServicesFromDB.find(s => s.id == id);
+    if (!srv) return;
+
+    $("#srvId").val(srv.id);
+    $("#srvNombre").val(srv.name);
+    $("#srvDesc").val(srv.description || "");
+
+    $(".req-srv").removeClass("is-invalid");
+    $("#btnEliminarServicio").show();
+    $("#modalServicio").modal('show');
+}
+
+async function guardarServicio() {
+    let hasError = false;
+    if ($("#srvNombre").val().trim() === "") {
+        $("#srvNombre").addClass("is-invalid"); hasError = true;
+    } else {
+        $("#srvNombre").removeClass("is-invalid");
     }
 
-    usuariosFiltrados.forEach(u => {
-        const p = (window.RIS.personas || []).find(per => per.rut === u.rut) || {};
-        const rolesBadges = (u.roles || []).map(r => {
-            let bg = 'bg-secondary';
-            if (r === 'admin') bg = 'bg-dark';
-            if (r === 'radiologo') bg = 'bg-danger';
-            if (r === 'tecnologo') bg = 'bg-info text-dark';
-            if (r === 'recepcion') bg = 'bg-success';
-            if (r === 'transcriptor') bg = 'bg-warning text-dark';
-            return `<span class="badge ${bg} me-1 mb-1" style="text-transform:uppercase;">${r}</span>`;
-        }).join('');
+    if (hasError) return showToast("⚠️ Faltan datos obligatorios.", "danger");
 
-        tbody.append(`
-            <tr>
-                <td class="ps-4">
-                    <div class="fw-bold text-dark">${u.titulo || ''} ${p.nombres || 'Sin Nombre'} ${p.apellidoPaterno || ''}</div>
-                    <small class="text-muted"><i class="bi bi-person-badge me-1"></i>${u.username}</small>
-                </td>
-                <td class="fw-bold text-secondary">${u.rut}</td>
-                <td>${rolesBadges}</td>
-                <td class="small text-muted">
-                    ${u.pacsAE ? `<div class="mb-1"><i class="bi bi-display me-1"></i>AE: ${u.pacsAE}</div>` : ''}
-                    ${u.dragonProfile ? `<div><i class="bi bi-mic me-1"></i>Mic: ${u.dragonProfile}</div>` : ''}
-                    ${!u.pacsAE && !u.dragonProfile ? '--' : ''}
-                </td>
-                <td class="text-center pe-4">
-                    <button class="btn btn-sm btn-outline-primary fw-bold" onclick="cargarUsuario('${u.rut}')">
-                        <i class="bi bi-pencil-square"></i> Editar
-                    </button>
-                </td>
-            </tr>
-        `);
-    });
+    const srvData = {
+        id: $("#srvId").val(),
+        name: $("#srvNombre").val().trim(),
+        description: $("#srvDesc").val().trim()
+    };
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(`${API_URL}/services`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            body: JSON.stringify(srvData)
+        });
+
+        const data = await response.json();
+        if (response.ok && data.success) {
+            $("#modalServicio").modal('hide');
+            showToast(`✅ Servicio guardado exitosamente.`, "success");
+            renderListaServiciosAdmin();
+        } else {
+            showToast(`❌ Error: ${data.message}`, "danger");
+        }
+    } catch (error) {
+        showToast("🔌 Error de conexión", "danger");
+    }
+}
+
+async function eliminarServicio() {
+    const id = $("#srvId").val();
+    if (!id || !confirm("⚠️ ¿Estás seguro de eliminar este servicio?")) return;
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(`${API_URL}/services/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+
+        if (response.ok) {
+            $("#modalServicio").modal('hide');
+            showToast("✅ Servicio eliminado.", "warning");
+            renderListaServiciosAdmin();
+        }
+    } catch (error) { showToast("🔌 Error al eliminar", "danger"); }
+}
+
+async function cargarCatalogoRoles() {
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(`${API_URL}/roles`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`,
+                'X-Lab-Id': labId
+            }
+        });
+
+        const contentType = response.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+            const htmlError = await response.text();
+            console.error("El servidor devolvió HTML en lugar de JSON. Error de ruta o Middleware:", htmlError);
+            return;
+        }
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            catalogRolesFromDB = data.data;
+            const contenedor = $("#contenedorRolesAdmin");
+            contenedor.empty();
+
+            catalogRolesFromDB.forEach(rol => {
+                const slug = rol.name.toLowerCase().trim();
+                contenedor.append(`
+                    <div class="form-check">
+                        <input class="form-check-input role-check req-user-role" type="checkbox" value="${slug}" id="rol_${rol.id}">
+                        <label class="form-check-label fw-bold text-secondary" style="cursor:pointer;" for="rol_${rol.id}">
+                            ${rol.description}
+                        </label>
+                    </div>
+                `);
+            });
+        } else {
+            console.error("Error lógico del backend:", data.message || data);
+        }
+    } catch (error) {
+        console.error("Error de red al cargar los roles:", error);
+    }
+}
+
+async function renderListaUsuariosAdmin() {
+    const tbody = $("#tablaUsuariosAdmin tbody");
+    if (!tbody.length) return;
+    tbody.empty().append(`<tr><td colspan="6" class="text-center p-3"><span class="spinner-border spinner-border-sm text-primary"></span> Cargando...</td></tr>`);
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(`${API_URL}/users`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+        const data = await response.json();
+        tbody.empty();
+
+        if (response.ok && data.success) {
+            currentUsersFromDB = data.data;
+            const searchStr = $("#searchUsuario").val().toLowerCase();
+
+            const filtrados = currentUsersFromDB.filter(u => {
+                const p = u.persona || {};
+                const fullName = `${p.names || ''} ${p.last_name_1 || ''}`.toLowerCase();
+                return fullName.includes(searchStr) || (u.username || '').toLowerCase().includes(searchStr);
+            });
+
+            if (filtrados.length === 0) return tbody.append(`<tr><td colspan="6" class="text-center p-4">No hay usuarios.</td></tr>`);
+
+            filtrados.forEach(u => {
+                const p = u.persona || {};
+                const rolesArray = (u.settings && u.settings.roles) ? u.settings.roles : [];
+                // Obtenemos el nombre del Tipo de Usuario (relación tipoUsuario en Laravel)
+                const tipoPrincipal = u.tipo_usuario ? u.tipo_usuario.description : 'No asignado';
+
+                const rolesBadges = rolesArray.map(r => `<span class="badge bg-light text-dark border me-1 small">${r.toUpperCase()}</span>`).join('');
+
+                tbody.append(`
+                    <tr>
+                        <td class="ps-4">
+                            <div class="fw-bold text-dark">${u.medical_title || ''} ${p.names || ''} ${p.last_name_1 || ''}</div>
+                            <small class="text-muted">@${u.username}</small>
+                        </td>
+                        <td class="fw-bold text-secondary">${p.rut || '--'}</td>
+                        <td><span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3">${tipoPrincipal}</span></td>
+                        <td>${rolesBadges}</td>
+                        <td class="small text-muted">
+                            ${u.pacs_ae ? `<div><i class="bi bi-display me-1"></i>${u.pacs_ae}</div>` : '--'}
+                        </td>
+                        <td class="text-center pe-4">
+                            <button class="btn btn-sm btn-outline-primary fw-bold" onclick="cargarUsuario(${u.id})">
+                                <i class="bi bi-pencil-square"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `);
+            });
+        }
+    } catch (error) { tbody.append(`<tr><td colspan="6" class="text-center text-danger">Error de conexión.</td></tr>`); }
 }
 
 function nuevoUsuario() {
     $("#adminForm")[0].reset();
+    $("#uId").val("");
     $("#uRut").prop("disabled", false).removeClass("is-valid is-invalid");
     $(".req-user").removeClass("is-valid is-invalid");
     $(".role-check").prop("checked", false);
@@ -136,116 +337,223 @@ function nuevoUsuario() {
     $("#modalUsuario").modal('show');
 }
 
-function cargarUsuario(rut) {
-    const u = window.RIS.users.find(user => user.rut === rut);
-    const p = (window.RIS.personas || []).find(per => per.rut === rut) || {};
+function cargarUsuario(id) {
+    const u = currentUsersFromDB.find(user => user.id === id);
     if (!u) return;
+    const p = u.persona || {};
 
-    $("#uRut").val(u.rut).prop("disabled", true).removeClass("is-invalid is-valid");
-    $("#uNombres").val(p.nombres || "");
-    $("#uPrimerApellido").val(p.apellidoPaterno || "");
-    $("#uSegundoApellido").val(p.apellidoMaterno || "");
+    $("#uId").val(u.id);
+    $("#uRut").val(p.rut).prop("disabled", true).removeClass("is-invalid is-valid");
+    $("#uNombres").val(p.names || "");
+    $("#uPrimerApellido").val(p.last_name_1 || "");
+    $("#uSegundoApellido").val(p.last_name_2 || "");
 
-    $("#uTitulo").val(u.titulo || "");
+    $("#uTitulo").val(u.medical_title || "");
     $("#uUsername").val(u.username || "");
-    $("#uPassword").val(u.password || "");
-    $("#uAeTitle").val(u.pacsAE || "");
-    $("#uDragonProfile").val(u.dragonProfile || "");
+    $("#uPassword").val("");
+    $("#uAeTitle").val(u.pacs_ae || "");
+    $("#uDragonProfile").val(u.dragon_profile || "");
+
+    let labIdsParaSeleccionar = [];
+    if (u.laboratories && u.laboratories.length > 0) {
+        labIdsParaSeleccionar = u.laboratories.map(l => l.id);
+    }
+    $("#uLaboratorio").val(labIdsParaSeleccionar);
 
     $(".role-check").prop("checked", false);
-    (u.roles || []).forEach(rol => $(`.role-check[value="${rol}"]`).prop("checked", true));
+
+    if (u.settings && u.settings.roles) {
+        u.settings.roles.forEach(r => {
+            $(`.role-check[value="${r}"]`).prop("checked", true);
+        });
+    }
+
+    const esAdmin = esAdminLogueado();
+
+    $("#uUsername").prop("disabled", !esAdmin);
+    $("#uLaboratorio").prop("disabled", !esAdmin);
+    $(".role-check").prop("disabled", !esAdmin);
 
     $(".req-user").removeClass("is-valid is-invalid");
     $("#btnEliminarUsuario").show();
     $("#modalUsuario").modal('show');
 }
 
-function guardarUsuario() {
+async function guardarUsuario() {
     let hasError = false;
     $(".req-user").each(function () {
-        if ($(this).val().trim() === "") { $(this).addClass("is-invalid"); hasError = true; }
-        else { $(this).removeClass("is-invalid").addClass("is-valid"); }
+        if ($(this).attr('id') === 'uPassword' && $("#uId").val() !== "") return;
+
+        let valor = $(this).val();
+
+        if (Array.isArray(valor)) {
+            if (valor.length === 0) {
+                $(this).addClass("is-invalid");
+                hasError = true;
+            } else {
+                $(this).removeClass("is-invalid").addClass("is-valid");
+            }
+        }
+
+        else {
+            if (!valor || valor.trim() === "") {
+                $(this).addClass("is-invalid");
+                hasError = true;
+            } else {
+                $(this).removeClass("is-invalid").addClass("is-valid");
+            }
+        }
     });
 
     const rolesSeleccionados = [];
-    $(".role-check:checked").each(function () { rolesSeleccionados.push($(this).val()); });
+    $(".role-check:checked").each(function () {
+        rolesSeleccionados.push($(this).val());
+    });
 
-    if (rolesSeleccionados.length === 0 || hasError) return showToast("⚠️ Faltan datos obligatorios o roles.", "danger");
+    if (rolesSeleccionados.length === 0) {
+        return showToast("⚠️ Debe seleccionar al menos un rol.", "danger");
+    }
 
+    const esRadiologo = rolesSeleccionados.includes('radiologo');
+    const aeTitle = $("#uAeTitle").val().trim();
+
+    if (esRadiologo && aeTitle === "") {
+        $("#uAeTitle").addClass("is-invalid");
+        return showToast("⚠️ Los Radiólogos deben tener un PACS AE Title asignado.", "warning");
+    } else {
+        $("#uAeTitle").removeClass("is-invalid");
+    }
+
+    if (hasError) return showToast("⚠️ Faltan datos obligatorios.", "danger");
     const rut = $("#uRut").val().toUpperCase();
     if (!validarRut(rut)) return showToast("❌ RUT inválido.", "danger");
 
-    const personaData = { rut, nombres: $("#uNombres").val().trim(), apellidoPaterno: $("#uPrimerApellido").val().trim(), apellidoMaterno: $("#uSegundoApellido").val().trim() };
-    if (!window.RIS.personas) window.RIS.personas = [];
-    const pIdx = window.RIS.personas.findIndex(p => p.rut === rut);
-    if (pIdx > -1) window.RIS.personas[pIdx] = { ...window.RIS.personas[pIdx], ...personaData };
-    else window.RIS.personas.push(personaData);
+    const formData = new FormData();
+    formData.append('rut', rut);
+    formData.append('nombres', $("#uNombres").val().trim());
+    formData.append('apellidoPaterno', $("#uPrimerApellido").val().trim());
+    formData.append('apellidoMaterno', $("#uSegundoApellido").val().trim());
+    formData.append('titulo', $("#uTitulo").val());
+    if (!$("#uUsername").prop("disabled")) formData.append('username', $("#uUsername").val().trim());
 
-    const userData = { rut, titulo: $("#uTitulo").val(), roles: rolesSeleccionados, username: $("#uUsername").val().trim(), password: $("#uPassword").val(), pacsAE: $("#uAeTitle").val().trim(), dragonProfile: $("#uDragonProfile").val().trim() };
-    if (!window.RIS.users) window.RIS.users = [];
-    const uIdx = window.RIS.users.findIndex(u => u.rut === rut);
-    if (uIdx > -1) window.RIS.users[uIdx] = userData;
-    else window.RIS.users.push(userData);
+    formData.append('password', $("#uPassword").val());
+    formData.append('pacsAE', aeTitle);
+    formData.append('dragonProfile', $("#uDragonProfile").val().trim());
+    const labsSeleccionados = $("#uLaboratorio").val() || [];
+    labsSeleccionados.forEach(labId => formData.append('laboratories[]', labId));
 
-    saveRISState();
-    renderListaUsuariosAdmin();
-    $("#modalUsuario").modal('hide');
-    showToast(`✅ Usuario guardado correctamente.`, "success");
-}
-
-function eliminarUsuario() {
-    const rut = $("#uRut").val();
-    if (confirm("¿Revocar acceso a este usuario? (La identidad en la BD se mantendrá).")) {
-        window.RIS.users = window.RIS.users.filter(u => u.rut !== rut);
-        saveRISState();
-        renderListaUsuariosAdmin();
-        $("#modalUsuario").modal('hide');
-        showToast("Acceso revocado.", "warning");
+    if (!$(".role-check").prop("disabled")) {
+        rolesSeleccionados.forEach(rol => formData.append('roles[]', rol));
     }
+
+    if ($("#uId").val() !== "") {
+        formData.append('id', $("#uId").val());
+
+    }
+
+    const firmaFile = document.getElementById('uFirma').files[0];
+    if (firmaFile) {
+        formData.append('signature', firmaFile);
+    }
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(`${API_URL}/users`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            body: formData
+        });
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            $("#modalUsuario").modal('hide');
+            showToast(`✅ Usuario guardado correctamente.`, "success");
+            renderListaUsuariosAdmin();
+        } else {
+            showToast(`❌ Error: ${data.message}`, "danger");
+        }
+    } catch (e) { showToast("🔌 Error de conexión", "danger"); }
 }
 
-/* =========================================
-   2. GESTIÓN DE INSUMOS E INVENTARIO
-   ========================================= */
-function renderListaInsumosAdmin() {
+async function eliminarUsuario() {
+    const id = $("#uId").val();
+    if (!id || !confirm("¿Revocar acceso a este usuario en la Base de Datos?")) return;
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(`${API_URL}/users/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+        if (response.ok) {
+            $("#modalUsuario").modal('hide');
+            showToast("Acceso revocado.", "warning");
+            renderListaUsuariosAdmin();
+        }
+    } catch (e) { }
+}
+
+async function renderListaInsumosAdmin() {
     const tbody = $("#tablaInsumosAdmin tbody");
     if (!tbody.length) return;
-    tbody.empty();
+    tbody.empty().append(`<tr><td colspan="5" class="text-center p-3"><span class="spinner-border spinner-border-sm text-primary"></span> Cargando bodega...</td></tr>`);
 
-    const searchStr = $("#searchInsumo").val().toLowerCase();
-    const inventario = window.RIS.inventoryZero || {};
-    let totalItems = 0;
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
 
-    for (const categoria in inventario) {
-        inventario[categoria].forEach(ins => {
-            if (searchStr && !ins.nombre.toLowerCase().includes(searchStr)) return;
-            totalItems++;
-
-            const pct = (ins.stock / ins.total) * 100;
-            let badgeClass = 'bg-success';
-            let statusText = 'Stock Óptimo';
-
-            if (pct <= 10) { badgeClass = 'bg-danger pulse-danger'; statusText = 'CRÍTICO'; }
-            else if (pct <= 30) { badgeClass = 'bg-warning text-dark'; statusText = 'Stock Bajo'; }
-
-            tbody.append(`
-                <tr>
-                    <td class="ps-4 fw-bold text-secondary">${categoria}</td>
-                    <td class="fw-bold text-dark">${ins.nombre}</td>
-                    <td class="text-center fs-5 fw-bold ${pct <= 10 ? 'text-danger' : 'text-primary'}">${ins.stock}</td>
-                    <td class="text-center text-muted">${ins.total}</td>
-                    <td class="text-center pe-4">
-                        <span class="badge ${badgeClass} mb-2 d-block">${statusText}</span>
-                        <button class="btn btn-sm btn-outline-dark fw-bold w-100" onclick="cargarInsumo('${categoria}', '${ins.id}')">
-                            <i class="bi bi-arrow-repeat"></i> Reponer
-                        </button>
-                    </td>
-                </tr>
-            `);
+    try {
+        const response = await fetch(`${API_URL}/supplies`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
         });
-    }
+        const data = await response.json();
+        tbody.empty();
 
-    if (totalItems === 0) tbody.append(`<tr><td colspan="5" class="text-center text-muted p-4">No se encontraron insumos.</td></tr>`);
+        if (response.ok && data.success) {
+            currentAdminSuppliesFromDB = data.data;
+            const searchStr = $("#searchInsumo").val().toLowerCase();
+
+            const inventarioAgrupado = {};
+            currentAdminSuppliesFromDB.forEach(s => {
+                if (!inventarioAgrupado[s.category]) inventarioAgrupado[s.category] = [];
+                inventarioAgrupado[s.category].push(s);
+            });
+
+            let totalItems = 0;
+            for (const categoria in inventarioAgrupado) {
+                inventarioAgrupado[categoria].forEach(ins => {
+                    if (searchStr && !ins.name.toLowerCase().includes(searchStr)) return;
+                    totalItems++;
+
+                    const pct = (ins.stock / (ins.max_stock || 1)) * 100;
+                    let badgeClass = 'bg-success';
+                    let statusText = 'Stock Óptimo';
+
+                    if (pct <= 10) { badgeClass = 'bg-danger pulse-danger'; statusText = 'CRÍTICO'; }
+                    else if (pct <= 30) { badgeClass = 'bg-warning text-dark'; statusText = 'Stock Bajo'; }
+
+                    tbody.append(`
+                        <tr>
+                            <td class="ps-4 fw-bold text-secondary">${categoria}</td>
+                            <td class="fw-bold text-dark">${ins.name}</td>
+                            <td class="text-center fs-5 fw-bold ${pct <= 10 ? 'text-danger' : 'text-primary'}">${ins.stock}</td>
+                            <td class="text-center text-muted">${ins.max_stock}</td>
+                            <td class="text-center pe-4">
+                                <span class="badge ${badgeClass} mb-2 d-block">${statusText}</span>
+                                <button class="btn btn-sm btn-outline-dark fw-bold w-100" onclick="cargarInsumo(${ins.id})">
+                                    <i class="bi bi-arrow-repeat"></i> Reponer
+                                </button>
+                            </td>
+                        </tr>
+                    `);
+                });
+            }
+
+            if (totalItems === 0) tbody.append(`<tr><td colspan="5" class="text-center text-muted p-4">La bodega está vacía.</td></tr>`);
+        }
+    } catch (error) { tbody.empty().append(`<tr><td colspan="5" class="text-center text-danger p-4">Error de conexión.</td></tr>`); }
 }
 
 function nuevoInsumo() {
@@ -257,22 +565,22 @@ function nuevoInsumo() {
     $("#modalInsumo").modal('show');
 }
 
-function cargarInsumo(categoria, id) {
-    const insumo = window.RIS.inventoryZero[categoria].find(i => i.id === id);
+function cargarInsumo(id) {
+    const insumo = currentAdminSuppliesFromDB.find(i => i.id === id);
     if (!insumo) return;
 
     $("#insId").val(insumo.id);
-    $("#insCategoria").val(categoria).prop("disabled", true);
-    $("#insNombre").val(insumo.nombre);
+    $("#insCategoria").val(insumo.category).prop("disabled", true);
+    $("#insNombre").val(insumo.name);
     $("#insStock").val(insumo.stock);
-    $("#insTotal").val(insumo.total);
+    $("#insTotal").val(insumo.max_stock);
 
     $(".req-ins").removeClass("is-invalid");
     $("#btnEliminarInsumo").show();
     $("#modalInsumo").modal('show');
 }
 
-function guardarInsumo() {
+async function guardarInsumo() {
     let hasError = false;
     $(".req-ins").each(function () {
         if ($(this).val().trim() === "") { $(this).addClass("is-invalid"); hasError = true; }
@@ -280,208 +588,487 @@ function guardarInsumo() {
     });
     if (hasError) return showToast("⚠️ Faltan datos del insumo.", "danger");
 
-    const categoria = $("#insCategoria").val();
-    const id = $("#insId").val() || "ins_" + Date.now();
-    const insumoData = { id: id, nombre: $("#insNombre").val().trim(), stock: parseInt($("#insStock").val()), total: parseInt($("#insTotal").val()) };
+    const stockActual = parseInt($("#insStock").val());
+    const stockMax = parseInt($("#insTotal").val());
+    if (stockActual > stockMax) return showToast("⚠️ El stock actual no puede superar el máximo.", "warning");
 
-    if (insumoData.stock > insumoData.total) return showToast("⚠️ El stock actual no puede superar el máximo.", "warning");
+    const insumoData = {
+        id: $("#insId").val(),
+        category: $("#insCategoria").val(),
+        name: $("#insNombre").val().trim(),
+        stock: stockActual,
+        max_stock: stockMax
+    };
 
-    if (!window.RIS.inventoryZero[categoria]) window.RIS.inventoryZero[categoria] = [];
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
 
-    const idx = window.RIS.inventoryZero[categoria].findIndex(i => i.id === id);
-    if (idx > -1) window.RIS.inventoryZero[categoria][idx] = insumoData;
-    else window.RIS.inventoryZero[categoria].push(insumoData);
-
-    saveRISState();
-    renderListaInsumosAdmin();
-    $("#modalInsumo").modal('hide');
-    showToast(`✅ Inventario actualizado.`, "success");
+    try {
+        const response = await fetch(`${API_URL}/supplies`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            body: JSON.stringify(insumoData)
+        });
+        if (response.ok) {
+            $("#modalInsumo").modal('hide');
+            showToast(`✅ Inventario actualizado en BD.`, "success");
+            renderListaInsumosAdmin();
+        }
+    } catch (e) { showToast("🔌 Error al guardar insumo", "danger"); }
 }
 
-function eliminarInsumo() {
-    const categoria = $("#insCategoria").val();
+async function eliminarInsumo() {
     const id = $("#insId").val();
-    if (confirm("¿Eliminar este insumo definitivamente?")) {
-        window.RIS.inventoryZero[categoria] = window.RIS.inventoryZero[categoria].filter(i => i.id !== id);
-        saveRISState();
-        renderListaInsumosAdmin();
-        $("#modalInsumo").modal('hide');
-        showToast("Insumo eliminado.", "warning");
-    }
+    if (!id || !confirm("¿Eliminar este insumo de la base de datos?")) return;
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(`${API_URL}/supplies/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+        if (response.ok) {
+            $("#modalInsumo").modal('hide');
+            showToast("Insumo eliminado.", "warning");
+            renderListaInsumosAdmin();
+        }
+    } catch (e) { }
 }
 
-/* =========================================
-   3. GESTIÓN DE SALAS Y EQUIPOS
-   ========================================= */
-function renderListaSalasAdmin() {
+async function renderListaSalasAdmin() {
     const tbody = $("#tablaSalasAdmin tbody");
     if (!tbody.length) return;
-    tbody.empty();
+    tbody.empty().append(`<tr><td colspan="4" class="text-center p-3"><span class="spinner-border spinner-border-sm text-primary"></span> Cargando...</td></tr>`);
 
-    const searchStr = $("#searchSala").val().toLowerCase();
-    if (!window.RIS.resources) window.RIS.resources = [];
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
 
-    const salasFiltradas = window.RIS.resources.filter(res => {
-        return res.title.toLowerCase().includes(searchStr) || res.id.toLowerCase().includes(searchStr) || res.group.toLowerCase().includes(searchStr);
-    });
+    try {
+        const response = await fetch(`${API_URL}/machines`, {
+            headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+        const data = await response.json();
+        tbody.empty();
 
-    if (salasFiltradas.length === 0) return tbody.append(`<tr><td colspan="4" class="text-center text-muted p-4">No se encontraron salas o equipos.</td></tr>`);
+        if (response.ok && data.success) {
+            currentMachinesFromDB = data.data;
+            const searchStr = $("#searchSala").val() ? $("#searchSala").val().toLowerCase() : "";
+            const filtradas = currentMachinesFromDB.filter(m => m.name.toLowerCase().includes(searchStr) || (m.group || '').toLowerCase().includes(searchStr));
 
-    salasFiltradas.forEach(res => {
-        let badgeColor = 'bg-secondary';
-        if (res.group === 'RX') badgeColor = 'bg-primary';
-        if (res.group === 'CT') badgeColor = 'bg-info text-dark';
-        if (res.group === 'MRI') badgeColor = 'bg-danger';
-        if (res.group === 'ECO') badgeColor = 'bg-success';
+            if (filtradas.length === 0) return tbody.append(`<tr><td colspan="4" class="text-center text-muted p-4">Sin equipos.</td></tr>`);
 
-        tbody.append(`
-            <tr>
-                <td class="ps-4 fw-bold text-secondary">${res.id}</td>
-                <td class="fw-bold text-dark"><i class="bi bi-display me-2 text-muted"></i>${res.title}</td>
-                <td><span class="badge ${badgeColor} px-3 py-2">${res.group}</span></td>
-                <td class="text-center pe-4">
-                    <button class="btn btn-sm btn-outline-info fw-bold text-dark" onclick="cargarSala('${res.id}')">
-                        <i class="bi bi-pencil-square"></i> Editar Configuración
-                    </button>
-                </td>
-            </tr>
-        `);
-    });
-}
-
-function nuevaSala() {
-    $("#formSala")[0].reset();
-    $("#salaId").prop("disabled", false).removeClass("is-invalid");
-    $(".req-sala").removeClass("is-invalid");
-    $("#btnEliminarSala").hide();
-    $("#modalSala").modal('show');
+            filtradas.forEach(res => {
+                let badgeColor = (res.group === 'MRI') ? 'bg-danger' : (res.group === 'CT' ? 'bg-info text-dark' : 'bg-primary');
+                tbody.append(`
+                    <tr>
+                        <td class="ps-4 fw-bold text-secondary">ID: ${res.id}</td>
+                        <td class="fw-bold text-dark">
+                            <i class="bi bi-display me-2 text-muted"></i>${res.name}
+                            <small class="d-block text-muted" style="font-size:0.7rem">${res.manufacturer || ''} ${res.model_name || ''}</small>
+                        </td>
+                        <td><span class="badge ${badgeColor} px-3 py-2">${res.group}</span></td>
+                        <td class="text-center pe-4">
+                            <button class="btn btn-sm btn-outline-info fw-bold text-dark" onclick="cargarSala('${res.id}')">
+                                <i class="bi bi-pencil-square"></i> Editar
+                            </button>
+                        </td>
+                    </tr>
+                `);
+            });
+        }
+    } catch (error) { tbody.append(`<tr><td colspan="4" class="text-center text-danger p-4">Error de conexión.</td></tr>`); }
 }
 
 function cargarSala(id) {
-    const sala = window.RIS.resources.find(r => r.id === id);
+    const sala = currentMachinesFromDB.find(r => r.id == id);
     if (!sala) return;
-
-    $("#salaId").val(sala.id).prop("disabled", true);
-    $("#salaNombre").val(sala.title);
+    $("#salaId").val(sala.id);
+    $("#salaNombre").val(sala.name);
     $("#salaGrupo").val(sala.group);
-
-    $(".req-sala").removeClass("is-invalid");
+    $("#salaFabricante").val(sala.manufacturer || "");
+    $("#salaModelo").val(sala.model_name || "");
+    $("#salaDescripcion").val(sala.description || "");
     $("#btnEliminarSala").show();
     $("#modalSala").modal('show');
 }
 
-function guardarSala() {
-    let hasError = false;
-    $(".req-sala").each(function () {
-        if ($(this).val().trim() === "") { $(this).addClass("is-invalid"); hasError = true; }
-        else { $(this).removeClass("is-invalid"); }
-    });
-    if (hasError) return showToast("⚠️ Faltan datos obligatorios.", "danger");
+async function guardarSala() {
+    const idExistente = $("#salaId").val();
+    const salaData = {
+        id: idExistente || null,
+        name: $("#salaNombre").val().trim(),
+        group: $("#salaGrupo").val(),
+        manufacturer: $("#salaFabricante").val().trim(),
+        model_name: $("#salaModelo").val().trim(),
+        description: $("#salaDescripcion").val().trim()
+    };
 
-    const idStr = $("#salaId").val().trim().replace(/\s+/g, '_').toLowerCase();
-    const salaData = { id: idStr, title: $("#salaNombre").val().trim(), group: $("#salaGrupo").val() };
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
 
-    if (!window.RIS.resources) window.RIS.resources = [];
-    const idx = window.RIS.resources.findIndex(r => r.id === idStr);
-    const isNew = !$("#salaId").prop("disabled");
+    try {
+        const response = await fetch(`${API_URL}/machines`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+                'X-Lab-Id': labId
+            },
+            body: JSON.stringify(salaData)
+        });
 
-    if (isNew && idx > -1) return showToast("⚠️ Ya existe una sala con este ID.", "warning");
-    if (idx > -1) window.RIS.resources[idx] = salaData; else window.RIS.resources.push(salaData);
-
-    saveRISState();
-    renderListaSalasAdmin();
-    $("#modalSala").modal('hide');
-    showToast(`✅ Sala guardada correctamente.`, "success");
-}
-
-function eliminarSala() {
-    const id = $("#salaId").val();
-    const enUso = (window.RIS.agenda || []).some(a => a.machine === id && a.status !== 'anulado');
-    if (enUso) return showToast("⚠️ No se puede eliminar. Esta sala tiene turnos activos en la Agenda.", "danger");
-
-    if (confirm("¿Eliminar esta sala del sistema?")) {
-        window.RIS.resources = window.RIS.resources.filter(r => r.id !== id);
-        saveRISState();
-        renderListaSalasAdmin();
-        $("#modalSala").modal('hide');
-        showToast("Sala eliminada.", "warning");
+        if (response.ok) {
+            $("#modalSala").modal('hide');
+            showToast(idExistente ? "✅ Equipo actualizado." : "✅ Equipo creado.", "success");
+            renderListaSalasAdmin();
+        } else {
+            const err = await response.json();
+            showToast(`❌ Error: ${err.message}`, "danger");
+        }
+    } catch (e) {
+        showToast("Error de conexión", "danger");
     }
 }
 
-/* =========================================
-   4. CATÁLOGO DE EXÁMENES (NUEVA PESTAÑA)
-   ========================================= */
-function renderCatalogoAdmin() {
+async function cargarConfigCentro() {
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(`${API_URL}/settings`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            catalogLabTypes = data.lab_types || [];
+            const selects = $("#cfgTipo, #sucTipo");
+            selects.empty().append('<option value="">Seleccione Tipo...</option>');
+            catalogLabTypes.forEach(t => selects.append(`<option value="${t.id}">${t.name}</option>`));
+
+            const lab = data.data || {};
+            $("#cfgTipo").val(lab.laboratory_type_id);
+            $("#cfgNombre").val(lab.name);
+            $("#cfgDireccion").val(lab.address || "");
+            $("#cfgCiudad").val(lab.city || "");
+            $("#cfgTelefono").val(lab.phone || "");
+            $("#cfgEmail").val(lab.email || "");
+
+            if (lab.settings) {
+                $("#cfgHoraInicio").val(lab.settings.horaInicio || "");
+                $("#cfgHoraFin").val(lab.settings.horaFin || "");
+                $("#cfgIntervalo").val(lab.settings.intervalo || "00:15:00");
+                $("#cfgColorInforme").val(lab.settings.colorInforme || "#000000");
+            }
+
+            if (typeof esAdminLogueado === 'function' && esAdminLogueado()) {
+
+                const perfil = localStorage.getItem('ris_user_profile') || '';
+                if (perfil === 'sis_admin' || perfil === 'super_admin') {
+                    $("#btnNuevaMatriz").removeClass("d-none");
+                    const selectMatriz = $("#matrizTipo");
+                    selectMatriz.empty().append('<option value="">Seleccione Tipo...</option>');
+                    catalogLabTypes.forEach(t => selectMatriz.append(`<option value="${t.id}">${t.name}</option>`));
+                }
+                try {
+                    const resAll = await fetch(`${API_URL}/all-laboratories`, {
+                        headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+                    });
+                    const dataAll = await resAll.json();
+
+                    if (resAll.ok && dataAll.success) {
+                        currentSucursalesAdmin = dataAll.data.flatMap(padre => padre.children || []);
+
+                        actualizarOpcionesLaboratorioGlobal(dataAll.data);
+                    }
+                } catch (err) { console.error("Error cargando todos los laboratorios", err); }
+            } else {
+                currentSucursalesAdmin = data.children || [];
+                actualizarOpcionesLaboratorioUsuario(data.data, data.children || []);
+            }
+
+            renderTablaSucursales();
+            setTimeout(() => {
+                if ($("#tablaSucursalesAdmin tbody tr").length <= 1) {
+                    renderTablaSucursales();
+                }
+            }, 200);
+        }
+    } catch (e) { console.error(e); }
+}
+
+function actualizarOpcionesLaboratorioGlobal(todosLosPadres) {
+    const $select = $("#uLaboratorio");
+    if (!$select.length) return;
+
+    $select.empty().append('<option value="">Seleccione laboratorios...</option>');
+
+    todosLosPadres.forEach(padre => {
+        let htmlGroup = `<optgroup label="${padre.name} (Matriz)">`;
+        htmlGroup += `<option value="${padre.id}">${padre.name}</option>`;
+
+        if (padre.children && padre.children.length > 0) {
+            padre.children.forEach(suc => {
+                htmlGroup += `<option value="${suc.id}"> ↳ ${suc.name}</option>`;
+            });
+        }
+        htmlGroup += `</optgroup>`;
+        $select.append(htmlGroup);
+    });
+}
+function actualizarOpcionesLaboratorioUsuario(matriz, sucursales) {
+    const $select = $("#uLaboratorio");
+    if (!$select.length) return;
+
+    $select.empty().append('<option value="">Seleccione un laboratorio...</option>');
+
+    if (matriz) {
+        $select.append(`
+            <optgroup label="Casa Matriz">
+                <option value="${matriz.id}">${matriz.name} (Principal)</option>
+            </optgroup>
+        `);
+    }
+
+    if (sucursales && sucursales.length > 0) {
+        let htmlSuc = `<optgroup label="Sucursales">`;
+        sucursales.forEach(s => {
+            htmlSuc += `<option value="${s.id}"> ↳ ${s.name}</option>`;
+        });
+        htmlSuc += `</optgroup>`;
+        $select.append(htmlSuc);
+    }
+}
+
+async function guardarConfigCentroAdmin() {
+    const formData = new FormData();
+    formData.append('laboratory_type_id', $("#cfgTipo").val());
+    formData.append('name', $("#cfgNombre").val().trim());
+    formData.append('address', $("#cfgDireccion").val().trim());
+    formData.append('city', $("#cfgCiudad").val().trim());
+    formData.append('phone', $("#cfgTelefono").val().trim());
+    formData.append('email', $("#cfgEmail").val().trim());
+
+    const settings = {
+        horaInicio: $("#cfgHoraInicio").val(),
+        horaFin: $("#cfgHoraFin").val(),
+        intervalo: $("#cfgIntervalo").val(),
+        colorInforme: $("#cfgColorInforme").val()
+    };
+    formData.append('settings', JSON.stringify(settings));
+
+    const logoFile = document.getElementById('cfgLogo').files[0];
+    if (logoFile) {
+        formData.append('logo', logoFile);
+    }
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(`${API_URL}/settings`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            body: formData
+        });
+        if (response.ok) showToast("✅ Matriz actualizada.", "success");
+    } catch (e) { showToast("Error al guardar", "danger"); }
+}
+
+function renderTablaSucursales() {
+    const $tbody = $("#tablaSucursalesAdmin tbody");
+
+    if (!$tbody.length) {
+        console.warn("TBODY NO ENCONTRADO EN EL DOM");
+        return;
+    }
+
+    $tbody.empty();
+    if (!currentSucursalesAdmin || currentSucursalesAdmin.length === 0) {
+        $tbody.append(`<tr><td colspan="5" class="text-center text-muted p-4">No hay sucursales registradas.</td></tr>`);
+        return;
+    }
+
+    currentSucursalesAdmin.forEach(suc => {
+        console.log("Sucursal:", suc);
+        const activo = (suc.is_active == 1 || suc.is_active === true);
+        const statusBadge = activo ? '<span class="badge bg-success">Activa</span>' : '<span class="badge bg-danger">Inactiva</span>';
+
+        $tbody.append(`
+            <tr>
+                <td class="ps-3 fw-bold text-dark"><i class="bi bi-building me-2 text-muted"></i>${suc.name}</td>
+                <td><div class="small">${suc.address || '--'}</div><div class="small text-muted">${suc.city || ''}</div></td>
+                <td>${suc.phone || '--'}</td>
+                <td class="text-center">${statusBadge}</td>
+                <td class="text-center pe-3">
+                    <button class="btn btn-sm btn-outline-primary fw-bold" onclick="cargarSucursal(${suc.id})"><i class="bi bi-pencil-square"></i> Editar</button>
+                </td>
+            </tr>
+        `);
+    });
+    console.log($tbody)
+}
+
+function nuevaSucursal() {
+    $("#formSucursal")[0].reset();
+    $("#sucId").val("");
+    $("#sucActiva").prop("checked", true);
+    $("#btnEliminarSucursal").hide();
+    $("#modalSucursal").modal('show');
+}
+
+function cargarSucursal(id) {
+    const suc = currentSucursalesAdmin.find(s => s.id == id);
+    if (!suc) return;
+    $("#sucId").val(suc.id);
+    $("#sucTipo").val(suc.laboratory_type_id || "");
+    $("#sucNombre").val(suc.name || "");
+    $("#sucDireccion").val(suc.address || "");
+    $("#sucCiudad").val(suc.city || "");
+    $("#sucTelefono").val(suc.phone || "");
+    $("#sucActiva").prop("checked", !!suc.is_active);
+    $("#btnEliminarSucursal").show();
+    $("#modalSucursal").modal('show');
+}
+
+async function guardarSucursal() {
+    const payload = {
+        id: $("#sucId").val(),
+        laboratory_type_id: $("#sucTipo").val(),
+        name: $("#sucNombre").val().trim(),
+        address: $("#sucDireccion").val().trim(),
+        city: $("#sucCiudad").val().trim(),
+        phone: $("#sucTelefono").val().trim(),
+        is_active: $("#sucActiva").is(":checked")
+    };
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+    try {
+        const response = await fetch(`${API_URL}/branches`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            body: JSON.stringify(payload)
+        });
+        if (response.ok) {
+            $("#modalSucursal").modal('hide');
+            showToast("✅ Sucursal guardada.", "success");
+            cargarConfigCentro();
+        }
+    } catch (e) { showToast("Error al guardar", "danger"); }
+}
+
+async function eliminarSucursal() {
+    const id = $("#sucId").val();
+    if (!id || !confirm("¿Eliminar sucursal?")) return;
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+    try {
+        const response = await fetch(`${API_URL}/branches/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+        if (response.ok) {
+            $("#modalSucursal").modal('hide');
+            showToast("Sucursal eliminada.", "warning");
+            cargarConfigCentro();
+        }
+    } catch (e) { showToast("Error al eliminar", "danger"); }
+}
+
+async function renderCatalogoAdmin() {
     const tbody = $("#tablaCatalogoAdmin tbody");
     if (!tbody.length) return;
-    tbody.empty();
 
-    const searchStr = $("#searchCat").val().toLowerCase();
-    const examTypes = window.RIS.examTypes || {};
-    let totalExamenes = 0;
+    tbody.empty().append(`<tr><td colspan="5" class="text-center p-3"><span class="spinner-border spinner-border-sm text-primary"></span> Cargando catálogo...</td></tr>`);
 
-    Object.keys(examTypes).forEach(grupo => {
-        const examenes = examTypes[grupo].exams || {};
-        Object.keys(examenes).forEach(nombreExamen => {
-            const data = examenes[nombreExamen];
-            if (searchStr && !nombreExamen.toLowerCase().includes(searchStr) && !data.code.toLowerCase().includes(searchStr)) return;
-            totalExamenes++;
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
 
-            let badgeColor = 'bg-secondary';
-            if (grupo === 'RX') badgeColor = 'bg-primary';
-            if (grupo === 'CT') badgeColor = 'bg-info text-dark';
-            if (grupo === 'MRI') badgeColor = 'bg-danger';
-            if (grupo === 'ECO') badgeColor = 'bg-success';
-
-            tbody.append(`
-                <tr>
-                    <td class="ps-4"><span class="badge ${badgeColor}">${grupo}</span></td>
-                    <td class="fw-bold text-dark">${nombreExamen}
-                        <small class="d-block text-muted" style="font-size: 0.75rem;">${(data.subs || []).join(", ")}</small>
-                    </td>
-                    <td class="font-monospace text-secondary">${data.code}</td>
-                    <td class="text-end fw-bold text-success">$${(data.price || 0).toLocaleString('es-CL')}</td>
-                    <td class="text-center pe-4">
-                        <button class="btn btn-sm btn-outline-danger fw-bold" onclick="cargarExamen('${grupo}', '${nombreExamen}')">
-                            <i class="bi bi-pencil-square"></i> Editar
-                        </button>
-                    </td>
-                </tr>
-            `);
+    try {
+        const response = await fetch(`${API_URL}/exams`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
         });
-    });
+        const data = await response.json();
+        tbody.empty();
 
-    if (totalExamenes === 0) tbody.append(`<tr><td colspan="5" class="text-center text-muted p-4">No se encontraron prestaciones en el catálogo.</td></tr>`);
+        if (response.ok && data.success) {
+            currentExamsFromDB = data.data;
+            const searchStr = $("#searchCat").val() ? $("#searchCat").val().toLowerCase() : "";
+
+            const examTypes = {};
+            currentExamsFromDB.forEach(ex => {
+                if (!examTypes[ex.group_code]) examTypes[ex.group_code] = { exams: {} };
+                examTypes[ex.group_code].exams[ex.name] = {
+                    id: ex.id, code: ex.fonasa_code, price: ex.price, subs: ex.sub_exams || []
+                };
+            });
+
+            let totalExamenes = 0;
+            Object.keys(examTypes).forEach(grupo => {
+                const examenes = examTypes[grupo].exams || {};
+                Object.keys(examenes).forEach(nombreExamen => {
+                    const exData = examenes[nombreExamen];
+                    if (searchStr && !nombreExamen.toLowerCase().includes(searchStr) && !(exData.code || '').toLowerCase().includes(searchStr)) return;
+                    totalExamenes++;
+
+                    let badgeColor = 'bg-secondary';
+                    if (grupo === 'RX') badgeColor = 'bg-primary';
+                    if (grupo === 'CT') badgeColor = 'bg-info text-dark';
+                    if (grupo === 'MRI') badgeColor = 'bg-danger';
+                    if (grupo === 'ECO') badgeColor = 'bg-success';
+
+                    tbody.append(`
+                        <tr>
+                            <td class="ps-4"><span class="badge ${badgeColor}">${grupo}</span></td>
+                            <td class="fw-bold text-dark">${nombreExamen}
+                                <small class="d-block text-muted" style="font-size: 0.75rem;">${exData.subs.join(", ")}</small>
+                            </td>
+                            <td class="font-monospace text-secondary">${exData.code || '--'}</td>
+                            <td class="text-end fw-bold text-success">$${parseFloat(exData.price).toLocaleString('es-CL')}</td>
+                            <td class="text-center pe-4">
+                                <button class="btn btn-sm btn-outline-danger fw-bold" onclick="cargarExamen(${exData.id})">
+                                    <i class="bi bi-pencil-square"></i> Editar
+                                </button>
+                            </td>
+                        </tr>
+                    `);
+                });
+            });
+
+            if (totalExamenes === 0) tbody.append(`<tr><td colspan="5" class="text-center text-muted p-4">No se encontraron prestaciones.</td></tr>`);
+        }
+    } catch (error) {
+        tbody.empty().append(`<tr><td colspan="5" class="text-center text-danger p-4">Error de conexión.</td></tr>`);
+    }
 }
 
 function nuevoExamen() {
     $("#formExamen")[0].reset();
-    $("#catGrupoOriginal").val("");
-    $("#catNombreOriginal").val("");
+    $("#catId").val("");
     $(".req-cat").removeClass("is-invalid");
     $("#btnEliminarExamen").hide();
     $("#modalExamen").modal('show');
 }
 
-function cargarExamen(grupo, nombreExamen) {
-    const data = window.RIS.examTypes[grupo].exams[nombreExamen];
-    if (!data) return;
+function cargarExamen(id) {
+    const ex = currentExamsFromDB.find(e => e.id === id);
+    if (!ex) return;
 
-    $("#catGrupoOriginal").val(grupo);
-    $("#catNombreOriginal").val(nombreExamen);
-
-    $("#catGrupo").val(grupo);
-    $("#catNombre").val(nombreExamen);
-    $("#catCodigo").val(data.code);
-    $("#catPrecio").val(data.price || 0);
-    $("#catSubs").val((data.subs || []).join(", "));
+    $("#catId").val(ex.id);
+    $("#catGrupo").val(ex.group_code);
+    $("#catNombre").val(ex.name);
+    $("#catCodigo").val(ex.fonasa_code);
+    $("#catPrecio").val(ex.price);
+    $("#catSubs").val((ex.sub_exams || []).join(", "));
 
     $(".req-cat").removeClass("is-invalid");
     $("#btnEliminarExamen").show();
     $("#modalExamen").modal('show');
 }
 
-function guardarExamen() {
+async function guardarExamen() {
     let hasError = false;
     $(".req-cat").each(function () {
         if ($(this).val().trim() === "") { $(this).addClass("is-invalid"); hasError = true; }
@@ -489,147 +1076,114 @@ function guardarExamen() {
     });
     if (hasError) return showToast("⚠️ Complete los datos requeridos.", "danger");
 
-    const grupoViejo = $("#catGrupoOriginal").val();
-    const nombreViejo = $("#catNombreOriginal").val();
+    const subsArray = $("#catSubs").val().split(',').map(s => s.trim()).filter(s => s !== "");
 
-    const grupoNuevo = $("#catGrupo").val();
-    const nombreNuevo = $("#catNombre").val().trim();
-    const codigoNuevo = $("#catCodigo").val().trim();
-    const precioNuevo = parseInt($("#catPrecio").val()) || 0;
-
-    let subsArray = $("#catSubs").val().split(',').map(s => s.trim()).filter(s => s !== "");
-
-    if (!window.RIS.examTypes[grupoNuevo]) window.RIS.examTypes[grupoNuevo] = { exams: {} };
-
-    if (nombreViejo && (nombreViejo !== nombreNuevo || grupoViejo !== grupoNuevo)) {
-        if (window.RIS.examTypes[grupoViejo] && window.RIS.examTypes[grupoViejo].exams[nombreViejo]) {
-            delete window.RIS.examTypes[grupoViejo].exams[nombreViejo];
-        }
-    }
-
-    window.RIS.examTypes[grupoNuevo].exams[nombreNuevo] = {
-        subs: subsArray.length > 0 ? subsArray : [],
-        code: codigoNuevo,
-        price: precioNuevo
+    const examData = {
+        id: $("#catId").val(),
+        group_code: $("#catGrupo").val(),
+        name: $("#catNombre").val().trim(),
+        fonasa_code: $("#catCodigo").val().trim(),
+        price: $("#catPrecio").val(),
+        sub_exams: subsArray
     };
 
-    saveRISState();
-    renderCatalogoAdmin();
-    $("#modalExamen").modal('hide');
-    showToast("✅ Arancel guardado con éxito.", "success");
-}
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
 
-function eliminarExamen() {
-    const grupo = $("#catGrupoOriginal").val();
-    const nombre = $("#catNombreOriginal").val();
+    try {
+        const response = await fetch(`${API_URL}/exams`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            body: JSON.stringify(examData)
+        });
+        const data = await response.json();
 
-    if (confirm(`¿Eliminar permanentemente el examen "${nombre}" del catálogo?`)) {
-        if (window.RIS.examTypes[grupo] && window.RIS.examTypes[grupo].exams[nombre]) {
-            delete window.RIS.examTypes[grupo].exams[nombre];
-            saveRISState();
-            renderCatalogoAdmin();
+        if (response.ok && data.success) {
             $("#modalExamen").modal('hide');
-            showToast("Examen eliminado del catálogo.", "warning");
+            showToast("✅ Arancel guardado con éxito.", "success");
+            renderCatalogoAdmin();
+        } else {
+            showToast(`❌ Error: ${data.message}`, "danger");
         }
+    } catch (error) {
+        showToast("🔌 Error de conexión", "danger");
     }
 }
 
-/* =========================================
-   5. CONFIGURACIÓN DEL CENTRO (NUEVA PESTAÑA)
-   ========================================= */
-function cargarConfigCentro() {
-    const cfg = window.RIS.config || {};
-    $("#cfgNombre").val(cfg.clinicName || "Centro de Diagnóstico RIS PRO");
-    $("#cfgDireccion").val(cfg.clinicAddress || "Av. Las Araucarias 1020, Temuco, Chile");
-    $("#cfgHoraInicio").val(cfg.horaInicio || "08:00");
-    $("#cfgHoraFin").val(cfg.horaFin || "20:00");
-    $("#cfgIntervalo").val(cfg.intervalo || "00:15:00");
+async function eliminarExamen() {
+    const id = $("#catId").val();
+    if (!id || !confirm(`¿Eliminar permanentemente este examen del catálogo?`)) return;
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(`${API_URL}/exams/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+        if (response.ok) {
+            $("#modalExamen").modal('hide');
+            showToast("Examen eliminado del catálogo.", "warning");
+            renderCatalogoAdmin();
+        }
+    } catch (error) { showToast("Error al eliminar", "danger"); }
 }
 
-function guardarConfigCentro() {
-    if (!window.RIS.config) window.RIS.config = {};
-
-    window.RIS.config.clinicName = $("#cfgNombre").val().trim() || "Clínica";
-    window.RIS.config.clinicAddress = $("#cfgDireccion").val().trim() || "Dirección";
-    window.RIS.config.horaInicio = $("#cfgHoraInicio").val() || "08:00";
-    window.RIS.config.horaFin = $("#cfgHoraFin").val() || "20:00";
-    window.RIS.config.intervalo = $("#cfgIntervalo").val() || "00:15:00";
-
-    if (window.RIS.config.horaInicio.length === 5) window.RIS.config.horaInicio += ":00";
-    if (window.RIS.config.horaFin.length === 5) window.RIS.config.horaFin += ":00";
-
-    saveRISState();
-    showToast("✅ Ajustes Generales y Operativos guardados con éxito.", "success");
-}
-
-/* =========================================
-   6. REPORTES Y HONORARIOS MÉDICOS
-   ========================================= */
-function renderReporteHonorarios() {
+async function renderReporteHonorarios() {
     const tbody = $("#tablaHonorariosAdmin tbody");
     if (!tbody.length) return;
-    tbody.empty();
 
     const mesSeleccionado = $("#mesHonorarios").val();
     const porcentajeComision = parseFloat($("#porcentajeComision").val()) / 100;
     if (!mesSeleccionado || isNaN(porcentajeComision)) return;
 
-    const produccionMedicos = {};
-    let granTotalHonorarios = 0;
+    tbody.empty().append(`<tr><td colspan="5" class="text-center p-4"><span class="spinner-border spinner-border-sm text-primary"></span> Calculando honorarios...</td></tr>`);
+    $("#totalHonorariosGlobal").text("Calculando...");
 
-    (window.RIS.worklist || []).forEach(item => {
-        if (!item.firmado || !item.fechaFirma) return;
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
 
-        const partesFecha = item.fechaFirma.split(/[/, -]/);
-        let mesFirma, anioFirma;
-        const anioAprox = partesFecha.find(p => p.length === 4);
+    try {
+        const response = await fetch(`${API_URL}/reports/honorarios?month=${mesSeleccionado}`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+        const res = await response.json();
+        tbody.empty();
 
-        if (anioAprox) {
-            anioFirma = anioAprox;
-            const idxAnio = partesFecha.indexOf(anioAprox);
-            mesFirma = partesFecha[idxAnio - 1].padStart(2, '0');
-        } else return;
+        if (res.success) {
+            let granTotalHonorarios = 0;
+            const medicosArray = res.data;
 
-        const mesAnioItem = `${anioFirma}-${mesFirma}`;
+            if (medicosArray.length === 0) {
+                tbody.append(`<tr><td colspan="5" class="text-center text-muted p-5"><i class="bi bi-file-earmark-x fs-1 d-block mb-2"></i>No hay informes firmados en este mes.</td></tr>`);
+                $("#totalHonorariosGlobal").text("$0");
+                return;
+            }
 
-        if (mesAnioItem === mesSeleccionado) {
-            const radiologo = item.medicoFirmante || "Dr. Radiólogo Jefe";
-            if (!produccionMedicos[radiologo]) produccionMedicos[radiologo] = { nombre: radiologo, informes: 0, examenes: 0, totalFacturado: 0 };
+            medicosArray.forEach(med => {
+                const honorarios = Math.round(med.totalFacturado * porcentajeComision);
+                granTotalHonorarios += honorarios;
 
-            produccionMedicos[radiologo].informes += 1;
-            item.studies.forEach(estudio => {
-                produccionMedicos[radiologo].examenes += (estudio.qty || 1);
-                const precio = estudio.price || 35000;
-                produccionMedicos[radiologo].totalFacturado += (precio * (estudio.qty || 1));
+                tbody.append(`
+                    <tr>
+                        <td class="ps-4 fw-bold text-dark"><i class="bi bi-person-check-fill text-primary me-2"></i>${med.nombre}</td>
+                        <td class="text-center fw-bold">${med.informes}</td>
+                        <td class="text-center">${med.examenes}</td>
+                        <td class="text-end text-muted">$${parseFloat(med.totalFacturado).toLocaleString('es-CL')}</td>
+                        <td class="text-end pe-4 fw-bold text-success fs-6">$${honorarios.toLocaleString('es-CL')}</td>
+                    </tr>
+                `);
             });
+
+            $("#totalHonorariosGlobal").text(`$${granTotalHonorarios.toLocaleString('es-CL')}`);
         }
-    });
-
-    const medicosArray = Object.values(produccionMedicos).sort((a, b) => b.totalFacturado - a.totalFacturado);
-
-    if (medicosArray.length === 0) {
-        tbody.append(`<tr><td colspan="5" class="text-center text-muted p-5"><i class="bi bi-file-earmark-x fs-1 d-block mb-2"></i>No hay informes firmados en este mes.</td></tr>`);
-        $("#totalHonorariosGlobal").text("$0");
-        return;
+    } catch (e) {
+        tbody.empty().append(`<tr><td colspan="5" class="text-center text-danger p-4">Error al cargar honorarios.</td></tr>`);
     }
-
-    medicosArray.forEach(med => {
-        const honorarios = Math.round(med.totalFacturado * porcentajeComision);
-        granTotalHonorarios += honorarios;
-
-        tbody.append(`
-            <tr>
-                <td class="ps-4 fw-bold text-dark"><i class="bi bi-person-check-fill text-primary me-2"></i>${med.nombre}</td>
-                <td class="text-center fw-bold">${med.informes}</td>
-                <td class="text-center">${med.examenes}</td>
-                <td class="text-end text-muted">$${med.totalFacturado.toLocaleString('es-CL')}</td>
-                <td class="text-end pe-4 fw-bold text-success fs-6">$${honorarios.toLocaleString('es-CL')}</td>
-            </tr>
-        `);
-    });
-
-    $("#totalHonorariosGlobal").text(`$${granTotalHonorarios.toLocaleString('es-CL')}`);
 }
+
+$(document).on('change', '#mesHonorarios, #porcentajeComision', renderReporteHonorarios);
 
 function validarRut(rut) {
     let valor = rut.replace(/\./g, '');
@@ -647,63 +1201,63 @@ function validarRut(rut) {
     return vlp == digv;
 }
 
-/* =========================================
-   7. REPORTE DE EXÁMENES MENSUALES
-   ========================================= */
-function renderReporteExamenes() {
+let currentReporteExamenesData = [];
+let currentReporteDiasMes = 30;
+
+async function renderReporteExamenes() {
     const tbody = $("#tablaExamenesAdmin tbody");
     if (!tbody.length) return;
-    tbody.empty();
 
     const mesSeleccionado = $("#mesExamenes").val();
     if (!mesSeleccionado) return;
 
-    let totalExamenes = 0;
+    tbody.empty().append(`<tr><td colspan="3" class="text-center p-4"><span class="spinner-border spinner-border-sm text-primary"></span> Calculando producción...</td></tr>`);
+    $("#totalExamenesGlobal").text("...");
 
-    (window.RIS.worklist || []).forEach(w => {
-        const wFecha = w.start ? w.start.substring(0, 7) : "";
-        if (wFecha === mesSeleccionado) {
-            const rut = w.patient && w.patient.rut ? w.patient.rut : "Sin RUT";
-            const personaBD = (window.RIS.personas || []).find(p => p.rut === rut);
-            let nombrePaciente = w.patient ? w.patient.name : 'Desconocido';
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
 
-            if (personaBD) nombrePaciente = `${personaBD.nombres} ${personaBD.apellidoPaterno}`;
+    try {
+        const response = await fetch(`${API_URL}/reports/examenes?month=${mesSeleccionado}`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+        const res = await response.json();
+        tbody.empty();
 
-            const pacienteDisplay = `${nombrePaciente} (${rut})`;
-            const sala = w.machine || 'N/A';
-            const radiologo = w.medicoFirmante || 'Pendiente de firma';
-            const fechaDisplay = w.start ? w.start.split('T')[0] : 'Sin fecha';
+        if (res.success) {
+            currentReporteExamenesData = res.data;
+            currentReporteDiasMes = res.dias_del_mes;
 
-            let estadoTraduccion = w.status;
-            let badgeClass = "bg-secondary";
-            if (w.status === "agendado") { estadoTraduccion = "Agendado"; badgeClass = "bg-light text-dark border"; }
-            if (w.status === "en_sala") { estadoTraduccion = "En Atención"; badgeClass = "bg-warning text-dark"; }
-            if (w.status === "dicom_enviado") { estadoTraduccion = "Imagen Tomada"; badgeClass = "bg-info text-dark"; }
-            if (w.status === "entregable" || w.status === "firmado") { estadoTraduccion = "Finalizado / Firmado"; badgeClass = "bg-success"; }
+            if (currentReporteExamenesData.length === 0) {
+                tbody.append(`<tr><td colspan="3" class="text-center text-muted p-5"><i class="bi bi-folder-x fs-1 d-block mb-2"></i>No hay producción registrada en este mes.</td></tr>`);
+                $("#totalExamenesGlobal").text("0");
+                return;
+            }
 
-            w.studies.forEach(est => {
-                totalExamenes++;
+            let granTotal = 0;
+
+            currentReporteExamenesData.forEach(est => {
+                granTotal += est.total;
+
                 tbody.append(`
                     <tr>
-                        <td class="text-muted">${fechaDisplay}</td>
-                        <td class="fw-bold">${pacienteDisplay}</td>
-                        <td>${est.exam || est.description || 'Sin descripción'}</td>
-                        <td>${sala}</td>
-                        <td><span class="badge ${badgeClass}">${estadoTraduccion}</span></td>
-                        <td class="small">${radiologo}</td>
+                        <td class="fw-bold text-dark ps-4"><i class="bi bi-file-medical text-primary me-2"></i>${est.examen}</td>
+                        <td class="text-muted">${est.sala}</td>
+                        <td class="text-center fw-bold fs-5 text-dark pe-4">${est.total}</td>
                     </tr>
                 `);
             });
-        }
-    });
 
-    if (totalExamenes === 0) tbody.append(`<tr><td colspan="6" class="text-center text-muted p-5"><i class="bi bi-folder-x fs-1 d-block mb-2"></i>No hay exámenes registrados en este mes.</td></tr>`);
-    $("#totalExamenesGlobal").text(totalExamenes);
+            $("#totalExamenesGlobal").text(granTotal);
+        }
+    } catch (e) {
+        tbody.empty().append(`<tr><td colspan="3" class="text-center text-danger p-4">Error al cargar la producción.</td></tr>`);
+    }
 }
 
-/* =========================================
-   8. MOTOR DE EXPORTACIÓN A EXCEL (CSV)
-   ========================================= */
+$(document).on('change', '#mesExamenes', renderReporteExamenes);
+
+
 function descargarCSV(filename, tableId) {
     const table = document.getElementById(tableId);
     if (!table) return;
@@ -715,7 +1269,7 @@ function descargarCSV(filename, tableId) {
         const row = [];
         const cols = rows[i].querySelectorAll('td, th');
         for (let j = 0; j < cols.length; j++) {
-            if (cols[j].innerText.trim() !== "Acciones") { 
+            if (cols[j].innerText.trim() !== "Acciones") {
                 let data = cols[j].innerText.replace(/(\r\n|\n|\r)/gm, ' ').trim();
                 data = data.replace(/"/g, '""');
                 row.push('"' + data + '"');
@@ -742,7 +1296,738 @@ function exportarExcelHonorarios() {
 }
 
 function exportarExcelExamenes() {
+    if (!currentReporteExamenesData || currentReporteExamenesData.length === 0) {
+        return showToast("No hay datos para exportar en este mes.", "warning");
+    }
+
     const mes = $("#mesExamenes").val();
-    descargarCSV(`Examenes_Realizados_${mes}.csv`, 'tablaExamenesAdmin');
-    showToast("Descargando archivo Excel...", "success");
+    let csv = '\uFEFF';
+
+    let headers = ['Nombre del Examen', 'Sala / Modalidad', 'Total del Mes'];
+    for (let i = 1; i <= currentReporteDiasMes; i++) {
+        headers.push(`Día ${i}`);
+    }
+    csv += headers.join(';') + '\n';
+
+    currentReporteExamenesData.forEach(row => {
+        let fila = [
+            `"${row.examen}"`,
+            `"${row.sala}"`,
+            row.total
+        ];
+
+        for (let i = 1; i <= currentReporteDiasMes; i++) {
+            fila.push(row.dias[i]);
+        }
+
+        csv += fila.join(';') + '\n';
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Produccion_Diaria_${mes}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    showToast("Generando desglose diario...", "success");
+}
+
+async function cargarPacientes() {
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(`${API_URL}/patients`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`,
+                'X-Lab-Id': labId
+            }
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            currentPacientesAdmin = data.data.data || data.data;
+            renderizarTablaPacientes(currentPacientesAdmin);
+        } else {
+            console.error("Error al cargar pacientes:", data.message);
+        }
+    } catch (error) {
+        console.error("Error de conexión:", error);
+    }
+}
+
+function verDetallePaciente(id) {
+    const paciente = currentPacientesAdmin.find(p => p.id === id);
+    if (!paciente) return;
+
+    const per = paciente.persona || {};
+
+    $("#detRut").text(per.rut || 'Sin RUT');
+    $("#detNombre").text(`${per.names || ''} ${per.last_name_1 || ''} ${per.last_name_2 || ''}`);
+    $("#detEmail").text(per.email || 'No registrado');
+    $("#detTelefono").text(per.phone || 'No registrado');
+
+    let fechaNacimiento = 'No registrada';
+    if (per.birth_date) {
+        fechaNacimiento = new Date(per.birth_date).toLocaleDateString('es-CL');
+    }
+    $("#detNacimiento").text(fechaNacimiento);
+
+    let genero = 'No especificado';
+    if (per.gender === 'M') genero = 'Masculino';
+    else if (per.gender === 'F') genero = 'Femenino';
+    $("#detGenero").text(genero);
+
+    $("#modalPacienteDetalle").modal('show');
+}
+
+function renderizarTablaPacientes(pacientes) {
+    const $tbody = $('#tabla-pacientes-body');
+    $tbody.empty();
+
+    if (pacientes.length === 0) {
+        $tbody.append('<tr><td colspan="5" class="text-center">No hay pacientes registrados en este laboratorio.</td></tr>');
+        return;
+    }
+
+    pacientes.forEach(paciente => {
+
+        const persona = paciente.persona;
+
+        const filaHtml = `
+            <tr>
+                <td>${persona.rut || 'Sin RUT'}</td>
+                <td>${persona.names} ${persona.last_name_1} ${persona.last_name_2 || ''}</td>
+                <td>${persona.gender || '-'}</td>
+                <td>${persona.phone || '-'}</td>
+                <td>
+                    <button class="btn btn-sm btn-info" onclick="verDetallePaciente(${paciente.id})">Ver</button>
+                </td>
+            </tr>
+        `;
+        $tbody.append(filaHtml);
+    });
+}
+
+
+$(document).ready(function () {
+    cargarPacientes();
+});
+
+$(document).on('change', '.role-check', function () {
+    const roles = [];
+    $(".role-check:checked").each(function () { roles.push($(this).val()); });
+
+    if (roles.includes('radiologo')) {
+        $("#uAeTitle").attr("placeholder", "OBLIGATORIO PARA RADIÓLOGOS");
+    } else {
+        $("#uAeTitle").attr("placeholder", "Opcional (Ej: RADIOLOGO_01)");
+    }
+});
+
+
+async function procesarImportacionExamenes() {
+    const input = document.getElementById('archivoExamenes');
+    if (!input.files || input.files.length === 0) {
+        return showToast("⚠️ Seleccione un archivo primero.", "warning");
+    }
+
+    const formData = new FormData();
+    formData.append('file', input.files[0]);
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+    const $btn = $("#modalImportarExamenes .btn-success");
+    const $progreso = $("#progresoImportacion");
+
+    try {
+        $btn.prop("disabled", true);
+        $progreso.removeClass("d-none");
+
+        const response = await fetch(`${API_URL}/exams/import`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'X-Lab-Id': labId
+            },
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            showToast(`✅ ¡Éxito! Se importaron ${data.imported} exámenes.`, "success");
+            $("#modalImportarExamenes").modal('hide');
+            input.value = "";
+            renderCatalogoAdmin();
+        } else {
+            showToast(`❌ Error: ${data.message || 'Error al procesar archivo'}`, "danger");
+        }
+    } catch (error) {
+        showToast("🔌 Error de conexión con el servidor", "danger");
+    } finally {
+        $btn.prop("disabled", false);
+        $progreso.addClass("d-none");
+    }
+}
+
+/* =========================================
+   GESTIÓN DE PLANES Y CONVENIOS
+   ========================================= */
+
+async function renderListaPlanesAdmin() {
+    const tbody = $("#tablaPlanesAdmin tbody");
+    if (!tbody.length) return;
+
+    tbody.empty().append(`<tr><td colspan="4" class="text-center p-4"><span class="spinner-border spinner-border-sm text-primary"></span> Cargando planes...</td></tr>`);
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(`${API_URL}/plans`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+        const data = await response.json();
+        tbody.empty();
+
+        if (response.ok && data.success) {
+            currentPlanesFromDB = data.data;
+            const searchStr = $("#searchPlan").val().toLowerCase();
+
+            const filtrados = currentPlanesFromDB.filter(p => p.name.toLowerCase().includes(searchStr));
+
+            if (filtrados.length === 0) {
+                return tbody.append(`<tr><td colspan="4" class="text-center text-muted p-5">No hay convenios registrados.</td></tr>`);
+            }
+
+            filtrados.forEach(plan => {
+                const nombrePrevision = plan.insurance ? plan.insurance.name : 'Sin Previsión';
+
+                tbody.append(`
+                    <tr>
+                        <td class="ps-4 text-muted fw-bold">#${plan.id}</td>
+                        <td><span class="badge bg-secondary">${nombrePrevision}</span></td>
+                        <td class="fw-bold text-dark"><i class="bi bi-shield-check text-primary me-2"></i>${plan.name}</td>
+                        <td class="text-center"><span class="badge bg-success fs-6">${plan.percentage}%</span></td>
+                        <td class="text-center pe-4">
+                            <button class="btn btn-sm btn-outline-primary fw-bold" onclick="cargarPlan(${plan.id})">
+                                <i class="bi bi-pencil-square"></i> Editar
+                            </button>
+                        </td>
+                    </tr>
+                `);
+            });
+        }
+    } catch (error) {
+        tbody.empty().append(`<tr><td colspan="4" class="text-center text-danger p-4">Error de conexión.</td></tr>`);
+    }
+}
+
+function nuevoPlan() {
+    $("#formPlan")[0].reset();
+    $("#planId").val("");
+    $(".req-plan").removeClass("is-invalid");
+    $("#btnEliminarPlan").hide();
+    $("#modalPlan").modal('show');
+}
+
+function cargarPlan(id) {
+    const plan = currentPlanesFromDB.find(p => p.id === id);
+    if (!plan) return;
+
+    $("#planId").val(plan.id);
+    $("#planInsurance").val(plan.insurance_id);
+    $("#planNombre").val(plan.name);
+    $("#planPorcentaje").val(plan.percentage);
+
+    $(".req-plan").removeClass("is-invalid");
+    $("#btnEliminarPlan").show();
+    $("#modalPlan").modal('show');
+}
+
+async function guardarPlan() {
+    let hasError = false;
+    $(".req-plan").each(function () {
+        if ($(this).val().trim() === "") {
+            $(this).addClass("is-invalid");
+            hasError = true;
+        } else {
+            $(this).removeClass("is-invalid");
+        }
+    });
+
+    if (hasError) return showToast("⚠️ Complete todos los campos obligatorios.", "warning");
+
+    const payload = {
+        id: $("#planId").val(),
+        insurance_id: $("#planInsurance").val(),
+        name: $("#planNombre").val().trim(),
+        percentage: parseFloat($("#planPorcentaje").val())
+    };
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(`${API_URL}/plans`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        if (response.ok && data.success) {
+            $("#modalPlan").modal('hide');
+            showToast("✅ Plan guardado exitosamente.", "success");
+            renderListaPlanesAdmin();
+        } else {
+            showToast(`❌ Error: ${data.message}`, "danger");
+        }
+    } catch (e) {
+        showToast("🔌 Error al conectar con el servidor", "danger");
+    }
+}
+
+async function eliminarPlan() {
+    const id = $("#planId").val();
+    if (!id || !confirm("¿Está seguro de eliminar este plan?")) return;
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(`${API_URL}/plans/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+
+        if (response.ok) {
+            $("#modalPlan").modal('hide');
+            showToast("Plan eliminado.", "warning");
+            renderListaPlanesAdmin();
+        }
+    } catch (e) {
+        showToast("Error al eliminar", "danger");
+    }
+}
+
+async function cargarInsurancesAdmin() {
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+    try {
+        const response = await fetch(`${API_URL}/insurances`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            catalogInsurances = data.data;
+
+            const select = $("#planInsurance");
+            if (select.length) {
+                select.empty().append('<option value="">Seleccione Previsión...</option>');
+                catalogInsurances.forEach(ins => select.append(`<option value="${ins.id}">${ins.name}</option>`));
+            }
+
+            renderListaPrevisionesAdmin();
+        }
+    } catch (e) { console.error("Error cargando previsiones", e); }
+}
+
+function renderListaPrevisionesAdmin() {
+    const tbody = $("#tablaPrevisionesAdmin tbody");
+    if (!tbody.length) return;
+
+    tbody.empty();
+    const searchStr = $("#searchPrevision").val() ? $("#searchPrevision").val().toLowerCase() : "";
+
+    const filtrados = catalogInsurances.filter(i => i.name.toLowerCase().includes(searchStr));
+
+    if (filtrados.length === 0) {
+        return tbody.append(`<tr><td colspan="4" class="text-center text-muted p-5">No hay previsiones registradas.</td></tr>`);
+    }
+
+    filtrados.forEach(prev => {
+        const alcance = prev.laboratory_id
+            ? '<span class="badge bg-primary">Local (Esta Sucursal)</span>'
+            : '<span class="badge bg-dark">Global (Todas las Sucursales)</span>';
+
+        const esGlobal = prev.laboratory_id === null;
+
+        tbody.append(`
+            <tr>
+                <td class="ps-4 text-muted fw-bold">#${prev.id}</td>
+                <td class="fw-bold text-dark"><i class="bi bi-heart-pulse text-danger me-2"></i>${prev.name}</td>
+                <td class="text-center">${alcance}</td>
+                <td class="text-center pe-4">
+                    <button class="btn btn-sm btn-outline-danger fw-bold" onclick="cargarPrevision(${prev.id})">
+                        <i class="bi bi-pencil-square"></i> Editar
+                    </button>
+                </td>
+            </tr>
+        `);
+    });
+}
+
+function nuevaPrevision() {
+    $("#formPrevision")[0].reset();
+    $("#prevId").val("");
+    $(".req-prev").removeClass("is-invalid");
+    $("#btnEliminarPrevision").hide();
+    $("#modalPrevision").modal('show');
+}
+
+function cargarPrevision(id) {
+    const prev = catalogInsurances.find(p => p.id === id);
+    if (!prev) return;
+
+    $("#prevId").val(prev.id);
+    $("#prevNombre").val(prev.name);
+
+    $(".req-prev").removeClass("is-invalid");
+    if (prev.laboratory_id === null) {
+        $("#btnEliminarPrevision").hide();
+    } else {
+        $("#btnEliminarPrevision").show();
+    }
+
+    $("#modalPrevision").modal('show');
+}
+
+async function guardarPrevision() {
+    if ($("#prevNombre").val().trim() === "") {
+        $("#prevNombre").addClass("is-invalid");
+        return showToast("⚠️ El nombre es obligatorio.", "warning");
+    }
+
+    const payload = {
+        id: $("#prevId").val(),
+        name: $("#prevNombre").val().trim()
+    };
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(`${API_URL}/insurances`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        if (response.ok && data.success) {
+            $("#modalPrevision").modal('hide');
+            showToast("✅ Previsión guardada.", "success");
+            cargarInsurancesAdmin();
+        } else {
+            showToast(`❌ Error: ${data.message}`, "danger");
+        }
+    } catch (e) {
+        showToast("🔌 Error al conectar con el servidor", "danger");
+    }
+}
+
+async function eliminarPrevision() {
+    const id = $("#prevId").val();
+    if (!id || !confirm("¿Está seguro de eliminar esta previsión? Se eliminarán los planes asociados a ella.")) return;
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(`${API_URL}/insurances/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+
+        if (response.ok) {
+            $("#modalPrevision").modal('hide');
+            showToast("Previsión eliminada.", "warning");
+            cargarInsurancesAdmin();
+        }
+    } catch (e) {
+        showToast("Error al eliminar", "danger");
+    }
+}
+
+function nuevaSala() {
+    $("#formSala")[0].reset();
+    $("#salaId").val("");
+
+    $(".req-sala").removeClass("is-invalid");
+    $("#btnEliminarSala").hide();
+    $("#modalSala").modal('show');
+}
+
+async function eliminarSala() {
+    const id = $("#salaId").val();
+
+    if (!id || !confirm("⚠️ ¿Está seguro de eliminar esta Sala/Equipo? Esto podría afectar la agenda histórica.")) {
+        return;
+    }
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(`${API_URL}/machines/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+
+        if (response.ok) {
+            $("#modalSala").modal('hide');
+            showToast("Sala/Equipo eliminado correctamente.", "warning");
+            renderListaSalasAdmin();
+        } else {
+            showToast("Error al eliminar el equipo.", "danger");
+        }
+    } catch (e) {
+        showToast("Error de conexión con el servidor.", "danger");
+    }
+}
+
+function nuevaMatriz() {
+    $("#formMatriz")[0].reset();
+    $(".req-matriz").removeClass("is-invalid");
+    $("#modalMatriz").modal('show');
+}
+
+async function guardarMatriz() {
+    let hasError = false;
+    $(".req-matriz").each(function () {
+        if ($(this).val().trim() === "") { $(this).addClass("is-invalid"); hasError = true; }
+        else { $(this).removeClass("is-invalid"); }
+    });
+
+    if (hasError) return showToast("⚠️ Complete los campos obligatorios.", "danger");
+
+    const payload = {
+        laboratory_type_id: $("#matrizTipo").val(),
+        name: $("#matrizNombre").val().trim(),
+        address: $("#matrizDireccion").val().trim(),
+        city: $("#matrizCiudad").val().trim(),
+        phone: $("#matrizTelefono").val().trim()
+    };
+
+    const token = localStorage.getItem('ris_token');
+
+    try {
+        const response = await fetch(`${API_URL}/laboratories`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            $("#modalMatriz").modal('hide');
+            showToast("✅ Nueva Casa Matriz creada con éxito.", "success");
+
+            localStorage.setItem('ris_lab_id', data.data.id);
+
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            showToast(`❌ Error: ${data.message}`, "danger");
+        }
+    } catch (e) {
+        showToast("Error al guardar en el servidor", "danger");
+    }
+}
+
+function descargarPlantillaExamenes() {
+    let csv = '\uFEFF';
+
+    csv += "group_code;name;fonasa_code;price\n";
+
+    csv += "RX;Radiografía de Tórax AP y Lateral;0401001;15000\n";
+    csv += "CT;Tomografía Computarizada de Cerebro sin contraste;0402005;85000\n";
+    csv += "MRI;Resonancia Magnética de Columna Lumbar;0403010;150000\n";
+    csv += "ECO;Ecografía Abdominal Completa;0404002;35000\n";
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", "Plantilla_Carga_Examenes.csv");
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    showToast("Descargando plantilla de ejemplo...", "success");
+}
+
+/* =========================================
+   GESTIÓN DE PLANTILLAS MÉDICAS
+   ========================================= */
+
+async function renderListaPlantillasAdmin() {
+    const tbody = $("#tablaPlantillasAdmin tbody");
+    if (!tbody.length) return;
+
+    tbody.empty().append(`<tr><td colspan="4" class="text-center p-4"><span class="spinner-border spinner-border-sm text-primary"></span> Cargando plantillas...</td></tr>`);
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(`${API_URL}/templates`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+        const data = await response.json();
+        tbody.empty();
+
+        if (response.ok && data.success) {
+            currentPlantillasFromDB = data.data;
+            const searchStr = $("#searchPlantilla").val().toLowerCase();
+
+            const filtrados = currentPlantillasFromDB.filter(t =>
+                t.title.toLowerCase().includes(searchStr) ||
+                t.group_code.toLowerCase().includes(searchStr)
+            );
+
+            if (filtrados.length === 0) {
+                return tbody.append(`<tr><td colspan="4" class="text-center text-muted p-5">No hay plantillas registradas.</td></tr>`);
+            }
+
+            filtrados.forEach(tpl => {
+                let badgeColor = 'bg-secondary';
+                if (tpl.group_code === 'RX') badgeColor = 'bg-primary';
+                if (tpl.group_code === 'CT') badgeColor = 'bg-info text-dark';
+                if (tpl.group_code === 'MRI') badgeColor = 'bg-danger';
+                if (tpl.group_code === 'ECO') badgeColor = 'bg-success';
+
+                const alcance = tpl.laboratory_id
+                    ? '<span class="badge bg-light text-dark border">Local</span>'
+                    : '<span class="badge bg-dark">Global</span>';
+
+                tbody.append(`
+                    <tr>
+                        <td class="ps-4"><span class="badge ${badgeColor}">${tpl.group_code}</span></td>
+                        <td class="fw-bold text-dark"><i class="bi bi-file-text text-muted me-2"></i>${tpl.title}</td>
+                        <td class="text-center">${alcance}</td>
+                        <td class="text-center pe-4">
+                            <button class="btn btn-sm btn-outline-primary fw-bold" onclick="cargarPlantilla(${tpl.id})">
+                                <i class="bi bi-pencil-square"></i> Editar
+                            </button>
+                        </td>
+                    </tr>
+                `);
+            });
+        }
+    } catch (error) {
+        tbody.empty().append(`<tr><td colspan="4" class="text-center text-danger p-4">Error de conexión.</td></tr>`);
+    }
+}
+
+function nuevaPlantilla() {
+    $("#formPlantilla")[0].reset();
+    $("#tplId").val("");
+    $(".req-tpl").removeClass("is-invalid");
+    $("#btnEliminarPlantilla").hide();
+    $("#modalPlantilla").modal('show');
+}
+
+function cargarPlantilla(id) {
+    const tpl = currentPlantillasFromDB.find(t => t.id === id);
+    if (!tpl) return;
+
+    $("#tplId").val(tpl.id);
+    $("#tplGrupo").val(tpl.group_code);
+    $("#tplTitulo").val(tpl.title);
+    $("#tplContenido").val(tpl.content);
+
+    $(".req-tpl").removeClass("is-invalid");
+
+    if (tpl.laboratory_id === null) {
+        $("#btnEliminarPlantilla").hide();
+    } else {
+        $("#btnEliminarPlantilla").show();
+    }
+
+    $("#modalPlantilla").modal('show');
+}
+
+async function guardarPlantilla() {
+    let hasError = false;
+    $(".req-tpl").each(function () {
+        if ($(this).val().trim() === "") {
+            $(this).addClass("is-invalid");
+            hasError = true;
+        } else {
+            $(this).removeClass("is-invalid");
+        }
+    });
+
+    if (hasError) return showToast("⚠️ Complete todos los campos obligatorios.", "warning");
+
+    const payload = {
+        id: $("#tplId").val(),
+        group_code: $("#tplGrupo").val(),
+        title: $("#tplTitulo").val().trim(),
+        content: $("#tplContenido").val().trim()
+    };
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const btn = $("#modalPlantilla .btn-warning");
+        btn.prop("disabled", true).text("Guardando...");
+
+        const response = await fetch(`${API_URL}/templates`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        if (response.ok && data.success) {
+            $("#modalPlantilla").modal('hide');
+            showToast("✅ Plantilla guardada exitosamente.", "success");
+            renderListaPlantillasAdmin();
+        } else {
+            showToast(`❌ Error: ${data.message}`, "danger");
+        }
+    } catch (e) {
+        showToast("🔌 Error de red", "danger");
+    } finally {
+        $("#modalPlantilla .btn-warning").prop("disabled", false).text("Guardar");
+    }
+}
+
+async function eliminarPlantilla() {
+    const id = $("#tplId").val();
+    if (!id || !confirm("¿Está seguro de eliminar esta plantilla?")) return;
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(`${API_URL}/templates/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+
+        if (response.ok) {
+            $("#modalPlantilla").modal('hide');
+            showToast("Plantilla eliminada.", "warning");
+            renderListaPlantillasAdmin();
+        }
+    } catch (e) {
+        showToast("Error al eliminar", "danger");
+    }
 }

@@ -19,10 +19,6 @@ function loadPage(page) {
             return;
         }
 
-        // ==========================================
-        // MOTOR DE INICIALIZACIÓN DE MÓDULOS
-        // ==========================================
-
         // Recepción y Tecnólogos
         if (page === "agenda" && typeof initAgenda === "function") initAgenda();
         if (page === "worklist" && typeof initWorklist === "function") initWorklist();
@@ -40,9 +36,6 @@ function loadPage(page) {
     });
 }
 
-// ==========================================
-// CONTROLADOR DEL MENÚ LATERAL (SIDEBAR)
-// ==========================================
 function sincronizarSidebar(paginaActiva) {
     const enlaces = document.querySelectorAll('#sidebar nav a');
     enlaces.forEach(enlace => {

@@ -47,3 +47,51 @@
 
     </div>
 </div>
+<div class="modal fade" id="modalEntrega" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold"><i class="bi bi-person-check-fill me-2"></i>Registrar Retiro de Exámenes
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4 bg-light">
+                <div class="mb-3">
+                    <label class="form-label fw-bold text-secondary small">RUT de quien retira</label>
+                    <input type="text" id="entregaRut" class="form-control" placeholder="Ej: 11.222.333-4">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold text-secondary small">Nombre Completo</label>
+                    <input type="text" id="entregaNombre" class="form-control" placeholder="Nombre de quien recibe">
+                </div>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label class="form-label fw-bold text-secondary small">Parentesco / Relación</label>
+                        <select id="entregaRelacion" class="form-select">
+                            <option value="Mismo Paciente">Mismo Paciente</option>
+                            <option value="Familiar (Padre/Madre/Hijo)">Familiar</option>
+                            <option value="Cónyuge">Cónyuge</option>
+                            <option value="Representante Legal">Representante Legal</option>
+                            <option value="Otro">Otro</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label fw-bold text-secondary small">Método</label>
+                        <select id="entregaMetodo" class="form-select">
+                            <option value="Presencial (Impreso)">Presencial (Impreso)</option>
+                            <option value="Digital (Email/CD)">Digital (Email/CD)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-white">
+                <button type="button" class="btn btn-outline-secondary fw-bold"
+                    data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success fw-bold px-4 shadow-sm" id="btnConfirmarEntrega"
+                    onclick="procesarEntrega()">
+                    <i class="bi bi-check2-circle me-1"></i> Confirmar Entrega
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
