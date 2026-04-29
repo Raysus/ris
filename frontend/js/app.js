@@ -1,4 +1,3 @@
-const API_URL = import.meta.env.VITE_API_URL;
 const LOCAL_BRIDGE_URL = 'http://127.0.0.1:8181';
 const urlMiddleware = "https://pacs.healthticloud.cl/dicom-web/studies";
 

@@ -24,3 +24,4 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 /routes/api.php
+../frontend/js/config.js
