@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Laravel\Sanctum\Sanctum;
+use App\Models\PersonalAccessToken;
 use App\Models\ReferringDoctor;
 use App\Models\Persona;
 use App\Models\Paciente;
@@ -49,6 +51,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
         Appointment::observe(AppointmentObserver::class);
         ReferringDoctor::observe(ReferringDoctorObserver::class);
         Persona::observe(PersonaObserver::class);
