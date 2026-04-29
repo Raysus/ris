@@ -28,6 +28,10 @@
 @task('git_pull_nube', ['on' => 'nube'])
     echo "📥 Actualizando código en la Nube..."
     cd {{ $app_dir }}
+    
+    # 🔒 BLINDAJE: Fuerza a descartar cualquier cambio manual local antes de descargar
+    git reset --hard HEAD
+    
     git pull origin {{ $branch }}
 @endtask
 
@@ -52,6 +56,10 @@
 @task('git_pull_clinica', ['on' => 'clinica_lautaro'])
     echo "🏥 Actualizando código en Clínica (vía Tailscale)..."
     cd {{ $app_dir }}
+    
+    # 🔒 BLINDAJE: Fuerza a descartar cualquier cambio manual local antes de descargar
+    git reset --hard HEAD
+    
     git pull origin {{ $branch }}
 @endtask
 
