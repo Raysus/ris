@@ -42,7 +42,7 @@ class InsuranceController extends Controller
         ]);
 
         $user = $request->user();
-        $isSysAdmin = ($user->tipo_usuario_id == 1);
+        $isSysAdmin = ($user->tipoUsuario->name === 'sis_admin');
         $allowedLabs = config('app.allowed_lab_ids');
         $labId = $request->header('X-Lab-Id') ?: config('app.current_lab_id');
 
@@ -90,7 +90,7 @@ class InsuranceController extends Controller
     public function destroy(Request $request, $id)
     {
         $user = $request->user();
-        $isSysAdmin = ($user->tipo_usuario_id == 1);
+        $isSysAdmin = ($user->tipoUsuario->name === 'sis_admin');
         $allowedLabs = config('app.allowed_lab_ids');
 
         $insurance = Insurance::findOrFail($id);

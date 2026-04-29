@@ -46,7 +46,7 @@ class AuthController extends Controller
         $labTypeId = null;
         $laboratoriosPermitidos = [];
 
-        if ($user->tipo_usuario_id == 1) {
+        if ($user->tipoUsuario->name == 'sis_admin') {
             $laboratoriosPermitidos = ['*'];
 
             $primaryLab = $user->laboratories->firstWhere('pivot.is_primary', 1)
@@ -65,7 +65,7 @@ class AuthController extends Controller
             $labTypeId = $primaryLab->laboratory_type_id;
         }
 
-        if (!$primaryLabId && $user->tipo_usuario_id != 1) {
+        if (!$primaryLabId && $user->tipoUsuario->name != 'sis_admin') {
             Auth::logout();
             return response()->json([
                 'success' => false,

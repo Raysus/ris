@@ -23,8 +23,9 @@ class UserController extends Controller
     {
         $allowedLabs = config('app.allowed_lab_ids');
 
+        // 🔥 CAMBIAR ESTA LÍNEA
         $query = User::with(['persona', 'tipoUsuario', 'laboratories'])
-            ->where('id', '!=', 1);
+            ->where('username', '!=', 'admin'); // <-- Antes era ->where('id', '!=', 1)
 
         if ($allowedLabs !== ['*']) {
             if (empty($allowedLabs)) {
@@ -104,12 +105,12 @@ class UserController extends Controller
                 }
 
                 $keycloakId = $this->keycloakService->createUser([
-                    'username'  => $request->username,
-                    'nombres'   => $request->nombres,
+                    'username' => $request->username,
+                    'nombres' => $request->nombres,
                     'apellidos' => trim($request->apellidoPaterno . ' ' . $request->apellidoMaterno),
-                    'password'  => $request->password,
-                    'rut'       => $request->rut,
-                    'email'     => $request->email ?? null,
+                    'password' => $request->password,
+                    'rut' => $request->rut,
+                    'email' => $request->email ?? null,
                 ]);
 
                 // Opcional: si tu tabla 'users' tiene un campo 'keycloak_id', guárdalo.
@@ -166,9 +167,10 @@ class UserController extends Controller
 
     public function getRoles()
     {
-        $roles = \App\Models\TipoUsuario::where('id', '!=', 1)
-            ->orderBy('id')
+        $roles = \App\Models\TipoUsuario::where('name', '!=', 'sis_admin')
+            ->orderBy('name')
             ->get();
+
         return response()->json(['success' => true, 'data' => $roles]);
     }
 }

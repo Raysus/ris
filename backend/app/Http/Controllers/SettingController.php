@@ -13,7 +13,7 @@ class SettingController extends Controller
     {
         $user = $request->user();
 
-        if ($user->tipo_usuario_id == 1) {
+        if ($user->tipoUsuario->name === 'sis_admin') {
             $labs = Laboratory::whereNull('parent_id')->with('children')->get();
         } else {
             $assignedLabIds = $user->laboratories()->pluck('laboratories.id')->toArray();
@@ -23,7 +23,7 @@ class SettingController extends Controller
 
             $accessibleMatrizIds = array_unique(array_merge($matrizIds, $parentIds));
 
-            if ($user->tipo_usuario_id == 2) {
+            if ($user->tipoUsuario->name === 'admin') {
                 $labs = Laboratory::whereIn('id', $accessibleMatrizIds)
                     ->with('children')
                     ->get();
@@ -49,7 +49,7 @@ class SettingController extends Controller
 
         $query = Laboratory::where('parent_id', $labId);
 
-        if (!in_array($user->tipo_usuario_id, [1, 2])) {
+        if (!in_array($user->tipoUsuario->name, ['sis_admin', 'admin'])) {
             $assignedLabIds = $user->laboratories()->pluck('laboratories.id')->toArray();
             $query->whereIn('id', $assignedLabIds);
         }
@@ -67,7 +67,7 @@ class SettingController extends Controller
 
     public function updateSettings(Request $request)
     {
-        if (!in_array($request->user()->tipo_usuario_id, [1, 2])) {
+        if (!in_array($request->user()->tipoUsuario->name, ['sis_admin', 'admin'])) {
             return response()->json(['success' => false, 'message' => 'Acceso denegado. Se requieren permisos de Administrador.'], 403);
         }
 
@@ -106,7 +106,7 @@ class SettingController extends Controller
 
     public function storeBranch(Request $request)
     {
-        if (!in_array($request->user()->tipo_usuario_id, [1, 2])) {
+        if (!in_array($request->user()->tipoUsuario->name, ['sis_admin', 'admin'])) {
             return response()->json(['success' => false, 'message' => 'Acceso denegado.'], 403);
         }
 
@@ -133,7 +133,7 @@ class SettingController extends Controller
 
     public function destroyBranch(Request $request, $id)
     {
-        if (!in_array($request->user()->tipo_usuario_id, [1, 2])) {
+        if (!in_array($request->user()->tipoUsuario->name, ['sis_admin', 'admin'])) {
             return response()->json(['success' => false, 'message' => 'Acceso denegado.'], 403);
         }
 
@@ -149,7 +149,7 @@ class SettingController extends Controller
 
     public function storeLaboratory(Request $request)
     {
-        if ($request->user()->tipo_usuario_id != 1) {
+        if ($request->user()->tipoUsuario->name !== 'sis_admin') {
             return response()->json(['success' => false, 'message' => 'No tienes permisos para crear nuevas matrices.'], 403);
         }
 
