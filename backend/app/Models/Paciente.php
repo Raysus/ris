@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\BelongsToLaboratory;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
 class Paciente extends Model
 {
-    use BelongsToLaboratory;
+    use BelongsToLaboratory, HasUuids;
     protected $table = 'patients';
     protected $fillable = ['persona_id', 'laboratory_id'];
 

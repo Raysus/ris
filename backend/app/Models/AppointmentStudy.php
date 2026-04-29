@@ -1,9 +1,12 @@
 <?php
 namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
 class AppointmentStudy extends Model
 {
+
+    use HasUuids;
     protected $fillable = [
         'appointment_id',
         'machine_id',

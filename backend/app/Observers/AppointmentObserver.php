@@ -3,25 +3,25 @@
 namespace App\Observers;
 
 use App\Models\Appointment;
-use App\Services\WorklistService;
+use App\Jobs\SyncEntityToCloud;
 
 class AppointmentObserver
 {
-    public function saved(Appointment $appointment)
+    public function created(Appointment $appointment)
     {
-        // Si la cita está programada, generamos la Worklist
-        if ($appointment->status === 'scheduled' || $appointment->status === 'programada') {
-            $service = new WorklistService();
-            $service->generateWL($appointment);
-        }
+        // Cargamos las relaciones para que viajen a la nube en el mismo paquete
+        $data = $appointment->load(['patient.persona', 'studies', 'supplies'])->toArray();
+        SyncEntityToCloud::dispatch('Appointment', $data, 'created');
+    }
+
+    public function updated(Appointment $appointment)
+    {
+        $data = $appointment->load(['patient.persona', 'studies', 'supplies'])->toArray();
+        SyncEntityToCloud::dispatch('Appointment', $data, 'updated');
     }
 
     public function deleted(Appointment $appointment)
     {
-        // Si cancelan la cita, borramos el archivo para que desaparezca de la máquina
-        $wlPath = storage_path("app/worklists/{$appointment->id}.wl");
-        if (file_exists($wlPath)) {
-            unlink($wlPath);
-        }
+        SyncEntityToCloud::dispatch('Appointment', ['id' => $appointment->id], 'deleted');
     }
 }

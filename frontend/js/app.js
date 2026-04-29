@@ -1,4 +1,4 @@
-const API_URL = 'https://api.healthticloud.cl/api';
+const API_BASE_URL = 'http://localhost/api';
 const LOCAL_BRIDGE_URL = 'http://127.0.0.1:8181';
 const urlMiddleware = "https://pacs.healthticloud.cl/dicom-web/studies";
 

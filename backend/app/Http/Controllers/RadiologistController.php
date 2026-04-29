@@ -99,7 +99,7 @@ class RadiologistController extends Controller
                 'ip_address' => $request->ip(),
                 'created_at' => now()
             ]);
-
+            $appointment->touch();
             DB::commit();
             return response()->json(['success' => true]);
 
@@ -138,7 +138,7 @@ class RadiologistController extends Controller
                 'ip_address' => $request->ip(),
                 'created_at' => now()
             ]);
-
+            $appointment->touch();
             DB::commit();
             return response()->json(['success' => true]);
 
@@ -191,7 +191,7 @@ class RadiologistController extends Controller
                 'ip_address' => $request->ip(),
                 'created_at' => now()
             ]);
-
+            $appointment->touch();
             DB::commit();
             return response()->json(['success' => true]);
 

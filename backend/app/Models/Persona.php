@@ -3,10 +3,11 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
 class Persona extends Model
 {
-    // Estos son los datos biográficos universales (El carnet de identidad)
+    use HasUuids;
     protected $fillable = [
         'rut',
         'names',
@@ -20,13 +21,11 @@ class Persona extends Model
         'has_sso_account'
     ];
 
-    // Relación: Una persona puede ser "Paciente" en muchos laboratorios
     public function patients()
     {
         return $this->hasMany(Paciente::class);
     }
 
-    // Relación: Una persona puede ser un "Usuario/Funcionario" del sistema
     public function user()
     {
         return $this->hasOne(User::class);

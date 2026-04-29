@@ -96,27 +96,24 @@ class DeliveryController extends Controller
                 ->where('appointment_id', $appointment->id)
                 ->update(['status' => 'entregado', 'updated_at' => now()]);
 
-            DB::table('appointment_deliveries')->insert([
+            \App\Models\AppointmentDelivery::create([
                 'appointment_id' => $appointment->id,
                 'delivered_by' => $userId,
                 'receiver_rut' => $request->receiver_rut,
                 'receiver_name' => $request->receiver_name,
                 'relationship' => $request->relationship,
                 'delivery_method' => $request->delivery_method,
-                'created_at' => now(),
-                'updated_at' => now()
             ]);
 
-            DB::table('appointment_logs')->insert([
+            \App\Models\AppointmentLog::create([
                 'appointment_id' => $appointment->id,
                 'user_id' => $userId,
                 'action' => 'DELIVERED_TO_PATIENT',
-                'details' => json_encode([
+                'details' => [
                     'receptor' => $request->receiver_name,
                     'parentesco' => $request->relationship
-                ]),
+                ],
                 'ip_address' => $request->ip(),
-                'created_at' => now()
             ]);
 
             DB::commit();

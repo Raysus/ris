@@ -1,4 +1,4 @@
-const API_URL = 'https://api.healthticloud.cl/api';
+const API_BASE_URL = 'http://localhost/api';
 $(document).ready(function () {
 
 

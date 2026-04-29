@@ -180,7 +180,7 @@ class WorklistController extends Controller
                 'created_at' => now(),
                 'updated_at' => now()
             ]);
-
+            $appointment->touch();
             DB::commit();
 
             return response()->json(['success' => true]);
