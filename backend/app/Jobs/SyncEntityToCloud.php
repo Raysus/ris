@@ -90,12 +90,16 @@ class SyncEntityToCloud implements ShouldQueue
         }
     }
 
-    private function fileToBase64($path)
+   private function fileToBase64($path)
     {
         $cleanPath = str_replace('/storage/', '', $path); // Normalizamos la ruta local
+        
         if (Storage::disk('public')->exists($cleanPath)) {
             $content = Storage::disk('public')->get($cleanPath);
-            $mime = Storage::disk('public')->mimeType($cleanPath);
+            
+            $absolutePath = Storage::disk('public')->path($cleanPath);
+            $mime = mime_content_type($absolutePath);
+            
             return 'data:' . $mime . ';base64,' . base64_encode($content);
         }
         return null;
