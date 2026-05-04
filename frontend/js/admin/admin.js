@@ -62,6 +62,9 @@ function setupAdminSync() {
 }
 
 function setupAdminEvents() {
+    $("form").on("submit", function (e) {
+        e.preventDefault();
+    });
     $("#uRut").on("input", function () {
         let actual = $(this).val().replace(/[^0-9kK]/g, '');
         if (actual.length === 0) { $(this).val(""); return; }
@@ -316,7 +319,7 @@ async function renderListaUsuariosAdmin() {
                             ${u.pacs_ae ? `<div><i class="bi bi-display me-1"></i>${u.pacs_ae}</div>` : '--'}
                         </td>
                         <td class="text-center pe-4">
-                            <button class="btn btn-sm btn-outline-primary fw-bold" onclick="cargarUsuario(${u.id})">
+                            <button class="btn btn-sm btn-outline-primary fw-bold" onclick="cargarUsuario('${u.id}')">
                                 <i class="bi bi-pencil-square"></i>
                             </button>
                         </td>
@@ -461,7 +464,7 @@ async function guardarUsuario() {
     try {
         const response = await fetch(`${API_URL}/users`, {
             method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' },
             body: formData
         });
         const data = await response.json();
@@ -472,6 +475,7 @@ async function guardarUsuario() {
             renderListaUsuariosAdmin();
         } else {
             showToast(`❌ Error: ${data.message}`, "danger");
+            console.log("Respuesta del servidor:", data);
         }
     } catch (e) { showToast("🔌 Error de conexión", "danger"); }
 }
@@ -542,7 +546,7 @@ async function renderListaInsumosAdmin() {
                             <td class="text-center text-muted">${ins.max_stock}</td>
                             <td class="text-center pe-4">
                                 <span class="badge ${badgeClass} mb-2 d-block">${statusText}</span>
-                                <button class="btn btn-sm btn-outline-dark fw-bold w-100" onclick="cargarInsumo(${ins.id})">
+                                <button class="btn btn-sm btn-outline-dark fw-bold w-100" onclick="cargarInsumo('${ins.id}')">
                                     <i class="bi bi-arrow-repeat"></i> Reponer
                                 </button>
                             </td>
@@ -663,7 +667,7 @@ async function renderListaSalasAdmin() {
                 let badgeColor = (res.group === 'MRI') ? 'bg-danger' : (res.group === 'CT' ? 'bg-info text-dark' : 'bg-primary');
                 tbody.append(`
                     <tr>
-                        <td class="ps-4 fw-bold text-secondary">ID: ${res.id}</td>
+                        <td class="ps-4 fw-bold text-secondary">ID: '${res.id}'</td>
                         <td class="fw-bold text-dark">
                             <i class="bi bi-display me-2 text-muted"></i>${res.name}
                             <small class="d-block text-muted" style="font-size:0.7rem">${res.manufacturer || ''} ${res.model_name || ''}</small>
@@ -880,11 +884,6 @@ async function guardarConfigCentroAdmin() {
 function renderTablaSucursales() {
     const $tbody = $("#tablaSucursalesAdmin tbody");
 
-    if (!$tbody.length) {
-        console.warn("TBODY NO ENCONTRADO EN EL DOM");
-        return;
-    }
-
     $tbody.empty();
     if (!currentSucursalesAdmin || currentSucursalesAdmin.length === 0) {
         $tbody.append(`<tr><td colspan="5" class="text-center text-muted p-4">No hay sucursales registradas.</td></tr>`);
@@ -903,7 +902,7 @@ function renderTablaSucursales() {
                 <td>${suc.phone || '--'}</td>
                 <td class="text-center">${statusBadge}</td>
                 <td class="text-center pe-3">
-                    <button class="btn btn-sm btn-outline-primary fw-bold" onclick="cargarSucursal(${suc.id})"><i class="bi bi-pencil-square"></i> Editar</button>
+                    <button class="btn btn-sm btn-outline-primary fw-bold" onclick="cargarSucursal('${suc.id}')"><i class="bi bi-pencil-square"></i> Editar</button>
                 </td>
             </tr>
         `);
@@ -1028,7 +1027,7 @@ async function renderCatalogoAdmin() {
                             <td class="font-monospace text-secondary">${exData.code || '--'}</td>
                             <td class="text-end fw-bold text-success">$${parseFloat(exData.price).toLocaleString('es-CL')}</td>
                             <td class="text-center pe-4">
-                                <button class="btn btn-sm btn-outline-danger fw-bold" onclick="cargarExamen(${exData.id})">
+                                <button class="btn btn-sm btn-outline-danger fw-bold" onclick="cargarExamen('${exData.id}')">
                                     <i class="bi bi-pencil-square"></i> Editar
                                 </button>
                             </td>
@@ -1408,7 +1407,7 @@ function renderizarTablaPacientes(pacientes) {
                 <td>${persona.gender || '-'}</td>
                 <td>${persona.phone || '-'}</td>
                 <td>
-                    <button class="btn btn-sm btn-info" onclick="verDetallePaciente(${paciente.id})">Ver</button>
+                    <button class="btn btn-sm btn-info" onclick="verDetallePaciente('${paciente.id}')">Ver</button>
                 </td>
             </tr>
         `;
@@ -1518,7 +1517,7 @@ async function renderListaPlanesAdmin() {
                         <td class="fw-bold text-dark"><i class="bi bi-shield-check text-primary me-2"></i>${plan.name}</td>
                         <td class="text-center"><span class="badge bg-success fs-6">${plan.percentage}%</span></td>
                         <td class="text-center pe-4">
-                            <button class="btn btn-sm btn-outline-primary fw-bold" onclick="cargarPlan(${plan.id})">
+                            <button class="btn btn-sm btn-outline-primary fw-bold" onclick="cargarPlan('${plan.id}')">
                                 <i class="bi bi-pencil-square"></i> Editar
                             </button>
                         </td>
@@ -1668,7 +1667,7 @@ function renderListaPrevisionesAdmin() {
                 <td class="fw-bold text-dark"><i class="bi bi-heart-pulse text-danger me-2"></i>${prev.name}</td>
                 <td class="text-center">${alcance}</td>
                 <td class="text-center pe-4">
-                    <button class="btn btn-sm btn-outline-danger fw-bold" onclick="cargarPrevision(${prev.id})">
+                    <button class="btn btn-sm btn-outline-danger fw-bold" onclick="cargarPrevision('${prev.id}')">
                         <i class="bi bi-pencil-square"></i> Editar
                     </button>
                 </td>
@@ -1920,7 +1919,7 @@ async function renderListaPlantillasAdmin() {
                         <td class="fw-bold text-dark"><i class="bi bi-file-text text-muted me-2"></i>${tpl.title}</td>
                         <td class="text-center">${alcance}</td>
                         <td class="text-center pe-4">
-                            <button class="btn btn-sm btn-outline-primary fw-bold" onclick="cargarPlantilla(${tpl.id})">
+                            <button class="btn btn-sm btn-outline-primary fw-bold" onclick="cargarPlantilla('${tpl.id}')">
                                 <i class="bi bi-pencil-square"></i> Editar
                             </button>
                         </td>

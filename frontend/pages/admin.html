@@ -41,10 +41,10 @@
                     data-bs-target="#tab-catalogo" type="button" role="tab">
                     <i class="bi bi-tags-fill me-2 text-danger"></i>Aranceles / Exámenes
                 </button>
-                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
+                <!--<button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
                     data-bs-target="#tab-servicios" type="button" role="tab">
                     <i class="bi bi-hospital me-2 text-info"></i>Servicios Clínicos
-                </button>
+                </button>-->
                 <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
                     data-bs-target="#tab-insumos" type="button" role="tab">
                     <i class="bi bi-boxes me-2 text-warning"></i>Inventario
@@ -606,7 +606,7 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body bg-light p-4">
-                <<form id="adminForm">
+                <form id="adminForm" onsubmit="event.preventDefault();">
                     <input type="hidden" id="uId">
                     <h6 class="fw-bold text-primary mb-3 border-bottom pb-2">1. Identidad Personal</h6>
                     <div class="row g-3 mb-4">
@@ -666,15 +666,16 @@
                         </div>
 
                     </div>
-                    </form>
+                </form>
             </div>
             <div class="modal-footer d-flex justify-content-between">
                 <button type="button" class="btn btn-outline-danger" id="btnEliminarUsuario"
                     onclick="eliminarUsuario()">Revocar Acceso</button>
                 <div>
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <!-- 🔥 CORRECCIÓN AQUÍ: event.preventDefault() adentro del onclick -->
                     <button type="button" class="btn btn-primary fw-bold px-4"
-                        onclick="guardarUsuario()">Guardar</button>
+                        onclick="event.preventDefault(); guardarUsuario();">Guardar</button>
                 </div>
             </div>
         </div>

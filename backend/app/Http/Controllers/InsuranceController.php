@@ -83,7 +83,7 @@ class InsuranceController extends Controller
 
             $insurance->save();
         }
-
+        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Insurance', 'updated', $insurance->toArray());
         return response()->json(['success' => true, 'data' => $insurance]);
     }
 
@@ -104,7 +104,7 @@ class InsuranceController extends Controller
         }
 
         $insurance->delete();
-
+        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Insurance', 'deleted', ['id' => $id]);
         return response()->json(['success' => true]);
     }
 }

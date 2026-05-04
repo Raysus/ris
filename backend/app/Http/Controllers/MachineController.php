@@ -100,6 +100,8 @@ class MachineController extends Controller
             ]);
         }
 
+        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Machine', 'updated', $machine->toArray());
+
         return response()->json(['success' => true, 'machine' => $machine]);
     }
 

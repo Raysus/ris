@@ -112,7 +112,8 @@ class WorklistController extends Controller
             'created_at' => now(),
             'updated_at' => now()
         ]);
-
+        $appointment->load(['patient.persona', 'studies', 'supplies']);
+        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
         return response()->json([
             'success' => true,
             'accession_number' => $accessionNumber
@@ -181,6 +182,8 @@ class WorklistController extends Controller
                 'updated_at' => now()
             ]);
             $appointment->touch();
+            $appointment->load(['patient.persona', 'studies', 'supplies']);
+            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
             DB::commit();
 
             return response()->json(['success' => true]);
@@ -221,7 +224,8 @@ class WorklistController extends Controller
                 'created_at' => now(),
                 'updated_at' => now()
             ]);
-
+            $appointment->load(['patient.persona', 'studies', 'supplies']);
+            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
             return response()->json(['success' => true]);
 
         } catch (\Exception $e) {

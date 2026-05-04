@@ -55,6 +55,10 @@ class ExamController extends Controller
             ]
         );
 
+        // === ☁️ INICIO SINCRONIZACIÓN CON LA NUBE (VÍA REDIS) ☁️ ===
+        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Exam', 'updated', $exam->toArray());
+        // === FIN SINCRONIZACIÓN ===
+
         return response()->json(['success' => true, 'exam' => $exam]);
     }
 
@@ -86,7 +90,7 @@ class ExamController extends Controller
                     continue;
                 }
 
-                Exam::updateOrCreate(
+                $exam = Exam::updateOrCreate(
                     [
                         'laboratory_id' => $labId,
                         'name' => trim($data[1])
@@ -99,6 +103,8 @@ class ExamController extends Controller
                     ]
                 );
                 $importedCount++;
+
+                \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Exam', 'updated', $exam->toArray());
             }
             fclose($handle);
         }

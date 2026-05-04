@@ -100,6 +100,8 @@ class RadiologistController extends Controller
                 'created_at' => now()
             ]);
             $appointment->touch();
+            $appointment->load(['patient.persona', 'studies', 'supplies']);
+            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
             DB::commit();
             return response()->json(['success' => true]);
 
@@ -139,6 +141,8 @@ class RadiologistController extends Controller
                 'created_at' => now()
             ]);
             $appointment->touch();
+            $appointment->load(['patient.persona', 'studies', 'supplies']);
+            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
             DB::commit();
             return response()->json(['success' => true]);
 
@@ -192,6 +196,8 @@ class RadiologistController extends Controller
                 'created_at' => now()
             ]);
             $appointment->touch();
+            $appointment->load(['patient.persona', 'studies', 'supplies']);
+            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
             DB::commit();
             return response()->json(['success' => true]);
 
@@ -291,7 +297,8 @@ class RadiologistController extends Controller
                 'ip_address' => $request->ip(),
                 'created_at' => now()
             ]);
-
+            $appointment->load(['patient.persona', 'studies', 'supplies']);
+            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
             return response()->json(['success' => true]);
 
         } catch (\Exception $e) {

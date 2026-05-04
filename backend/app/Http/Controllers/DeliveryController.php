@@ -115,7 +115,8 @@ class DeliveryController extends Controller
                 ],
                 'ip_address' => $request->ip(),
             ]);
-
+            $appointment->load(['patient.persona', 'studies', 'supplies']);
+            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
             DB::commit();
             return response()->json(['success' => true]);
         } catch (\Throwable $e) {
@@ -126,6 +127,7 @@ class DeliveryController extends Controller
 
     public function revert(Request $request, $id)
     {
+
         return $this->updateDeliveryStatus($request, $id, 'entregable', 'DELIVERY_REVERTED');
     }
 
@@ -152,7 +154,8 @@ class DeliveryController extends Controller
                 'ip_address' => $request->ip(),
                 'created_at' => now()
             ]);
-
+            $appointment->load(['patient.persona', 'studies', 'supplies']);
+            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
             DB::commit();
             return response()->json(['success' => true]);
         } catch (\Throwable $e) {

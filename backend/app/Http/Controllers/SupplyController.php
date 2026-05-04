@@ -75,7 +75,7 @@ class SupplyController extends Controller
                 'is_active' => true
             ]);
         }
-
+        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Supply', 'updated', $supply->toArray());
         return response()->json(['success' => true, 'supply' => $supply]);
     }
 
@@ -87,7 +87,7 @@ class SupplyController extends Controller
             $supply->delete();
             return response()->json(['success' => true]);
         }
-
+        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Supply', 'deleted', ['id' => $id]);
         return response()->json(['success' => false, 'message' => 'Insumo no encontrado o acceso denegado'], 404);
     }
 }

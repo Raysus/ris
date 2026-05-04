@@ -79,7 +79,7 @@ class TemplateController extends Controller
         $template->title = $validated['title'];
         $template->content = $validated['content'];
         $template->save();
-
+        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\ReportTemplate', 'updated', $template->toArray());
         return response()->json(['success' => true, 'data' => $template]);
     }
 
@@ -100,7 +100,7 @@ class TemplateController extends Controller
         }
 
         $template->delete();
-
+        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\ReportTemplate', 'deleted', ['id' => $id]);
         return response()->json(['success' => true]);
     }
 }

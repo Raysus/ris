@@ -81,6 +81,8 @@ class AgendaCatalogController extends Controller
             'last_name_1' => $request->last_name_1
         ]);
 
+        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\ReferringDoctor', 'updated', $doctor->toArray());
+        
         return response()->json([
             'success' => true,
             'data' => $doctor

@@ -67,7 +67,7 @@ class ServiceController extends Controller
                 'description' => $validated['description'] ?? null
             ]);
         }
-
+        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Service', 'updated', $service->toArray());
         return response()->json(['success' => true, 'service' => $service]);
     }
 
@@ -79,7 +79,7 @@ class ServiceController extends Controller
             $service->delete();
             return response()->json(['success' => true]);
         }
-
+        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Service', 'deleted', ['id' => $id]);
         return response()->json(['success' => false, 'message' => 'Servicio no encontrado o acceso denegado'], 404);
     }
 }

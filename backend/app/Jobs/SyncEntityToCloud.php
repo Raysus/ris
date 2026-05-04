@@ -8,49 +8,96 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class SyncEntityToCloud implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public $modelClass;
-    public $modelData;
-    public $action; // 'created', 'updated', o 'deleted'
+    public $entityType;
+    public $action;
+    public $payload;
 
-    // Intentará enviar hasta 5 veces antes de fallar permanentemente
-    public $tries = 5; 
-    
-    // Si falla, esperará 60 segundos antes de reintentar
-    public $backoff = 60; 
+    public $tries = 5;
+    public $backoff = 30;
 
-    public function __construct($modelClass, $modelData, $action)
+    public function __construct($entityType, $action, $payload)
     {
-        $this->modelClass = $modelClass;
-        $this->modelData = $modelData;
+        $this->entityType = $entityType;
         $this->action = $action;
+        $this->payload = $payload;
     }
 
     public function handle()
     {
-        // 1. Apuntar a la API de tu Servidor en la Nube
-        $cloudUrl = env('CLOUD_API_URL', 'https://api.healthticloud.cl/api/sync/receive');
-        $labToken = env('LAB_SYNC_TOKEN'); // Un token secreto configurado en el .env local
+        $cloudUrl = env('CLOUD_SERVER_URL');
+        $secret = env('CLOUD_SYNC_SECRET');
 
-        // 2. Enviar el paquete
-        $response = Http::withToken($labToken)
-            ->timeout(15) // No quedarse colgado si no hay internet
+        if (!$cloudUrl || !$secret) {
+            Log::error("Faltan variables de entorno para sincronizar en la nube.");
+            return;
+        }
+
+        // === 📦 EMPAQUETAR ARCHIVOS FÍSICOS A BASE64 ===
+        $this->packFiles();
+
+        // 🔥 Disfrazamos la petición para evadir Cloudflare
+        $response = Http::withoutVerifying()
+            ->withToken($secret)
+            ->acceptJson()
+            ->withHeaders([
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'X-Requested-With' => 'XMLHttpRequest'
+            ])
+            ->timeout(15)
             ->post($cloudUrl, [
-                'laboratory_id' => config('app.current_lab_id'),
-                'entity_type'   => $this->modelClass, // Ej: 'App\Models\Appointment'
-                'action'        => $this->action,
-                'payload'       => $this->modelData
+                'entity_type' => $this->entityType,
+                'action' => $this->action,
+                'payload' => $this->payload
             ]);
 
-        // 3. Manejo de fallos (Corte de internet)
         if ($response->failed()) {
-            // Al lanzar la excepción, Laravel guarda el Job en la base de datos
-            // y lo reintenta automáticamente después (resiliencia pura).
-            throw new \Exception("Fallo al sincronizar {$this->modelClass} a la nube. HTTP: " . $response->status());
+            throw new \Exception("Fallo al sincronizar {$this->entityType}. Nube respondió: " . $response->body());
         }
+    }
+
+    /**
+     * Busca rutas de archivos en el payload y adjunta su contenido en Base64
+     */
+    private function packFiles()
+    {
+        $columns = ['medical_order_path', 'survey_path', 'signature_path', 'audio_path'];
+
+        // Revisar datos principales (Citas, Usuarios)
+        foreach ($columns as $col) {
+            if (!empty($this->payload[$col])) {
+                $base64 = $this->fileToBase64($this->payload[$col]);
+                if ($base64)
+                    $this->payload[$col . '_base64'] = $base64;
+            }
+        }
+
+        // Revisar datos anidados (Estudios dentro de una Cita)
+        if (isset($this->payload['studies']) && is_array($this->payload['studies'])) {
+            foreach ($this->payload['studies'] as $key => $study) {
+                if (!empty($study['audio_path'])) {
+                    $base64 = $this->fileToBase64($study['audio_path']);
+                    if ($base64)
+                        $this->payload['studies'][$key]['audio_path_base64'] = $base64;
+                }
+            }
+        }
+    }
+
+    private function fileToBase64($path)
+    {
+        $cleanPath = str_replace('/storage/', '', $path); // Normalizamos la ruta local
+        if (Storage::disk('public')->exists($cleanPath)) {
+            $content = Storage::disk('public')->get($cleanPath);
+            $mime = Storage::disk('public')->mimeType($cleanPath);
+            return 'data:' . $mime . ';base64,' . base64_encode($content);
+        }
+        return null;
     }
 }

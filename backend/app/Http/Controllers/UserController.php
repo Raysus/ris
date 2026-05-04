@@ -61,30 +61,16 @@ class UserController extends Controller
 
         return DB::transaction(function () use ($request, $allowedLabs) {
 
-            $roleToTypeId = [
-                'admin' => 2,
-                'recepcion' => 3,
-                'tecnologo' => 4,
-                'radiologo' => 5,
-                'transcriptor' => 6,
-                'auxiliar' => 7,
-                'secretario' => 8,
-            ];
-
-            $persona = Persona::updateOrCreate(
-                ['rut' => $request->rut],
-                [
-                    'names' => $request->nombres,
-                    'last_name_1' => $request->apellidoPaterno,
-                    'last_name_2' => $request->apellidoMaterno,
-                ]
-            );
-
             $primerRol = $request->roles[0] ?? 'recepcion';
-            $tipoUsuarioId = $roleToTypeId[$primerRol] ?? 3;
+
+            // Buscar el UUID real en la tabla tipo_usuarios con fallback seguro
+            $tipoUsuario = \App\Models\TipoUsuario::where('name', $primerRol)->first();
+            if (!$tipoUsuario) {
+                $tipoUsuario = \App\Models\TipoUsuario::where('name', 'recepcion')->first();
+            }
 
             $userData = [
-                'tipo_usuario_id' => $tipoUsuarioId,
+                'tipo_usuario_id' => $tipoUsuario->id,
                 'username' => $request->username,
                 'medical_title' => $request->titulo,
                 'pacs_ae' => $request->pacsAE,
@@ -97,12 +83,45 @@ class UserController extends Controller
                 $userData['password'] = Hash::make($request->password);
             }
 
-            $existingUser = User::where('persona_id', $persona->id)->first();
+            // === 🔥 MODO DE EDICIÓN ESTRICTO (Usa el ID del frontend) ===
+            if ($request->filled('id')) {
 
-            if (!$existingUser) {
+                $user = User::findOrFail($request->id);
+                $persona = $user->persona;
+
+                // Actualizamos la persona
+                $persona->update([
+                    'names' => $request->nombres,
+                    'last_name_1' => $request->apellidoPaterno,
+                    'last_name_2' => $request->apellidoMaterno,
+                    'rut' => $request->rut,
+                ]);
+
+                // Actualizamos firma si viene en el request
+                if ($request->hasFile('signature')) {
+                    if ($user->signature_path) {
+                        Storage::disk('public')->delete($user->signature_path);
+                    }
+                    $userData['signature_path'] = $request->file('signature')->store('signatures', 'public');
+                }
+
+                $user->update($userData);
+                $existingUser = $user;
+
+            } else {
+                // === MODO CREACIÓN ===
                 if (!$request->filled('password')) {
                     throw new \Exception("La contraseña es obligatoria para crear un nuevo usuario.");
                 }
+
+                $persona = Persona::firstOrCreate(
+                    ['rut' => $request->rut],
+                    [
+                        'names' => $request->nombres,
+                        'last_name_1' => $request->apellidoPaterno,
+                        'last_name_2' => $request->apellidoMaterno,
+                    ]
+                );
 
                 $keycloakId = $this->keycloakService->createUser([
                     'username' => $request->username,
@@ -113,22 +132,16 @@ class UserController extends Controller
                     'email' => $request->email ?? null,
                 ]);
 
-                // Opcional: si tu tabla 'users' tiene un campo 'keycloak_id', guárdalo.
-                // $userData['keycloak_id'] = $keycloakId; 
-            }
-
-            if ($request->hasFile('signature')) {
-                if ($existingUser && $existingUser->signature_path) {
-                    Storage::disk('public')->delete($existingUser->signature_path);
+                if ($request->hasFile('signature')) {
+                    $userData['signature_path'] = $request->file('signature')->store('signatures', 'public');
                 }
-                $userData['signature_path'] = $request->file('signature')->store('signatures', 'public');
+
+                $userData['persona_id'] = $persona->id;
+                $user = User::create($userData);
+                $existingUser = null;
             }
 
-            $user = User::updateOrCreate(
-                ['persona_id' => $persona->id],
-                $userData
-            );
-
+            // === LÓGICA DE LABORATORIOS ===
             if ($request->has('laboratories')) {
                 $syncData = [];
 
@@ -150,10 +163,12 @@ class UserController extends Controller
 
             $user->load('persona', 'tipoUsuario', 'laboratories');
 
+            // === SINCRONIZACIÓN A LA NUBE (VÍA REDIS) ===
+            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Persona', 'updated', $persona->toArray());
+            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\User', 'updated', $user->makeVisible(['password'])->toArray());
             return response()->json(['success' => true, 'user' => $user]);
         });
     }
-
     public function destroy($id)
     {
         $user = $this->getSecureUserQuery()->findOrFail($id);

@@ -92,6 +92,7 @@ class PlanController extends Controller
         }
 
         $plan->load('insurance');
+        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\InsurancePlan', 'updated', $plan->toArray());
         return response()->json(['success' => true, 'data' => $plan]);
     }
 
@@ -113,6 +114,7 @@ class PlanController extends Controller
         }
 
         $plan->delete();
+        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\InsurancePlan', 'deleted', ['id' => $id]);
 
         return response()->json(['success' => true]);
     }

@@ -71,11 +71,8 @@ class AppointmentController extends Controller
                 $patientData = $request->patient;
 
                 $cleanRut = strtoupper(str_replace(['.', ' '], '', $patientData['rut']));
-
                 $persona = Persona::where('rut', $patientData['rut'])->first();
-
                 $needsSsoAccount = !$persona || !$persona->has_sso_account;
-
                 $passwordTemp = null;
 
                 if ($needsSsoAccount) {
@@ -90,9 +87,6 @@ class AppointmentController extends Controller
                             'rut' => $cleanRut,
                             'email' => $patientData['email'] ?? null,
                         ]);
-
-
-
                     } catch (\Exception $e) {
                         if (str_contains($e->getMessage(), 'Status 409') || str_contains($e->getMessage(), 'exists')) {
                             \Log::warning("El usuario {$cleanRut} ya existía en Keycloak, sincronizando bandera local.");
@@ -195,7 +189,19 @@ class AppointmentController extends Controller
                         \Log::error("Error enviando credenciales a {$patientData['email']}: " . $e->getMessage());
                     }
                 }
-                return response()->json(['success' => true, 'appointment' => $appointment->load('patient.persona')], 201);
+
+                // Cargar relaciones para enviarlas a la nube en una sola maleta (payload)
+                $appointment->load(['patient.persona', 'studies', 'supplies']);
+
+                // === ☁️ INICIO SINCRONIZACIÓN CON LA NUBE (VÍA REDIS) ☁️ ===
+                // Enviamos Persona y Paciente primero para evitar problemas de Llaves Foráneas
+                \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Persona', 'updated', $persona->toArray());
+                \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Paciente', 'updated', $patient->toArray());
+                // Finalmente enviamos la Cita (El servidor en la nube desempaquetará 'studies' y 'supplies' automáticamente)
+                \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+                // === FIN SINCRONIZACIÓN ===
+
+                return response()->json(['success' => true, 'appointment' => $appointment], 201);
             });
 
         } catch (\Exception $e) {
@@ -213,6 +219,7 @@ class AppointmentController extends Controller
                 ->with(['studies', 'supplies', 'patient.persona'])
                 ->findOrFail($id);
 
+            // === LÓGICA DE DRAG & DROP ===
             if ($request->has('is_drag_and_drop')) {
                 $appointment->update([
                     'machine_id' => $request->machine_id ?? $request->machine,
@@ -229,11 +236,14 @@ class AppointmentController extends Controller
                     'ip_address' => request()->ip()
                 ]);
 
+                // === ☁️ SINCRONIZACIÓN (SOLO FECHAS) ☁️ ===
+                \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+
                 return response()->json(['success' => true]);
             }
 
+            // === LÓGICA DE EDICIÓN COMPLETA ===
             $patientData = $request->patient;
-
             $ordenPath = $this->saveBase64Document($request->order_image);
             $encuestaPath = $this->saveBase64Document($request->survey_image);
 
@@ -311,6 +321,13 @@ class AppointmentController extends Controller
                 'ip_address' => request()->ip()
             ]);
 
+            // === ☁️ INICIO SINCRONIZACIÓN CON LA NUBE (VÍA REDIS) ☁️ ===
+            // Refrescamos la memoria de Laravel para enviar los estudios y suministros nuevos
+            $appointment->load(['patient.persona', 'studies', 'supplies']);
+            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Persona', 'updated', $appointment->patient->persona->toArray());
+            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+            // === FIN SINCRONIZACIÓN ===
+
             return response()->json(['success' => true]);
         });
     }
@@ -336,6 +353,10 @@ class AppointmentController extends Controller
             $appointment->status = 'anulado';
             $appointment->save();
             $appointment->delete();
+
+            // === ☁️ INICIO SINCRONIZACIÓN DE LA ELIMINACIÓN ☁️ ===
+            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'deleted', ['id' => $id]);
+            // === FIN SINCRONIZACIÓN ===
 
             return response()->json(['success' => true]);
         });
@@ -387,6 +408,9 @@ class AppointmentController extends Controller
         $appointment->needs_review = false;
         $appointment->return_reason = null;
         $appointment->save();
+
+        // ☁️ Sincronizar el cambio rápido a la nube
+        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
 
         return response()->json(['success' => true]);
     }

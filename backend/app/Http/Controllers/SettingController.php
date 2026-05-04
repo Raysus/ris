@@ -101,6 +101,8 @@ class SettingController extends Controller
 
         $lab->save();
 
+        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Laboratory', 'updated', $lab->toArray());
+
         return response()->json(['success' => true, 'data' => $lab]);
     }
 
@@ -128,6 +130,7 @@ class SettingController extends Controller
         $branch->laboratory_type_id = $request->laboratory_type_id ?? 2;
 
         $branch->save();
+        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Laboratory', 'updated', $branch->toArray());
         return response()->json(['success' => true, 'branch' => $branch]);
     }
 
@@ -143,7 +146,7 @@ class SettingController extends Controller
             $branch->delete();
             return response()->json(['success' => true]);
         }
-
+        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Laboratory', 'deleted', ['id' => $id]);
         return response()->json(['success' => false, 'message' => 'Sucursal no encontrada o no pertenece a esta clínica'], 404);
     }
 
@@ -174,7 +177,7 @@ class SettingController extends Controller
         ];
 
         $lab->save();
-
+        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Laboratory', 'updated', $lab->toArray());
         return response()->json(['success' => true, 'data' => $lab]);
     }
 }
