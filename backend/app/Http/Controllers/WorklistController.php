@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 use App\Models\Appointment;
 use App\Models\Supply;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class WorklistController extends Controller
 {
@@ -32,7 +34,7 @@ class WorklistController extends Controller
             ->join('appointments as a', 's.appointment_id', '=', 'a.id')
             ->join('patients as p', 'a.patient_id', '=', 'p.id')
             ->join('personas as per', 'p.persona_id', '=', 'per.id')
-            ->whereIn('a.status', ['confirmado', 'dicom_enviado', 'devuelto_worklist'])
+            ->whereIn('a.status', ['confirmado', 'en_atencion', 'dicom_enviado', 'devuelto_worklist'])
             ->whereNull('a.deleted_at')
             ->select(
                 's.id as study_id',
@@ -46,6 +48,8 @@ class WorklistController extends Controller
                 'a.priority',
                 'a.accession_number',
                 'a.return_reason',
+                'a.medical_order_path',
+                'a.survey_path', // <-- NUEVOS CAMPOS
                 'per.names',
                 'per.last_name_1',
                 'per.last_name_2',
@@ -53,15 +57,13 @@ class WorklistController extends Controller
             );
 
         if ($allowedLabs !== ['*']) {
-            if (empty($allowedLabs)) {
+            if (empty($allowedLabs))
                 $query->whereRaw('1 = 0');
-            } else {
+            else
                 $query->whereIn('a.laboratory_id', $allowedLabs);
-            }
         }
 
         $studies = $query->get();
-
         $formattedData = [];
         foreach ($studies as $row) {
             $formattedData[] = [
@@ -77,6 +79,8 @@ class WorklistController extends Controller
                     'priority' => $row->priority,
                     'accession_number' => $row->accession_number,
                     'return_reason' => $row->return_reason,
+                    'medical_order_path' => $row->medical_order_path, // <-- PDF Orden
+                    'survey_path' => $row->survey_path,               // <-- PDF Encuesta
                     'patient' => [
                         'persona' => [
                             'names' => $row->names,
@@ -87,45 +91,65 @@ class WorklistController extends Controller
                 ]
             ];
         }
-
         return response()->json(['success' => true, 'data' => $formattedData]);
     }
 
     public function sendToDicom(Request $request, $appointmentId)
     {
         $userId = $request->user()->id;
+        // Traemos la cita con el paciente y la máquina (para obtener su AE Title real)
+        $appointment = $this->getSecureAppointmentQuery()
+            ->with(['patient.persona', 'machine'])
+            ->findOrFail($appointmentId);
 
-        $appointment = $this->getSecureAppointmentQuery()->findOrFail($appointmentId);
+        $accessionNumber = 'ACC-' . date('Ymd') . '-' . substr($appointment->id, 0, 5);
 
-        $accessionNumber = 'ACC-' . date('Ymd') . '-' . $appointment->id;
+        try {
+            $orthancUrl = env('ORTHANC_URL', 'http://127.0.0.1:8042') . '/worklists';
 
-        $appointment->accession_number = $accessionNumber;
-        $appointment->status = 'dicom_enviado';
-        $appointment->save();
+            // Usamos el AE Title configurado en la máquina, o un fallback si no existe
+            $stationAeTitle = $appointment->machine->ae_title ?? "SALA_" . $appointment->machine_id;
 
-        DB::table('appointment_logs')->insert([
-            'appointment_id' => $appointment->id,
-            'user_id' => $userId,
-            'action' => 'DICOM_SENT',
-            'details' => json_encode(['accession_number' => $accessionNumber]),
-            'ip_address' => $request->ip(),
-            'created_at' => now(),
-            'updated_at' => now()
-        ]);
-        $appointment->load(['patient.persona', 'studies', 'supplies']);
-        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
-        return response()->json([
-            'success' => true,
-            'accession_number' => $accessionNumber
-        ]);
+            $dicomWorklistData = [
+                "0010,0010" => $appointment->patient->persona->names . "^" . $appointment->patient->persona->last_name_1,
+                "0010,0020" => $appointment->patient->persona->rut,
+                "0008,0050" => $accessionNumber,
+                "0040,0100" => [
+                    [
+                        "0040,0001" => $stationAeTitle, // 🔥 AHORA USA EL AE TITLE REAL DEL EQUIPO
+                        "0040,0002" => \Carbon\Carbon::parse($appointment->start_time)->format('Ymd'),
+                        "0040,0003" => \Carbon\Carbon::parse($appointment->start_time)->format('His'),
+                        "0040,0009" => (string) $appointment->id
+                    ]
+                ]
+            ];
+
+            $response = Http::post($orthancUrl, $dicomWorklistData);
+
+            if (!$response->successful()) {
+                throw new \Exception("Orthanc Worklist falló: " . $response->status());
+            }
+
+            $appointment->status = 'dicom_enviado';
+            $appointment->accession_number = $accessionNumber;
+            $appointment->save();
+
+            // Sincronizar a la nube
+            $appointment->load(['patient.persona', 'studies', 'supplies']);
+            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+
+            return response()->json(['success' => true, 'accession' => $accessionNumber]);
+
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
     }
-
     public function complete(Request $request, $appointmentId)
     {
         $request->validate([
             'anamnesis' => 'required|string',
             'supplies' => 'array',
-            'supplies.*.id' => 'required|integer',
+            'supplies.*.id' => 'required|string', // 🔥 CORRECCIÓN CRÍTICA: Ahora acepta UUIDs (string)
             'supplies.*.quantity' => 'required|integer|min:1',
             'status' => 'required|string'
         ]);
@@ -137,7 +161,7 @@ class WorklistController extends Controller
         try {
             $appointment = $this->getSecureAppointmentQuery()->findOrFail($appointmentId);
 
-            $appointment->status = $request->status; // 'en_informe'
+            $appointment->status = $request->status;
             $appointment->save();
 
             DB::table('appointment_studies')
@@ -196,6 +220,7 @@ class WorklistController extends Controller
 
     public function updateStatus(Request $request, $appointmentId)
     {
+        // ... (Tu código actual está bien, mantén lo que tenías) ...
         try {
             $userId = $request->user()->id;
 

@@ -13,6 +13,8 @@
     composer_nube
     migrate_nube
     optimize_nube
+    fix_permissions_nube
+    restart_queue_nube
 @endstory
 
 @story('deploy-clinica')
@@ -31,7 +33,6 @@
     
     # 🔒 BLINDAJE: Fuerza a descartar cualquier cambio manual local antes de descargar
     git reset --hard HEAD
-    
     git pull origin {{ $branch }}
 @endtask
 
@@ -48,8 +49,24 @@
 @task('optimize_nube', ['on' => 'nube'])
     cd {{ $app_dir }}
     php artisan optimize
-    echo "✅ Nube actualizada."
+    echo "✅ Nube optimizada."
 @endtask
+
+@task('fix_permissions_nube', ['on' => 'nube'])
+    echo "🔐 Restaurando permisos de storage..."
+    cd {{ $app_dir }}
+    # Nota: userit debe tener permisos de sudo sin contraseña para que esto no detenga el script
+    sudo chown -R www-data:www-data storage bootstrap/cache
+    sudo chmod -R 775 storage bootstrap/cache
+    echo "✅ Permisos listos."
+@endtask
+
+@task('restart_queue_nube', ['on' => 'nube'])
+    cd {{ $app_dir }}
+    php artisan queue:restart
+    echo "✅ Colas de la nube reiniciadas."
+@endtask
+
 
 {{-- --- TAREAS PARA CLÍNICA (Entorno Docker / Sail) --- --}}
 
@@ -59,7 +76,6 @@
     
     # 🔒 BLINDAJE: Fuerza a descartar cualquier cambio manual local antes de descargar
     git reset --hard HEAD
-    
     git pull origin {{ $branch }}
 @endtask
 

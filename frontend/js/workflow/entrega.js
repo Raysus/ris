@@ -1,5 +1,5 @@
 /* =========================================
-   MÓDULO DE ENTREGA DE RESULTADOS
+   MÓDULO DE ENTREGA DE RESULTADOS (entrega.js)
    ========================================= */
 
 let currentDeliveryData = [];
@@ -11,6 +11,7 @@ function initEntrega() {
     cargarListaEntrega();
     setInterval(cargarListaEntrega, 30000);
 }
+
 async function cargarAjustesVisualesEntrega() {
     const token = localStorage.getItem('ris_token');
     const labId = localStorage.getItem('ris_lab_id');
@@ -48,164 +49,61 @@ async function cargarListaEntrega() {
 
 function renderTablaEntrega() {
     const tbody = $("#tablaEntrega tbody");
-    const search = $("#searchEntrega").val() ? $("#searchEntrega").val().toLowerCase() : "";
-    const filtroEstado = $("#filtroEstadoEntrega").val();
-
     tbody.empty();
 
-    let lista = currentDeliveryData;
+    const filtro = $("#filtroEstadoEntrega").val();
+    const search = $("#searchEntrega").val().toLowerCase();
 
-    if (filtroEstado !== 'todos') {
-        lista = lista.filter(c => c.status === filtroEstado);
+    const datosFiltrados = currentDeliveryData.filter(item => {
+        const matchesStatus = (filtro === 'todos') || (item.status === filtro);
+        const term = search.trim();
+        const matchesSearch = term === '' ||
+            item.patient.rut.toLowerCase().includes(term) ||
+            item.patient.name.toLowerCase().includes(term) ||
+            item.patient.lastName.toLowerCase().includes(term);
+        return matchesStatus && matchesSearch;
+    });
+
+    if (datosFiltrados.length === 0) {
+        tbody.append('<tr><td colspan="6" class="text-center text-muted py-4"><i class="bi bi-inbox fs-2 d-block mb-2"></i>No se encontraron informes.</td></tr>');
+        return;
     }
-    if (search !== "") {
-        lista = lista.filter(c => c.patient.rut.toLowerCase().includes(search) || c.patient.name.toLowerCase().includes(search) || c.patient.lastName.toLowerCase().includes(search));
-    }
 
-    if (lista.length === 0) return tbody.append('<tr><td colspan="6" class="text-center p-5 text-muted">No hay informes en esta bandeja.</td></tr>');
+    datosFiltrados.forEach(item => {
+        let badgeEstado = item.status === 'entregado'
+            ? '<span class="badge bg-success shadow-sm"><i class="bi bi-check-all me-1"></i>Entregado</span>'
+            : '<span class="badge bg-warning text-dark shadow-sm"><i class="bi bi-clock me-1"></i>Pendiente</span>';
 
-    lista.forEach(cadena => {
-        const isEntregado = cadena.status === 'entregado';
+        // === BOTONES MEJORADOS (Email e Impresión) ===
+        let btnEntregar = `<button class="btn btn-sm btn-primary fw-bold shadow-sm" onclick="abrirModalEntrega('${item.id}')" title="Entrega Física Presencial"><i class="bi bi-person-check me-1"></i> Entregar</button>`;
+        let btnEmail = `<button class="btn btn-sm btn-info text-white fw-bold shadow-sm ms-1" onclick="enviarResultadosPorEmail('${item.id}')" title="Enviar resultados por correo al paciente"><i class="bi bi-envelope-at me-1"></i> Email</button>`;
+        let btnImprimir = `<button class="btn btn-sm btn-outline-secondary fw-bold ms-1" onclick="imprimirComprobanteEntrega('${item.id}')" title="Imprimir copia física"><i class="bi bi-printer"></i></button>`;
+        let btnRevertir = `<button class="btn btn-sm btn-outline-danger fw-bold ms-1" onclick="revertirEntrega('${item.id}')" title="Revertir estado a Pendiente"><i class="bi bi-arrow-counterclockwise"></i></button>`;
 
-        let badge = `<span class="badge bg-primary-subtle text-primary border border-primary">Pendiente</span>`;
+        let acciones = item.status === 'entregable'
+            ? `${btnEntregar} ${btnEmail} ${btnImprimir}`
+            : `${btnEmail} ${btnImprimir} ${btnRevertir}`;
 
-        if (isEntregado) {
-            const receptor = cadena.receiver_name || `${cadena.patient.name} ${cadena.patient.lastName}`;
-            const relacion = cadena.relationship || 'Mismo Paciente';
-
-            badge = `
-                <span class="badge bg-success-subtle text-success border border-success mb-1">Entregado</span>
-                <div class="small fw-bold text-dark mt-1" style="font-size: 0.75rem;">
-                    <i class="bi bi-person-check-fill text-success me-1"></i>A: ${receptor}
-                </div>
-                <div class="text-muted" style="font-size: 0.65rem;">(${relacion})</div>
-            `;
-        }
-
-        const examsStr = cadena.studies.map(e => `<span class="d-block"><i class="bi bi-check2 text-success me-1"></i>${e.exam}</span>`).join("");
+        const examenesStr = item.studies.map(s => s.exam).join("<br>");
 
         tbody.append(`
-            <tr class="${isEntregado ? 'bg-light opacity-75' : ''}">
-                <td class="ps-4">
-                    <div class="fw-bold text-dark">${cadena.patient.lastName}, ${cadena.patient.name}</div>
-                    <small class="text-muted">A.N: ${cadena.accessionNumber}</small>
+            <tr>
+                <td>
+                    <div class="fw-bold text-dark">${item.patient.lastName} ${item.patient.secondLastName || ''}, ${item.patient.name}</div>
+                    <div class="small text-muted">RUT: ${item.patient.rut}</div>
                 </td>
-                <td class="fw-bold text-secondary">${cadena.patient.rut}</td>
-                <td class="small fw-bold text-dark">${examsStr}</td>
-                <td class="small text-muted">${cadena.signatureDate}</td>
-                <td>${badge}</td>
-               <td class="text-center pe-4">
-                    <div class="btn-group shadow-sm">
-                        <button class="btn btn-sm btn-outline-danger fw-bold" onclick="imprimirInformeGlobal('${cadena.id}')" title="Imprimir Informe PDF"><i class="bi bi-file-pdf"></i></button>
-                        
-                        <button class="btn btn-sm btn-outline-primary fw-bold" onclick="imprimirEtiquetaCD('${cadena.id}')" title="Imprimir Etiqueta CD/Pendrive"><i class="bi bi-disc"></i></button>
-                        
-                        ${!isEntregado
-                ? `<button class="btn btn-sm btn-success fw-bold px-3" onclick="cambiarEstadoEntrega('${cadena.id}', 'deliver')">Entregar</button>`
-                : `<button class="btn btn-sm btn-secondary" onclick="cambiarEstadoEntrega('${cadena.id}', 'revert')"><i class="bi bi-arrow-counterclockwise"></i></button>`}
-                    </div>
-                </td>
+                <td class="font-monospace text-secondary small fw-bold">${item.accessionNumber}</td>
+                <td class="small fw-bold text-primary">${examenesStr}</td>
+                <td><small class="text-muted"><i class="bi bi-calendar-check me-1"></i>${new Date(item.start_time).toLocaleDateString('es-CL')}</small></td>
+                <td>${badgeEstado}</td>
+                <td>${acciones}</td>
             </tr>
         `);
     });
 }
 
-function imprimirEtiquetaCD(citaId) {
-    const baseItem = currentDeliveryData.find(c => String(c.id) === String(citaId));
-    if (!baseItem) return;
-
-    const clinicName = "Centro Médico RIS PRO";
-    const fecha = new Date().toLocaleDateString('es-CL');
-    const examsStr = baseItem.studies.map(s => s.exam).join(" + ");
-
-    const printWindow = window.open('', '_blank', 'width=600,height=600');
-
-    printWindow.document.write(`
-        <html>
-        <head>
-            <title>Etiqueta CD - ${baseItem.patient.rut}</title>
-            <style>
-                body { 
-                    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; 
-                    margin: 0; 
-                    padding: 0; 
-                    display: flex; 
-                    justify-content: center; 
-                    align-items: center; 
-                    background-color: #fff;
-                }
-                .cd-label {
-                    width: 120mm;
-                    height: 120mm;
-                    border: 1px dashed #ccc; /* Guía de recorte, no sale fuerte en la impresión final */
-                    border-radius: 50%; /* Diseño circular clásico de CD */
-                    box-sizing: border-box;
-                    text-align: center;
-                    display: flex;
-                    flex-direction: column;
-                    justify-content: center;
-                    align-items: center;
-                    padding: 20mm;
-                    position: relative;
-                }
-                /* Círculo central transparente del CD */
-                .cd-label::after {
-                    content: '';
-                    position: absolute;
-                    width: 15mm;
-                    height: 15mm;
-                    border: 1px solid #ccc;
-                    border-radius: 50%;
-                    top: 50%;
-                    left: 50%;
-                    transform: translate(-50%, -50%);
-                }
-                h2 { margin: 0 0 15px 0; font-size: 16px; color: #000; text-transform: uppercase; letter-spacing: 1px;}
-                .patient-name { font-size: 16px; font-weight: bold; margin-bottom: 8px; text-transform: uppercase; }
-                .data-row { font-size: 12px; margin-bottom: 4px; color: #333; }
-                .exams-box { 
-                    margin-top: 15px; 
-                    font-size: 11px; 
-                    font-weight: bold;
-                    border-top: 1px solid #000; 
-                    border-bottom: 1px solid #000; 
-                    padding: 5px 0;
-                    width: 100%;
-                }
-                @media print {
-                    .cd-label { border: none; } /* Ocultar el borde al imprimir si usan papel precortado */
-                    .cd-label::after { display: none; } /* Ocultar el hoyo central al imprimir */
-                }
-            </style>
-        </head>
-        <body>
-            <div class="cd-label">
-                <h2>${clinicName}</h2>
-                <div class="patient-name">${baseItem.patient.name} ${baseItem.patient.lastName}</div>
-                <div class="data-row"><b>RUT:</b> ${baseItem.patient.rut}</div>
-                <div class="data-row"><b>N° Orden (A.N):</b> ${baseItem.accessionNumber}</div>
-                <div class="data-row"><b>Fecha:</b> ${fecha}</div>
-                
-                <div class="exams-box">
-                    IMÁGENES DICOM<br>
-                    <span style="font-weight: normal; font-size: 10px;">${examsStr}</span>
-                </div>
-            </div>
-            <script>setTimeout(() => { window.print(); window.close(); }, 500);<\/script>
-        </body>
-        </html>
-    `);
-    printWindow.document.close();
-}
-
-function cambiarEstadoEntrega(id, action) {
-    if (action === 'revert') {
-        if (confirm("¿Deshacer entrega y volver a bandeja de pendientes?")) {
-            ejecutarLlamadaEntrega(id, 'revert', {});
-        }
-        return;
-    }
-
+// === FUNCIONES DE FLUJO DE ENTREGA ===
+function abrirModalEntrega(id) {
     citaIdParaEntrega = id;
     const cadena = currentDeliveryData.find(c => String(c.id) === String(id));
 
@@ -221,6 +119,12 @@ function cambiarEstadoEntrega(id, action) {
     modal.show();
 }
 
+function revertirEntrega(id) {
+    if (confirm("¿Deshacer entrega y volver a bandeja de pendientes?")) {
+        ejecutarLlamadaEntrega(id, 'revert', {});
+    }
+}
+
 async function procesarEntrega() {
     if (!citaIdParaEntrega) return;
 
@@ -232,7 +136,8 @@ async function procesarEntrega() {
     };
 
     if (!datosRecepcion.receiver_rut || !datosRecepcion.receiver_name) {
-        return showToast("Debe ingresar el RUT y Nombre de quien retira los exámenes.", "warning");
+        if (typeof showToast === 'function') showToast("Debe ingresar el RUT y Nombre de quien retira los exámenes.", "warning");
+        return;
     }
 
     const btn = $("#btnConfirmarEntrega");
@@ -264,21 +169,24 @@ async function ejecutarLlamadaEntrega(id, action, bodyData = {}) {
         });
 
         if (response.ok) {
-            showToast(action === 'deliver' ? "✅ Resultados entregados y registrados." : "⚠️ Entrega revertida.", action === 'deliver' ? "success" : "warning");
+            if (typeof showToast === 'function') showToast(action === 'deliver' ? "✅ Resultados entregados y registrados." : "⚠️ Entrega revertida.", action === 'deliver' ? "success" : "warning");
             cargarListaEntrega();
         } else {
-            showToast("Error al actualizar el estado en el servidor.", "danger");
+            if (typeof showToast === 'function') showToast("Error al actualizar el estado en el servidor.", "danger");
         }
     } catch (e) {
         console.error(e);
-        showToast("Error de conexión al registrar la entrega.", "danger");
+        if (typeof showToast === 'function') showToast("Error de conexión al registrar la entrega.", "danger");
     }
 }
 
-
-function imprimirInformeGlobal(citaId) {
+// === FUNCIONES DE IMPRESIÓN Y AUDITORÍA ===
+function imprimirComprobanteEntrega(citaId) {
     const baseItem = currentDeliveryData.find(c => String(c.id) === String(citaId));
     if (!baseItem) return;
+
+    // 🔥 Registro de Auditoría de Impresión (Silencioso)
+    registrarImpresionEnLog(citaId);
 
     const clinicName = "Centro Médico RIS PRO";
     const clinicAddress = "Av. Principal 123, Ciudad";
@@ -349,13 +257,92 @@ function imprimirInformeGlobal(citaId) {
         }
                     <b>Dr(a). ${baseItem.doctorName}</b><br>
                     <small>Firma Electrónica Avanzada</small><br>
-                    <small style="color: #7f8c8d;">Firmado el: ${baseItem.signatureDate}</small>
+                    <small style="color: #7f8c8d;">Firmado el: ${baseItem.signatureDate || new Date().toLocaleDateString('es-CL')}</small>
                 </div>
             </div>
             <script>setTimeout(() => { window.print(); window.close(); }, 500);<\/script>
         </body></html>
     `);
     printWindow.document.close();
+}
+
+function imprimirEtiquetaCD(citaId) {
+    const baseItem = currentDeliveryData.find(c => String(c.id) === String(citaId));
+    if (!baseItem) return;
+
+    const clinicName = "Centro Médico RIS PRO";
+    const fecha = new Date().toLocaleDateString('es-CL');
+    const examsStr = baseItem.studies.map(s => s.exam).join(" + ");
+
+    const printWindow = window.open('', '_blank', 'width=600,height=600');
+
+    printWindow.document.write(`
+        <html>
+        <head>
+            <title>Etiqueta CD - ${baseItem.patient.rut}</title>
+            <style>
+                body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; background-color: #fff; }
+                .cd-label { width: 120mm; height: 120mm; border: 1px dashed #ccc; border-radius: 50%; box-sizing: border-box; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20mm; position: relative; }
+                .cd-label::after { content: ''; position: absolute; width: 15mm; height: 15mm; border: 1px solid #ccc; border-radius: 50%; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+                h2 { margin: 0 0 15px 0; font-size: 16px; color: #000; text-transform: uppercase; letter-spacing: 1px;}
+                .patient-name { font-size: 16px; font-weight: bold; margin-bottom: 8px; text-transform: uppercase; }
+                .data-row { font-size: 12px; margin-bottom: 4px; color: #333; }
+                .exams-box { margin-top: 15px; font-size: 11px; font-weight: bold; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 5px 0; width: 100%; }
+                @media print { .cd-label { border: none; } .cd-label::after { display: none; } }
+            </style>
+        </head>
+        <body>
+            <div class="cd-label">
+                <h2>${clinicName}</h2>
+                <div class="patient-name">${baseItem.patient.name} ${baseItem.patient.lastName}</div>
+                <div class="data-row"><b>RUT:</b> ${baseItem.patient.rut}</div>
+                <div class="data-row"><b>N° Orden (A.N):</b> ${baseItem.accessionNumber}</div>
+                <div class="data-row"><b>Fecha:</b> ${fecha}</div>
+                <div class="exams-box">IMÁGENES DICOM<br><span style="font-weight: normal; font-size: 10px;">${examsStr}</span></div>
+            </div>
+            <script>setTimeout(() => { window.print(); window.close(); }, 500);<\/script>
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
+}
+
+async function enviarResultadosPorEmail(id) {
+    const item = currentDeliveryData.find(c => String(c.id) === String(id));
+    if (!item) return;
+
+    if (!confirm(`¿Desea enviar los informes médicos al correo registrado del paciente ${item.patient.name} ${item.patient.lastName}?`)) return;
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(`${API_URL}/delivery/appointments/${id}/email`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+        const data = await response.json();
+
+        if (response.ok) {
+            if (typeof showToast === 'function') showToast(`✅ ${data.message}`, "success");
+            cargarListaEntrega();
+        } else {
+            if (typeof showToast === 'function') showToast(`❌ Error: ${data.message}`, "danger");
+        }
+    } catch (e) {
+        if (typeof showToast === 'function') showToast("Error de conexión al intentar enviar el correo.", "danger");
+    }
+}
+
+async function registrarImpresionEnLog(id) {
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+    try {
+        await fetch(`${API_URL}/delivery/appointments/${id}/log-print`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+    } catch (e) { }
 }
 
 $(document).ready(function () {

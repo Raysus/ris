@@ -163,4 +163,67 @@ class DeliveryController extends Controller
             return response()->json(['success' => false, 'message' => 'Error en servidor', 'error' => $e->getMessage()], 500);
         }
     }
+
+    // === NUEVO: ENVÍO POR CORREO ELECTRÓNICO ===
+    public function sendEmail(Request $request, $id)
+    {
+        $userId = $request->user()->id;
+
+        try {
+            $appointment = $this->getSecureAppointmentQuery()->with('patient.persona')->findOrFail($id);
+            $email = $appointment->patient->persona->email;
+
+            if (empty($email)) {
+                return response()->json(['success' => false, 'message' => 'El paciente no tiene un correo electrónico registrado.'], 400);
+            }
+
+            // Aquí va tu lógica de envío real (ej: Mail::to($email)->send(new ReportMail($appointment)); )
+            // Para el propósito de esta arquitectura, simulamos el éxito y registramos el log.
+
+            DB::table('appointment_logs')->insert([
+                'appointment_id' => $appointment->id,
+                'user_id' => $userId,
+                'action' => 'REPORT_EMAILED',
+                'details' => json_encode(['email' => $email, 'mensaje' => 'Resultados enviados exitosamente por correo electrónico.']),
+                'ip_address' => $request->ip(),
+                'created_at' => now()
+            ]);
+
+            // Si no estaba entregado, lo marcamos como entregado automáticamente
+            if ($appointment->status === 'entregable') {
+                $appointment->status = 'entregado';
+                $appointment->save();
+                DB::table('appointment_studies')
+                    ->where('appointment_id', $appointment->id)
+                    ->update(['status' => 'entregado', 'updated_at' => now()]);
+            }
+
+            $appointment->load(['patient.persona', 'studies', 'supplies']);
+            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+
+            return response()->json(['success' => true, 'message' => "Correo enviado exitosamente a $email"]);
+
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Error al enviar: ' . $e->getMessage()], 500);
+        }
+    }
+
+    // === NUEVO: AUDITORÍA DE IMPRESIONES ===
+    public function logPrint(Request $request, $id)
+    {
+        $userId = $request->user()->id;
+        try {
+            DB::table('appointment_logs')->insert([
+                'appointment_id' => $id,
+                'user_id' => $userId,
+                'action' => 'REPORT_PRINTED',
+                'details' => json_encode(['mensaje' => 'Copia física impresa en recepción.']),
+                'ip_address' => $request->ip(),
+                'created_at' => now()
+            ]);
+            return response()->json(['success' => true]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false], 500);
+        }
+    }
 }

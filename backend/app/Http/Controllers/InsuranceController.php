@@ -37,7 +37,7 @@ class InsuranceController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'id' => 'nullable|integer',
+            'id' => 'nullable|string',
             'name' => 'required|string|max:255'
         ]);
 

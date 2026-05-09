@@ -69,10 +69,20 @@
                     </div>
                     <div class="card-body">
                         <div class="row g-3">
-                            <div class="col-md-2">
-                                <label class="form-label small fw-bold text-muted mb-1">RUT *</label>
-                                <input type="text" id="pRut" class="form-control form-control-sm border-primary"
-                                    placeholder="Ej: 12.345.678-9" required>
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-5">
+                                    <label class="form-label fw-bold small text-muted">Tipo Documento</label>
+                                    <select class="form-select form-select-sm" id="pTipoDoc"
+                                        onchange="toggleFormatoDocAgenda()">
+                                        <option value="RUT">RUT (Chile)</option>
+                                        <option value="PASAPORTE">Pasaporte / Extranjero</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-7">
+                                    <label class="form-label fw-bold small text-muted" id="lblDoc">N° de RUT *</label>
+                                    <input type="text" class="form-control form-control-sm" id="pRut"
+                                        placeholder="12.345.678-9">
+                                </div>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label small fw-bold text-muted mb-1">Nombres *</label>
@@ -169,6 +179,24 @@
                                     <option value="Alta">Alta</option>
                                     <option value="Urgencia" class="text-danger fw-bold">Urgencia</option>
                                 </select>
+                            </div>
+                        </div>
+                        <div class="row g-3 align-items-end mt-2">
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold text-muted mb-1">Hora Inicio</label>
+                                <input type="datetime-local" id="manualStartTime"
+                                    class="form-control form-control-sm border-primary fw-bold">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold text-muted mb-1">Hora Término</label>
+                                <input type="datetime-local" id="manualEndTime"
+                                    class="form-control form-control-sm border-secondary">
+                            </div>
+                            <div class="col-md-6 text-end">
+                                <button type="button" class="btn btn-sm btn-outline-info shadow-sm"
+                                    onclick="buscarDisponibilidad()">
+                                    <i class="bi bi-search me-1"></i> Sugerir Próxima Hora Libre
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -297,13 +325,20 @@
                                         </select>
                                     </div>
                                     <div class="col-md-3">
-                                        <label class="form-label small fw-bold text-muted mb-1">Medio de
-                                            Pago</label>
+                                        <label class="form-label small fw-bold text-muted mb-1">Medio de Pago</label>
                                         <select id="payMethod" class="form-select form-select-sm border-success">
+                                            <option value="Pendiente">Pendiente de Pago</option>
                                             <option value="Efectivo">Efectivo</option>
-                                            <option value="Cheque">Cheque</option>
                                             <option value="Tarjeta">Tarjeta</option>
-                                            <option value="Transbank">Transbank</option>
+                                            <option value="Mixto">Mixto (Efectivo + Tarjeta)</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label small fw-bold text-muted mb-1">Estado del Pago</label>
+                                        <select id="paymentStatus" class="form-select form-select-sm border-success">
+                                            <option value="Pendiente">Por Pagar</option>
+                                            <option value="Pagado">Pagado Total</option>
+                                            <option value="Parcial">Pago Parcial</option>
                                         </select>
                                     </div>
                                     <div class="col-md-3">
@@ -349,5 +384,37 @@
             </div>
 
         </form>
+    </div>
+</div>
+<div class="modal fade" id="modalNuevoMedico" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-person-plus me-2"></i>Registrar Médico Derivante</h5>
+            </div>
+            <div class="modal-body row g-3">
+                <div class="col-12">
+                    <label>RUT Médico</label>
+                    <input type="text" id="newDocRut" class="form-control" placeholder="12.345.678-9">
+                </div>
+                <div class="col-12">
+                    <label>Nombres</label>
+                    <input type="text" id="newDocNames" class="form-control">
+                </div>
+                <div class="col-12">
+                    <label>Apellidos</label>
+                    <input type="text" id="newDocLastNames" class="form-control">
+                </div>
+                <div class="col-12">
+                    <label>Correo Electrónico</label>
+                    <input type="email" id="newDocEmail" class="form-control" placeholder="Para enviar resultados">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                <button class="btn btn-success" onclick="guardarNuevoMedico()"><i class="bi bi-save me-1"></i>
+                    Registrar</button>
+            </div>
+        </div>
     </div>
 </div>

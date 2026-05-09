@@ -84,7 +84,7 @@ function renderWorklist() {
         const app = study.appointment;
         if (!app) return;
         if (!['confirmado', 'devuelto_worklist', 'dicom_enviado'].includes(app.status)) return;
-        if (filter && study.machine_id != filter) return;
+        if (filter && String(study.machine_id) !== String(filter)) return;
 
         const p = app.patient?.persona || {};
         const nombreCompleto = `${p.names || ''} ${p.last_name_1 || ''}`.trim() || 'Paciente';
@@ -106,7 +106,10 @@ function renderWorklist() {
                 insumosAsignados: [],
                 statusGlobal: app.status,
                 accessionGlobal: app.accession_number,
-                returnReason: app.return_reason
+                returnReason: app.return_reason,
+                // --- NUEVO ---
+                medicalOrder: app.medical_order_path,
+                survey: app.survey_path
             };
         }
 
@@ -206,6 +209,19 @@ function abrirAtencion(chainId) {
     const yaEnviado = currentAtencionChain.statusGlobal === 'dicom_enviado';
     setDicomUI(yaEnviado, currentAtencionChain.accessionGlobal);
 
+
+    // === Habilitar Botones de Documentos ===
+    if (currentAtencionChain.medicalOrder) {
+        $("#btnVerOrdenTM").prop("disabled", false).removeClass("btn-outline-success").addClass("btn-success text-white");
+    } else {
+        $("#btnVerOrdenTM").prop("disabled", true).removeClass("btn-success text-white").addClass("btn-outline-success");
+    }
+
+    if (currentAtencionChain.survey) {
+        $("#btnVerEncuestaTM").prop("disabled", false).removeClass("btn-outline-danger").addClass("btn-danger text-white");
+    } else {
+        $("#btnVerEncuestaTM").prop("disabled", true).removeClass("btn-danger text-white").addClass("btn-outline-danger");
+    }
     $("#modalAtencion").modal('show');
 }
 
@@ -412,6 +428,22 @@ async function finalizarAtencion() {
         btn.prop('disabled', false).html('<i class="bi bi-check-circle me-1"></i> FINALIZAR Y ENVIAR A PACS');
     }
 }
+
+function abrirDocWorklist(tipo) {
+    if (!currentAtencionChain) return;
+
+    let path = tipo === 'orden' ? currentAtencionChain.medicalOrder : currentAtencionChain.survey;
+    if (!path) return showToast("Este documento no fue escaneado en recepción.", "warning");
+
+    let fullUrl = path;
+    if (!fullUrl.startsWith('http')) {
+        // Asume la IP de tu nube o ajusta según corresponda
+        const baseUrl = "https://ris.healthticloud.cl";
+        fullUrl = `${baseUrl}${path}`;
+    }
+
+    window.open(fullUrl, '_blank');
+}
 async function devolverAAgenda() {
     if (!currentAtencionChain) return;
 
@@ -462,5 +494,17 @@ async function devolverAAgenda() {
         if (typeof showToast === 'function') showToast("❌ Error al devolver. Revisa la consola (F12).", "danger");
     } finally {
         btn.prop('disabled', false).html('<i class="bi bi-reply-all"></i> Devolver a Recepción');
+    }
+}
+
+function verificarStockCritico() {
+    const criticos = currentSuppliesFromDB.filter(i => i.stock <= 5);
+    if (criticos.length > 0) {
+        $("#alertasInsumosContainer").html(`
+            <div class="alert alert-warning py-2 shadow-sm small">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                <strong>Stock Crítico:</strong> ${criticos.map(i => i.name).join(", ")}
+            </div>
+        `);
     }
 }

@@ -1,5 +1,5 @@
 /* =========================================
-   MÓDULO RADIÓLOGO (radiologist.js)
+   MÓDULO RADIÓLOGO (radiologist.js) - ENTERPRISE
    ========================================= */
 
 let currentReportingChain = null;
@@ -10,13 +10,182 @@ let mediaRecorder;
 let audioChunks = [];
 let currentDictationMethod = 'teclado';
 
+// === NUEVAS VARIABLES GLOBALES ===
+let allTemplates = [];
+let autoSaveInterval = null;
+let lastSavedText = "";
+let recordingInterval;
+let recordingSeconds = 0;
+const MAX_RECORDING_SECONDS = 600; // 10 minutos
+let isSplitScreen = false;
+
 function initRadiologist() {
+    cargarPlantillasRadiologo();
     cargarEstudiosRadiologo();
     setupAudioEvents();
 
     setInterval(cargarEstudiosRadiologo, 30000);
 }
 
+// === 1. PLANTILLAS DINÁMICAS DESDE BD ===
+async function cargarPlantillasRadiologo() {
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+    try {
+        const response = await fetch(`${API_URL}/templates`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+        const data = await response.json();
+        if (response.ok && data.success) {
+            allTemplates = data.data;
+            const dropdown = $("#dropdownPlantillas");
+            dropdown.empty();
+
+            if (allTemplates.length === 0) {
+                dropdown.append('<li><span class="dropdown-item text-muted">No hay plantillas creadas</span></li>');
+                return;
+            }
+
+            allTemplates.forEach(tpl => {
+                dropdown.append(`<li><a class="dropdown-item" href="javascript:void(0);" onclick="aplicarPlantillaId('${tpl.id}')"><b>[${tpl.group_code}]</b> ${tpl.title}</a></li>`);
+            });
+        }
+    } catch (e) {
+        console.error("Error cargando plantillas:", e);
+    }
+}
+
+function aplicarPlantillaId(id) {
+    if (!currentRadioStudy) return showToast("Seleccione un estudio primero.", "warning");
+    const tpl = allTemplates.find(t => String(t.id) === String(id));
+    if (!tpl) return;
+
+    const textarea = $("#textoInforme");
+    const separador = textarea.val().trim() !== "" ? "\n\n---\n\n" : "";
+    textarea.val(textarea.val() + separador + tpl.content);
+
+    currentRadioStudy.reportText = textarea.val();
+    showToast(`Plantilla "${tpl.title}" insertada.`, "info");
+    ejecutarAutoguardado(); // Guardar inmediatamente
+}
+
+// === 2. AUTOGUARDADO (DRAFT) ===
+function iniciarAutoguardado() {
+    if (autoSaveInterval) clearInterval(autoSaveInterval);
+    autoSaveInterval = setInterval(ejecutarAutoguardado, 20000); // Cada 20 segundos
+}
+
+async function ejecutarAutoguardado() {
+    if (!currentReportingChain || !currentRadioStudy) return;
+
+    const textoActual = $("#textoInforme").val();
+    if (textoActual === lastSavedText) return; // No hay cambios, no hacer request
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    // Mostramos el icono
+    $("#autoSaveIndicator").html('<span class="spinner-border spinner-border-sm text-primary"></span>').fadeIn();
+
+    try {
+        const paqueteInformes = currentReportingChain.studies.map(s => ({
+            id: s.study_id,
+            text: s.reportText
+        }));
+
+        const response = await fetch(`${API_URL}/radiologist/appointments/${currentReportingChain.id}/draft`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            body: JSON.stringify({ reports: paqueteInformes })
+        });
+
+        if (response.ok) {
+            lastSavedText = textoActual;
+            $("#autoSaveIndicator").html('<i class="bi bi-cloud-check-fill text-success me-1"></i>Guardado');
+            setTimeout(() => $("#autoSaveIndicator").fadeOut(), 3000);
+        }
+    } catch (e) {
+        console.error("Fallo el autoguardado en background", e);
+        $("#autoSaveIndicator").html('<i class="bi bi-cloud-slash-fill text-danger me-1"></i>Error al guardar').fadeOut(4000);
+    }
+}
+
+// === 3. ADENDAS MÉDICAS ===
+function insertarAdenda() {
+    if (!currentRadioStudy) return;
+    const textarea = $("#textoInforme");
+    const fechaActual = new Date().toLocaleString('es-CL');
+    const bloqueAdenda = `\n\n========================================\nADENDA AÑADIDA EL: ${fechaActual}\n========================================\n`;
+
+    textarea.val(textarea.val() + bloqueAdenda);
+    currentRadioStudy.reportText = textarea.val();
+    textarea.focus();
+    ejecutarAutoguardado();
+}
+
+// === 4. PANTALLA DIVIDIDA (SPLIT SCREEN) ===
+function toggleHistorialPanel() {
+    const colEditor = $("#colEditor");
+    const colHistorial = $("#colHistorial");
+
+    if (isSplitScreen) {
+        // Cerrar Split
+        colHistorial.removeClass("d-flex").addClass("d-none");
+        colEditor.css("width", "100%");
+        isSplitScreen = false;
+        $("#btnHistorialPaciente").removeClass("bg-primary").addClass("btn-info text-white");
+    } else {
+        // Abrir Split
+        if (!currentReportingChain) return showToast("Seleccione un paciente primero", "warning");
+        colHistorial.removeClass("d-none").addClass("d-flex");
+        colEditor.css("width", "50%");
+        isSplitScreen = true;
+        $("#btnHistorialPaciente").removeClass("btn-info text-white").addClass("bg-primary text-white");
+        cargarHistorialSplit();
+    }
+}
+
+async function cargarHistorialSplit() {
+    const p = currentReportingChain.patient;
+    const contenedor = $("#contenedorHistorialSplit");
+    contenedor.html('<div class="text-center p-4"><span class="spinner-border text-primary"></span> Buscando informes...</div>');
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(`${API_URL}/patients/${p.rut}/history`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            contenedor.empty();
+            if (data.data.length === 0) {
+                return contenedor.html('<div class="alert alert-info shadow-sm small"><i class="bi bi-info-circle me-2"></i>No hay historial previo para comparar.</div>');
+            }
+
+            data.data.forEach(informe => {
+                contenedor.append(`
+                    <div class="card shadow-sm border-0 mb-3" style="font-size: 0.85rem;">
+                        <div class="card-header bg-white d-flex justify-content-between align-items-center py-2 border-0">
+                            <strong class="text-dark">${informe.exam_name}</strong>
+                            <span class="badge bg-secondary">${new Date(informe.date).toLocaleDateString('es-CL')}</span>
+                        </div>
+                        <div class="card-body py-2">
+                            <p class="text-muted mb-2" style="font-size: 0.75rem;">Dr(a). ${informe.doctor_name}</p>
+                            <div class="p-2 bg-white border rounded text-dark" style="white-space: pre-wrap; user-select: all;">${informe.report_text}</div>
+                        </div>
+                    </div>
+                `);
+            });
+        }
+    } catch (error) {
+        contenedor.html('<div class="text-danger p-3"><i class="bi bi-wifi-off me-2"></i>Error de conexión.</div>');
+    }
+}
+
+// === Carga Principal de Estudios ===
 async function cargarEstudiosRadiologo() {
     const token = localStorage.getItem('ris_token');
     const labId = localStorage.getItem('ris_lab_id');
@@ -34,7 +203,6 @@ async function cargarEstudiosRadiologo() {
         }
     } catch (e) {
         console.error("Error al cargar bandeja del radiólogo:", e);
-        lista.html('<div class="p-4 text-center text-danger"><i class="bi bi-wifi-off fs-2 d-block mb-2"></i>Error de conexión</div>');
     }
 }
 
@@ -71,6 +239,7 @@ function abrirInforme(citaId) {
     if (!currentReportingChain) return;
 
     renderRadiologistStudies();
+    iniciarAutoguardado(); // Activar el auto-save para esta cita
 
     $("#infoPacienteRadiologo").html(`
         <div class="row align-items-center">
@@ -96,6 +265,9 @@ function abrirInforme(citaId) {
     if (currentReportingChain.studies.length > 0) {
         cargarEstudioEnEditor(currentReportingChain.studies[0].study_id);
     }
+
+    // Si la pantalla dividida estaba abierta para otro paciente, la actualizamos
+    if (isSplitScreen) cargarHistorialSplit();
 }
 
 function cargarEstudioEnEditor(studyId) {
@@ -106,31 +278,15 @@ function cargarEstudioEnEditor(studyId) {
     $(`#tab-${studyId}`).removeClass("btn-outline-primary").addClass("bg-primary text-white");
 
     $("#textoInforme").val(currentRadioStudy.reportText || "").prop("disabled", false);
-    $("#btnPlantilla, #btnDevolver, #btnGrabarAudio, #btnFirmarDirecto, #btnHistorialPaciente").prop("disabled", false);
+    lastSavedText = currentRadioStudy.reportText || ""; // Resetear comparador de autoguardado
+
+    $("#btnPlantilla, #btnDevolver, #btnGrabarAudio, #btnFirmarDirecto, #btnHistorialPaciente, #btnAdenda").prop("disabled", false);
+
     audioBlob = null;
     $("#audioPreview").addClass("d-none").attr("src", "");
-    $("#btnRecord").removeClass("d-none").prop("disabled", false).html('<i class="bi bi-mic me-1"></i> INICIAR DICTADO');
+    $("#btnRecord").removeClass("d-none").prop("disabled", false).html('<i class="bi bi-mic me-1"></i> GRABAR AUDIO');
     $("#btnStop").addClass("d-none");
     $("#recordingPulse").addClass("d-none");
-}
-
-function aplicarPlantilla(tipo) {
-    if (!currentRadioStudy) return showToast("Seleccione un estudio primero.", "warning");
-
-    const plantillas = {
-        "normal_torax": "RADIOGRAFÍA DE TÓRAX AP Y LATERAL\n\nTécnica: Se adquieren proyecciones AP y lateral de tórax.\n\nHallazgos:\n- Silueta cardiovascular conservada.\n- Pulmones expandidos, sin condensaciones.\n- Senos costofrénicos libres.\n\nConclusión:\nRadiografía de tórax normal.",
-        "normal_eco": "ECOGRAFÍA ABDOMINAL\n\nTécnica: Exploración ecográfica de abdomen.\n\nHallazgos:\n- Hígado de tamaño, forma y ecogenicidad conservada.\n- Vesícula biliar sin litiasis.\n- Riñones de características habituales.\n\nConclusión:\nEcografía abdominal normal.",
-        "normal_tc_cerebro": "TC DE CEREBRO SIN CONTRASTE\n\nTécnica: Cortes axiales de encéfalo sin contraste.\n\nHallazgos:\n- Parénquima cerebral conservado.\n- Sistema ventricular normal.\n\nConclusión:\nEstudio tomográfico de cerebro dentro de límites normales."
-    };
-
-    if (!plantillas[tipo]) return;
-
-    const textarea = $("#textoInforme");
-    const separador = textarea.val().trim() !== "" ? "\n\n---\n\n" : "";
-    textarea.val(textarea.val() + separador + plantillas[tipo]);
-
-    currentRadioStudy.reportText = textarea.val();
-    showToast("Plantilla insertada.", "info");
 }
 
 async function firmarDirecto() {
@@ -219,20 +375,16 @@ async function enviarATranscripcion() {
         const btn = $("#btnGrabarAudio");
 
         try {
-            btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Subiendo audio...');
+            btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Subiendo...');
 
             const formData = new FormData();
             formData.append('study_id', currentRadioStudy.study_id);
             formData.append('report_text', texto);
-
             formData.append('audio', audioBlob, `dictado_${currentRadioStudy.study_id}.webm`);
 
             const response = await fetch(`${API_URL}/radiologist/appointments/${currentReportingChain.id}/transcribe`, {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'X-Lab-Id': labId
-                },
+                headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
                 body: formData
             });
 
@@ -241,11 +393,9 @@ async function enviarATranscripcion() {
                 limpiarPantallaRadiologo();
                 cargarEstudiosRadiologo();
             } else {
-                const errorData = await response.json();
-                throw new Error(errorData.message || "Error en el servidor");
+                throw new Error("Error en el servidor");
             }
         } catch (e) {
-            console.error(e);
             showToast("❌ Error al subir el archivo de audio", "danger");
         } finally {
             btn.prop('disabled', false).html('<i class="bi bi-headphones me-1"></i> Enviar a Transcripción');
@@ -253,40 +403,69 @@ async function enviarATranscripcion() {
     }
 }
 
+// === 5. LÍMITE DE AUDIO (MEDIA RECORDER) ===
 function setupAudioEvents() {
     $("#btnRecord").click(async function () {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             mediaRecorder = new MediaRecorder(stream);
             audioChunks = [];
+            recordingSeconds = 0;
+
             mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+
             mediaRecorder.onstop = () => {
+                clearInterval(recordingInterval);
                 audioBlob = new Blob(audioChunks, { type: "audio/webm" });
                 $("#audioPreview").removeClass("d-none").attr("src", URL.createObjectURL(audioBlob));
                 stream.getTracks().forEach(track => track.stop());
             };
+
             mediaRecorder.start();
-            $(this).addClass("d-none"); $("#btnStop").removeClass("d-none"); $("#recordingPulse").removeClass("d-none");
-        } catch (err) { showToast("Error de micrófono.", "danger"); }
+            $(this).addClass("d-none");
+            $("#btnStop").removeClass("d-none");
+            $("#recordingPulse").removeClass("d-none");
+
+            $("#audioTimer").text("00:00");
+            recordingInterval = setInterval(() => {
+                recordingSeconds++;
+                let min = String(Math.floor(recordingSeconds / 60)).padStart(2, '0');
+                let sec = String(recordingSeconds % 60).padStart(2, '0');
+                $("#audioTimer").text(`${min}:${sec}`);
+
+                // CORTADOR AUTOMÁTICO A LOS 10 MINUTOS
+                if (recordingSeconds >= MAX_RECORDING_SECONDS) {
+                    $("#btnStop").click();
+                    showToast("Límite máximo de 10 minutos alcanzado. Grabación detenida.", "warning");
+                }
+            }, 1000);
+
+        } catch (err) { showToast("Error al acceder al micrófono.", "danger"); }
     });
+
     $("#btnStop").click(function () {
         if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
-        $(this).addClass("d-none"); $("#btnRecord").removeClass("d-none").html('<i class="bi bi-mic me-1"></i> REGRABAR'); $("#recordingPulse").addClass("d-none");
+        $(this).addClass("d-none");
+        $("#btnRecord").removeClass("d-none").html('<i class="bi bi-mic me-1"></i> REGRABAR (Sobrescribe)');
+        $("#recordingPulse").addClass("d-none");
     });
 }
 
 function limpiarPantallaRadiologo() {
     currentReportingChain = null;
     currentRadioStudy = null;
+    if (autoSaveInterval) clearInterval(autoSaveInterval);
     $("#infoPacienteRadiologo").html('<div class="text-center text-muted p-5"><i class="bi bi-file-earmark-medical fs-1 d-block mb-3"></i>Seleccione paciente.</div>');
     $("#listaExamenesRadiologo").empty();
     $("#textoInforme").val("").prop("disabled", true);
-    $("#btnPlantilla, #btnDevolver, #btnGrabarAudio, #btnFirmarDirecto, #btnHistorialPaciente").prop("disabled", true);
+    $("#btnPlantilla, #btnDevolver, #btnGrabarAudio, #btnFirmarDirecto, #btnHistorialPaciente, #btnAdenda").prop("disabled", true);
     audioBlob = null;
     $("#audioPreview").addClass("d-none").attr("src", "");
-    $("#btnRecord").removeClass("d-none").prop("disabled", true).html('<i class="bi bi-mic me-1"></i> INICIAR DICTADO');
+    $("#btnRecord").removeClass("d-none").prop("disabled", true).html('<i class="bi bi-mic me-1"></i> GRABAR AUDIO');
     $("#btnStop").addClass("d-none");
     $("#recordingPulse").addClass("d-none");
+
+    if (isSplitScreen) toggleHistorialPanel(); // Cerrar split screen
 }
 
 $(document).ready(function () {
@@ -299,9 +478,7 @@ $(document).ready(function () {
 
 function activarDragon() {
     if (!currentRadioStudy) return;
-
     currentDictationMethod = 'dragon';
-
     const txt = $("#textoInforme");
     txt.prop("disabled", false).focus();
     txt.addClass("border border-success border-2 shadow").removeClass("border-0");
@@ -309,56 +486,9 @@ function activarDragon() {
     if (mediaRecorder && mediaRecorder.state !== "inactive") {
         $("#btnStop").click();
     }
-    if (typeof showToast === 'function') showToast("🟢 Dragon Medical listo.", "success");
+    if (typeof showToast === 'function') showToast("🟢 Dragon Medical activo en esta caja de texto.", "success");
 }
 
-function abrirHistorialSeleccionado() {
-    if (!currentReportingChain) return;
-    const p = currentReportingChain.patient;
-    verHistorialPaciente(p.rut, `${p.name} ${p.lastName}`);
-}
-
-async function verHistorialPaciente(rut, nombreCompleto) {
-    $("#historialNombrePaciente").text(nombreCompleto);
-    const contenedor = $("#contenedorHistorial");
-    contenedor.html('<div class="text-center p-4"><span class="spinner-border text-primary"></span> Buscando informes previos...</div>');
-
-    $("#modalHistorialPaciente").modal('show');
-
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
-
-    try {
-        const response = await fetch(`${API_URL}/patients/${rut}/history`, {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
-        });
-        const data = await response.json();
-
-        if (response.ok && data.success) {
-            contenedor.empty();
-            if (data.data.length === 0) {
-                return contenedor.html('<div class="alert alert-info shadow-sm"><i class="bi bi-info-circle me-2"></i>No existen exámenes anteriores firmados para este paciente.</div>');
-            }
-
-            data.data.forEach(informe => {
-                contenedor.append(`
-                    <div class="card shadow-sm border-0 mb-3">
-                        <div class="card-header bg-white d-flex justify-content-between align-items-center pb-0 border-0">
-                            <h6 class="fw-bold text-dark mb-0">${informe.exam_name}</h6>
-                            <span class="badge bg-secondary">${new Date(informe.date).toLocaleDateString('es-CL')}</span>
-                        </div>
-                        <div class="card-body">
-                            <p class="small text-muted mb-2"><b>Radiólogo:</b> Dr(a). ${informe.doctor_name}</p>
-                            <div class="p-3 bg-light rounded text-dark" style="font-size: 0.9rem; white-space: pre-wrap; border-left: 3px solid #0d6efd;">${informe.report_text}</div>
-                        </div>
-                    </div>
-                `);
-            });
-        }
-    } catch (error) {
-        contenedor.html('<div class="text-danger p-3"><i class="bi bi-wifi-off me-2"></i>Error de conexión.</div>');
-    }
-}
 function abrirVisorDicom() {
     if (!currentReportingChain) return;
     abrirVisorPACS(currentReportingChain.accessionNumber);
@@ -373,7 +503,7 @@ async function abrirVisorPACS(accessionNumber) {
     };
 
     try {
-        const response = await fetch(`http://localhost:8181/open-dicom`, {
+        await fetch(`http://localhost:8181/open-dicom`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(pacsConfig)

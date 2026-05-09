@@ -40,6 +40,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::apiResource('patients', PatientController::class);
 
     Route::apiResource('machines', MachineController::class);
+    Route::post('/machines/{id}/ping', [MachineController::class, 'pingDicom']);
 
     Route::apiResource('exams', ExamController::class);
     Route::post('exams/import', [ExamController::class, 'importExams']);
@@ -66,12 +67,15 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     // MÓDULO RADIÓLOGO
     Route::get('/radiologist/studies', [RadiologistController::class, 'index']);
     Route::post('/radiologist/appointments/{id}/sign', [RadiologistController::class, 'signReport']);
+    Route::post('/radiologist/appointments/{id}/draft', [RadiologistController::class, 'saveDraft']);
     Route::post('/radiologist/appointments/{id}/return', [RadiologistController::class, 'returnToTechnologist']);
     Route::post('/radiologist/appointments/{id}/transcribe', [RadiologistController::class, 'sendToTranscription']);
 
     // MÓDULO DE TRANSCRIPCIÓN
     Route::get('/transcription/studies', [TranscriptionController::class, 'index']);
     Route::post('/transcription/appointments/{id}/complete', [TranscriptionController::class, 'completeTranscription']);
+    Route::post('/transcription/appointments/{id}/draft', [TranscriptionController::class, 'saveDraft']);
+    Route::post('/transcription/appointments/{id}/return', [TranscriptionController::class, 'returnToRadiologist']);
 
     // MÓDULO DE VALIDACIÓN
     Route::get('/radiologist/validations', [RadiologistController::class, 'validations']);
@@ -81,6 +85,8 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::get('/delivery/studies', [DeliveryController::class, 'index']);
     Route::post('/delivery/appointments/{id}/deliver', [DeliveryController::class, 'deliver']);
     Route::post('/delivery/appointments/{id}/revert', [DeliveryController::class, 'revert']);
+    Route::post('/delivery/appointments/{id}/email', [DeliveryController::class, 'sendEmail']);
+    Route::post('/delivery/appointments/{id}/log-print', [DeliveryController::class, 'logPrint']);
 
     Route::apiResource('services', ServiceController::class);
     Route::get('roles', [UserController::class, 'getRoles']);

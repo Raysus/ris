@@ -34,7 +34,7 @@ class ServiceController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'id' => 'nullable|integer',
+            'id' => 'nullable|string',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string'
         ]);

@@ -63,7 +63,7 @@ class RadiologistController extends Controller
     {
         $request->validate([
             'reports' => 'required|array',
-            'reports.*.id' => 'required|integer',
+            'reports.*.id' => 'required|string',
             'reports.*.text' => 'nullable|string',
             'dictation_method' => 'required|string'
         ]);
@@ -107,6 +107,40 @@ class RadiologistController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    // === 🔥 NUEVA FUNCIÓN DE AUTOGUARDADO (BORRADOR) 🔥 ===
+    public function saveDraft(Request $request, $id)
+    {
+        $request->validate([
+            'reports' => 'required|array',
+            'reports.*.id' => 'required|string',
+            'reports.*.text' => 'nullable|string'
+        ]);
+
+        try {
+            $appointment = $this->getSecureAppointmentQuery()->findOrFail($id);
+
+            foreach ($request->reports as $reportData) {
+                DB::table('appointment_studies')
+                    ->where('id', $reportData['id'])
+                    ->where('appointment_id', $appointment->id)
+                    ->update([
+                        'report' => $reportData['text'] ?? '',
+                        'updated_at' => now()
+                    ]);
+            }
+
+            // Opcional: Sincronizar el borrador a la nube para evitar pérdidas
+            $appointment->touch();
+            $appointment->load(['patient.persona', 'studies', 'supplies']);
+            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+
+            return response()->json(['success' => true]);
+
+        } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
@@ -155,7 +189,7 @@ class RadiologistController extends Controller
     public function sendToTranscription(Request $request, $id)
     {
         $request->validate([
-            'study_id' => 'required|integer',
+            'study_id' => 'required|string',
             'audio' => 'required|file|mimes:webm,mp3,wav,ogg,mp4|max:15360',
         ]);
 

@@ -10,6 +10,9 @@ use Carbon\Carbon;
 
 class DashboardController extends Controller
 {
+    /**
+     * Obtiene una consulta base de citas filtrada por los laboratorios permitidos del usuario.
+     */
     private function getSecureAppointmentQuery()
     {
         $allowedLabs = config('app.allowed_lab_ids');
@@ -25,6 +28,9 @@ class DashboardController extends Controller
         return $query;
     }
 
+    /**
+     * Aplica el filtro de laboratorios permitidos a una consulta de Query Builder (DB::table).
+     */
     private function applySecureLabFilterToDBQuery($queryBuilder)
     {
         $allowedLabs = config('app.allowed_lab_ids');
@@ -38,37 +44,59 @@ class DashboardController extends Controller
         return $queryBuilder;
     }
 
+    /**
+     * Genera todas las métricas para el Dashboard.
+     */
     public function getMetrics(Request $request)
     {
+        // Determinamos la fecha a consultar (hoy por defecto)
         $fechaFiltro = $request->query('date') ? Carbon::parse($request->query('date')) : Carbon::today();
         $ayer = (clone $fechaFiltro)->subDay();
 
-        $appointments = $this->getSecureAppointmentQuery()
+        // 1. OBTENCIÓN DE DATOS BASE
+        $query = $this->getSecureAppointmentQuery()
             ->with(['studies', 'machine'])
-            ->whereDate('start_time', $fechaFiltro)
-            ->where('status', '!=', 'anulado')
-            ->get();
+            ->whereDate('start_time', $fechaFiltro);
 
+        $appointments = $query->get();
+
+        // 2. CÁLCULO DE KPIs BÁSICOS
         $totalPacientes = $appointments->unique('patient_id')->count();
 
-        $queryIngresosHoy = DB::table('appointment_studies')
-            ->join('appointments', 'appointments.id', '=', 'appointment_studies.appointment_id')
-            ->whereDate('appointments.start_time', $fechaFiltro)
-            ->where('appointments.status', '!=', 'anulado');
+        // Ingresos de hoy vs Ayer (Métrica de Tendencia)
+        $ingresosHoy = $appointments->sum('total_price');
 
-        $this->applySecureLabFilterToDBQuery($queryIngresosHoy);
-        $ingresosHoy = $queryIngresosHoy->sum(DB::raw('price * quantity'));
+        $ingresosAyer = $this->getSecureAppointmentQuery()
+            ->whereDate('start_time', $ayer)
+            ->sum('total_price');
 
-        $queryIngresosAyer = DB::table('appointment_studies')
-            ->join('appointments', 'appointments.id', '=', 'appointment_studies.appointment_id')
-            ->whereDate('appointments.start_time', $ayer)
-            ->where('appointments.status', '!=', 'anulado');
+        $tendencia = $ingresosAyer > 0 ? (($ingresosHoy - $ingresosAyer) / $ingresosAyer) * 100 : 0;
 
-        $this->applySecureLabFilterToDBQuery($queryIngresosAyer);
-        $ingresosAyer = $queryIngresosAyer->sum(DB::raw('price * quantity'));
+        // 3. CÁLCULO DE TAT PROMEDIO (Métrica de Calidad)
+        // Calculamos el tiempo desde que se confirma la cita hasta que el informe es firmado (deliverable)
+        $terminadasHoy = $appointments->whereIn('status', ['entregable', 'entregado']);
+        $tatPromedio = 0;
+        if ($terminadasHoy->count() > 0) {
+            $minutosTotales = $terminadasHoy->reduce(function ($carry, $app) {
+                $inicio = Carbon::parse($app->start_time);
+                $fin = Carbon::parse($app->updated_at); // updated_at refleja el último cambio de estado
+                return $carry + $inicio->diffInMinutes($fin);
+            }, 0);
+            $tatPromedio = round($minutosTotales / $terminadasHoy->count());
+        }
 
-        $variacion = $ingresosAyer > 0 ? (($ingresosHoy - $ingresosAyer) / $ingresosAyer) * 100 : 0;
+        // 4. DESGLOSE POR SEGUROS / PREVISIÓN (Métrica Financiera)
+        $segurosQuery = DB::table('appointments')
+            ->join('insurances', 'appointments.insurance_id', '=', 'insurances.id')
+            ->whereDate('appointments.start_time', $fechaFiltro);
 
+        $this->applySecureLabFilterToDBQuery($segurosQuery);
+
+        $seguros = $segurosQuery->select('insurances.name', DB::raw('count(*) as total'))
+            ->groupBy('insurances.name')
+            ->get();
+
+        // 5. PRODUCCIÓN POR MODALIDAD
         $modalidades = [];
         foreach ($appointments as $app) {
             if ($app->machine) {
@@ -77,11 +105,12 @@ class DashboardController extends Controller
             }
         }
 
+        // 6. ESTADO DEL FLUJO CLÍNICO (Pasos del Paciente)
         $flujo = [
             'Espera/Agendado' => $appointments->whereIn('status', ['agendado', 'confirmado', 'espera'])->count(),
-            'En Equipo' => $appointments->where('status', 'dicom_enviado')->count(),
+            'En Equipo (DICOM)' => $appointments->where('status', 'dicom_enviado')->count(),
             'Radiólogo' => $appointments->whereIn('status', ['en_informe', 'para_firma'])->count(),
-            'Secretaria' => $appointments->where('status', 'en_transcripcion')->count(),
+            'Secretaría' => $appointments->where('status', 'en_transcripcion')->count(),
             'Listos/Entregados' => $appointments->whereIn('status', ['entregable', 'entregado'])->count(),
         ];
 
@@ -92,11 +121,13 @@ class DashboardController extends Controller
                     'pacientes' => $totalPacientes,
                     'examenes' => $appointments->whereNotIn('status', ['agendado', 'confirmado', 'espera'])->count(),
                     'ingresos' => (int) $ingresosHoy,
-                    'tendencia' => round($variacion, 1)
+                    'tendencia' => round($tendencia, 1),
+                    'tat_promedio' => $tatPromedio,
+                    'seguros' => $seguros
                 ],
                 'charts' => [
-                    'flujo' => $flujo,
-                    'modalidades' => $modalidades
+                    'modalidades' => $modalidades,
+                    'flujo' => $flujo
                 ]
             ]
         ]);

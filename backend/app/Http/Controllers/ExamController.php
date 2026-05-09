@@ -28,7 +28,7 @@ class ExamController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'id' => 'nullable|integer',
+            'id' => 'nullable|string',
             'group_code' => 'required|string',
             'name' => 'required|string',
             'fonasa_code' => 'nullable|string',

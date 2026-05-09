@@ -10,6 +10,8 @@ let colorInformeGlobal = "#333333";
 function initTranscription() {
     cargarAjustesVisuales();
     cargarListaTranscripcion();
+    cargarPlantillasTranscripcion();
+    setupKeyboardShortcuts();
     setInterval(cargarListaTranscripcion, 30000);
 }
 
@@ -142,7 +144,6 @@ function cargarEstudioTranscripcion(studyId) {
 
     $("#textoTranscripcion").val(currentTransStudy.reportText || "").prop("disabled", false);
 
-
     if (currentTransStudy.audioUrl) {
         $("#audioStatus").html('<span class="text-success fw-bold"><i class="bi bi-play-circle-fill me-1"></i>Audio de dictado disponible</span>');
         $("#btnPlayPause, .btn-group .btn, .dropdown-toggle").prop("disabled", false);
@@ -157,6 +158,9 @@ function cargarEstudioTranscripcion(studyId) {
 
         initAudioPlayer('');
     }
+
+    iniciarAutoguardadoTrans();
+    lastSavedTextTrans = currentTransStudy.reportText;
 }
 
 async function enviarAValidacion() {
@@ -207,7 +211,8 @@ function limpiarPantallaTranscripcion() {
     if (typeof initAudioPlayer === 'function') initAudioPlayer('');
     $("#btnPlayPause, .btn-group .btn, .dropdown-toggle").prop("disabled", true);
     $("#audioProgress").prop("disabled", true).val(0);
-
+    if (autoSaveIntervalTrans) clearInterval(autoSaveIntervalTrans);
+    $("#btnPlantillaTrans, #btnDevolverAudio").prop("disabled", true);
     renderListaTranscripcion();
 }
 
@@ -261,3 +266,128 @@ $(document).ready(function () {
         }
     });
 });
+
+// === 1. ATAJOS DE TECLADO ===
+function setupKeyboardShortcuts() {
+    document.addEventListener('keydown', function (e) {
+        if (!currentTransStudy || !audioPlayer) return;
+
+        // F4: Play / Pausa
+        if (e.key === 'F4') {
+            e.preventDefault(); // Evita funciones por defecto del navegador
+            togglePlayPause();
+        }
+        // F2: Retroceder 5 segundos
+        if (e.key === 'F2') {
+            e.preventDefault();
+            skipAudio(-5);
+        }
+    });
+}
+
+// === 2. PLANTILLAS DINÁMICAS ===
+async function cargarPlantillasTranscripcion() {
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+    try {
+        const response = await fetch(`${API_URL}/templates`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+        const data = await response.json();
+        if (response.ok && data.success) {
+            allTemplatesTrans = data.data;
+            const dropdown = $("#dropdownPlantillasTrans");
+            dropdown.empty();
+            if (allTemplatesTrans.length === 0) return dropdown.append('<li><span class="dropdown-item text-muted">No hay plantillas creadas</span></li>');
+
+            allTemplatesTrans.forEach(tpl => {
+                dropdown.append(`<li><a class="dropdown-item" href="javascript:void(0);" onclick="aplicarPlantillaIdTrans('${tpl.id}')"><b>[${tpl.group_code}]</b> ${tpl.title}</a></li>`);
+            });
+        }
+    } catch (e) { console.error("Error cargando plantillas:", e); }
+}
+
+function aplicarPlantillaIdTrans(id) {
+    if (!currentTransStudy) return;
+    const tpl = allTemplatesTrans.find(t => String(t.id) === String(id));
+    if (!tpl) return;
+
+    const textarea = $("#textoTranscripcion");
+    const separador = textarea.val().trim() !== "" ? "\n\n---\n\n" : "";
+    textarea.val(textarea.val() + separador + tpl.content);
+    currentTransStudy.reportText = textarea.val();
+    ejecutarAutoguardadoTrans();
+}
+
+// === 3. AUTOGUARDADO ===
+function iniciarAutoguardadoTrans() {
+    if (autoSaveIntervalTrans) clearInterval(autoSaveIntervalTrans);
+    autoSaveIntervalTrans = setInterval(ejecutarAutoguardadoTrans, 20000); // Cada 20s
+}
+
+async function ejecutarAutoguardadoTrans() {
+    if (!currentTranscriptionChain || !currentTransStudy) return;
+
+    const textoActual = $("#textoTranscripcion").val();
+    if (textoActual === lastSavedTextTrans) return;
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+    $("#autoSaveIndTrans").html('<span class="spinner-border spinner-border-sm text-primary"></span>').fadeIn();
+
+    try {
+        const paqueteInformes = currentTranscriptionChain.studies.map(s => ({
+            id: s.study_id,
+            text: s.reportText
+        }));
+
+        const response = await fetch(`${API_URL}/transcription/appointments/${currentTranscriptionChain.id}/draft`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            body: JSON.stringify({ reports: paqueteInformes })
+        });
+
+        if (response.ok) {
+            lastSavedTextTrans = textoActual;
+            $("#autoSaveIndTrans").html('<i class="bi bi-cloud-check-fill text-success me-1"></i>Guardado');
+            setTimeout(() => $("#autoSaveIndTrans").fadeOut(), 3000);
+        }
+    } catch (e) { console.error("Error auto-save", e); }
+}
+
+// Escuchar cambios en el textarea para actualizar el objeto
+$(document).on("input", "#textoTranscripcion", function () {
+    if (currentTransStudy) currentTransStudy.reportText = $(this).val();
+});
+
+// === 4. DEVOLVER AL MÉDICO ===
+async function devolverAudioAlMedico() {
+    if (!currentTranscriptionChain) return;
+
+    const motivo = prompt("Indique por qué devuelve este audio al Radiólogo (Ej: Audio inaudible, cortado, vacío):");
+    if (!motivo) return;
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+    const btn = $("#btnDevolverAudio");
+
+    try {
+        btn.prop('disabled', true).html('Devolviendo...');
+
+        const response = await fetch(`${API_URL}/transcription/appointments/${currentTranscriptionChain.id}/return`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            body: JSON.stringify({ reason: motivo })
+        });
+
+        if (response.ok) {
+            showToast("Audio devuelto al Radiólogo.", "warning");
+            limpiarPantallaTranscripcion();
+            cargarListaTranscripcion();
+        }
+    } catch (e) {
+        showToast("Error al devolver.", "danger");
+    } finally {
+        btn.prop('disabled', false).html('<i class="bi bi-exclamation-triangle me-1"></i> Reportar Audio');
+    }
+}  

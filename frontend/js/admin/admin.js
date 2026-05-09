@@ -331,54 +331,58 @@ async function renderListaUsuariosAdmin() {
 }
 
 function nuevoUsuario() {
+    abrirModalUsuario(null);
+}
+
+function abrirModalUsuario(id = null) {
     $("#adminForm")[0].reset();
     $("#uId").val("");
     $("#uRut").prop("disabled", false).removeClass("is-valid is-invalid");
     $(".req-user").removeClass("is-valid is-invalid");
     $(".role-check").prop("checked", false);
     $("#btnEliminarUsuario").hide();
-    $("#modalUsuario").modal('show');
-}
 
-function cargarUsuario(id) {
-    const u = currentUsersFromDB.find(user => user.id === id);
-    if (!u) return;
-    const p = u.persona || {};
+    // 1. Dibujamos los switches de sucursales SIEMPRE
+    renderCheckboxesSucursales();
+    $(".chk-lab").prop("checked", false);
 
-    $("#uId").val(u.id);
-    $("#uRut").val(p.rut).prop("disabled", true).removeClass("is-invalid is-valid");
-    $("#uNombres").val(p.names || "");
-    $("#uPrimerApellido").val(p.last_name_1 || "");
-    $("#uSegundoApellido").val(p.last_name_2 || "");
+    if (id) {
+        const u = currentUsersFromDB.find(user => user.id === id);
+        if (!u) return;
+        const p = u.persona || {};
 
-    $("#uTitulo").val(u.medical_title || "");
-    $("#uUsername").val(u.username || "");
-    $("#uPassword").val("");
-    $("#uAeTitle").val(u.pacs_ae || "");
-    $("#uDragonProfile").val(u.dragon_profile || "");
+        $("#uId").val(u.id);
+        $("#uRut").val(p.rut).prop("disabled", true).removeClass("is-invalid is-valid");
+        $("#uNombres").val(p.names || "");
+        $("#uPrimerApellido").val(p.last_name_1 || "");
+        $("#uSegundoApellido").val(p.last_name_2 || "");
 
-    let labIdsParaSeleccionar = [];
-    if (u.laboratories && u.laboratories.length > 0) {
-        labIdsParaSeleccionar = u.laboratories.map(l => l.id);
-    }
-    $("#uLaboratorio").val(labIdsParaSeleccionar);
+        $("#uTitulo").val(u.medical_title || "");
+        $("#uUsername").val(u.username || "");
+        $("#uPassword").val("");
+        $("#uAeTitle").val(u.pacs_ae || "");
+        $("#uDragonProfile").val(u.dragon_profile || "");
 
-    $(".role-check").prop("checked", false);
+        // 2. Marcar switches de sucursales correctos
+        if (u.laboratories && u.laboratories.length > 0) {
+            u.laboratories.forEach(lab => {
+                $(`#chkLab_${lab.id}`).prop("checked", true);
+            });
+        }
 
-    if (u.settings && u.settings.roles) {
-        u.settings.roles.forEach(r => {
-            $(`.role-check[value="${r}"]`).prop("checked", true);
-        });
+        if (u.settings && u.settings.roles) {
+            u.settings.roles.forEach(r => {
+                $(`.role-check[value="${r}"]`).prop("checked", true);
+            });
+        }
+        $("#btnEliminarUsuario").show();
     }
 
     const esAdmin = esAdminLogueado();
-
     $("#uUsername").prop("disabled", !esAdmin);
-    $("#uLaboratorio").prop("disabled", !esAdmin);
+    $(".chk-lab").prop("disabled", !esAdmin); // Bloquear sucursales si no es admin
     $(".role-check").prop("disabled", !esAdmin);
 
-    $(".req-user").removeClass("is-valid is-invalid");
-    $("#btnEliminarUsuario").show();
     $("#modalUsuario").modal('show');
 }
 
@@ -386,36 +390,23 @@ async function guardarUsuario() {
     let hasError = false;
     $(".req-user").each(function () {
         if ($(this).attr('id') === 'uPassword' && $("#uId").val() !== "") return;
-
         let valor = $(this).val();
-
-        if (Array.isArray(valor)) {
-            if (valor.length === 0) {
-                $(this).addClass("is-invalid");
-                hasError = true;
-            } else {
-                $(this).removeClass("is-invalid").addClass("is-valid");
-            }
-        }
-
-        else {
-            if (!valor || valor.trim() === "") {
-                $(this).addClass("is-invalid");
-                hasError = true;
-            } else {
-                $(this).removeClass("is-invalid").addClass("is-valid");
-            }
+        if (!valor || valor.trim() === "") {
+            $(this).addClass("is-invalid");
+            hasError = true;
+        } else {
+            $(this).removeClass("is-invalid").addClass("is-valid");
         }
     });
 
     const rolesSeleccionados = [];
-    $(".role-check:checked").each(function () {
-        rolesSeleccionados.push($(this).val());
-    });
+    $(".role-check:checked").each(function () { rolesSeleccionados.push($(this).val()); });
 
-    if (rolesSeleccionados.length === 0) {
-        return showToast("⚠️ Debe seleccionar al menos un rol.", "danger");
-    }
+    if (rolesSeleccionados.length === 0) return showToast("⚠️ Debe seleccionar al menos un rol.", "danger");
+
+    // 3. CAPTURAR SUCURSALES (SWITCHES)
+    const sucursalesSeleccionadas = $(".chk-lab:checked").map(function () { return $(this).val(); }).get();
+    if (sucursalesSeleccionadas.length === 0) return showToast("⚠️ Debe asignar al menos una sucursal al usuario.", "warning");
 
     const esRadiologo = rolesSeleccionados.includes('radiologo');
     const aeTitle = $("#uAeTitle").val().trim();
@@ -442,22 +433,19 @@ async function guardarUsuario() {
     formData.append('password', $("#uPassword").val());
     formData.append('pacsAE', aeTitle);
     formData.append('dragonProfile', $("#uDragonProfile").val().trim());
-    const labsSeleccionados = $("#uLaboratorio").val() || [];
-    labsSeleccionados.forEach(labId => formData.append('laboratories[]', labId));
+
+    // Adjuntar las sucursales al formulario
+    sucursalesSeleccionadas.forEach(labId => formData.append('laboratories[]', labId));
 
     if (!$(".role-check").prop("disabled")) {
         rolesSeleccionados.forEach(rol => formData.append('roles[]', rol));
     }
 
-    if ($("#uId").val() !== "") {
-        formData.append('id', $("#uId").val());
-
-    }
+    if ($("#uId").val() !== "") formData.append('id', $("#uId").val());
 
     const firmaFile = document.getElementById('uFirma').files[0];
-    if (firmaFile) {
-        formData.append('signature', firmaFile);
-    }
+    if (firmaFile) formData.append('signature', firmaFile);
+
     const token = localStorage.getItem('ris_token');
     const labId = localStorage.getItem('ris_lab_id');
 
@@ -475,7 +463,6 @@ async function guardarUsuario() {
             renderListaUsuariosAdmin();
         } else {
             showToast(`❌ Error: ${data.message}`, "danger");
-            console.log("Respuesta del servidor:", data);
         }
     } catch (e) { showToast("🔌 Error de conexión", "danger"); }
 }
@@ -674,6 +661,9 @@ async function renderListaSalasAdmin() {
                         </td>
                         <td><span class="badge ${badgeColor} px-3 py-2">${res.group}</span></td>
                         <td class="text-center pe-4">
+                            <button class="btn btn-sm btn-outline-success fw-bold me-1" onclick="pingDicom('${res.id}')" title="Test de conexión DICOM C-ECHO">
+                                <i class="bi bi-wifi"></i> Ping
+                            </button>
                             <button class="btn btn-sm btn-outline-info fw-bold text-dark" onclick="cargarSala('${res.id}')">
                                 <i class="bi bi-pencil-square"></i> Editar
                             </button>
@@ -686,53 +676,71 @@ async function renderListaSalasAdmin() {
 }
 
 function cargarSala(id) {
-    const sala = currentMachinesFromDB.find(r => r.id == id);
-    if (!sala) return;
-    $("#salaId").val(sala.id);
-    $("#salaNombre").val(sala.name);
-    $("#salaGrupo").val(sala.group);
-    $("#salaFabricante").val(sala.manufacturer || "");
-    $("#salaModelo").val(sala.model_name || "");
-    $("#salaDescripcion").val(sala.description || "");
-    $("#btnEliminarSala").show();
+    limpiarFormulario(".req-sala");
+    $("#salaId").val("");
+
+    // Limpiar campos DICOM
+    $("#salaAeTitle, #salaIp, #salaPort, #salaManufacturer, #salaModel, #salaDescription").val("");
+
+    if (id) {
+        const sala = currentMachinesFromDB.find(s => String(s.id) === String(id));
+        if (sala) {
+            $("#salaId").val(sala.id);
+            $("#salaName").val(sala.name);
+            $("#salaGroup").val(sala.group);
+            $("#salaManufacturer").val(sala.manufacturer);
+            $("#salaModel").val(sala.model_name);
+            $("#salaDescription").val(sala.description);
+            // Cargar campos DICOM
+            $("#salaAeTitle").val(sala.ae_title || "");
+            $("#salaIp").val(sala.ip_address || "");
+            $("#salaPort").val(sala.port || "");
+        }
+    }
     $("#modalSala").modal('show');
 }
 
 async function guardarSala() {
-    const idExistente = $("#salaId").val();
-    const salaData = {
-        id: idExistente || null,
-        name: $("#salaNombre").val().trim(),
-        group: $("#salaGrupo").val(),
-        manufacturer: $("#salaFabricante").val().trim(),
-        model_name: $("#salaModelo").val().trim(),
-        description: $("#salaDescripcion").val().trim()
+    if (!validarFormulario(".req-sala")) return;
+
+    const payload = {
+        id: $("#salaId").val(),
+        name: $("#salaName").val(),
+        group: $("#salaGroup").val(),
+        manufacturer: $("#salaManufacturer").val(),
+        model_name: $("#salaModel").val(),
+        description: $("#salaDescription").val(),
+        // Capturar campos DICOM
+        ae_title: $("#salaAeTitle").val(),
+        ip_address: $("#salaIp").val(),
+        port: $("#salaPort").val() ? parseInt($("#salaPort").val()) : null
     };
 
     const token = localStorage.getItem('ris_token');
     const labId = localStorage.getItem('ris_lab_id');
+    const btn = $("#modalSala .btn-warning");
 
     try {
+        btn.prop("disabled", true).html('<span class="spinner-border spinner-border-sm"></span>');
+
         const response = await fetch(`${API_URL}/machines`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-                'X-Lab-Id': labId
-            },
-            body: JSON.stringify(salaData)
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            body: JSON.stringify(payload)
         });
 
-        if (response.ok) {
+        const data = await response.json();
+        if (response.ok && data.success) {
             $("#modalSala").modal('hide');
-            showToast(idExistente ? "✅ Equipo actualizado." : "✅ Equipo creado.", "success");
-            renderListaSalasAdmin();
+            showToast("✅ Equipo guardado exitosamente.", "success");
+            renderListaSalasAdmin(); // Asegúrate de tener esta función para recargar la tabla
         } else {
-            const err = await response.json();
-            showToast(`❌ Error: ${err.message}`, "danger");
+            showToast(`❌ Error: ${data.message}`, "danger");
         }
     } catch (e) {
-        showToast("Error de conexión", "danger");
+        showToast("🔌 Error de red", "danger");
+    } finally {
+        btn.prop("disabled", false).text("Guardar");
     }
 }
 
@@ -2028,5 +2036,250 @@ async function eliminarPlantilla() {
         }
     } catch (e) {
         showToast("Error al eliminar", "danger");
+    }
+}
+
+// === MÓDULO DE PACIENTES (CRUD) ===
+
+async function cargarPacientes() {
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+    const tbody = $("#tablaPacientes tbody"); // Asegúrate de tener una tabla con este ID en tu pestaña de pacientes
+
+    try {
+        const response = await fetch(`${API_URL}/patients`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            currentPacientesAdmin = data.data.data; // Viene paginado usualmente
+            renderListaPacientesAdmin();
+
+            // Llenar el select de seguros médicos en el modal
+            const selectSeguro = $("#pacSeguro").empty().append('<option value="">Sin Previsión (Particular)</option>');
+            catalogInsurances.forEach(ins => {
+                selectSeguro.append(`<option value="${ins.id}">${ins.name}</option>`);
+            });
+        }
+    } catch (e) {
+        console.error("Error al cargar pacientes", e);
+    }
+}
+
+function renderListaPacientesAdmin() {
+    const tbody = $("#tablaPacientes tbody");
+    if (!tbody.length) return; // Por si la tabla aún no existe en el HTML
+    tbody.empty();
+
+    if (currentPacientesAdmin.length === 0) {
+        tbody.append('<tr><td colspan="5" class="text-center text-muted">No hay pacientes registrados</td></tr>');
+        return;
+    }
+
+    currentPacientesAdmin.forEach(p => {
+        const per = p.persona;
+        tbody.append(`
+            <tr>
+                <td class="fw-bold">${per.rut}</td>
+                <td>${per.last_name_1} ${per.last_name_2 || ''}, ${per.names}</td>
+                <td>${per.email || '<span class="text-muted small">Sin correo</span>'}</td>
+                <td>${per.phone || '-'}</td>
+                <td class="text-end">
+                    <button class="btn btn-sm btn-outline-primary" onclick="abrirModalPaciente('${p.id}')"><i class="bi bi-pencil"></i> Editar</button>
+                </td>
+            </tr>
+        `);
+    });
+}
+
+function abrirModalPaciente(id = null) {
+    limpiarFormulario(".req-pac");
+    $("#pacienteId").val("");
+    $("#pacRUT, #pacNombres, #pacApellido1, #pacApellido2, #pacNacimiento, #pacGenero, #pacTelefono, #pacEmail, #pacSeguro").val("");
+    $("#pacRUT").prop("disabled", false);
+    $("#btnEliminarPaciente").hide();
+
+
+    if (id) {
+        const p = currentPacientesAdmin.find(x => String(x.id) === String(id));
+        if (p) {
+            const per = p.persona;
+            $("#pacienteId").val(p.id);
+            $("#pacRUT").val(per.rut).prop("disabled", true); // El RUT no se edita fácilmente
+            $("#pacNombres").val(per.names);
+            $("#pacApellido1").val(per.last_name_1);
+            $("#pacApellido2").val(per.last_name_2);
+            if (per.birth_date) $("#pacNacimiento").val(per.birth_date.split('T')[0]);
+            $("#pacGenero").val(per.gender);
+            $("#pacTelefono").val(per.phone);
+            $("#pacEmail").val(per.email);
+            $("#pacSeguro").val(p.insurance_id || "");
+            $("#btnEliminarPaciente").show();
+        }
+    }
+    toggleFormatoDocumento();
+    $("#modalPaciente").modal('show');
+}
+
+async function guardarPaciente() {
+    if (!validarFormulario(".req-pac")) return;
+
+    const id = $("#pacienteId").val();
+    const isEdit = id !== "";
+    const method = isEdit ? 'PUT' : 'POST';
+    const url = isEdit ? `${API_URL}/patients/${id}` : `${API_URL}/patients`;
+
+    // (Fragmento dentro de guardarPaciente)
+    const tipoDoc = $("#pacTipoDoc").val();
+    const documento = $("#pacRUT").val().trim().toUpperCase();
+
+    // Si es RUT chileno, exigimos validación matemática estricta
+    if (tipoDoc === "RUT" && !validarRut(documento)) {
+        $("#pacRUT").addClass("is-invalid");
+        return showToast("❌ RUT Chileno inválido.", "danger");
+    }
+    // Si es pasaporte, solo exigimos que tenga al menos 4 caracteres (números o letras)
+    else if (tipoDoc === "PASAPORTE" && documento.length < 4) {
+        $("#pacRUT").addClass("is-invalid");
+        return showToast("❌ El pasaporte debe tener al menos 4 caracteres.", "danger");
+    }
+
+    const payload = {
+        rut: $("#pacRUT").val().trim(),
+        names: $("#pacNombres").val().trim(),
+        last_name_1: $("#pacApellido1").val().trim(),
+        last_name_2: $("#pacApellido2").val().trim(),
+        birth_date: $("#pacNacimiento").val() || null,
+        gender: $("#pacGenero").val() || null,
+        phone: $("#pacTelefono").val().trim(),
+        email: $("#pacEmail").val().trim(),
+        insurance_id: $("#pacSeguro").val() || null
+    };
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+    const btn = $("#modalPaciente .btn-primary");
+
+    try {
+        btn.prop("disabled", true).html('<span class="spinner-border spinner-border-sm"></span> Guardando...');
+
+        const response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        if (response.ok && data.success) {
+            $("#modalPaciente").modal('hide');
+            showToast(isEdit ? "Paciente actualizado" : "Paciente creado", "success");
+            cargarPacientes();
+        } else {
+            showToast(`Error: ${data.message || 'Datos inválidos'}`, "danger");
+        }
+    } catch (e) {
+        showToast("Error de conexión", "danger");
+    } finally {
+        btn.prop("disabled", false).text("Guardar Paciente");
+    }
+}
+
+async function eliminarPaciente() {
+    const id = $("#pacienteId").val();
+    if (!id || !confirm("¿Está absolutamente seguro de eliminar este paciente y todo su historial? Esta acción es irreversible.")) return;
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(`${API_URL}/patients/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+
+        if (response.ok) {
+            $("#modalPaciente").modal('hide');
+            showToast("Paciente eliminado.", "warning");
+            cargarPacientes();
+        } else {
+            showToast("No se pudo eliminar el paciente. Posiblemente tenga exámenes asociados.", "danger");
+        }
+    } catch (e) {
+        showToast("Error de conexión", "danger");
+    }
+}
+
+function renderCheckboxesSucursales() {
+    const container = $("#userLaboratoriesContainer").empty();
+    if (currentSucursalesAdmin.length === 0) {
+        container.html('<span class="text-danger small">No hay sucursales disponibles.</span>');
+        return;
+    }
+
+    currentSucursalesAdmin.forEach(suc => {
+        container.append(`
+            <div class="form-check form-switch">
+                <input class="form-check-input chk-lab" type="checkbox" value="${suc.id}" id="chkLab_${suc.id}">
+                <label class="form-check-label small fw-bold text-dark" for="chkLab_${suc.id}">${suc.name}</label>
+            </div>
+        `);
+    });
+}
+
+async function pingDicom(id) {
+    const sala = currentMachinesFromDB.find(s => String(s.id) === String(id));
+    if (!sala) return;
+
+    if (!sala.ip_address || !sala.port) {
+        return showToast("Debe configurar la IP y el Puerto editando la sala primero.", "warning");
+    }
+
+    if (typeof showToast === 'function') showToast(`Testeando conexión con ${sala.ae_title || sala.name}...`, "info");
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(`${API_URL}/machines/${id}/ping`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            alert(`✅ CONEXIÓN ESTABLECIDA\n\n${data.message}`);
+        } else {
+            alert(`❌ ERROR DE RED\n\n${data.message}`);
+        }
+    } catch (e) {
+        alert("❌ Error crítico: No se pudo contactar al servidor RIS.");
+    }
+}
+
+// === LÓGICA PARA EXTRANJEROS ===
+function toggleFormatoDocumento() {
+    const tipo = $("#pacTipoDoc").val();
+    const inputDoc = $("#pacRUT");
+
+    inputDoc.val("").removeClass("is-valid is-invalid");
+
+    if (tipo === "PASAPORTE") {
+        inputDoc.attr("placeholder", "Ej. AB123456 (Letras y números)");
+        inputDoc.off("input"); // Apagamos el formateo de puntos y guion
+    } else {
+        inputDoc.attr("placeholder", "12.345.678-9");
+        inputDoc.on("input", function () {
+            // Re-activamos el formateo de RUT chileno
+            let actual = $(this).val().replace(/[^0-9kK]/g, '');
+            if (actual.length === 0) { $(this).val(""); return; }
+            let rutPuntos = ""; let cuerpo = actual.slice(0, -1); let dv = actual.slice(-1).toUpperCase();
+            for (let i = cuerpo.length - 1, j = 1; i >= 0; i--, j++) {
+                rutPuntos = cuerpo.charAt(i) + rutPuntos;
+                if (j % 3 === 0 && i !== 0) rutPuntos = "." + rutPuntos;
+            }
+            $(this).val(cuerpo.length > 0 ? rutPuntos + "-" + dv : dv);
+        });
     }
 }

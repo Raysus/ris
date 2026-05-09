@@ -114,7 +114,7 @@ function poblarSelectsAgenda() {
             btnContainer.append(`
             <button type="button" 
                     class="btn btn-sm btn-outline-primary shadow-sm me-1 mb-1" 
-                    onclick="agregarPack(${pack.id})">
+                    onclick="agregarPack('${pack.id}')">
                 <i class="bi bi-box-seam me-1"></i>${pack.name}
             </button>
         `);
@@ -473,11 +473,34 @@ function abrirModalCita(data) {
 
     $("#appointmentModal").modal('show');
 }
+
+async function guardarNuevoMedico() {
+    const payload = {
+        rut: $("#newDocRut").val(),
+        names: $("#newDocNames").val(),
+        last_name_1: $("#newDocLastNames").val(),
+        email: $("#newDocEmail").val()
+    };
+
+    const response = await fetch(`${API_URL}/referring-doctors`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('ris_token')}` },
+        body: JSON.stringify(payload)
+    });
+
+    if (response.ok) {
+        const data = await response.json();
+        $("#mTratante").append(`<option value="${data.data.id}" selected>${data.data.names} ${data.data.last_name_1}</option>`);
+        $("#modalNuevoMedico").modal('hide');
+        showToast("Médico registrado y vinculado a Keycloak", "success");
+    }
+}
+
 async function guardarCita() {
     const idOriginal = $("#appointmentId").val();
     const rut = $("#pRut").val();
     const statusSeleccionado = $("#agendaStatus").val();
-
+    validarDocumentoAgenda();
     if (!rut || !$("#pName").val() || !$("#pLastName").val()) {
         return showToast("Faltan datos obligatorios (RUT y Apellidos)", "danger");
     }
@@ -533,7 +556,7 @@ async function guardarCita() {
     let colisionDetectada = null;
     salasInvolucradas.forEach(machineId => {
         const conflicto = (window.RIS.agenda || []).find(a => {
-            if (idOriginal && a.id == idOriginal) return false;
+            if (idOriginal && String(a.id) === String(idOriginal)) return false;
             if (!a.resourceIds.includes(machineId)) return false;
 
             const aStart = new Date(a.start).getTime();
@@ -569,42 +592,78 @@ async function guardarCita() {
         payment_method: $("#payMethod").val(),
         entidad_pagadora: $("#pEntidadPagadora").val(),
         transaction_code: $("#pTransactionCode").val(),
-        order_image: $('#docOrdenMedica').val(),
-        survey_image: $('#docEncuesta').val()
+        start_time: $("#manualStartTime").val() + ':00',
+        end_time: $("#manualEndTime").val() + ':00',
+        payment_status: $("#paymentStatus").val(),
     };
 
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
+    const formData = new FormData();
+    formData.append('data', JSON.stringify(payloadCitaGlobal));
+
+    // Archivos Nativos adjuntos
+    const fileOrden = $('#fileOrdenMedica')[0].files[0];
+    if (fileOrden) formData.append('order_file', fileOrden);
+
+    const fileEncuesta = $('#fileEncuesta')[0].files[0];
+    if (fileEncuesta) formData.append('survey_file', fileEncuesta);
+
     const btnGuardar = $("#btnGuardarCita");
+    btnGuardar.prop('disabled', true);
 
     try {
-        btnGuardar.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Procesando...');
-
-        let url = `${API_URL}/appointments`;
-        let method = 'POST';
-        if (idOriginal && !String(idOriginal).startsWith("APP-")) {
-            url = `${API_URL}/appointments/${idOriginal}`;
-            method = 'PUT';
-        }
-
         const response = await fetch(url, {
             method: method,
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
-            body: JSON.stringify(payloadCitaGlobal)
+            // ATENCIÓN: No enviar Content-Type cuando se usa FormData, el navegador lo pone automáticamente con el "Boundary"
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            body: formData
         });
 
-        if (!response.ok) throw new Error("Error en la comunicación con el servidor.");
+        if (!response.ok) throw new Error(await response.text());
 
-        $("#appointmentId").val("");
         $("#appointmentModal").modal('hide');
-        showToast(`✅ Cita integral guardada correctamente.`, "success");
-        cargarAgendaDesdeServidor();
 
+        // IMPRESIÓN DEL COMPROBANTE
+        if (confirm("✅ Cita guardada correctamente. ¿Desea imprimir el comprobante para el paciente?")) {
+            imprimirComprobantePaciente(payloadCitaGlobal);
+        }
+
+        cargarAgendaDesdeServidor();
     } catch (error) {
-        showToast(`❌ Error al guardar`, "danger");
-    } finally {
-        btnGuardar.prop('disabled', false).html('<i class="bi bi-save me-1"></i> Guardar');
+        showToast(`❌ Error al guardar: ${error.message}`, "danger");
     }
+}
+
+function imprimirComprobantePaciente(data) {
+    const printWindow = window.open('', '_blank', 'width=400,height=600');
+    const html = `
+        <html><head><title>Comprobante de Atención</title>
+        <style>
+            body { font-family: monospace; text-align: center; padding: 20px; }
+            .ticket { border: 1px dashed #000; padding: 15px; display: inline-block; width: 300px; text-align: left; }
+            h2 { margin-bottom: 5px; text-align: center; }
+            .sep { border-top: 1px dashed #ccc; margin: 10px 0; }
+        </style>
+        </head><body>
+        <div class="ticket">
+            <h2>RIS PRO CLÍNICA</h2>
+            <div class="sep"></div>
+            <b>Paciente:</b> ${data.patient.names} ${data.patient.last_name_1}<br>
+            <b>RUT:</b> ${data.patient.rut}<br>
+            <b>Fecha Cita:</b> ${new Date(data.start_time).toLocaleString('es-CL')}<br>
+            <div class="sep"></div>
+            <b>Exámenes a realizar:</b><br>
+            ${data.studies.map(s => `- ${s.exam_name}`).join('<br>')}<br>
+            <div class="sep"></div>
+            <b>Total a Pagar:</b> $${$("#totalCopay").text().replace('$', '')}<br>
+            <b>Estado:</b> ${data.payment_status}<br>
+            <div class="sep"></div>
+            <p style="font-size:11px; text-align:justify;">Recuerde llegar 15 minutos antes. Traer exámenes previos.</p>
+        </div>
+        <script>setTimeout(() => { window.print(); window.close(); }, 500);</script>
+        </body></html>
+    `;
+    printWindow.document.write(html);
+    printWindow.document.close();
 }
 async function eliminarCita() {
     const id = $("#appointmentId").val();
@@ -670,8 +729,8 @@ function calculateTotal() {
     const planId = $("#pPlan").val();
 
     if (insId && planId && catalogosAgenda.insurances) {
-        const seguro = catalogosAgenda.insurances.find(i => i.id == insId);
-        const plan = seguro?.plans?.find(p => p.id == planId);
+        const seguro = catalogosAgenda.insurances.find(i => String(i.id) === String(insId));
+        const plan = seguro?.plans?.find(p => String(p.id) === String(planId));
         porcentajeDescuento = parseFloat(plan?.percentage) || 0;
     }
 
@@ -720,8 +779,7 @@ function renderInsumos() {
     calculateTotal();
 }
 function agregarPack(packId) {
-    const pack = catalogosAgenda.supply_packs.find(p => p.id == packId);
-
+    const pack = catalogosAgenda.supply_packs.find(p => String(p.id) === String(packId));
     if (!pack || !pack.items) {
         showToast("No se encontraron ítems en este pack", "warning");
         return;
@@ -814,7 +872,7 @@ function loadProMasterData() {
 
     select.on("change", function () {
         if (!this.value) return;
-        const sup = window.RIS.supplies.find(s => s.id == this.value);
+        const sup = window.RIS.supplies.find(s => String(s.id) === String(this.value));
         if (sup) { currentInsumos.push({ ...sup }); renderInsumos(); }
         $(this).val("");
     });
@@ -834,46 +892,8 @@ function setupProEventListeners() {
 
     $("#mTratante").on("change", async function () {
         if ($(this).val() === "NUEVO") {
-            const nombreCompleto = prompt("Ingrese el Nombre y Apellido del nuevo médico tratante:");
-
-            if (!nombreCompleto || nombreCompleto.trim() === "") {
-                $(this).val("");
-                return;
-            }
-
-            const token = localStorage.getItem('ris_token');
-            const labId = localStorage.getItem('ris_lab_id');
-
-            try {
-                const partes = nombreCompleto.trim().split(" ");
-                const nombres = partes[0];
-                const apellido = partes.length > 1 ? partes.slice(1).join(" ") : "";
-
-                const response = await fetch(`${API_URL}/referring-doctors`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`,
-                        'X-Lab-Id': labId
-                    },
-                    body: JSON.stringify({ names: nombres, last_name_1: apellido })
-                });
-
-                const data = await response.json();
-
-                if (response.ok && data.success) {
-                    const doc = data.data;
-                    $(this).find('option[value="NUEVO"]').before(`<option value="${doc.id}">${doc.names} ${doc.last_name_1 || ''}</option>`);
-                    $(this).val(doc.id);
-                    showToast("✅ Médico agregado correctamente a la base de datos.", "success");
-                } else {
-                    showToast("❌ Error al guardar el médico", "danger");
-                    $(this).val("");
-                }
-            } catch (error) {
-                showToast("🔌 Error de conexión al crear médico", "danger");
-                $(this).val("");
-            }
+            $("#modalNuevoMedico").modal('show');
+            $(this).val(""); // Reset select
         }
     });
 
@@ -987,6 +1007,10 @@ function setupProEventListeners() {
                             }
                         }, 250);
                     }
+                    if (data.data.history_count && data.data.history_count > 0) {
+                        showToast(`🔔 Este paciente tiene ${data.data.history_count} exámenes previos. Pídale que los traiga para comparativa.`, "info");
+                        $("#pName").addClass('border-info bg-info-subtle');
+                    }
                     if (typeof showToast === 'function') showToast("✅ Paciente cargado desde la base de datos.", "success");
                 }
             } else if (response.status === 404) {
@@ -1051,7 +1075,7 @@ function setupProEventListeners() {
 
         if (!examId) return;
 
-        const examData = catalogosAgenda.exams.find(e => e.id == examId);
+        const examData = catalogosAgenda.exams.find(e => String(e.id) === String(examId));
         if (examData) {
             row.find(".ePrice").val(examData.price || 0);
             row.find(".eCode").val(examData.fonasa_code || '');
@@ -1064,6 +1088,21 @@ function setupProEventListeners() {
         }
         calculateTotal();
     });
+}
+
+function buscarDisponibilidad() {
+    const machine = $(".eMachine").val();
+    if (!machine) return showToast("Seleccione una sala de examen primero", "warning");
+
+    // Algoritmo simplificado: Setea la hora a "ahora" más 30 minutos
+    let now = new Date();
+    now.setMinutes(now.getMinutes() + 30);
+    now.setSeconds(0);
+    $("#manualStartTime").val(toLocalISOString(now).substring(0, 16));
+
+    let end = new Date(now.getTime() + 15 * 60000); // +15 mins
+    $("#manualEndTime").val(toLocalISOString(end).substring(0, 16));
+    showToast("Disponibilidad sugerida ingresada en los controles de hora.", "success");
 }
 
 $(document).ready(function () {
@@ -1213,4 +1252,43 @@ async function marcarComoRevisado(citaId) {
     } catch (e) {
         console.error("Error al limpiar revisión:", e);
     }
+}
+
+function toggleFormatoDocAgenda() {
+    const tipo = $("#pTipoDoc").val();
+    const input = $("#pRut");
+    const label = $("#lblDoc");
+
+    input.val("").removeClass("is-invalid is-valid");
+
+    if (tipo === "PASAPORTE") {
+        label.text("N° Pasaporte / ID *");
+        input.attr("placeholder", "Ej. AB123456");
+        input.off("input"); // Desactivamos el formateo automático de RUT
+    } else {
+        label.text("N° de RUT *");
+        input.attr("placeholder", "12.345.678-9");
+        // Re-vinculamos el formateo de RUT
+        input.on("input", function () {
+            let actual = $(this).val().replace(/[^0-9kK]/g, '');
+            if (actual.length === 0) return;
+            let cuerpo = actual.slice(0, -1);
+            let dv = actual.slice(-1).toUpperCase();
+            let rutPuntos = "";
+            for (let i = cuerpo.length - 1, j = 1; i >= 0; i--, j++) {
+                rutPuntos = cuerpo.charAt(i) + rutPuntos;
+                if (j % 3 === 0 && i !== 0) rutPuntos = "." + rutPuntos;
+            }
+            $(this).val(rutPuntos + "-" + dv);
+        });
+    }
+}
+
+// Al guardar la cita, usa esta validación:
+function validarDocumentoAgenda() {
+    const tipo = $("#pTipoDoc").val();
+    const doc = $("#pRut").val().trim();
+    if (tipo === "RUT" && !validarRut(doc)) return false;
+    if (tipo === "PASAPORTE" && doc.length < 4) return false;
+    return true;
 }

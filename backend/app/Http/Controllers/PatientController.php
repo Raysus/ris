@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Paciente;
 use App\Models\Persona;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class PatientController extends Controller
 {
@@ -29,23 +30,90 @@ class PatientController extends Controller
             ->orderBy('created_at', 'desc')
             ->paginate(20);
 
-        return response()->json([
-            'success' => true,
-            'data' => $patients
-        ]);
+        return response()->json(['success' => true, 'data' => $patients]);
     }
 
     public function store(Request $request)
     {
+        $request->validate([
+            'rut' => 'required|string',
+            'names' => 'required|string|max:255',
+            'last_name_1' => 'required|string|max:255',
+            'email' => 'nullable|email',
+            'insurance_id' => 'nullable|string'
+        ]);
+
+        $labId = $request->header('X-Lab-Id') ?: config('app.current_lab_id');
+
+        return DB::transaction(function () use ($request, $labId) {
+            $persona = Persona::updateOrCreate(
+                ['rut' => $request->rut],
+                [
+                    'names' => $request->names,
+                    'last_name_1' => $request->last_name_1,
+                    'last_name_2' => $request->last_name_2,
+                    'email' => $request->email,
+                    'phone' => $request->phone,
+                    'gender' => $request->gender,
+                    'birth_date' => $request->birth_date
+                ]
+            );
+
+            $patient = Paciente::updateOrCreate(
+                ['persona_id' => $persona->id, 'laboratory_id' => $labId],
+                ['insurance_id' => $request->insurance_id]
+            );
+
+            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Persona', 'updated', $persona->toArray());
+            \App\Jobs\SyncEntityToCloud::dispatch('App\\Models\\Paciente', 'updated', $patient->toArray());
+
+            return response()->json(['success' => true, 'data' => $patient->load('persona')]);
+        });
     }
+
     public function show($id)
     {
+        $patient = $this->getSecurePatientQuery()->findOrFail($id);
+        return response()->json(['success' => true, 'data' => $patient]);
     }
+
     public function update(Request $request, $id)
     {
+        $patient = $this->getSecurePatientQuery()->findOrFail($id);
+
+        $request->validate([
+            'names' => 'required|string|max:255',
+            'last_name_1' => 'required|string|max:255',
+            'email' => 'nullable|email'
+        ]);
+
+        DB::transaction(function () use ($request, $patient) {
+            $patient->persona->update([
+                'names' => $request->names,
+                'last_name_1' => $request->last_name_1,
+                'last_name_2' => $request->last_name_2,
+                'email' => $request->email,
+                'phone' => $request->phone,
+                'gender' => $request->gender,
+                'birth_date' => $request->birth_date
+            ]);
+
+            $patient->update(['insurance_id' => $request->insurance_id]);
+
+            \App\Jobs\SyncEntityToCloud::dispatch('App\\Models\\Persona', 'updated', $patient->persona->toArray());
+            \App\Jobs\SyncEntityToCloud::dispatch('App\\Models\\Paciente', 'updated', $patient->toArray());
+        });
+
+        return response()->json(['success' => true, 'data' => $patient->load('persona')]);
     }
+
     public function destroy($id)
     {
+        $patient = $this->getSecurePatientQuery()->findOrFail($id);
+        $patient->delete();
+
+        \App\Jobs\SyncEntityToCloud::dispatch('App\\Models\\Paciente', 'deleted', ['id' => $id]);
+        return response()->json(['success' => true]);
     }
 
     public function searchByRut(Request $request)

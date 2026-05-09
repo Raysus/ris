@@ -110,4 +110,80 @@ class TranscriptionController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
+    // === NUEVO: AUTOGUARDADO ===
+    public function saveDraft(Request $request, $id)
+    {
+        $request->validate([
+            'reports' => 'required|array',
+            'reports.*.id' => 'required|string',
+            'reports.*.text' => 'nullable|string'
+        ]);
+
+        try {
+            $appointment = $this->getSecureAppointmentQuery()->findOrFail($id);
+
+            foreach ($request->reports as $reportData) {
+                DB::table('appointment_studies')
+                    ->where('id', $reportData['id'])
+                    ->where('appointment_id', $appointment->id)
+                    ->update([
+                        'report' => $reportData['text'] ?? '',
+                        'updated_at' => now()
+                    ]);
+            }
+
+            $appointment->touch();
+            $appointment->load(['patient.persona', 'studies', 'supplies']);
+            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+
+            return response()->json(['success' => true]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    // === NUEVO: DEVOLVER AUDIO DEFECTUOSO ===
+    public function returnToRadiologist(Request $request, $id)
+    {
+        $request->validate(['reason' => 'required|string']);
+        $userId = $request->user()->id;
+
+        DB::beginTransaction();
+        try {
+            $appointment = $this->getSecureAppointmentQuery()->findOrFail($id);
+
+            // Devolvemos el estado a "en_informe" para que le vuelva a aparecer al Radiólogo
+            $appointment->status = 'en_informe';
+            $appointment->needs_review = true;
+            $appointment->return_reason = $request->reason;
+            $appointment->save();
+
+            DB::table('appointment_studies')
+                ->where('appointment_id', $appointment->id)
+                ->update([
+                    'status' => 'en_informe',
+                    'updated_at' => now()
+                ]);
+
+            DB::table('appointment_logs')->insert([
+                'appointment_id' => $appointment->id,
+                'user_id' => $userId,
+                'action' => 'RETURNED_TO_DOCTOR_FROM_TRANSCRIPTION',
+                'details' => json_encode(['motivo' => $request->reason]),
+                'ip_address' => $request->ip(),
+                'created_at' => now()
+            ]);
+
+            $appointment->touch();
+            $appointment->load(['patient.persona', 'studies', 'supplies']);
+            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+
+            DB::commit();
+            return response()->json(['success' => true]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
 }

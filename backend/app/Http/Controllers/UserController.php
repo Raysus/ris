@@ -49,103 +49,69 @@ class UserController extends Controller
     {
         $allowedLabs = config('app.allowed_lab_ids');
 
-        if ($allowedLabs !== ['*'] && $request->has('laboratories')) {
-            $unauthorizedLabs = array_diff($request->laboratories, $allowedLabs);
-            if (!empty($unauthorizedLabs)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Acceso denegado. Intenta asignar una sucursal fuera de su jurisdicción.'
-                ], 403);
-            }
-        }
+        $request->validate([
+            'rut' => 'required|string',
+            'nombres' => 'required|string|max:255',
+            'apellidoPaterno' => 'required|string|max:255',
+            'username' => 'required|string|max:255',
+            'password' => 'nullable|string|min:6',
+        ]);
 
         return DB::transaction(function () use ($request, $allowedLabs) {
-
-            $primerRol = $request->roles[0] ?? 'recepcion';
-
-            // Buscar el UUID real en la tabla tipo_usuarios con fallback seguro
-            $tipoUsuario = \App\Models\TipoUsuario::where('name', $primerRol)->first();
-            if (!$tipoUsuario) {
-                $tipoUsuario = \App\Models\TipoUsuario::where('name', 'recepcion')->first();
-            }
-
-            $userData = [
-                'tipo_usuario_id' => $tipoUsuario->id,
-                'username' => $request->username,
-                'medical_title' => $request->titulo,
-                'pacs_ae' => $request->pacsAE,
-                'dragon_profile' => $request->dragonProfile,
-                'settings' => ['roles' => $request->roles ?? []],
-                'is_active' => true
-            ];
-
-            if ($request->filled('password')) {
-                $userData['password'] = Hash::make($request->password);
-            }
-
-            // === 🔥 MODO DE EDICIÓN ESTRICTO (Usa el ID del frontend) ===
-            if ($request->filled('id')) {
-
-                $user = User::findOrFail($request->id);
-                $persona = $user->persona;
-
-                // Actualizamos la persona
-                $persona->update([
+            $persona = Persona::updateOrCreate(
+                ['rut' => $request->rut],
+                [
                     'names' => $request->nombres,
                     'last_name_1' => $request->apellidoPaterno,
                     'last_name_2' => $request->apellidoMaterno,
-                    'rut' => $request->rut,
-                ]);
+                ]
+            );
 
-                // Actualizamos firma si viene en el request
-                if ($request->hasFile('signature')) {
-                    if ($user->signature_path) {
-                        Storage::disk('public')->delete($user->signature_path);
-                    }
-                    $userData['signature_path'] = $request->file('signature')->store('signatures', 'public');
-                }
-
-                $user->update($userData);
-                $existingUser = $user;
-
-            } else {
-                // === MODO CREACIÓN ===
-                if (!$request->filled('password')) {
-                    throw new \Exception("La contraseña es obligatoria para crear un nuevo usuario.");
-                }
-
-                $persona = Persona::firstOrCreate(
-                    ['rut' => $request->rut],
-                    [
-                        'names' => $request->nombres,
-                        'last_name_1' => $request->apellidoPaterno,
-                        'last_name_2' => $request->apellidoMaterno,
-                    ]
-                );
-
-                $keycloakId = $this->keycloakService->createUser([
+            $existingUser = User::where('persona_id', $persona->id)->first();
+            $user = User::updateOrCreate(
+                ['persona_id' => $persona->id],
+                [
                     'username' => $request->username,
-                    'nombres' => $request->nombres,
-                    'apellidos' => trim($request->apellidoPaterno . ' ' . $request->apellidoMaterno),
-                    'password' => $request->password,
-                    'rut' => $request->rut,
-                    'email' => $request->email ?? null,
-                ]);
+                    'medical_title' => $request->titulo,
+                    'pacs_ae' => $request->pacsAE,
+                    'dragon_profile' => $request->dragonProfile,
+                    'tipo_usuario_id' => $request->input('tipo_usuario_id'),
+                ]
+            );
 
-                if ($request->hasFile('signature')) {
-                    $userData['signature_path'] = $request->file('signature')->store('signatures', 'public');
-                }
-
-                $userData['persona_id'] = $persona->id;
-                $user = User::create($userData);
-                $existingUser = null;
+            if ($request->filled('password')) {
+                $user->password = Hash::make($request->password);
             }
 
-            // === LÓGICA DE LABORATORIOS ===
-            if ($request->has('laboratories')) {
-                $syncData = [];
+            $rolesSeleccionados = $request->input('roles', []);
+            $user->settings = ['roles' => $rolesSeleccionados];
+            $user->is_active = true;
+            $user->save();
 
-                foreach ($request->laboratories as $index => $labId) {
+            // === 🔥 AJUSTE EXACTO: MAPEO DE ROLES KEYCLOAK 🔥 ===
+            $keycloakRole = 'user'; // Rol por defecto
+            if (collect($rolesSeleccionados)->intersect(['admin', 'secretaria', 'transcriptor'])->isNotEmpty()) {
+                $keycloakRole = 'admin';
+            } elseif (in_array('radiologo', $rolesSeleccionados)) {
+                $keycloakRole = 'medico';
+            } elseif (in_array('tecnologo', $rolesSeleccionados)) {
+                $keycloakRole = 'tecnologo';
+            } elseif (in_array('derivante', $rolesSeleccionados)) {
+                $keycloakRole = 'medico_solicitante';
+            }
+
+            // Sincronización con Keycloak incluyendo el rol mapeado
+            if (config('app.env') !== 'local' && $request->filled('password')) {
+                // Se envía el $keycloakRole como parámetro adicional al servicio
+                $this->keycloakService->updateUser($user->username, $request->password, $user->email, $keycloakRole);
+            }
+            // === FIN AJUSTE KEYCLOAK ===
+
+            // Gestión de laboratorios (Sucursales)
+            if ($request->has('laboratories')) {
+                $labIds = $request->input('laboratories', []);
+                $syncData = [];
+                foreach ($labIds as $index => $labId) {
                     $syncData[$labId] = ['is_primary' => ($index === 0)];
                 }
 
@@ -157,15 +123,15 @@ class UserController extends Controller
                         $syncData[$outLabId] = ['is_primary' => false];
                     }
                 }
-
                 $user->laboratories()->sync($syncData);
             }
 
             $user->load('persona', 'tipoUsuario', 'laboratories');
 
-            // === SINCRONIZACIÓN A LA NUBE (VÍA REDIS) ===
+            // Sincronización a la nube vía Redis
             \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Persona', 'updated', $persona->toArray());
             \App\Jobs\SyncEntityToCloud::dispatch('App\Models\User', 'updated', $user->makeVisible(['password'])->toArray());
+
             return response()->json(['success' => true, 'user' => $user]);
         });
     }

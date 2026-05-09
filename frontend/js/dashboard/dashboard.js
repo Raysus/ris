@@ -10,6 +10,11 @@ function initDashboard() {
     $("#dashFechaActual").text(new Date().toLocaleDateString('es-CL', opcionesFecha).toUpperCase());
 
     actualizarMetricas();
+
+    setInterval(() => {
+        console.log("Actualizando métricas automáticamente...");
+        actualizarMetricas();
+    }, 120000);
 }
 
 async function actualizarMetricas() {
@@ -27,14 +32,21 @@ async function actualizarMetricas() {
         if (res.success) {
             const d = res.data;
 
-            $("#kpiPacientes").text(d.kpis.pacientes);
-            $("#kpiExamenes").text(d.kpis.examenes);
-            const pendientes = (d.charts.flujo['Radiólogo'] || 0) + (d.charts.flujo['Secretaria'] || 0);
-            $("#kpiInformes").text(pendientes);
-            $("#kpiIngresos").text(`$${d.kpis.ingresos.toLocaleString('es-CL')}`);
+            // Actualizar nuevo KPI de TAT
+            $("#kpiTat").text(d.kpis.tat_promedio);
 
-            dibujarGraficoEstados(d.charts.flujo);
-            dibujarGraficoModalidades(d.charts.modalidades);
+            // === LÓGICA DE ALERTAS DE CUELLO DE BOTELLA ===
+            const limiteSaturacion = 15; // Definible por el usuario
+            const enSecretaria = d.charts.flujo['Secretaria'] || 0;
+
+            if (enSecretaria > limiteSaturacion) {
+                $("#containerAlertasCriticas").removeClass("d-none");
+                $("#nombreSectorCritico").text("TRANSCRIPCIÓN (Secretaría)");
+                $("#kpiInformes").addClass("text-danger").addClass("animate__animated animate__pulse animate__infinite");
+            } else {
+                $("#containerAlertasCriticas").addClass("d-none");
+                $("#kpiInformes").removeClass("text-danger animate__pulse");
+            }
         }
     } catch (e) {
         console.error("Error en dashboard:", e);

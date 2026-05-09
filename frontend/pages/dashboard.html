@@ -49,7 +49,26 @@
             </div>
         </div>
     </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm border-start border-4 border-warning h-100">
+            <div class="card-body">
+                <h6 class="text-muted fw-bold mb-1">Tiempo Prom. Entrega (TAT)</h6>
+                <h2 class="fw-bold text-dark mb-0"><span id="kpiTat">0</span> <small class="fs-6">min</small></h2>
+            </div>
+        </div>
+    </div>
 
+    <div class="row mt-3 d-none" id="containerAlertasCriticas">
+        <div class="col-12">
+            <div class="alert alert-danger d-flex align-items-center shadow-sm" role="alert">
+                <i class="bi bi-exclamation-octagon-fill fs-4 me-2"></i>
+                <div>
+                    <strong>¡ALERTA DE SATURACIÓN!</strong> Hay un cuello de botella en <span
+                        id="nombreSectorCritico"></span>.
+                </div>
+            </div>
+        </div>
+    </div>
     <div class="row g-3 mb-4">
         <div class="col-md-5">
             <div class="card border-0 shadow-sm h-100">

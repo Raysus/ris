@@ -35,7 +35,7 @@ class SupplyController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'id' => 'nullable|integer',
+            'id' => 'nullable|string',
             'category' => 'required|string',
             'name' => 'required|string',
             'stock' => 'required|integer',

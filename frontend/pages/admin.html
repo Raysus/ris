@@ -634,11 +634,15 @@
                                 <option value="Sra.">Sra.</option>
                             </select>
                         </div>
-                        <div class="col-md-8">
-                            <label class="form-label fw-bold text-secondary small">Laboratorios / Sucursales</label>
-                            <select id="uLaboratorio" class="form-select req-user" multiple size="3">
-                            </select>
-                            <small class="text-muted">Mantén presionado Ctrl (o Cmd) para seleccionar varios.</small>
+                        <div class="col-md-12 mt-2">
+                            <label class="form-label fw-bold small text-muted"><i
+                                    class="bi bi-building me-1"></i>Sucursales Asignadas *</label>
+                            <div id="userLaboratoriesContainer"
+                                class="border rounded p-3 bg-light d-flex flex-wrap gap-3">
+                                <span class="text-muted small">Cargando sucursales...</span>
+                            </div>
+                            <small class="text-muted" style="font-size: 0.7rem;">Active los interruptores de las
+                                clínicas a las que este usuario tendrá acceso.</small>
                         </div>
                         <div class="col-md-12">
                             <label class="form-label fw-bold small text-muted">Roles del Sistema *</label>
@@ -736,46 +740,56 @@
                 <h5 class="modal-title fw-bold"><i class="bi bi-display me-2"></i>Configuración de Sala/Equipo</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body bg-light p-4">
-                <form id="formSala">
-                    <input type="hidden" id="salaIdOriginal">
-                    <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">ID Interno del Sistema</label>
-                        <input type="hidden" class="form-control req-sala" id="salaId" placeholder="Ej. res_rx3">
-                        <div class="form-text" style="font-size: 0.7rem;">Debe ser único, sin espacios.</div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">Nombre Comercial de la Sala *</label>
-                        <input type="text" class="form-control req-sala" id="salaNombre"
-                            placeholder="Ej. Sala de Rayos X Principal">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">Modalidad / Grupo DICOM *</label>
-                        <select class="form-select req-sala" id="salaGrupo">
-                            <option value="RX">Radiología Convencional (RX)</option>
-                            <option value="CT">Tomografía / Scanner (CT)</option>
-                            <option value="MRI">Resonancia Magnética (MRI)</option>
-                            <option value="ECO">Ecografía / Ultrasonido (US)</option>
-                            <option value="MAMO">Mamografía (MG)</option>
-                        </select>
-                    </div>
-                    <div class="row g-3 mb-3">
-                        <div class="col-6">
-                            <label class="form-label fw-bold small text-muted">Fabricante (Opc.)</label>
-                            <input type="text" class="form-control" id="salaFabricante"
-                                placeholder="Ej: Siemens, GE...">
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label fw-bold small text-muted">Modelo (Opc.)</label>
-                            <input type="text" class="form-control" id="salaModelo" placeholder="Ej: Somatom Go">
-                        </div>
-                    </div>
-                    <div class="mb-1">
-                        <label class="form-label fw-bold small text-muted">Descripción / Ubicación (Opc.)</label>
-                        <textarea class="form-control" id="salaDescripcion" rows="2"
-                            placeholder="Ej: Sala 3, Primer Piso..."></textarea>
-                    </div>
-                </form>
+            <div class="modal-body row g-3">
+                <input type="hidden" id="salaId">
+                <div class="col-md-6">
+                    <label class="form-label fw-bold small text-muted">Nombre Interno *</label>
+                    <input type="text" class=\"form-control req-sala\" id=\"salaName\" placeholder=\"Ej. Resonador
+                        Principal\">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-bold small text-muted">Modalidad / Grupo *</label>
+                    <select class=\"form-select req-sala\" id=\"salaGroup\">
+                        <option value=\"SCANNER\">Scanner (CT)</option>
+                        <option value=\"RM\">Resonancia Magnética (MR)</option>
+                        <option value=\"RX\">Rayos X (CR/DX)</option>
+                        <option value=\"ECO\">Ecografía (US)</option>
+                        <option value=\"MAMO\">Mamografía (MG)</option>
+                        <option value=\"DENSITO\">Densitometría</option>
+                    </select>
+                </div>
+
+                <div class="col-12 mt-4">
+                    <h6 class="fw-bold text-primary border-bottom pb-2"><i
+                            class="bi bi-hdd-network me-2"></i>Configuración de Red (DICOM)</h6>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold small text-muted">AE Title</label>
+                    <input type="text" class="form-control" id="salaAeTitle" placeholder="Ej. CT_SALA1">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold small text-muted">Dirección IP</label>
+                    <input type="text" class="form-control" id="salaIp" placeholder="Ej. 192.168.1.50">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold small text-muted">Puerto</label>
+                    <input type="number" class="form-control" id="salaPort" placeholder="Ej. 104">
+                </div>
+                <div class="col-12 mt-4">
+                    <h6 class="fw-bold text-secondary border-bottom pb-2">Información del Equipo (Opcional)</h6>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-bold small text-muted">Marca / Fabricante</label>
+                    <input type="text" class="form-control" id="salaManufacturer" placeholder="Ej. General Electric">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-bold small text-muted">Modelo</label>
+                    <input type="text" class="form-control" id="salaModel" placeholder="Ej. Optima MR360">
+                </div>
+                <div class="col-12">
+                    <label class="form-label fw-bold small text-muted">Descripción o Notas</label>
+                    <input type="text" class="form-control" id="salaDescription">
+                </div>
             </div>
             <div class="modal-footer d-flex justify-content-between">
                 <button type="button" class="btn btn-outline-danger" id="btnEliminarSala"
@@ -1137,6 +1151,78 @@
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
                     <button type="button" class="btn btn-warning fw-bold text-dark px-4"
                         onclick="guardarPlantilla()">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalPaciente" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold"><i class="bi bi-person-badge me-2"></i>Gestión de Paciente</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body row g-3">
+                <input type="hidden" id="pacienteId">
+                <div class="col-md-4">
+                    <label class="form-label fw-bold small text-muted">Tipo Documento *</label>
+                    <select class="form-select req-pac" id="pacTipoDoc" onchange="toggleFormatoDocumento()">
+                        <option value="RUT">RUT (Chile)</option>
+                        <option value="PASAPORTE">Pasaporte / DNI Extranjero</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold small text-muted">N° de Documento *</label>
+                    <input type="text" class="form-control req-pac" id="pacRUT" placeholder="12.345.678-9">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold small text-muted">Nombres *</label>
+                    <input type="text" class="form-control req-pac" id="pacNombres">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold small text-muted">Apellido Paterno *</label>
+                    <input type="text" class="form-control req-pac" id="pacApellido1">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold small text-muted">Apellido Materno</label>
+                    <input type="text" class="form-control" id="pacApellido2">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold small text-muted">Fecha Nacimiento</label>
+                    <input type="date" class="form-control" id="pacNacimiento">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold small text-muted">Género</label>
+                    <select class="form-select" id="pacGenero">
+                        <option value="">Seleccione...</option>
+                        <option value="M">Masculino</option>
+                        <option value="F">Femenino</option>
+                        <option value="O">Otro</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold small text-muted">Teléfono</label>
+                    <input type="text" class="form-control" id="pacTelefono">
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label fw-bold small text-muted">Correo Electrónico (Para portal de
+                        resultados)</label>
+                    <input type="email" class="form-control" id="pacEmail">
+                </div>
+                <div class="col-md-12">
+                    <label class="form-label fw-bold small text-muted">Previsión / Seguro Médico</label>
+                    <select class="form-select" id="pacSeguro"></select>
+                </div>
+            </div>
+            <div class="modal-footer d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-danger" id="btnEliminarPaciente"
+                    onclick="eliminarPaciente()">Eliminar</button>
+                <div>
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary fw-bold px-4" onclick="guardarPaciente()">Guardar
+                        Paciente</button>
                 </div>
             </div>
         </div>

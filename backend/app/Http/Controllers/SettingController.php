@@ -158,7 +158,7 @@ class SettingController extends Controller
 
         $request->validate([
             'name' => 'required|string|max:255',
-            'laboratory_type_id' => 'required|integer'
+            'laboratory_type_id' => 'required|string'
         ]);
 
         $lab = new \App\Models\Laboratory();
@@ -177,7 +177,9 @@ class SettingController extends Controller
         ];
 
         $lab->save();
-        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Laboratory', 'updated', $lab->toArray());
+
+        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Laboratory', 'created', $lab->toArray());
+
         return response()->json(['success' => true, 'data' => $lab]);
     }
 }
