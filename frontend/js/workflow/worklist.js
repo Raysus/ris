@@ -136,7 +136,7 @@ function renderWorklist() {
     cadenasArray.sort((a, b) => new Date(a.cleanTime).getTime() - new Date(b.cleanTime).getTime());
 
     cadenasArray.forEach(cadena => {
-        const salas = [...new Set(cadena.items.map(i => i.machine ? i.machine.name : `Sala ${i.machine_id}`))];
+        const salas = [...new Set(cadena.items.map(i => i.machine ? i.machine.name : `Sala ${i.machine_name}`))];
         const examenes = cadena.items.map(i => `<i class="bi bi-check2 me-1"></i>${i.exam_name}`).join("<br>");
         const badgesSalas = salas.map(s => `<span class="badge bg-secondary me-1">${s}</span>`).join('');
         const horaStr = new Date(cadena.cleanTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -187,7 +187,7 @@ function abrirAtencion(chainId) {
 
     $("#atencionId").text(chainId + ` (${currentAtencionChain.citasIds.size} Cita/s)`);
 
-    const salas = [...new Set(currentAtencionChain.items.map(i => i.machine ? i.machine.name : `Sala ${i.machine_id}`))];
+    const salas = [...new Set(currentAtencionChain.items.map(i => i.machine ? i.machine.name : `Sala ${i.machine_name}`))];
     $("#atencionSala").text(salas.join(" + "));
 
     const listaHtml = currentAtencionChain.items.map(item => `

@@ -17,17 +17,26 @@ class DatabaseSeeder extends Seeder
     /**
      * Función mágica que genera un UUID para un ID antiguo, o recupera el UUID si ya fue generado.
      */
+    /**
+     * Función mágica determinista: Genera SIEMPRE el mismo UUID para un mismo registro,
+     * garantizando que el entorno local y la nube sean espejos exactos.
+     */
     private function getNewId($table, $oldId)
     {
         if ($oldId === null || $oldId === '\N') {
             return null;
         }
-        if (!isset($this->idMap[$table][$oldId])) {
-            $this->idMap[$table][$oldId] = (string) Str::uuid();
-        }
-        return $this->idMap[$table][$oldId];
-    }
 
+        // Generamos un hash MD5 único y predecible
+        $hash = md5($table . '_' . $oldId);
+
+        // Lo formateamos visualmente como un UUID válido (8-4-4-4-12)
+        return substr($hash, 0, 8) . '-' .
+            substr($hash, 8, 4) . '-' .
+            substr($hash, 12, 4) . '-' .
+            substr($hash, 16, 4) . '-' .
+            substr($hash, 20, 12);
+    }
     public function run(): void
     {
         // 1. Desactivamos validaciones de llaves foráneas por seguridad durante la carga
@@ -39,10 +48,14 @@ class DatabaseSeeder extends Seeder
         // 1. TIPO DE USUARIOS
         // ==========================================
         $tipos = [
-            [1, 'sis_admin', 'Sys. Admin'], [7, 'auxiliar', 'Auxiliar'],
-            [3, 'recepcion', 'Recepcionista'], [8, 'secretario', 'Secretario(a)'],
-            [2, 'admin', 'Administrador(a)'], [4, 'tecnologo', 'Tecnólogo(a)'],
-            [5, 'radiologo', 'Médico Radiólogo(a)'], [6, 'transcriptor', 'Transcriptor(a)']
+            [1, 'sis_admin', 'Sys. Admin'],
+            [7, 'auxiliar', 'Auxiliar'],
+            [3, 'recepcion', 'Recepcionista'],
+            [8, 'secretario', 'Secretario(a)'],
+            [2, 'admin', 'Administrador(a)'],
+            [4, 'tecnologo', 'Tecnólogo(a)'],
+            [5, 'radiologo', 'Médico Radiólogo(a)'],
+            [6, 'transcriptor', 'Transcriptor(a)']
         ];
         foreach ($tipos as $t) {
             DB::table('tipo_usuarios')->insert([
@@ -59,7 +72,9 @@ class DatabaseSeeder extends Seeder
         // 2. TIPOS DE LABORATORIO
         // ==========================================
         $labTypes = [
-            [1, 'Clínico Humano'], [2, 'Veterinario'], [3, 'Centro Dental']
+            [1, 'Clínico Humano'],
+            [2, 'Veterinario'],
+            [3, 'Centro Dental']
         ];
         foreach ($labTypes as $lt) {
             DB::table('laboratory_types')->insert([
@@ -152,13 +167,24 @@ class DatabaseSeeder extends Seeder
         // 6. LABORATORY_USER (Pivote)
         // ==========================================
         $labUsers = [
-            [1, 3, true], [1, 2, true], [5, 2, false], [1, 4, true]
+            // [id_lab_viejo, id_user_viejo, es_primario]
+            [1, 3, true],
+            [1, 2, true],
+            [5, 2, false],
+            [1, 4, true]
         ];
+
         foreach ($labUsers as $lu) {
             DB::table('laboratory_user')->insert([
-                'id' => Str::uuid(), // Pivotes sin ID previo en BD pueden llevar UUID nuevo al azar
+                // ✅ Generamos UUID determinista para el pivote
+                'id' => $this->getNewId('laboratory_user', $lu[0] . '_' . $lu[1]),
+
+                // ✅ Relacionamos con el laboratorio
                 'laboratory_id' => $this->getNewId('laboratories', $lu[0]),
+
+                // 🔥 CORRECCIÓN: Faltaba esta línea o estaba mal referenciada
                 'user_id' => $this->getNewId('users', $lu[1]),
+
                 'is_primary' => $lu[2],
                 'created_at' => $now,
                 'updated_at' => $now
@@ -169,10 +195,17 @@ class DatabaseSeeder extends Seeder
         // 7. PREVISIONES (Insurances)
         // ==========================================
         $insurances = [
-            [3, '0', 'Particular'], [4, '1', 'Fonasa'], [5, '2', 'Isapre Banmédica'],
-            [6, '3', 'Isapre Colmena'], [7, '4', 'Isapre Consalud'], [8, '5', 'Isapre Cruz Blanca'],
-            [9, '6', 'Isapre Vida Tres'], [10, '7', 'Isapre Masvida'], [11, '8', 'DIPRECA'],
-            [12, '9', 'CAPREDENA'], [13, '10', 'Convenios Directos']
+            [3, '0', 'Particular'],
+            [4, '1', 'Fonasa'],
+            [5, '2', 'Isapre Banmédica'],
+            [6, '3', 'Isapre Colmena'],
+            [7, '4', 'Isapre Consalud'],
+            [8, '5', 'Isapre Cruz Blanca'],
+            [9, '6', 'Isapre Vida Tres'],
+            [10, '7', 'Isapre Masvida'],
+            [11, '8', 'DIPRECA'],
+            [12, '9', 'CAPREDENA'],
+            [13, '10', 'Convenios Directos']
         ];
         foreach ($insurances as $ins) {
             DB::table('insurances')->insert([
@@ -258,10 +291,18 @@ class DatabaseSeeder extends Seeder
         // 10. SUB-EXÁMENES
         // ==========================================
         $subExams = [
-            [2, 81, 'Sin Contraste'], [3, 81, 'Con Contraste'], [4, 81, 'Trifásico (Hígado)'],
-            [5, 46, 'Adulto'], [6, 46, 'Niño'], [8, 5, 'Estándar'], [9, 82, 'Simple (F y L)'],
-            [10, 82, 'Funcional (Dinámicas)'], [11, 77, 'Protocolo Angio c/c'], 
-            [12, 78, 'Protocolo Angio c/c'], [13, 79, 'Protocolo Angio c/c'], [14, 80, 'Protocolo Angio c/c']
+            [2, 81, 'Sin Contraste'],
+            [3, 81, 'Con Contraste'],
+            [4, 81, 'Trifásico (Hígado)'],
+            [5, 46, 'Adulto'],
+            [6, 46, 'Niño'],
+            [8, 5, 'Estándar'],
+            [9, 82, 'Simple (F y L)'],
+            [10, 82, 'Funcional (Dinámicas)'],
+            [11, 77, 'Protocolo Angio c/c'],
+            [12, 78, 'Protocolo Angio c/c'],
+            [13, 79, 'Protocolo Angio c/c'],
+            [14, 80, 'Protocolo Angio c/c']
         ];
         foreach ($subExams as $se) {
             DB::table('sub_exams')->insert([

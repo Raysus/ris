@@ -32,16 +32,19 @@ class WorklistController extends Controller
 
         $query = DB::table('appointment_studies as s')
             ->join('appointments as a', 's.appointment_id', '=', 'a.id')
-            ->join('patients as p', 'a.patient_id', '=', 'p.id')
-            ->join('personas as per', 'p.persona_id', '=', 'per.id')
-            ->whereIn('a.status', ['confirmado', 'en_atencion', 'dicom_enviado', 'devuelto_worklist'])
+            ->leftJoin('patients as p', 'a.patient_id', '=', 'p.id')
+            ->leftJoin('personas as per', 'p.persona_id', '=', 'per.id')
+            // 🔥 NUEVO JOIN: Conectamos con la tabla de máquinas/salas
+            ->leftJoin('machines as m', 's.machine_id', '=', 'm.id')
             ->whereNull('a.deleted_at')
+            ->whereIn(DB::raw('LOWER(a.status)'), ['confirmado', 'en_atencion', 'dicom_enviado', 'devuelto_worklist'])
             ->select(
                 's.id as study_id',
                 's.exam_name',
                 's.sub_exam_name',
                 's.quantity',
                 's.machine_id as study_machine',
+                'm.name as machine_name', // 🔥 Traemos el nombre real de la sala
                 'a.id as appointment_id',
                 'a.start_time',
                 'a.status as appointment_status',
@@ -49,38 +52,43 @@ class WorklistController extends Controller
                 'a.accession_number',
                 'a.return_reason',
                 'a.medical_order_path',
-                'a.survey_path', // <-- NUEVOS CAMPOS
+                'a.survey_path',
                 'per.names',
                 'per.last_name_1',
                 'per.last_name_2',
-                'per.rut'
+                'per.rut',
+                'a.laboratory_id'
             );
 
         if ($allowedLabs !== ['*']) {
-            if (empty($allowedLabs))
+            if (empty($allowedLabs)) {
                 $query->whereRaw('1 = 0');
-            else
+            } else {
                 $query->whereIn('a.laboratory_id', $allowedLabs);
+            }
         }
 
         $studies = $query->get();
         $formattedData = [];
+
         foreach ($studies as $row) {
             $formattedData[] = [
                 'id' => $row->study_id,
                 'exam_name' => $row->exam_name,
-                'sub_exam_id' => $row->sub_exam_name,
+                'sub_exam_name' => $row->sub_exam_name,
                 'quantity' => $row->quantity,
                 'machine_id' => $row->study_machine,
+                // 🔥 Lo agregamos al JSON de respuesta
+                'machine_name' => $row->machine_name ?? 'Sala Desconocida',
                 'appointment' => [
                     'id' => $row->appointment_id,
-                    'start_time' => $row->start_time,
-                    'status' => $row->appointment_status,
+                    'start_time' => \Carbon\Carbon::parse($row->start_time)->format('Y-m-d\TH:i:s'),
+                    'status' => strtolower($row->appointment_status),
                     'priority' => $row->priority,
                     'accession_number' => $row->accession_number,
                     'return_reason' => $row->return_reason,
-                    'medical_order_path' => $row->medical_order_path, // <-- PDF Orden
-                    'survey_path' => $row->survey_path,               // <-- PDF Encuesta
+                    'medical_order_path' => $row->medical_order_path,
+                    'survey_path' => $row->survey_path,
                     'patient' => [
                         'persona' => [
                             'names' => $row->names,
@@ -91,13 +99,13 @@ class WorklistController extends Controller
                 ]
             ];
         }
+
         return response()->json(['success' => true, 'data' => $formattedData]);
     }
 
     public function sendToDicom(Request $request, $appointmentId)
     {
         $userId = $request->user()->id;
-        // Traemos la cita con el paciente y la máquina (para obtener su AE Title real)
         $appointment = $this->getSecureAppointmentQuery()
             ->with(['patient.persona', 'machine'])
             ->findOrFail($appointmentId);
@@ -105,36 +113,40 @@ class WorklistController extends Controller
         $accessionNumber = 'ACC-' . date('Ymd') . '-' . substr($appointment->id, 0, 5);
 
         try {
-            $orthancUrl = env('ORTHANC_URL', 'http://127.0.0.1:8042') . '/worklists';
+            // 🔥 CORRECCIÓN 1: El endpoint correcto para crear es /worklists/create
+            $orthancUrl = env('ORTHANC_URL', 'http://127.0.0.1:8042') . '/worklists/create';
 
-            // Usamos el AE Title configurado en la máquina, o un fallback si no existe
             $stationAeTitle = $appointment->machine->ae_title ?? "SALA_" . $appointment->machine_id;
 
+            // 🔥 CORRECCIÓN 2: El formato exacto que pide el plugin envuelto en "Tags"
             $dicomWorklistData = [
-                "0010,0010" => $appointment->patient->persona->names . "^" . $appointment->patient->persona->last_name_1,
-                "0010,0020" => $appointment->patient->persona->rut,
-                "0008,0050" => $accessionNumber,
-                "0040,0100" => [
-                    [
-                        "0040,0001" => $stationAeTitle, // 🔥 AHORA USA EL AE TITLE REAL DEL EQUIPO
-                        "0040,0002" => \Carbon\Carbon::parse($appointment->start_time)->format('Ymd'),
-                        "0040,0003" => \Carbon\Carbon::parse($appointment->start_time)->format('His'),
-                        "0040,0009" => (string) $appointment->id
+                "Tags" => [
+                    "PatientName" => $appointment->patient->persona->names . "^" . $appointment->patient->persona->last_name_1,
+                    "PatientID" => $appointment->patient->persona->rut,
+                    "AccessionNumber" => $accessionNumber,
+                    "ScheduledProcedureStepSequence" => [
+                        [
+                            "ScheduledStationAETitle" => $stationAeTitle,
+                            "ScheduledProcedureStepStartDate" => \Carbon\Carbon::parse($appointment->start_time)->format('Ymd'),
+                            "ScheduledProcedureStepStartTime" => \Carbon\Carbon::parse($appointment->start_time)->format('His'),
+                            "ScheduledProcedureStepID" => (string) $appointment->id,
+                            "Modality" => $appointment->machine->group ?? 'US'
+                        ]
                     ]
                 ]
             ];
 
+            // Enviamos el POST a Orthanc
             $response = Http::post($orthancUrl, $dicomWorklistData);
 
             if (!$response->successful()) {
-                throw new \Exception("Orthanc Worklist falló: " . $response->status());
+                throw new \Exception("Orthanc Worklist falló: " . $response->status() . " - " . $response->body());
             }
 
             $appointment->status = 'dicom_enviado';
             $appointment->accession_number = $accessionNumber;
             $appointment->save();
 
-            // Sincronizar a la nube
             $appointment->load(['patient.persona', 'studies', 'supplies']);
             \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
 

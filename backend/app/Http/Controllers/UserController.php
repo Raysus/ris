@@ -67,15 +67,22 @@ class UserController extends Controller
                 ]
             );
 
+            // 🔥 CORRECCIÓN: Rescatamos el tipo de usuario desde el arreglo de roles
+            $rolesSeleccionados = $request->input('roles', []);
+            $primerRol = $rolesSeleccionados[0] ?? 'recepcion';
+
+            // Buscar en BD el ID técnico del rol
+            $tipoUsuario = \App\Models\TipoUsuario::where('name', $primerRol)->first();
+
             $existingUser = User::where('persona_id', $persona->id)->first();
             $user = User::updateOrCreate(
                 ['persona_id' => $persona->id],
                 [
                     'username' => $request->username,
                     'medical_title' => $request->titulo,
-                    'pacs_ae' => $request->pacsAE,
                     'dragon_profile' => $request->dragonProfile,
-                    'tipo_usuario_id' => $request->input('tipo_usuario_id'),
+                    // Evitamos el "not null violation" inyectando el ID directamente
+                    'tipo_usuario_id' => $tipoUsuario ? $tipoUsuario->id : null,
                 ]
             );
 
@@ -83,12 +90,11 @@ class UserController extends Controller
                 $user->password = Hash::make($request->password);
             }
 
-            $rolesSeleccionados = $request->input('roles', []);
             $user->settings = ['roles' => $rolesSeleccionados];
             $user->is_active = true;
             $user->save();
 
-            // === 🔥 AJUSTE EXACTO: MAPEO DE ROLES KEYCLOAK 🔥 ===
+            // === MAPEO DE ROLES KEYCLOAK ===
             $keycloakRole = 'user'; // Rol por defecto
             if (collect($rolesSeleccionados)->intersect(['admin', 'secretaria', 'transcriptor'])->isNotEmpty()) {
                 $keycloakRole = 'admin';
@@ -102,7 +108,6 @@ class UserController extends Controller
 
             // Sincronización con Keycloak incluyendo el rol mapeado
             if (config('app.env') !== 'local' && $request->filled('password')) {
-                // Se envía el $keycloakRole como parámetro adicional al servicio
                 $this->keycloakService->updateUser($user->username, $request->password, $user->email, $keycloakRole);
             }
             // === FIN AJUSTE KEYCLOAK ===
@@ -130,7 +135,10 @@ class UserController extends Controller
 
             // Sincronización a la nube vía Redis
             \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Persona', 'updated', $persona->toArray());
-            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\User', 'updated', $user->makeVisible(['password'])->toArray());
+
+            // 🔥 LE DAMOS 3 SEGUNDOS DE VENTAJA A LA PERSONA PARA QUE LLEGUE PRIMERO
+            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\User', 'updated', $user->makeVisible(['password'])->toArray())
+                ->delay(now()->addSeconds(3));
 
             return response()->json(['success' => true, 'user' => $user]);
         });

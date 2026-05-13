@@ -592,8 +592,6 @@ async function guardarCita() {
         payment_method: $("#payMethod").val(),
         entidad_pagadora: $("#pEntidadPagadora").val(),
         transaction_code: $("#pTransactionCode").val(),
-        start_time: $("#manualStartTime").val() + ':00',
-        end_time: $("#manualEndTime").val() + ':00',
         payment_status: $("#paymentStatus").val(),
     };
 
@@ -610,10 +608,22 @@ async function guardarCita() {
     const btnGuardar = $("#btnGuardarCita");
     btnGuardar.prop('disabled', true);
 
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    let url = `${API_URL}/appointments`;
+    let method = 'POST';
+
+    if (idOriginal) {
+        // Si hay idOriginal, significa que estamos editando una cita existente
+        url = `${API_URL}/appointments/${idOriginal}`;
+        // Para enviar archivos (FormData) en edición, Laravel requiere POST + _method
+        formData.append('_method', 'PUT');
+    }
+
     try {
         const response = await fetch(url, {
             method: method,
-            // ATENCIÓN: No enviar Content-Type cuando se usa FormData, el navegador lo pone automáticamente con el "Boundary"
             headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
             body: formData
         });

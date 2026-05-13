@@ -54,8 +54,8 @@ class PlanController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'id' => 'nullable|integer',
-            'insurance_id' => 'required|integer|exists:insurances,id',
+            'id' => 'nullable|string', // 🔥 CORREGIDO: De integer a string (UUID)
+            'insurance_id' => 'required|string', // 🔥 CORREGIDO: De integer a string (UUID)
             'name' => 'required|string|max:255',
             'percentage' => 'required|numeric|min:0|max:100',
         ]);
@@ -64,17 +64,13 @@ class PlanController extends Controller
         $labId = $request->header('X-Lab-Id') ?: config('app.current_lab_id');
 
         if (!empty($validated['id'])) {
-
             $plan = $this->getSecurePlanQuery()->findOrFail($validated['id']);
-
             $plan->update([
                 'insurance_id' => $validated['insurance_id'],
                 'name' => $validated['name'],
                 'percentage' => $validated['percentage'],
             ]);
-
         } else {
-
             if (!$labId) {
                 return response()->json(['success' => false, 'message' => 'Debe seleccionar un laboratorio.'], 400);
             }
@@ -83,7 +79,7 @@ class PlanController extends Controller
                 return response()->json(['success' => false, 'message' => 'Acceso denegado. No puede crear planes en esta sucursal.'], 403);
             }
 
-            $plan = InsurancePlan::create([
+            $plan = \App\Models\InsurancePlan::create([
                 'laboratory_id' => $labId,
                 'insurance_id' => $validated['insurance_id'],
                 'name' => $validated['name'],
@@ -93,6 +89,7 @@ class PlanController extends Controller
 
         $plan->load('insurance');
         \App\Jobs\SyncEntityToCloud::dispatch('App\Models\InsurancePlan', 'updated', $plan->toArray());
+
         return response()->json(['success' => true, 'data' => $plan]);
     }
 

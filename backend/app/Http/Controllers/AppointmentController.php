@@ -70,8 +70,8 @@ class AppointmentController extends Controller
                 $data = json_decode($request->input('data'), true);
 
                 // === 1. VALIDACIÓN DE CHOQUE DE HORARIOS EN BACKEND ===
-                $start = Carbon::parse($data['start_time']);
-                $end = Carbon::parse($data['end_time']);
+                $start = \Carbon\Carbon::parse($data['start_time']);
+                $end = \Carbon\Carbon::parse($data['end_time']);
 
                 $choque = Appointment::where('machine_id', $data['machine_id'])
                     ->whereIn('status', ['agendado', 'confirmado', 'espera'])
@@ -86,17 +86,20 @@ class AppointmentController extends Controller
                 $patientData = $data['patient'];
                 $cleanRut = strtoupper(str_replace(['.', ' '], '', $patientData['rut']));
 
-                // (Mantén tu lógica de Persona y Keycloak aquí... igual que tu archivo original)
-                $persona = Persona::updateOrCreate(
-                    ['rut' => $patientData['rut']],
+                $persona = \App\Models\Persona::updateOrCreate(
+                    ['rut' => $cleanRut],
                     [
                         'names' => $patientData['names'],
                         'last_name_1' => $patientData['last_name_1'],
+                        'last_name_2' => $patientData['last_name_2'] ?? null,
+                        'gender' => $patientData['gender'] ?? null,
+                        'birth_date' => $patientData['birth_date'] ?? null,
                         'email' => $patientData['email'] ?? null,
-                        // ...
+                        'phone' => $patientData['phone'] ?? null,
                     ]
                 );
-                $patient = Paciente::firstOrCreate(['persona_id' => $persona->id, 'laboratory_id' => $labId]);
+
+                $patient = \App\Models\Patient::firstOrCreate(['persona_id' => $persona->id, 'laboratory_id' => $labId]);
 
                 // === 2. ARCHIVOS NATIVOS (FORM DATA) ===
                 $ordenPath = null;
@@ -108,6 +111,7 @@ class AppointmentController extends Controller
                     $encuestaPath = '/storage/' . $request->file('survey_file')->store('documents', 'public');
                 }
 
+                // === 3. CREACIÓN DE LA CITA ===
                 $appointment = Appointment::create([
                     'laboratory_id' => $labId,
                     'patient_id' => $patient->id,
@@ -115,29 +119,55 @@ class AppointmentController extends Controller
                     'start_time' => $start,
                     'end_time' => $end,
                     'status' => strtolower($data['status']),
-                    'referring_doctor_id' => $data['referring_doctor_id'],
-                    'destination_doctor_id' => $data['destination_doctor_id'],
-                    'payment_method' => $data['payment_method'],
-                    'payment_status' => $data['payment_status'] ?? 'Pendiente', // NUEVO CAMPO
-                    // ... otros campos
+                    'referring_doctor_id' => $data['referring_doctor_id'] ?? null,
+                    'destination_doctor_id' => $data['destination_doctor_id'] ?? null,
+                    'payment_method' => $data['payment_method'] ?? null,
+                    'payment_status' => $data['payment_status'] ?? 'Pendiente',
+                    'transaction_code' => $data['transaction_code'] ?? null,
+                    'tipo_bono' => $data['tipo_bono'] ?? null,
+                    'entidad_pagadora' => $data['entidad_pagadora'] ?? null,
+                    'insurance_id' => $patientData['insurance_id'] ?? null,
+                    'insurance_plan_id' => $patientData['insurance_plan_id'] ?? null,
+                    'priority' => $data['priority'] ?? 'Normal',
+                    'origin' => $data['origin'] ?? 'Ambulatorio',
                     'medical_order_path' => $ordenPath,
                     'survey_path' => $encuestaPath,
                 ]);
 
-                // Guardar Estudios e Insumos (Misma lógica original iterando sobre $data['studies'] y $data['supplies'])
+                // === 🔥 4. GUARDADO DE ESTUDIOS (¡Lo que faltaba!) 🔥 ===
+                if (isset($data['studies']) && is_array($data['studies'])) {
+                    foreach ($data['studies'] as $studyData) {
+                        \App\Models\AppointmentStudy::create([
+                            'appointment_id' => $appointment->id,
+                            'machine_id' => $studyData['machine_id'] ?? $appointment->machine_id,
+                            'exam_id' => $studyData['exam_id'],
+                            'exam_name' => $studyData['exam_name'],
+                            'sub_exam_id' => $studyData['sub_exam_id'] ?? null,
+                            'sub_exam_name' => $studyData['sub_exam_name'] ?? null,
+                            'fonasa_code' => $studyData['fonasa_code'] ?? null,
+                            'quantity' => $studyData['quantity'] ?? 1,
+                            'price' => $studyData['price'] ?? 0,
+                            'status' => strtolower($data['status'])
+                        ]);
+                    }
+                }
 
-                // === 3. NOTIFICACIÓN AUTOMÁTICA ===
-                if (!empty($patientData['email'])) {
-                    try {
-                        // Aquí enviarías tu correo con las indicaciones
-                        // Mail::to($patientData['email'])->send(new AppointmentConfirmationMail($appointment));
-                    } catch (\Exception $e) {
-                        \Log::error("Error enviando email confirmación: " . $e->getMessage());
+                // === 🔥 5. GUARDADO DE INSUMOS Y DESCUENTO DE STOCK 🔥 ===
+                if (isset($data['supplies']) && is_array($data['supplies'])) {
+                    foreach ($data['supplies'] as $sup) {
+                        $appointment->supplies()->attach($sup['id'], [
+                            'quantity' => $sup['quantity'],
+                            'price' => $sup['price'] ?? 0
+                        ]);
+                        $supply = \App\Models\Supply::lockForUpdate()->find($sup['id']);
+                        if ($supply) {
+                            $supply->decrement('stock', $sup['quantity']);
+                        }
                     }
                 }
 
                 $appointment->load(['patient.persona', 'studies', 'supplies']);
-                \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+                \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'created', $appointment->toArray());
 
                 return response()->json(['success' => true, 'appointment' => $appointment], 201);
             });
@@ -150,94 +180,104 @@ class AppointmentController extends Controller
     public function update(Request $request, $id)
     {
         return DB::transaction(function () use ($request, $id) {
-            $appointment = $this->getSecureQuery()
-                ->with(['studies', 'supplies', 'patient.persona'])
-                ->findOrFail($id);
+            // Usa tu propia función o Appointment::findOrFail
+            $appointment = Appointment::with(['studies', 'supplies', 'patient.persona'])->findOrFail($id);
 
-            // === LÓGICA DE DRAG & DROP ===
+            // === LÓGICA DE DRAG & DROP (El JS lo manda como JSON directo) ===
             if ($request->has('is_drag_and_drop')) {
                 $appointment->update([
                     'machine_id' => $request->machine_id ?? $request->machine,
-                    'start_time' => Carbon::parse($request->start_time ?? $request->start),
-                    'end_time' => Carbon::parse($request->end_time ?? $request->end),
+                    'start_time' => \Carbon\Carbon::parse($request->start_time ?? $request->start),
+                    'end_time' => \Carbon\Carbon::parse($request->end_time ?? $request->end),
                 ]);
 
                 $appointment->studies()->update(['machine_id' => $request->machine_id ?? $request->machine]);
 
-                AppointmentLog::create([
+                \App\Models\AppointmentLog::create([
                     'appointment_id' => $appointment->id,
                     'user_id' => auth()->id(),
                     'action' => 'reagendado (drag&drop)',
                     'ip_address' => request()->ip()
                 ]);
 
-                // === ☁️ SINCRONIZACIÓN (SOLO FECHAS) ☁️ ===
                 \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
-
                 return response()->json(['success' => true]);
             }
 
-            // === LÓGICA DE EDICIÓN COMPLETA ===
-            $patientData = $request->patient;
-            $ordenPath = $this->saveBase64Document($request->order_image);
-            $encuestaPath = $this->saveBase64Document($request->survey_image);
+            // === LÓGICA DE EDICIÓN COMPLETA (FormData) ===
+            // Decodificamos el string JSON a un array de PHP
+            $data = json_decode($request->input('data'), true);
+            $patientData = $data['patient'] ?? [];
+
+            // Manejo de archivos (mantiene el viejo si no se sube uno nuevo)
+            $ordenPath = $appointment->medical_order_path;
+            if ($request->hasFile('order_file')) {
+                $ordenPath = '/storage/' . $request->file('order_file')->store('documents', 'public');
+            }
+            $encuestaPath = $appointment->survey_path;
+            if ($request->hasFile('survey_file')) {
+                $encuestaPath = '/storage/' . $request->file('survey_file')->store('documents', 'public');
+            }
 
             $appointment->update([
-                'machine_id' => $request->machine_id,
-                'start_time' => Carbon::parse($request->start_time),
-                'end_time' => Carbon::parse($request->end_time),
-                'status' => strtolower($request->status),
-                'referring_doctor_id' => $request->referring_doctor_id,
-                'destination_doctor_id' => $request->destination_doctor_id,
-                'priority' => $request->priority ?? 'Normal',
-                'origin' => $request->origin ?? 'Ambulatorio',
-                'payment_method' => $request->payment_method,
-                'transaction_code' => $request->transaction_code,
-                'tipo_bono' => $request->tipo_bono ?? $appointment->tipo_bono,
-                'entidad_pagadora' => $request->entidad_pagadora ?? $appointment->entidad_pagadora,
+                'machine_id' => $data['machine_id'],
+                'start_time' => \Carbon\Carbon::parse($data['start_time']),
+                'end_time' => \Carbon\Carbon::parse($data['end_time']),
+                'status' => strtolower($data['status']),
+                'referring_doctor_id' => $data['referring_doctor_id'] ?? null,
+                'destination_doctor_id' => $data['destination_doctor_id'] ?? null,
+                'priority' => $data['priority'] ?? 'Normal',
+                'origin' => $data['origin'] ?? 'Ambulatorio',
+                'payment_method' => $data['payment_method'] ?? null,
+                'transaction_code' => $data['transaction_code'] ?? null,
+                'payment_status' => $data['payment_status'] ?? $appointment->payment_status,
+                'tipo_bono' => $data['tipo_bono'] ?? $appointment->tipo_bono,
+                'entidad_pagadora' => $data['entidad_pagadora'] ?? $appointment->entidad_pagadora,
                 'insurance_id' => $patientData['insurance_id'] ?? $appointment->insurance_id,
                 'insurance_plan_id' => $patientData['insurance_plan_id'] ?? $appointment->insurance_plan_id,
-                'medical_order_path' => $ordenPath ?? $appointment->medical_order_path,
-                'survey_path' => $encuestaPath ?? $appointment->survey_path,
+                'medical_order_path' => $ordenPath,
+                'survey_path' => $encuestaPath,
             ]);
 
+            // Recreamos los estudios
             $appointment->studies()->delete();
-            if (isset($request->studies) && is_array($request->studies)) {
-                foreach ($request->studies as $studyData) {
-                    AppointmentStudy::create([
+            if (isset($data['studies']) && is_array($data['studies'])) {
+                foreach ($data['studies'] as $studyData) {
+                    \App\Models\AppointmentStudy::create([
                         'appointment_id' => $appointment->id,
                         'machine_id' => $studyData['machine_id'] ?? $appointment->machine_id,
-                        'exam_id' => $studyData['exam_id'] ?? null,
-                        'exam_name' => $studyData['exam_name'] ?? null,
+                        'exam_id' => $studyData['exam_id'],
+                        'exam_name' => $studyData['exam_name'],
                         'sub_exam_id' => $studyData['sub_exam_id'] ?? null,
                         'sub_exam_name' => $studyData['sub_exam_name'] ?? null,
                         'fonasa_code' => $studyData['fonasa_code'] ?? null,
                         'quantity' => $studyData['quantity'] ?? 1,
                         'price' => $studyData['price'] ?? 0,
-                        'status' => $appointment->status
+                        'status' => strtolower($data['status'])
                     ]);
                 }
             }
 
-            if (isset($request->supplies) && is_array($request->supplies)) {
+            // Recreamos los insumos
+            if (isset($data['supplies']) && is_array($data['supplies'])) {
                 foreach ($appointment->supplies as $oldSupply) {
                     $oldSupply->increment('stock', $oldSupply->pivot->quantity);
                 }
                 $appointment->supplies()->detach();
 
-                foreach ($request->supplies as $sup) {
+                foreach ($data['supplies'] as $sup) {
                     $appointment->supplies()->attach($sup['id'], [
                         'quantity' => $sup['quantity'],
-                        'price' => $sup['price']
+                        'price' => $sup['price'] ?? 0
                     ]);
-                    $supply = Supply::lockForUpdate()->find($sup['id']);
+                    $supply = \App\Models\Supply::lockForUpdate()->find($sup['id']);
                     if ($supply) {
                         $supply->decrement('stock', $sup['quantity']);
                     }
                 }
             }
 
-            if ($patientData) {
+            if (!empty($patientData)) {
                 $appointment->patient->persona->update([
                     'names' => $patientData['names'],
                     'last_name_1' => $patientData['last_name_1'],
@@ -249,19 +289,16 @@ class AppointmentController extends Controller
                 ]);
             }
 
-            AppointmentLog::create([
+            \App\Models\AppointmentLog::create([
                 'appointment_id' => $appointment->id,
                 'user_id' => auth()->id(),
                 'action' => 'editado',
                 'ip_address' => request()->ip()
             ]);
 
-            // === ☁️ INICIO SINCRONIZACIÓN CON LA NUBE (VÍA REDIS) ☁️ ===
-            // Refrescamos la memoria de Laravel para enviar los estudios y suministros nuevos
             $appointment->load(['patient.persona', 'studies', 'supplies']);
             \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Persona', 'updated', $appointment->patient->persona->toArray());
             \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
-            // === FIN SINCRONIZACIÓN ===
 
             return response()->json(['success' => true]);
         });
@@ -270,15 +307,14 @@ class AppointmentController extends Controller
     public function destroy($id)
     {
         return DB::transaction(function () use ($id) {
-            $appointment = $this->getSecureQuery()
-                ->with('supplies')
-                ->findOrFail($id);
+            // Usa tu propia función o Appointment::findOrFail
+            $appointment = Appointment::with('supplies')->findOrFail($id);
 
             foreach ($appointment->supplies as $supply) {
                 $supply->increment('stock', $supply->pivot->quantity);
             }
 
-            AppointmentLog::create([
+            \App\Models\AppointmentLog::create([
                 'appointment_id' => $appointment->id,
                 'user_id' => auth()->id(),
                 'action' => 'anulado',
@@ -289,9 +325,7 @@ class AppointmentController extends Controller
             $appointment->save();
             $appointment->delete();
 
-            // === ☁️ INICIO SINCRONIZACIÓN DE LA ELIMINACIÓN ☁️ ===
             \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'deleted', ['id' => $id]);
-            // === FIN SINCRONIZACIÓN ===
 
             return response()->json(['success' => true]);
         });

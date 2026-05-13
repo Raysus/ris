@@ -42,19 +42,19 @@ class SyncEntityToCloud implements ShouldQueue
         // === 📦 EMPAQUETAR ARCHIVOS FÍSICOS A BASE64 ===
         $this->packFiles();
 
-        // 🔥 Disfrazamos la petición para evadir Cloudflare
         $response = Http::withoutVerifying()
             ->withToken($secret)
             ->acceptJson()
+            ->asJson()
             ->withHeaders([
                 'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'X-Requested-With' => 'XMLHttpRequest'
             ])
             ->timeout(15)
             ->post($cloudUrl, [
-                'entity_type' => $this->entityType,
+                'model' => $this->entityType,
                 'action' => $this->action,
-                'payload' => $this->payload
+                'data' => $this->payload
             ]);
 
         if ($response->failed()) {

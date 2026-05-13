@@ -14,6 +14,7 @@ let currentPlanesFromDB = [];
 let catalogInsurances = [];
 let currentPacientesAdmin = [];
 let currentPlantillasFromDB = [];
+let currentLaboratoriesTree = [];
 
 function esAdminLogueado() {
     const perfil = localStorage.getItem('ris_user_profile') || '';
@@ -110,7 +111,7 @@ async function renderListaServiciosAdmin() {
 
     try {
         const response = await fetch(`${API_URL}/services`, {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
         });
         const data = await response.json();
         tbody.empty();
@@ -125,7 +126,7 @@ async function renderListaServiciosAdmin() {
             currentServicesFromDB.forEach(srv => {
                 tbody.append(`
                     <tr>
-                        <td class="ps-4 fw-bold text-secondary">#${srv.id}</td>
+
                         <td class="fw-bold text-dark"><i class="bi bi-hospital me-2 text-muted"></i>${srv.name}</td>
                         <td class="text-muted">${srv.description || '--'}</td>
                         <td class="text-center pe-4">
@@ -185,7 +186,7 @@ async function guardarServicio() {
     try {
         const response = await fetch(`${API_URL}/services`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' },
             body: JSON.stringify(srvData)
         });
 
@@ -212,7 +213,7 @@ async function eliminarServicio() {
     try {
         const response = await fetch(`${API_URL}/services/${id}`, {
             method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
         });
 
         if (response.ok) {
@@ -234,7 +235,8 @@ async function cargarCatalogoRoles() {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
                 'Authorization': `Bearer ${token}`,
-                'X-Lab-Id': labId
+                'X-Lab-Id': labId,
+                'Accept': 'application/json'
             }
         });
 
@@ -281,7 +283,7 @@ async function renderListaUsuariosAdmin() {
 
     try {
         const response = await fetch(`${API_URL}/users`, {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
         });
         const data = await response.json();
         tbody.empty();
@@ -360,7 +362,7 @@ function abrirModalUsuario(id = null) {
         $("#uTitulo").val(u.medical_title || "");
         $("#uUsername").val(u.username || "");
         $("#uPassword").val("");
-        $("#uAeTitle").val(u.pacs_ae || "");
+
         $("#uDragonProfile").val(u.dragon_profile || "");
 
         // 2. Marcar switches de sucursales correctos
@@ -404,19 +406,11 @@ async function guardarUsuario() {
 
     if (rolesSeleccionados.length === 0) return showToast("⚠️ Debe seleccionar al menos un rol.", "danger");
 
-    // 3. CAPTURAR SUCURSALES (SWITCHES)
+    // CAPTURAR SUCURSALES (SWITCHES)
     const sucursalesSeleccionadas = $(".chk-lab:checked").map(function () { return $(this).val(); }).get();
     if (sucursalesSeleccionadas.length === 0) return showToast("⚠️ Debe asignar al menos una sucursal al usuario.", "warning");
 
     const esRadiologo = rolesSeleccionados.includes('radiologo');
-    const aeTitle = $("#uAeTitle").val().trim();
-
-    if (esRadiologo && aeTitle === "") {
-        $("#uAeTitle").addClass("is-invalid");
-        return showToast("⚠️ Los Radiólogos deben tener un PACS AE Title asignado.", "warning");
-    } else {
-        $("#uAeTitle").removeClass("is-invalid");
-    }
 
     if (hasError) return showToast("⚠️ Faltan datos obligatorios.", "danger");
     const rut = $("#uRut").val().toUpperCase();
@@ -428,10 +422,10 @@ async function guardarUsuario() {
     formData.append('apellidoPaterno', $("#uPrimerApellido").val().trim());
     formData.append('apellidoMaterno', $("#uSegundoApellido").val().trim());
     formData.append('titulo', $("#uTitulo").val());
-    if (!$("#uUsername").prop("disabled")) formData.append('username', $("#uUsername").val().trim());
 
+    // 🔥 CORRECCIÓN: Enviar siempre el username, aunque esté deshabilitado en el HTML
+    formData.append('username', $("#uUsername").val().trim());
     formData.append('password', $("#uPassword").val());
-    formData.append('pacsAE', aeTitle);
     formData.append('dragonProfile', $("#uDragonProfile").val().trim());
 
     // Adjuntar las sucursales al formulario
@@ -463,6 +457,7 @@ async function guardarUsuario() {
             renderListaUsuariosAdmin();
         } else {
             showToast(`❌ Error: ${data.message}`, "danger");
+            console.log(data);
         }
     } catch (e) { showToast("🔌 Error de conexión", "danger"); }
 }
@@ -477,7 +472,7 @@ async function eliminarUsuario() {
     try {
         const response = await fetch(`${API_URL}/users/${id}`, {
             method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
         });
         if (response.ok) {
             $("#modalUsuario").modal('hide');
@@ -497,7 +492,7 @@ async function renderListaInsumosAdmin() {
 
     try {
         const response = await fetch(`${API_URL}/supplies`, {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
         });
         const data = await response.json();
         tbody.empty();
@@ -597,7 +592,7 @@ async function guardarInsumo() {
     try {
         const response = await fetch(`${API_URL}/supplies`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' },
             body: JSON.stringify(insumoData)
         });
         if (response.ok) {
@@ -618,7 +613,7 @@ async function eliminarInsumo() {
     try {
         const response = await fetch(`${API_URL}/supplies/${id}`, {
             method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
         });
         if (response.ok) {
             $("#modalInsumo").modal('hide');
@@ -638,7 +633,7 @@ async function renderListaSalasAdmin() {
 
     try {
         const response = await fetch(`${API_URL}/machines`, {
-            headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Content-Type': 'application/json' }
         });
         const data = await response.json();
         tbody.empty();
@@ -654,7 +649,6 @@ async function renderListaSalasAdmin() {
                 let badgeColor = (res.group === 'MRI') ? 'bg-danger' : (res.group === 'CT' ? 'bg-info text-dark' : 'bg-primary');
                 tbody.append(`
                     <tr>
-                        <td class="ps-4 fw-bold text-secondary">ID: '${res.id}'</td>
                         <td class="fw-bold text-dark">
                             <i class="bi bi-display me-2 text-muted"></i>${res.name}
                             <small class="d-block text-muted" style="font-size:0.7rem">${res.manufacturer || ''} ${res.model_name || ''}</small>
@@ -725,7 +719,7 @@ async function guardarSala() {
 
         const response = await fetch(`${API_URL}/machines`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' },
             body: JSON.stringify(payload)
         });
 
@@ -750,7 +744,7 @@ async function cargarConfigCentro() {
 
     try {
         const response = await fetch(`${API_URL}/settings`, {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
         });
         const data = await response.json();
 
@@ -786,17 +780,22 @@ async function cargarConfigCentro() {
                 }
                 try {
                     const resAll = await fetch(`${API_URL}/all-laboratories`, {
-                        headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+                        headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
                     });
                     const dataAll = await resAll.json();
 
                     if (resAll.ok && dataAll.success) {
+                        currentLaboratoriesTree = dataAll.data;
                         currentSucursalesAdmin = dataAll.data.flatMap(padre => padre.children || []);
 
                         actualizarOpcionesLaboratorioGlobal(dataAll.data);
                     }
                 } catch (err) { console.error("Error cargando todos los laboratorios", err); }
             } else {
+                let matrizLocal = data.data || {};
+                matrizLocal.children = data.children || [];
+                currentLaboratoriesTree = [matrizLocal];
+
                 currentSucursalesAdmin = data.children || [];
                 actualizarOpcionesLaboratorioUsuario(data.data, data.children || []);
             }
@@ -882,7 +881,7 @@ async function guardarConfigCentroAdmin() {
     try {
         const response = await fetch(`${API_URL}/settings`, {
             method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' },
             body: formData
         });
         if (response.ok) showToast("✅ Matriz actualizada.", "success");
@@ -955,7 +954,7 @@ async function guardarSucursal() {
     try {
         const response = await fetch(`${API_URL}/branches`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' },
             body: JSON.stringify(payload)
         });
         if (response.ok) {
@@ -974,7 +973,7 @@ async function eliminarSucursal() {
     try {
         const response = await fetch(`${API_URL}/branches/${id}`, {
             method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
         });
         if (response.ok) {
             $("#modalSucursal").modal('hide');
@@ -995,7 +994,7 @@ async function renderCatalogoAdmin() {
 
     try {
         const response = await fetch(`${API_URL}/exams`, {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
         });
         const data = await response.json();
         tbody.empty();
@@ -1100,7 +1099,7 @@ async function guardarExamen() {
     try {
         const response = await fetch(`${API_URL}/exams`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' },
             body: JSON.stringify(examData)
         });
         const data = await response.json();
@@ -1127,7 +1126,7 @@ async function eliminarExamen() {
     try {
         const response = await fetch(`${API_URL}/exams/${id}`, {
             method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
         });
         if (response.ok) {
             $("#modalExamen").modal('hide');
@@ -1153,7 +1152,7 @@ async function renderReporteHonorarios() {
 
     try {
         const response = await fetch(`${API_URL}/reports/honorarios?month=${mesSeleccionado}`, {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
         });
         const res = await response.json();
         tbody.empty();
@@ -1226,7 +1225,7 @@ async function renderReporteExamenes() {
 
     try {
         const response = await fetch(`${API_URL}/reports/examenes?month=${mesSeleccionado}`, {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
         });
         const res = await response.json();
         tbody.empty();
@@ -1353,7 +1352,8 @@ async function cargarPacientes() {
             headers: {
                 'Accept': 'application/json',
                 'Authorization': `Bearer ${token}`,
-                'X-Lab-Id': labId
+                'X-Lab-Id': labId,
+                'Accept': 'application/json'
             }
         });
 
@@ -1431,12 +1431,6 @@ $(document).ready(function () {
 $(document).on('change', '.role-check', function () {
     const roles = [];
     $(".role-check:checked").each(function () { roles.push($(this).val()); });
-
-    if (roles.includes('radiologo')) {
-        $("#uAeTitle").attr("placeholder", "OBLIGATORIO PARA RADIÓLOGOS");
-    } else {
-        $("#uAeTitle").attr("placeholder", "Opcional (Ej: RADIOLOGO_01)");
-    }
 });
 
 
@@ -1462,7 +1456,8 @@ async function procesarImportacionExamenes() {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,
-                'X-Lab-Id': labId
+                'X-Lab-Id': labId,
+                'Accept': 'application/json'
             },
             body: formData
         });
@@ -1520,7 +1515,6 @@ async function renderListaPlanesAdmin() {
 
                 tbody.append(`
                     <tr>
-                        <td class="ps-4 text-muted fw-bold">#${plan.id}</td>
                         <td><span class="badge bg-secondary">${nombrePrevision}</span></td>
                         <td class="fw-bold text-dark"><i class="bi bi-shield-check text-primary me-2"></i>${plan.name}</td>
                         <td class="text-center"><span class="badge bg-success fs-6">${plan.percentage}%</span></td>
@@ -1586,7 +1580,7 @@ async function guardarPlan() {
     try {
         const response = await fetch(`${API_URL}/plans`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' },
             body: JSON.stringify(payload)
         });
 
@@ -1613,7 +1607,7 @@ async function eliminarPlan() {
     try {
         const response = await fetch(`${API_URL}/plans/${id}`, {
             method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
         });
 
         if (response.ok) {
@@ -1671,7 +1665,6 @@ function renderListaPrevisionesAdmin() {
 
         tbody.append(`
             <tr>
-                <td class="ps-4 text-muted fw-bold">#${prev.id}</td>
                 <td class="fw-bold text-dark"><i class="bi bi-heart-pulse text-danger me-2"></i>${prev.name}</td>
                 <td class="text-center">${alcance}</td>
                 <td class="text-center pe-4">
@@ -1726,7 +1719,7 @@ async function guardarPrevision() {
     try {
         const response = await fetch(`${API_URL}/insurances`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' },
             body: JSON.stringify(payload)
         });
 
@@ -1753,7 +1746,7 @@ async function eliminarPrevision() {
     try {
         const response = await fetch(`${API_URL}/insurances/${id}`, {
             method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
         });
 
         if (response.ok) {
@@ -1788,7 +1781,7 @@ async function eliminarSala() {
     try {
         const response = await fetch(`${API_URL}/machines/${id}`, {
             method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
         });
 
         if (response.ok) {
@@ -1831,7 +1824,7 @@ async function guardarMatriz() {
     try {
         const response = await fetch(`${API_URL}/laboratories`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': localStorage.getItem('ris_lab_id'), 'Accept': 'application/json' },
             body: JSON.stringify(payload)
         });
 
@@ -1892,7 +1885,7 @@ async function renderListaPlantillasAdmin() {
 
     try {
         const response = await fetch(`${API_URL}/templates`, {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
         });
         const data = await response.json();
         tbody.empty();
@@ -1997,7 +1990,7 @@ async function guardarPlantilla() {
 
         const response = await fetch(`${API_URL}/templates`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' },
             body: JSON.stringify(payload)
         });
 
@@ -2026,7 +2019,7 @@ async function eliminarPlantilla() {
     try {
         const response = await fetch(`${API_URL}/templates/${id}`, {
             method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
         });
 
         if (response.ok) {
@@ -2166,7 +2159,7 @@ async function guardarPaciente() {
 
         const response = await fetch(url, {
             method: method,
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' },
             body: JSON.stringify(payload)
         });
 
@@ -2195,7 +2188,7 @@ async function eliminarPaciente() {
     try {
         const response = await fetch(`${API_URL}/patients/${id}`, {
             method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
         });
 
         if (response.ok) {
@@ -2212,18 +2205,43 @@ async function eliminarPaciente() {
 
 function renderCheckboxesSucursales() {
     const container = $("#userLaboratoriesContainer").empty();
-    if (currentSucursalesAdmin.length === 0) {
+
+    if (!currentLaboratoriesTree || currentLaboratoriesTree.length === 0) {
         container.html('<span class="text-danger small">No hay sucursales disponibles.</span>');
         return;
     }
 
-    currentSucursalesAdmin.forEach(suc => {
-        container.append(`
+    currentLaboratoriesTree.forEach(matriz => {
+        let groupHtml = `
+            <div class="w-100 mb-2 mt-1">
+                <div class="text-primary fw-bold border-bottom pb-1 mb-2" style="font-size: 0.85rem;">
+                    <i class="bi bi-diagram-3-fill me-1"></i> ${matriz.name || 'Casa Matriz'}
+                </div>
+                <div class="d-flex flex-wrap gap-3 ps-3">
+        `;
+
+        // 1. Switch para la Sede Principal
+        groupHtml += `
             <div class="form-check form-switch">
-                <input class="form-check-input chk-lab" type="checkbox" value="${suc.id}" id="chkLab_${suc.id}">
-                <label class="form-check-label small fw-bold text-dark" for="chkLab_${suc.id}">${suc.name}</label>
+                <input class="form-check-input chk-lab shadow-sm" type="checkbox" value="${matriz.id}" id="chkLab_${matriz.id}">
+                <label class="form-check-label small fw-bold text-dark" for="chkLab_${matriz.id}">Sede Principal</label>
             </div>
-        `);
+        `;
+
+        // 2. Switches para las Sucursales Hijas
+        if (matriz.children && matriz.children.length > 0) {
+            matriz.children.forEach(suc => {
+                groupHtml += `
+                    <div class="form-check form-switch">
+                        <input class="form-check-input chk-lab shadow-sm" type="checkbox" value="${suc.id}" id="chkLab_${suc.id}">
+                        <label class="form-check-label small fw-bold text-secondary" for="chkLab_${suc.id}">${suc.name}</label>
+                    </div>
+                `;
+            });
+        }
+
+        groupHtml += `</div></div>`;
+        container.append(groupHtml);
     });
 }
 
@@ -2243,7 +2261,7 @@ async function pingDicom(id) {
     try {
         const response = await fetch(`${API_URL}/machines/${id}/ping`, {
             method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
         });
 
         const data = await response.json();
@@ -2282,4 +2300,8 @@ function toggleFormatoDocumento() {
             $(this).val(cuerpo.length > 0 ? rutPuntos + "-" + dv : dv);
         });
     }
+}
+
+function cargarUsuario(id) {
+    abrirModalUsuario(id);
 }
