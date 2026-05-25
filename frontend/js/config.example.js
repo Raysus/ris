@@ -1,0 +1,2 @@
+// Copiar este archivo como config.js y ajustar la URL del backend.
+const API_URL = 'http://127.0.0.1:8000/api';

@@ -23,6 +23,7 @@ class Appointment extends Model
         'priority',
         'origin',
         'payment_method',
+        'payment_status',
         'transaction_code',
         'medical_order_path',
         'survey_path',
@@ -66,6 +67,11 @@ class Appointment extends Model
     public function insurance()
     {
         return $this->belongsTo(Insurance::class);
+    }
+
+    public function insurancePlan()
+    {
+        return $this->belongsTo(InsurancePlan::class);
     }
 
     public function logs()

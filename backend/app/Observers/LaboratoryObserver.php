@@ -9,16 +9,16 @@ class LaboratoryObserver
 {
     public function created(Laboratory $laboratory)
     {
-        SyncEntityToCloud::dispatch('Laboratory', $laboratory->toArray(), 'created');
+        SyncEntityToCloud::dispatch('Laboratory', 'created', $laboratory->toArray());
     }
 
     public function updated(Laboratory $laboratory)
     {
-        SyncEntityToCloud::dispatch('Laboratory', $laboratory->toArray(), 'updated');
+        SyncEntityToCloud::dispatch('Laboratory', 'updated', $laboratory->toArray());
     }
 
     public function deleted(Laboratory $laboratory)
     {
-        SyncEntityToCloud::dispatch('Laboratory', ['id' => $laboratory->id], 'deleted');
+        SyncEntityToCloud::dispatch('Laboratory', 'deleted', ['id' => $laboratory->id]);
     }
 }

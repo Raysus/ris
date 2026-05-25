@@ -129,7 +129,8 @@ return new class extends Migration
             $table->foreignUuid('insurance_id')->constrained('insurances')->cascadeOnDelete();
             $table->string('name');
             $table->float('percentage')->nullable();
-            $table->foreignUuid('laboratory_id')->nullable()->constrained('laboratories'); // Corregido de integer a UUID
+            $table->foreignUuid('laboratory_id')->nullable()->constrained('laboratories');
+            $table->boolean('is_active')->default(true);
             $table->timestamps();
         });
 

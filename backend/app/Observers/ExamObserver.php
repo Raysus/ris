@@ -9,16 +9,16 @@ class ExamObserver
 {
     public function created(Exam $exam)
     {
-        SyncEntityToCloud::dispatch('Exam', $exam->toArray(), 'created');
+        SyncEntityToCloud::dispatch('Exam', 'created', $exam->toArray());
     }
 
     public function updated(Exam $exam)
     {
-        SyncEntityToCloud::dispatch('Exam', $exam->toArray(), 'updated');
+        SyncEntityToCloud::dispatch('Exam', 'updated', $exam->toArray());
     }
 
     public function deleted(Exam $exam)
     {
-        SyncEntityToCloud::dispatch('Exam', ['id' => $exam->id], 'deleted');
+        SyncEntityToCloud::dispatch('Exam', 'deleted', ['id' => $exam->id]);
     }
 }

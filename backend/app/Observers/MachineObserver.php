@@ -9,16 +9,16 @@ class MachineObserver
 {
     public function created(Machine $machine)
     {
-        SyncEntityToCloud::dispatch('Machine', $machine->toArray(), 'created');
+        SyncEntityToCloud::dispatch('Machine', 'created', $machine->toArray());
     }
 
     public function updated(Machine $machine)
     {
-        SyncEntityToCloud::dispatch('Machine', $machine->toArray(), 'updated');
+        SyncEntityToCloud::dispatch('Machine', 'updated', $machine->toArray());
     }
 
     public function deleted(Machine $machine)
     {
-        SyncEntityToCloud::dispatch('Machine', ['id' => $machine->id], 'deleted');
+        SyncEntityToCloud::dispatch('Machine', 'deleted', ['id' => $machine->id]);
     }
 }

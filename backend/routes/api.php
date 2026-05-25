@@ -23,6 +23,8 @@ use App\Http\Controllers\InsuranceController;
 use App\Http\Controllers\TemplateController;
 
 
+use App\Http\Controllers\PaymentController;
+
 Route::post('/login', [AuthController::class, 'login'])
     ->middleware('throttle:5,1')
     ->name('login');
@@ -91,6 +93,16 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::post('/delivery/appointments/{id}/revert', [DeliveryController::class, 'revert']);
     Route::post('/delivery/appointments/{id}/email', [DeliveryController::class, 'sendEmail']);
     Route::post('/delivery/appointments/{id}/log-print', [DeliveryController::class, 'logPrint']);
+
+    // MÓDULO DE PAGOS (RECEPCIONISTA/CAJA)
+    Route::get('/payments/breakdown/{appointment_id}', [PaymentController::class, 'getBreakdown']);
+    Route::post('/payments', [PaymentController::class, 'store']);
+    Route::get('/payments/history/{appointment_id}', [PaymentController::class, 'getHistory']);
+    Route::get('/payments/insurance-plans', [PaymentController::class, 'getInsurancePlans']);
+    Route::get('/payments/reports/daily', [PaymentController::class, 'getDailyReport']);
+    Route::get('/payments/reports/monthly', [PaymentController::class, 'getMonthlyReport']);
+    Route::get('/payments/reports/cashier', [PaymentController::class, 'getCashierReport']);
+    Route::get('/payments/{id}/receipt', [PaymentController::class, 'generateReceipt']);
 
     Route::apiResource('services', ServiceController::class);
     Route::get('roles', [UserController::class, 'getRoles']);

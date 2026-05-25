@@ -9,16 +9,16 @@ class SupplyObserver
 {
     public function created(Supply $supply)
     {
-        SyncEntityToCloud::dispatch('Supply', $supply->toArray(), 'created');
+        SyncEntityToCloud::dispatch('Supply', 'created', $supply->toArray());
     }
 
     public function updated(Supply $supply)
     {
-        SyncEntityToCloud::dispatch('Supply', $supply->toArray(), 'updated');
+        SyncEntityToCloud::dispatch('Supply', 'updated', $supply->toArray());
     }
 
     public function deleted(Supply $supply)
     {
-        SyncEntityToCloud::dispatch('Supply', ['id' => $supply->id], 'deleted');
+        SyncEntityToCloud::dispatch('Supply', 'deleted', ['id' => $supply->id]);
     }
 }

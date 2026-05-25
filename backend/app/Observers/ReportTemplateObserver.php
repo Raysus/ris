@@ -9,16 +9,16 @@ class ReportTemplateObserver
 {
     public function created(ReportTemplate $reportTemplate)
     {
-        SyncEntityToCloud::dispatch('ReportTemplate', $reportTemplate->toArray(), 'created');
+        SyncEntityToCloud::dispatch('ReportTemplate', 'created', $reportTemplate->toArray());
     }
 
     public function updated(ReportTemplate $reportTemplate)
     {
-        SyncEntityToCloud::dispatch('ReportTemplate', $reportTemplate->toArray(), 'updated');
+        SyncEntityToCloud::dispatch('ReportTemplate', 'updated', $reportTemplate->toArray());
     }
 
     public function deleted(ReportTemplate $reportTemplate)
     {
-        SyncEntityToCloud::dispatch('ReportTemplate', ['id' => $reportTemplate->id], 'deleted');
+        SyncEntityToCloud::dispatch('ReportTemplate', 'deleted', ['id' => $reportTemplate->id]);
     }
 }

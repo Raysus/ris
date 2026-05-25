@@ -9,16 +9,16 @@ class ServiceObserver
 {
     public function created(Service $service)
     {
-        SyncEntityToCloud::dispatch('Service', $service->toArray(), 'created');
+        SyncEntityToCloud::dispatch('Service', 'created', $service->toArray());
     }
 
     public function updated(Service $service)
     {
-        SyncEntityToCloud::dispatch('Service', $service->toArray(), 'updated');
+        SyncEntityToCloud::dispatch('Service', 'updated', $service->toArray());
     }
 
     public function deleted(Service $service)
     {
-        SyncEntityToCloud::dispatch('Service', ['id' => $service->id], 'deleted');
+        SyncEntityToCloud::dispatch('Service', 'deleted', ['id' => $service->id]);
     }
 }

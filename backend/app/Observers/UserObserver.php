@@ -9,16 +9,16 @@ class UserObserver
 {
     public function created(User $user)
     {
-        SyncEntityToCloud::dispatch('User', $user->toArray(), 'created');
+        SyncEntityToCloud::dispatch('User', 'created', $user->toArray());
     }
 
     public function updated(User $user)
     {
-        SyncEntityToCloud::dispatch('User', $user->toArray(), 'updated');
+        SyncEntityToCloud::dispatch('User', 'updated', $user->toArray());
     }
 
     public function deleted(User $user)
     {
-        SyncEntityToCloud::dispatch('User', ['id' => $user->id], 'deleted');
+        SyncEntityToCloud::dispatch('User', 'deleted', ['id' => $user->id]);
     }
 }

@@ -49,6 +49,6 @@ class Laboratory extends Model
     // Relación: Los pacientes de este laboratorio
     public function patients()
     {
-        return $this->hasMany(Patient::class);
+        return $this->hasMany(Paciente::class);
     }
 }

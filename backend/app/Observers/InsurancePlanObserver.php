@@ -9,16 +9,16 @@ class InsurancePlanObserver
 {
     public function created(InsurancePlan $insurancePlan)
     {
-        SyncEntityToCloud::dispatch('InsurancePlan', $insurancePlan->toArray(), 'created');
+        SyncEntityToCloud::dispatch('InsurancePlan', 'created', $insurancePlan->toArray());
     }
 
     public function updated(InsurancePlan $insurancePlan)
     {
-        SyncEntityToCloud::dispatch('InsurancePlan', $insurancePlan->toArray(), 'updated');
+        SyncEntityToCloud::dispatch('InsurancePlan', 'updated', $insurancePlan->toArray());
     }
 
     public function deleted(InsurancePlan $insurancePlan)
     {
-        SyncEntityToCloud::dispatch('InsurancePlan', ['id' => $insurancePlan->id], 'deleted');
+        SyncEntityToCloud::dispatch('InsurancePlan', 'deleted', ['id' => $insurancePlan->id]);
     }
 }

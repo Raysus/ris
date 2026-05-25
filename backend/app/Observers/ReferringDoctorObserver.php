@@ -9,16 +9,16 @@ class ReferringDoctorObserver
 {
     public function created(ReferringDoctor $referringDoctor)
     {
-        SyncEntityToCloud::dispatch('ReferringDoctor', $referringDoctor->toArray(), 'created');
+        SyncEntityToCloud::dispatch('ReferringDoctor', 'created', $referringDoctor->toArray());
     }
 
     public function updated(ReferringDoctor $referringDoctor)
     {
-        SyncEntityToCloud::dispatch('ReferringDoctor', $referringDoctor->toArray(), 'updated');
+        SyncEntityToCloud::dispatch('ReferringDoctor', 'updated', $referringDoctor->toArray());
     }
 
     public function deleted(ReferringDoctor $referringDoctor)
     {
-        SyncEntityToCloud::dispatch('ReferringDoctor', ['id' => $referringDoctor->id], 'deleted');
+        SyncEntityToCloud::dispatch('ReferringDoctor', 'deleted', ['id' => $referringDoctor->id]);
     }
 }

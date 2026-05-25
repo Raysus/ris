@@ -33,8 +33,6 @@ class Persona extends Model
     
     protected $casts = [
         'has_sso_account' => 'boolean',
-        'rut' => 'encrypted',
-        'email' => 'encrypted',
-        'phone' => 'encrypted',
+        'birth_date' => 'date',
     ];
 }

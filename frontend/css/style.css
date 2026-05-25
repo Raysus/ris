@@ -240,7 +240,8 @@ body {
    FULLCALENDAR (Agenda) CORREGIDO
    ========================================= */
 #calendar {
-    height: calc(100vh - 40px);
+    min-height: 520px;
+    height: calc(100vh - 200px);
     font-family: 'Inter', 'Segoe UI', sans-serif;
 }
 

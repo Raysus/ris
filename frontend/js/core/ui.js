@@ -11,14 +11,19 @@ function hideLoader() {
     $("#globalLoader").fadeOut(100);
 }
 
-function showToast(msg) {
+function showToast(msg, tipo) {
     if ($(".toast-container").length === 0) {
         $("body").append('<div class="toast-container position-fixed bottom-0 end-0 p-3"></div>');
     }
 
+    const bgClass = tipo === 'danger' ? 'text-bg-danger'
+        : tipo === 'warning' ? 'text-bg-warning'
+        : tipo === 'success' ? 'text-bg-success'
+        : 'text-bg-primary';
+
     const id = Date.now();
     const html = `
-        <div id="toast-${id}" class="toast align-items-center text-bg-primary border-0 show" role="alert">
+        <div id="toast-${id}" class="toast align-items-center ${bgClass} border-0 show" role="alert">
             <div class="d-flex">
                 <div class="toast-body">${msg}</div>
                 <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>

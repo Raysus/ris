@@ -37,15 +37,37 @@ function validarRut(rut) {
     return vlp == digv;
 }
 
-function initAgenda() {
-    loadRISState();
+async function initAgenda() {
+    window.RIS = window.RIS || {
+        agenda: [],
+        config: {},
+        resources: [],
+        tiemposPorGrupo: { RX: 15, TC: 30, RM: 45, US: 20, MG: 15 },
+        doctors: [],
+        supplies: [],
+        supplyPacks: []
+    };
+
     const calendarEl = document.getElementById('calendar');
-    if (!calendarEl) return;
+    if (!calendarEl) {
+        console.error('Agenda: no se encontró #calendar en la página.');
+        return;
+    }
+
+    if (typeof initPaymentManager === 'function') initPaymentManager();
+
+    const catalogosOk = await cargarCatalogosDesdeBD();
+    if (!catalogosOk) {
+        showToast('No se pudieron cargar salas y catálogos. Revise el laboratorio seleccionado.', 'warning');
+    }
+
     setupCalendar(calendarEl);
-    cargarAgendaDesdeServidor();
-    cargarCatalogosDesdeBD();
-    loadProMasterData();
-    setupProEventListeners();
+    await cargarAgendaDesdeServidor();
+
+    if (!window._agendaListenersBound) {
+        setupProEventListeners();
+        window._agendaListenersBound = true;
+    }
 }
 async function cargarCatalogosDesdeBD() {
     const token = localStorage.getItem('ris_token');
@@ -53,29 +75,41 @@ async function cargarCatalogosDesdeBD() {
 
     try {
         const response = await fetch(`${API_URL}/agenda-catalogs`, {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Accept': 'application/json',
+                'X-Lab-Id': labId || ''
+            }
         });
         const data = await response.json();
 
         if (response.ok && data.success) {
             catalogosAgenda = data.data;
 
-            window.RIS = window.RIS || {};
-            window.RIS.resources = catalogosAgenda.machines.map(m => ({
+            window.RIS.resources = (catalogosAgenda.machines || []).map(m => ({
                 id: String(m.id),
                 title: m.name,
-                group: m.group
+                group: m.group_code || m.group || 'General'
             }));
-            console.log(catalogosAgenda)
+
+            window.RIS.supplies = catalogosAgenda.supplies || [];
+            window.RIS.supplyPacks = catalogosAgenda.supply_packs || [];
+
             if (calendar) {
                 calendar.getResources().forEach(res => res.remove());
                 window.RIS.resources.forEach(res => calendar.addResource(res));
             }
 
             poblarSelectsAgenda();
+            configurarInsumosAgenda();
+            return true;
         }
+
+        console.error('Catálogos agenda:', response.status, data);
+        return false;
     } catch (e) {
         console.error("Error en catálogos:", e);
+        return false;
     }
 }
 function poblarSelectsAgenda() {
@@ -122,25 +156,53 @@ function poblarSelectsAgenda() {
     }
 }
 
+function normalizarDuracionFC(valor) {
+    if (!valor) return '00:15';
+    const partes = String(valor).split(':');
+    if (partes.length >= 2) return `${partes[0]}:${partes[1]}`;
+    return valor;
+}
+
 function setupCalendar(el) {
-    if (calendar) calendar.destroy();
+    if (typeof FullCalendar === 'undefined') {
+        console.error('FullCalendar no está cargado. Revise los scripts en layout.html.');
+        showToast('Error: librería de calendario no cargada.', 'danger');
+        return;
+    }
+
+    if (calendar) {
+        calendar.destroy();
+        calendar = null;
+    }
 
     const configRIS = window.RIS.config || { horaInicio: '08:00:00', horaFin: '20:00:00', intervalo: '00:15:00' };
     const recursosData = (window.RIS && window.RIS.resources) ? window.RIS.resources : [];
+    const slotDur = normalizarDuracionFC(configRIS.intervalo);
 
+    try {
     calendar = new FullCalendar.Calendar(el, {
         schedulerLicenseKey: 'GPL-My-Project-Is-Open-Source',
         locale: 'es',
         timeZone: 'local',
         initialView: 'resourceTimelineDay',
-        headerToolbar: { left: 'prev,next today', center: 'title', right: 'resourceTimelineDay,resourceTimelineWeek,dayGridMonth' },
-        resourceGroupField: 'group',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'resourceTimelineDay,resourceTimelineWeek'
+        },
+        views: {
+            resourceTimelineWeek: {
+                type: 'resourceTimeline',
+                duration: { weeks: 1 },
+                slotDuration: slotDur
+            }
+        },
         resourceAreaWidth: '15%',
         resourceAreaHeaderContent: 'Salas',
         allDaySlot: false,
-        slotMinTime: configRIS.horaInicio,
-        slotMaxTime: configRIS.horaFin,
-        slotDuration: configRIS.intervalo,
+        slotMinTime: configRIS.horaInicio || '08:00:00',
+        slotMaxTime: configRIS.horaFin || '20:00:00',
+        slotDuration: slotDur,
         eventOverlap: false,
         selectOverlap: false,
         resources: recursosData,
@@ -241,6 +303,10 @@ function setupCalendar(el) {
     });
 
     calendar.render();
+    } catch (err) {
+        console.error('Error inicializando FullCalendar:', err);
+        showToast('No se pudo dibujar el calendario. Recargue la página (Ctrl+F5).', 'danger');
+    }
 }
 
 function getEventsFromRIS() {
@@ -313,6 +379,7 @@ async function cargarAgendaDesdeServidor() {
                     priority: app.priority,
                     procedencia: app.origin,
                     payMethod: app.payment_method,
+                    paymentStatus: app.payment_status || 'Pendiente',
                     transactionCode: app.transaction_code,
                     tipoBono: app.tipo_bono,
                     entidadPagadora: app.entidad_pagadora,
@@ -335,7 +402,7 @@ async function cargarAgendaDesdeServidor() {
                         subExam: s.sub_exam_id,
                         qty: s.quantity,
                         code: s.fonasa_code,
-                        price: parseFloat(s.price) || 0
+                        price: parseFloat(s.price_charged ?? s.price) || 0
                     }))
                 };
             });
@@ -436,6 +503,7 @@ function abrirModalCita(data) {
 
         $("#pTipoBono").val(data.tipoBono || "Sin Bono");
         $("#payMethod").val(data.payMethod || "Efectivo").trigger("change");
+        $("#paymentStatus").val(data.paymentStatus || "Pendiente");
         $("#pEntidadPagadora").val(data.entidadPagadora || "");
         $("#pTransactionCode").val(data.transactionCode || "");
 
@@ -469,6 +537,13 @@ function abrirModalCita(data) {
 
         addStudyRow('principal', { machine: data.machine });
         renderInsumos();
+    }
+
+    const appointmentId = $("#appointmentId").val();
+    $("#btnRegistrarPago").toggle(!!appointmentId);
+    if (appointmentId && window.paymentManager) {
+        window.paymentManager.cargarDesglose(appointmentId);
+        window.paymentManager.cargarHistorialPagos(appointmentId);
     }
 
     $("#appointmentModal").modal('show');
@@ -540,8 +615,8 @@ async function guardarCita() {
         birth_date: $("#pBirthDate").val(),
         email: $("#pEmail").val(),
         phone: $("#pPhone").val(),
-        insurance_id: $("#pInsurance").val() !== "-" ? $("#pInsurance").val() : null,
-        insurance_plan_id: $("#pPlan").val() !== "-" ? $("#pPlan").val() : null
+        insurance_id: $("#pInsurance").val() || null,
+        insurance_plan_id: $("#pPlan").val() || null
     };
 
     let duracionTotalMinutos = 0;
@@ -752,7 +827,35 @@ function calculateTotal() {
     if (porcentajeDescuento > 0) {
         textoTotal += ` <span class="badge bg-success ms-2" style="font-size:0.7rem;">Copago aplicado</span>`;
     }
+    $("#percentageInsurance").val(porcentajeDescuento);
     $("#totalCopay").html(textoTotal);
+    if (window.paymentManager && typeof window.paymentManager.actualizarDesglosePrecios === 'function') {
+        window.paymentManager.actualizarDesglosePrecios();
+    }
+}
+
+async function registrarPagoDesdeAgenda() {
+    const appointmentId = $("#appointmentId").val();
+    if (!appointmentId) {
+        return showToast('Guarde la cita antes de registrar un pago en caja.', 'warning');
+    }
+    if (!window.paymentManager) {
+        return showToast('Módulo de pagos no disponible.', 'danger');
+    }
+
+    const totalText = $("#totalCopay").text().replace(/[^\d]/g, '');
+    const monto = parseInt(totalText, 10) || 0;
+    if (monto <= 0) {
+        return showToast('El monto a pagar debe ser mayor a cero.', 'warning');
+    }
+
+    await window.paymentManager.registrarPago(appointmentId, {
+        monto,
+        metodo: $("#payMethod").val() || 'Efectivo',
+        estado: $("#paymentStatus").val() || 'Pagado',
+        codigoTransaccion: $("#pTransactionCode").val() || null
+    });
+    $("#paymentStatus").val('Pagado');
 }
 
 function renderInsumos() {
@@ -868,29 +971,28 @@ function addStudyRow(relationType = 'primo', existingData = null) {
     }
 }
 
-function loadProMasterData() {
-    $("#mTratante, #mDestinado").empty().append('<option value="">- Seleccionar Médico -</option>');
-    (window.RIS.doctors || ["Dr. Arriagada", "Dra. Sánchez", "Dr. Pérez"]).forEach(d => {
-        $("#mTratante").append(`<option value="${d}">${d}</option>`);
-        $("#mDestinado").append(`<option value="${d}">${d}</option>`);
-    });
-
-    const insumosCobrados = (window.RIS.supplies || []).filter(s => s.price > 0);
+function configurarInsumosAgenda() {
+    const insumosCobrados = (window.RIS.supplies || []).filter(s => (parseFloat(s.price) || 0) > 0);
     const select = $("#insumoIndividualSelect");
     select.empty().append('<option value="">+ Agregar insumo individual...</option>');
-    insumosCobrados.forEach(s => select.append(`<option value="${s.id}">${s.name} ($${s.price.toLocaleString()})</option>`));
-
-    select.on("change", function () {
-        if (!this.value) return;
-        const sup = window.RIS.supplies.find(s => String(s.id) === String(this.value));
-        if (sup) { currentInsumos.push({ ...sup }); renderInsumos(); }
-        $(this).val("");
+    insumosCobrados.forEach(s => {
+        select.append(`<option value="${s.id}">${s.name} ($${Number(s.price).toLocaleString('es-CL')})</option>`);
     });
 
-    const btnContainer = $("#insumosButtons");
-    btnContainer.empty();
-    (window.RIS.supplyPacks || []).forEach(p => {
-        btnContainer.append(`<button type="button" class="btn btn-sm btn-outline-secondary shadow-sm me-1 mb-1" onclick="agregarPack('${p.name}')"><i class="bi bi-box-seam"></i> ${p.name}</button>`);
+    select.off('change.insumos').on('change.insumos', function () {
+        if (!this.value) return;
+        const sup = window.RIS.supplies.find(s => String(s.id) === String(this.value));
+        if (sup) {
+            currentInsumos.push({
+                id: sup.id,
+                name: sup.name,
+                price: parseFloat(sup.price) || 0,
+                category: sup.category,
+                quantity: 1
+            });
+            renderInsumos();
+        }
+        $(this).val("");
     });
 }
 
@@ -1069,7 +1171,7 @@ function setupProEventListeners() {
         const sala = window.RIS.resources.find(r => r.id === machineId);
         if (!sala) return;
 
-        const examenesFiltrados = catalogosAgenda.exams.filter(e => e.group_code === sala.group);
+        const examenesFiltrados = catalogosAgenda.exams.filter(e => (e.group_code || e.group) === sala.group);
 
         examenesFiltrados.forEach(e => {
             examSelect.append(`<option value="${e.id}" data-price="${e.price}">${e.name}</option>`);
@@ -1188,7 +1290,7 @@ async function iniciarEscaneoDirecto(tipo) {
     btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>Escaneando...');
 
     try {
-        const response = await fetch(`${LOCAL_BRIDGE}/escanear`);
+        const response = await fetch(`${LOCAL_BRIDGE_URL}/escanear`);
         const data = await response.json();
 
         if (response.ok && data.success) {

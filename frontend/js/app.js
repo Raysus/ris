@@ -22,34 +22,33 @@ $(document).ready(async function () {
     }
 
     const persona = userData.persona || {};
-    const nombreMostrado = `${persona.names || 'Usuario'} ${persona.last_name_1 || ''}`;
+    const nombreMostrado = `${persona.names || userData.names || 'Usuario'} ${persona.last_name_1 || userData.last_name_1 || ''}`;
     $("#userNameDisplay").text(nombreMostrado.trim());
     $("#userRoleDisplay").text(profileName.toUpperCase());
 
-    const userRoles = (userData.settings && userData.settings.roles) ? userData.settings.roles : [];
+    const userRoles = Array.isArray(userData.settings?.roles) ? userData.settings.roles : [];
+    const esSysadmin = profileName === 'sis_admin' || localStorage.getItem('ris_all_labs') === 'true';
+    const esAdmin = profileName === 'admin' || esSysadmin;
+
     const permisosModulos = {
-        "dashboard": ["admin", "recepcion", "tecnologo", "radiologo", "transcriptor"],
-        "agenda": ["admin", "recepcion"],
-        "worklist": ["admin", "tecnologo"],
-        "radiologist": ["admin", "radiologo"],
-        "transcription": ["admin", "transcriptor"],
-        "validation": ["admin", "radiologo"],
-        "entrega": ["admin", "recepcion"],
-        "admin": ["admin"]
+        "dashboard": ["admin", "recepcion", "tecnologo", "radiologo", "transcriptor", "sis_admin"],
+        "agenda": ["admin", "recepcion", "sis_admin"],
+        "worklist": ["admin", "tecnologo", "sis_admin"],
+        "radiologist": ["admin", "radiologo", "sis_admin"],
+        "transcription": ["admin", "transcriptor", "sis_admin"],
+        "validation": ["admin", "radiologo", "sis_admin"],
+        "entrega": ["admin", "recepcion", "sis_admin"],
+        "admin": ["admin", "sis_admin"]
     };
 
     $(".sidebar nav a").each(function () {
         const page = $(this).attr("data-page");
-        if (page && permisosModulos[page]) {
-            const esSysadmin = userData.tipo_usuario_id === 1;
-            const tieneRolPermitido = userRoles.some(rol => permisosModulos[page].includes(rol));
+        if (!page || !permisosModulos[page]) return;
 
-            if (esSysadmin || tieneRolPermitido) {
-                $(this).removeClass("d-none");
-            } else {
-                $(this).addClass("d-none");
-            }
-        }
+        const tieneRolPermitido = userRoles.some(rol => permisosModulos[page].includes(rol));
+        const puedeVer = esAdmin || esSysadmin || tieneRolPermitido;
+
+        $(this).toggleClass("d-none", !puedeVer);
     });
 
     await cargarSelectorLaboratorios();
@@ -134,7 +133,8 @@ async function cargarSelectorLaboratorios() {
     const userData = JSON.parse(localStorage.getItem('ris_user_data') || '{}');
 
     try {
-        const esSisAdmin = userData.tipo_usuario_id === 1;
+        const esSisAdmin = (localStorage.getItem('ris_user_profile') === 'sis_admin')
+            || localStorage.getItem('ris_all_labs') === 'true';
         const endpoint = esSisAdmin ? `${API_URL}/all-laboratories` : `${API_URL}/laboratories`;
 
         const response = await fetch(endpoint, {

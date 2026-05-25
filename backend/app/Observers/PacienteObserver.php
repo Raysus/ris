@@ -9,16 +9,16 @@ class PacienteObserver
 {
     public function created(Paciente $paciente)
     {
-        SyncEntityToCloud::dispatch('Paciente', $paciente->toArray(), 'created');
+        SyncEntityToCloud::dispatch('Paciente', 'created', $paciente->toArray());
     }
 
     public function updated(Paciente $paciente)
     {
-        SyncEntityToCloud::dispatch('Paciente', $paciente->toArray(), 'updated');
+        SyncEntityToCloud::dispatch('Paciente', 'updated', $paciente->toArray());
     }
 
     public function deleted(Paciente $paciente)
     {
-        SyncEntityToCloud::dispatch('Paciente', ['id' => $paciente->id], 'deleted');
+        SyncEntityToCloud::dispatch('Paciente', 'deleted', ['id' => $paciente->id]);
     }
 }

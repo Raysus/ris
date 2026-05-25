@@ -39,10 +39,18 @@ $(document).ready(function () {
             if (response.ok && data.success) {
                 localStorage.setItem('ris_token', data.access_token);
 
-                const labIdInicial = data.contexto_laboratorio.laboratorio_id;
-                localStorage.setItem('ris_lab_id', labIdInicial);
+                let labIdInicial = data.contexto_laboratorio.laboratorio_id;
+                const labsPermitidos = data.contexto_laboratorio.laboratorios_permitidos || [];
+                if (!labIdInicial && labsPermitidos.length > 0 && labsPermitidos[0] !== '*') {
+                    labIdInicial = labsPermitidos[0];
+                }
+                if (labIdInicial) {
+                    localStorage.setItem('ris_lab_id', labIdInicial);
+                } else {
+                    localStorage.removeItem('ris_lab_id');
+                }
 
-                const profileName = data.user.tipo_usuario?.name || 'Invitado';
+                const profileName = data.user.tipo_usuario?.name || data.user.role || 'Invitado';
                 const permissions = data.user.tipo_usuario?.permissions || {};
 
                 localStorage.setItem('ris_user_profile', profileName);

@@ -22,7 +22,10 @@ class CheckLabTenant
             return response()->json(['success' => false, 'message' => 'No autenticado.'], 401);
         }
 
-        if ($user->tipo_usuario_id == 1) {
+        $user->loadMissing('tipoUsuario');
+        $roleName = $user->tipoUsuario?->name;
+
+        if ($roleName === 'sis_admin') {
             if (!$labId || $labId === 'ALL') {
                 config(['app.allowed_lab_ids' => ['*']]);
                 return $next($request);
@@ -32,7 +35,7 @@ class CheckLabTenant
         $assignedIds = $user->laboratories()->pluck('laboratories.id')->toArray();
         $allowedIds = $assignedIds;
 
-        if ($user->tipo_usuario_id == 2) {
+        if ($roleName === 'admin') {
             $matrices = Laboratory::whereIn('id', $assignedIds)->whereNull('parent_id')->pluck('id')->toArray();
             $padres = Laboratory::whereIn('id', $assignedIds)->whereNotNull('parent_id')->pluck('parent_id')->toArray();
             $todasLasMatrices = array_unique(array_merge($matrices, $padres));
@@ -62,7 +65,7 @@ class CheckLabTenant
 
         $finalAllowedContext = array_intersect($contextIds, $allowedIds);
 
-        if (empty($finalAllowedContext) && $user->tipo_usuario_id != 1) {
+        if (empty($finalAllowedContext) && $roleName !== 'sis_admin') {
             return response()->json(['success' => false, 'message' => 'Acceso denegado a esta sucursal.'], 403);
         }
 

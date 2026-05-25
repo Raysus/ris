@@ -10,6 +10,6 @@ class AppointmentLogObserver
     public function created(AppointmentLog $log)
     {
         // Enviamos solo este log específico a la nube
-        SyncEntityToCloud::dispatch('AppointmentLog', $log->toArray(), 'created');
+        SyncEntityToCloud::dispatch('AppointmentLog', 'created', $log->toArray());
     }
 }

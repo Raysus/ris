@@ -219,6 +219,60 @@ class DatabaseSeeder extends Seeder
         }
 
         // ==========================================
+        // 7.5 PLANES DE SALUD (Insurance Plans)
+        // ==========================================
+        $plans = [
+            // PARTICULAR
+            [1, 3, 'Particular sin copago', 0],
+            [2, 3, 'Particular 10% copago', 10],
+            [3, 3, 'Particular 20% copago', 20],
+            
+            // FONASA
+            [4, 4, 'FONASA Modalidad Institucional', 0],
+            [5, 4, 'FONASA Modalidad Libre (10% copago)', 10],
+            [6, 4, 'FONASA Modalidad Libre (15% copago)', 15],
+            
+            // ISAPRES
+            [7, 5, 'Banmédica Plan Familia', 15],
+            [8, 5, 'Banmédica Plan Individual', 20],
+            
+            [9, 6, 'Isapre Colmena Plan A', 12],
+            [10, 6, 'Isapre Colmena Plan B', 18],
+            
+            [11, 7, 'Isapre Consalud Plan I', 10],
+            [12, 7, 'Isapre Consalud Plan II', 15],
+            
+            [13, 8, 'Isapre Cruz Blanca Plan Básico', 8],
+            [14, 8, 'Isapre Cruz Blanca Plan Plus', 12],
+            
+            [15, 9, 'Isapre Vida Tres Plan Estándar', 15],
+            [16, 9, 'Isapre Vida Tres Plan Premium', 10],
+            
+            [17, 10, 'Isapre Masvida Plan Activo', 12],
+            [18, 10, 'Isapre Masvida Plan Cuidado', 15],
+            
+            // INSTITUTOS MILITARES
+            [19, 11, 'DIPRECA Plan Familia', 5],
+            [20, 12, 'CAPREDENA Plan Familia', 5],
+            
+            // CONVENIOS
+            [21, 13, 'Convenio Directo', 0],
+        ];
+        
+        foreach ($plans as $p) {
+            DB::table('insurance_plans')->insert([
+                'id' => $this->getNewId('insurance_plans', $p[0]),
+                'insurance_id' => $this->getNewId('insurances', $p[1]),
+                'name' => $p[2],
+                'percentage' => $p[3],
+                'laboratory_id' => $this->getNewId('laboratories', 1), // Lab principal
+                'is_active' => true,
+                'created_at' => $now,
+                'updated_at' => $now
+            ]);
+        }
+
+        // ==========================================
         // 8. MACHINES
         // ==========================================
         $machines = [

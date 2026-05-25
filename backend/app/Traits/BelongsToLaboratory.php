@@ -14,8 +14,11 @@ trait BelongsToLaboratory
 
             $user = Auth::user();
 
-            if ($user && ($user->id === 1 || in_array('admin', $user->settings['roles'] ?? []))) {
-                return;
+            if ($user) {
+                $user->loadMissing('tipoUsuario');
+                if ($user->tipoUsuario?->name === 'sis_admin') {
+                    return;
+                }
             }
 
             $currentLabId = config('app.current_lab_id');

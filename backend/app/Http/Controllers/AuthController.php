@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\LoginRequest;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -14,22 +13,25 @@ class AuthController extends Controller
 {
     public function login(LoginRequest $request)
     {
-        // Validación automática via LoginRequest (no necesita $request->validate)
+        $loginField = $request->login_field;
+        $isEmail = filter_var($loginField, FILTER_VALIDATE_EMAIL);
 
-        $isEmail = filter_var($request->login_field, FILTER_VALIDATE_EMAIL);
-        $fieldType = $isEmail ? 'email' : 'username';
+        $user = User::query()
+            ->when($isEmail, function ($q) use ($loginField) {
+                $q->whereHas('persona', fn ($p) => $p->where('email', $loginField));
+            }, function ($q) use ($loginField) {
+                $q->where('username', $loginField);
+            })
+            ->first();
 
-        if (!Auth::attempt([$fieldType => $request->login_field, 'password' => $request->password])) {
+        if (!$user || !Hash::check($request->password, $user->password)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Credenciales incorrectas'
             ], 401);
         }
 
-        $user = Auth::user();
-
         if (!$user->is_active) {
-            Auth::logout();
             return response()->json([
                 'success' => false,
                 'message' => 'Su cuenta está desactivada.'
@@ -46,40 +48,48 @@ class AuthController extends Controller
 
         if ($user->tipoUsuario->name == 'sis_admin') {
             $laboratoriosPermitidos = ['*'];
-
-            $primaryLab = $user->laboratories->firstWhere('pivot.is_primary', 1)
-                ?? $user->laboratories->first()
-                ?? \App\Models\Laboratory::whereNull('parent_id')->first();
+            $isMainLab = true;
         } else {
-            $laboratoriosPermitidos = $user->laboratories->pluck('id')->toArray();
-
-            $primaryLab = $user->laboratories->firstWhere('pivot.is_primary', 1)
-                ?? $user->laboratories->first();
-        }
-
-        if ($primaryLab) {
-            $primaryLabId = $primaryLab->id;
-            $isMainLab = is_null($primaryLab->parent_id);
-            $labTypeId = $primaryLab->laboratory_type_id;
-        }
-
-        if (!$primaryLabId && $user->tipoUsuario->name != 'sis_admin') {
-            Auth::logout();
-            return response()->json([
-                'success' => false,
-                'message' => 'No tiene ninguna clínica o sucursal asignada. Contacte a soporte.'
-            ], 403);
+            foreach ($user->laboratories as $lab) {
+                $laboratoriosPermitidos[] = $lab->id;
+                if ($lab->pivot->is_primary) {
+                    $primaryLabId = $lab->id;
+                    $isMainLab = is_null($lab->parent_id);
+                    $labTypeId = $lab->laboratory_type_id;
+                }
+            }
         }
 
         return response()->json([
             'success' => true,
-            'message' => 'Login exitoso',
             'access_token' => $token,
             'token_type' => 'Bearer',
-            'user' => $user,
+            'user' => [
+                'id' => $user->id,
+                'username' => $user->username,
+                'tipo_usuario_id' => $user->tipo_usuario_id,
+                'settings' => $user->settings ?? [],
+                'email' => $user->persona->email ?? null,
+                'names' => $user->persona->names ?? null,
+                'last_name_1' => $user->persona->last_name_1 ?? null,
+                'last_name_2' => $user->persona->last_name_2 ?? null,
+                'role' => $user->tipoUsuario->name ?? 'unknown',
+                'persona' => [
+                    'names' => $user->persona->names ?? null,
+                    'last_name_1' => $user->persona->last_name_1 ?? null,
+                    'last_name_2' => $user->persona->last_name_2 ?? null,
+                    'email' => $user->persona->email ?? null,
+                ],
+                'tipo_usuario' => [
+                    'name' => $user->tipoUsuario->name ?? 'unknown',
+                    'permissions' => is_array($user->tipoUsuario->permissions ?? null)
+                        ? $user->tipoUsuario->permissions
+                        : json_decode($user->tipoUsuario->permissions ?? '{}', true),
+                ],
+            ],
             'contexto_laboratorio' => [
                 'laboratorio_id' => $primaryLabId,
-                'es_principal' => $isMainLab,
+                'es_matriz' => $isMainLab,
                 'tipo_laboratorio_id' => $labTypeId,
                 'laboratorios_permitidos' => $laboratoriosPermitidos
             ]

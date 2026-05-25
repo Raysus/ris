@@ -23,7 +23,7 @@ function esAdminLogueado() {
 }
 
 function initAdmin() {
-    loadRISState();
+    window.RIS = window.RIS || { users: [], personas: [], config: {} };
     renderListaUsuariosAdmin();
     renderListaInsumosAdmin();
     renderListaSalasAdmin();
@@ -47,19 +47,7 @@ function initAdmin() {
 }
 
 function setupAdminSync() {
-    window.addEventListener('storage', (e) => {
-        if (e.key === 'ris_app_data') {
-            loadRISState();
-            if ($("#tablaUsuariosAdmin").length) {
-                renderListaUsuariosAdmin();
-                renderListaInsumosAdmin();
-                renderListaSalasAdmin();
-                renderCatalogoAdmin();
-                renderReporteHonorarios();
-                renderReporteExamenes();
-            }
-        }
-    });
+    // Sincronización local eliminada; los datos se cargan desde la API.
 }
 
 function setupAdminEvents() {
@@ -1295,51 +1283,192 @@ function descargarCSV(filename, tableId) {
     document.body.removeChild(link);
 }
 
+/**
+ * Exportar Honorarios a Excel
+ * Similar a la imagen: Agenda Diaria RDOX Portal
+ */
 function exportarExcelHonorarios() {
     const mes = $("#mesHonorarios").val();
-    descargarCSV(`Liquidacion_Honorarios_${mes}.csv`, 'tablaHonorariosAdmin');
-    showToast("Descargando archivo Excel...", "success");
+    
+    if (!currentReporteHonorariosData || currentReporteHonorariosData.length === 0) {
+        return showToast("No hay datos de honorarios para exportar.", "warning");
+    }
+
+    // Crear datos para Excel
+    let excelData = [];
+    
+    // Encabezados principales
+    excelData.push(['LIQUIDACIÓN DE HONORARIOS - RDOX PORTAL']);
+    excelData.push([`Mes: ${mes}`]);
+    excelData.push([]); // Fila vacía
+    
+    // Encabezados de tabla
+    excelData.push([
+        'RADIÓLOGO/TÉCNICO',
+        'RUT',
+        'HORAS TRABAJADAS',
+        'VALOR HORA ($)',
+        'TOTAL HONORARIOS ($)',
+        'OBSERVACIONES'
+    ]);
+
+    // Datos de honorarios
+    let totalHoras = 0;
+    let totalHonorarios = 0;
+
+    if (Array.isArray(currentReporteHonorariosData)) {
+        currentReporteHonorariosData.forEach(row => {
+            const horas = parseFloat(row.horas) || 0;
+            const valorHora = parseFloat(row.valor_hora) || 0;
+            const total = horas * valorHora;
+
+            excelData.push([
+                row.nombre || row.radiolog || '',
+                row.rut || '',
+                horas,
+                valorHora,
+                total,
+                row.observaciones || ''
+            ]);
+
+            totalHoras += horas;
+            totalHonorarios += total;
+        });
+    }
+
+    excelData.push([]); // Fila vacía
+    excelData.push(['TOTAL', '', totalHoras, '', totalHonorarios, '']);
+
+    excelData.push([]); // Fila vacía
+    const fecha = new Date();
+    const responsable = localStorage.getItem('ris_user_name') || 'ADMINISTRADOR';
+    excelData.push([`RESPONSABLE: ${responsable}`]);
+    excelData.push([`Generado: ${fecha.toLocaleDateString('es-CL')}`]);
+
+    // Crear y descargar archivo
+    descargarExcelXLSX(excelData, `Liquidacion_Honorarios_${mes}.xlsx`);
+    showToast("✅ Honorarios exportados a Excel", "success");
 }
 
+/**
+ * Exportar Exámenes a Excel
+ * Similar a la imagen: Agenda Diaria RDOX Portal
+ */
 function exportarExcelExamenes() {
     if (!currentReporteExamenesData || currentReporteExamenesData.length === 0) {
         return showToast("No hay datos para exportar en este mes.", "warning");
     }
 
     const mes = $("#mesExamenes").val();
-    let csv = '\uFEFF';
+    let excelData = [];
 
-    let headers = ['Nombre del Examen', 'Sala / Modalidad', 'Total del Mes'];
-    for (let i = 1; i <= currentReporteDiasMes; i++) {
-        headers.push(`Día ${i}`);
+    // Encabezados principales
+    excelData.push(['AGENDA DIARIA RDOX PORTAL']);
+    excelData.push([`Mes: ${mes}`]);
+    excelData.push([]); // Fila vacía
+
+    // Encabezados de tabla
+    let headers = [
+        'NOMBRE PACIENTE',
+        'RUT',
+        'EDAD',
+        'INTERVALO',
+        'COMP. BEAM',
+        'BOLETA',
+        'TOTAL BOLETA ($)',
+        'FACTURADO ($)',
+        'RADIOGRAFÍA',
+        'RADIOSCOPIA',
+        'OPERADOR',
+        'RADIÓLOGO',
+        'ESPECIALISTA'
+    ];
+
+    // Agregar columnas de días si existen
+    if (currentReporteDiasMes && currentReporteDiasMes > 0) {
+        for (let i = 1; i <= currentReporteDiasMes; i++) {
+            headers.push(`Día ${i}`);
+        }
     }
-    csv += headers.join(';') + '\n';
+
+    excelData.push(headers);
+
+    // Datos de exámenes
+    let totalBoletas = 0;
+    let totalFacturado = 0;
 
     currentReporteExamenesData.forEach(row => {
         let fila = [
-            `"${row.examen}"`,
-            `"${row.sala}"`,
-            row.total
+            row.paciente || row.nombre || '',
+            row.rut || '',
+            row.edad || '',
+            row.intervalo || row.intervaloal || '',
+            row.compBeam || row.comp_beam || '',
+            row.boleta || '',
+            row.totalBoleta || row.total_boleta || 0,
+            row.facturado || 0,
+            row.radiografia || '',
+            row.radioscopia || '',
+            row.operador || '',
+            row.radiologia || row.radiolog || '',
+            row.especialista || ''
         ];
 
-        for (let i = 1; i <= currentReporteDiasMes; i++) {
-            fila.push(row.dias[i]);
+        // Agregar datos por día si existen
+        if (row.dias) {
+            for (let i = 1; i <= currentReporteDiasMes; i++) {
+                fila.push(row.dias[i] || '');
+            }
         }
 
-        csv += fila.join(';') + '\n';
+        excelData.push(fila);
+
+        totalBoletas += parseFloat(row.totalBoleta || row.total_boleta || 0);
+        totalFacturado += parseFloat(row.facturado || 0);
     });
 
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `Produccion_Diaria_${mes}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    excelData.push([]); // Fila vacía
+    let filaTotal = ['TOTAL DEPÓSITOS', '', '', '', '', '', totalBoletas, totalFacturado, '', '', '', '', ''];
+    excelData.push(filaTotal);
 
-    showToast("Generando desglose diario...", "success");
+    excelData.push([]); // Fila vacía
+    const responsable = localStorage.getItem('ris_user_name') || 'ADMINISTRADOR';
+    excelData.push([`RESPONSABLE: ${responsable}`]);
+    
+    const fecha = new Date();
+    excelData.push([`Generado: ${fecha.toLocaleDateString('es-CL')} ${fecha.toLocaleTimeString('es-CL')}`]);
+
+    // Crear y descargar archivo
+    descargarExcelXLSX(excelData, `Agenda_RDOX_${mes}.xlsx`);
+    showToast("✅ Agenda exportada a Excel", "success");
+}
+
+/**
+ * Función auxiliar para descargar Excel XLSX
+ * Requiere que SheetJS esté incluido: <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+ */
+function descargarExcelXLSX(datos, nombreArchivo) {
+    if (typeof XLSX === 'undefined') {
+        console.warn('SheetJS no está cargado. Intentando fallback a CSV...');
+        descargarCSV(nombreArchivo, datos);
+        return;
+    }
+
+    // Crear libro de Excel
+    const libro = XLSX.utils.book_new();
+    
+    // Crear hoja a partir de los datos
+    const hoja = XLSX.utils.aoa_to_sheet(datos);
+
+    // Configurar anchos de columnas
+    const anchos = [25, 15, 10, 15, 15, 12, 15, 15, 12, 12, 12, 15, 20];
+    hoja['!cols'] = anchos.map(w => ({ wch: w }));
+
+    // Agregar la hoja al libro
+    XLSX.utils.book_append_sheet(libro, hoja, 'Reporte');
+
+    // Descargar
+    XLSX.writeFile(libro, nombreArchivo);
 }
 
 async function cargarPacientes() {

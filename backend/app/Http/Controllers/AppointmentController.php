@@ -106,7 +106,10 @@ class AppointmentController extends Controller
                     ]
                 );
 
-                $patient = \App\Models\Patient::firstOrCreate(['persona_id' => $persona->id, 'laboratory_id' => $labId]);
+                $patient = \App\Models\Paciente::firstOrCreate(
+                    ['persona_id' => $persona->id, 'laboratory_id' => $labId],
+                    ['persona_id' => $persona->id, 'laboratory_id' => $labId]
+                );
 
                 // === 2. ARCHIVOS NATIVOS (FORM DATA) ===
                 $ordenPath = null;
@@ -153,7 +156,7 @@ class AppointmentController extends Controller
                             'sub_exam_name' => $studyData['sub_exam_name'] ?? null,
                             'fonasa_code' => $studyData['fonasa_code'] ?? null,
                             'quantity' => $studyData['quantity'] ?? 1,
-                            'price' => $studyData['price'] ?? 0,
+                            'price_charged' => $studyData['price'] ?? 0,
                             'status' => strtolower($data['status'])
                         ]);
                     }
@@ -164,7 +167,7 @@ class AppointmentController extends Controller
                     foreach ($data['supplies'] as $sup) {
                         $appointment->supplies()->attach($sup['id'], [
                             'quantity' => $sup['quantity'],
-                            'price' => $sup['price'] ?? 0
+                            'price_charged' => $sup['price'] ?? 0
                         ]);
                         $supply = \App\Models\Supply::lockForUpdate()->find($sup['id']);
                         if ($supply) {
@@ -259,7 +262,7 @@ class AppointmentController extends Controller
                         'sub_exam_name' => $studyData['sub_exam_name'] ?? null,
                         'fonasa_code' => $studyData['fonasa_code'] ?? null,
                         'quantity' => $studyData['quantity'] ?? 1,
-                        'price' => $studyData['price'] ?? 0,
+                        'price_charged' => $studyData['price'] ?? 0,
                         'status' => strtolower($data['status'])
                     ]);
                 }
@@ -275,7 +278,7 @@ class AppointmentController extends Controller
                 foreach ($data['supplies'] as $sup) {
                     $appointment->supplies()->attach($sup['id'], [
                         'quantity' => $sup['quantity'],
-                        'price' => $sup['price'] ?? 0
+                        'price_charged' => $sup['price'] ?? 0
                     ]);
                     $supply = \App\Models\Supply::lockForUpdate()->find($sup['id']);
                     if ($supply) {
