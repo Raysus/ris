@@ -8,11 +8,13 @@
                     <small class="opacity-75">Estudios listos para lectura (<span
                             id="badgePendientesInformar">0</span>)</small>
 
-                    <div class="mt-3">
-                        <label class="small fw-bold text-white-50 mb-1">Mi Perfil (Radiólogo Activo):</label>
+                    <div class="mt-3 d-none" id="filtroAdminContainer">
+                        <label class="small fw-bold text-warning mb-1"><i class="bi bi-shield-lock-fill me-1"></i>Modo
+                            Administrador:</label>
                         <select class="form-select form-select-sm bg-secondary text-white border-secondary fw-bold"
-                            id="filtroRadiologoActivo" onchange="renderRadiologistStudies()">
-                            <option value="ALL">Vista Global (Todos los exámenes)</option>
+                            id="filtroRadiologoActivo" onchange="cargarEstudiosRadiologo()">
+                            <option value="ME">Mis Pacientes Asignados</option>
+                            <option value="ALL">Vista Global (Todos los estudios)</option>
                         </select>
                     </div>
                 </div>

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\LoginRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -11,12 +12,9 @@ use App\Models\User;
 
 class AuthController extends Controller
 {
-    public function login(Request $request)
+    public function login(LoginRequest $request)
     {
-        $request->validate([
-            'login_field' => 'required',
-            'password' => 'required'
-        ]);
+        // Validación automática via LoginRequest (no necesita $request->validate)
 
         $isEmail = filter_var($request->login_field, FILTER_VALIDATE_EMAIL);
         $fieldType = $isEmail ? 'email' : 'username';

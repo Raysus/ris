@@ -23,7 +23,9 @@ use App\Http\Controllers\InsuranceController;
 use App\Http\Controllers\TemplateController;
 
 
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/login', [AuthController::class, 'login'])
+    ->middleware('throttle:5,1')
+    ->name('login');
 Route::post('/password/forgot', [AuthController::class, 'forgotPassword']);
 Route::post('/password/reset', [AuthController::class, 'resetPassword']);
 
@@ -70,12 +72,14 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::post('/radiologist/appointments/{id}/draft', [RadiologistController::class, 'saveDraft']);
     Route::post('/radiologist/appointments/{id}/return', [RadiologistController::class, 'returnToTechnologist']);
     Route::post('/radiologist/appointments/{id}/transcribe', [RadiologistController::class, 'sendToTranscription']);
+    Route::post('/radiologist/studies/{studyId}/upload', [RadiologistController::class, 'uploadStudyAudio']);
 
     // MÓDULO DE TRANSCRIPCIÓN
     Route::get('/transcription/studies', [TranscriptionController::class, 'index']);
-    Route::post('/transcription/appointments/{id}/complete', [TranscriptionController::class, 'completeTranscription']);
+    Route::get('/transcription/appointments', [TranscriptionController::class, 'index']);
     Route::post('/transcription/appointments/{id}/draft', [TranscriptionController::class, 'saveDraft']);
-    Route::post('/transcription/appointments/{id}/return', [TranscriptionController::class, 'returnToRadiologist']);
+    Route::post('/transcription/appointments/{id}/validate', [TranscriptionController::class, 'sendToValidation']);
+    Route::post('/transcription/appointments/{id}/return', [TranscriptionController::class, 'returnToDoctor']);
 
     // MÓDULO DE VALIDACIÓN
     Route::get('/radiologist/validations', [RadiologistController::class, 'validations']);

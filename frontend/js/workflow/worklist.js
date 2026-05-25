@@ -17,7 +17,13 @@ function initWorklist() {
     cargarInsumosBodega();
     cargarWorklistDesdeServidor();
 
-    setInterval(cargarWorklistDesdeServidor, 30000);
+    setInterval(() => {
+        if ($("#modalAtencion").is(":visible") || currentAtencionChain) {
+            console.log("🔄 Refresco de worklist omitido: Modal de atención abierto.");
+            return;
+        }
+        cargarWorklistDesdeServidor();
+    }, 30000);
 }
 
 async function cargarInsumosBodega() {
@@ -409,11 +415,21 @@ async function finalizarAtencion() {
         };
 
         for (const citaId of citasInvolucradas) {
-            await fetch(`${API_URL}/appointments/${citaId}/complete-worklist`, {
+            const response = await fetch(`${API_URL}/appointments/${citaId}/complete-worklist`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                    'X-Lab-Id': labId
+                },
                 body: JSON.stringify(payload)
             });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || `Error del servidor: ${response.status}`);
+            }
         }
 
         $("#modalAtencion").modal('hide');
@@ -422,8 +438,8 @@ async function finalizarAtencion() {
         if (typeof showToast === 'function') showToast("✅ Estudios finalizados y derivados al Radiólogo.", "success");
 
     } catch (error) {
-        console.error(error);
-        if (typeof showToast === 'function') showToast("❌ Error al finalizar la atención", "danger");
+        console.error("Error en finalizarAtencion:", error);
+        if (typeof showToast === 'function') showToast(`❌ Error: ${error.message}`, "danger");
     } finally {
         btn.prop('disabled', false).html('<i class="bi bi-check-circle me-1"></i> FINALIZAR Y ENVIAR A PACS');
     }

@@ -94,7 +94,6 @@ function renderTablaEntrega() {
                 </td>
                 <td class="font-monospace text-secondary small fw-bold">${item.accessionNumber}</td>
                 <td class="small fw-bold text-primary">${examenesStr}</td>
-                <td><small class="text-muted"><i class="bi bi-calendar-check me-1"></i>${new Date(item.start_time).toLocaleDateString('es-CL')}</small></td>
                 <td>${badgeEstado}</td>
                 <td>${acciones}</td>
             </tr>

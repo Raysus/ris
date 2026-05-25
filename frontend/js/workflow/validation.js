@@ -4,13 +4,19 @@
 
 let currentValidationData = [];
 let currentValidationChain = null;
-let currentValStudy = null; // Para la edición rápida
+let currentValStudy = null;
 let colorInformeGlobalValidation = "#333333";
 
 function initValidation() {
     cargarAjustesVisualesValidacion();
     cargarListaValidacion();
-    setInterval(cargarListaValidacion, 30000);
+    setInterval(() => {
+        if (currentValidationChain || currentValStudy || $("#finalReportText").is(":visible")) {
+            console.log("🔄 Refresco de validación omitido: Validando informe.");
+            return;
+        }
+        cargarListaValidacion();
+    }, 30000);
 }
 
 async function cargarAjustesVisualesValidacion() {

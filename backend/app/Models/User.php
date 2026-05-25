@@ -34,6 +34,8 @@ class User extends Authenticatable
         'password' => 'hashed',
         'settings' => 'array',
         'is_active' => 'boolean',
+        'pacs_ae' => 'encrypted',
+        'dragon_profile' => 'encrypted',
     ];
 
     // Relación: Este usuario le pertenece a una Persona física

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StorePatientRequest;
 use App\Models\Paciente;
 use App\Models\Persona;
 use Illuminate\Http\Request;
@@ -12,7 +13,11 @@ class PatientController extends Controller
     private function getSecurePatientQuery()
     {
         $allowedLabs = config('app.allowed_lab_ids');
-        $query = Paciente::with('persona');
+        $query = Paciente::with([
+            'persona',
+            'appointments.machine',
+            'appointments.studies.exam'
+        ]);
 
         if ($allowedLabs !== ['*']) {
             if (empty($allowedLabs)) {
@@ -27,21 +32,20 @@ class PatientController extends Controller
     public function index(Request $request)
     {
         $patients = $this->getSecurePatientQuery()
+            ->with([
+                'persona',
+                'appointments.machine',
+                'appointments.studies.exam'
+            ])
             ->orderBy('created_at', 'desc')
             ->paginate(20);
 
         return response()->json(['success' => true, 'data' => $patients]);
     }
 
-    public function store(Request $request)
+    public function store(StorePatientRequest $request)
     {
-        $request->validate([
-            'rut' => 'required|string',
-            'names' => 'required|string|max:255',
-            'last_name_1' => 'required|string|max:255',
-            'email' => 'nullable|email',
-            'insurance_id' => 'nullable|string'
-        ]);
+        // Validación automática via StorePatientRequest
 
         $labId = $request->header('X-Lab-Id') ?: config('app.current_lab_id');
 

@@ -7,12 +7,23 @@ let currentTranscriptionChain = null;
 let currentTransStudy = null;
 let colorInformeGlobal = "#333333";
 
+// Declaración global para evitar el Uncaught ReferenceError
+let autoSaveIntervalTrans = null;
+
 function initTranscription() {
     cargarAjustesVisuales();
     cargarListaTranscripcion();
     cargarPlantillasTranscripcion();
     setupKeyboardShortcuts();
-    setInterval(cargarListaTranscripcion, 30000);
+    setupAudioListeners();
+
+    setInterval(() => {
+        if (currentTransStudy || currentTranscriptionChain || $("#textoTranscripcion").is(":focus")) {
+            console.log("🔄 Refresco de transcripción omitido: Transcriptora trabajando en un registro.");
+            return;
+        }
+        cargarListaTranscripcion();
+    }, 30000);
 }
 
 async function cargarAjustesVisuales() {
@@ -34,333 +45,310 @@ async function cargarAjustesVisuales() {
 async function cargarListaTranscripcion() {
     const token = localStorage.getItem('ris_token');
     const labId = localStorage.getItem('ris_lab_id');
-    const lista = $("#listaTranscripcion");
-
     try {
-        const response = await fetch(`${API_URL}/transcription/studies`, {
+        const response = await fetch(`${API_URL}/transcription/appointments`, {
             headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
         });
-        const data = await response.json();
+        const result = await response.json();
 
-        if (response.ok && data.success) {
-            currentTranscriptionData = data.data;
+        if (response.ok && result.success) {
+            currentTranscriptionData = result.data;
+            $("#contadorAudios").text(currentTranscriptionData.length);
             renderListaTranscripcion();
         }
-    } catch (e) {
-        console.error("Error cargando transcripciones:", e);
-        lista.html('<div class="p-4 text-center text-danger"><i class="bi bi-wifi-off fs-2 d-block mb-2"></i>Error de conexión</div>');
-    }
+    } catch (e) { console.error("Error cargando lista de transcripción:", e); }
 }
 
 function renderListaTranscripcion() {
-    const lista = $("#listaTranscripcion");
-    lista.empty();
-
-    $("#contadorAudios").text(currentTranscriptionData.length);
+    const contenedor = $("#listaTranscripcion");
+    contenedor.empty();
 
     if (currentTranscriptionData.length === 0) {
-        lista.append('<div class="text-center text-muted small mt-4"><i class="bi bi-check2-circle fs-3 d-block mb-2 text-success"></i>Bandeja al día. No hay dictados pendientes.</div>');
+        contenedor.append('<div class="p-4 text-center text-muted small"><i class="bi bi-check2-circle fs-3 d-block mb-2 text-success"></i>Bandeja al día. No hay dictados.</div>');
+        $("#contadorAudios").text(0);
         return;
     }
 
-    currentTranscriptionData.forEach(cadena => {
-        const isActive = currentTranscriptionChain && currentTranscriptionChain.id === cadena.id ? 'active bg-primary text-white border-primary' : '';
-        const textColor = isActive ? 'text-white' : 'text-primary';
-        const mutedColor = isActive ? 'text-white-50' : 'text-muted';
+    currentTranscriptionData.forEach(app => {
+        const selectedClass = (currentTranscriptionChain && currentTranscriptionChain.id === app.id) ? 'active bg-primary text-white' : '';
+        const badgeAudio = app.hasAudio ? '<span class="badge bg-success small"><i class="bi bi-mic-fill"></i> Audio</span>' : '<span class="badge bg-secondary small">Sin Audio</span>';
 
-        const examsStr = cadena.studies.map(s => s.exam).join(" + ");
-        const radAsignado = cadena.destinationDoctorId ? `Médico ID: ${cadena.destinationDoctorId}` : 'Radiólogo Asignado';
+        // 💡 LÓGICA VISUAL: Identificar si viene devuelto de validación o es flujo normal
+        let badgeEstado = '';
+        let claseBorde = 'border-start border-4 border-primary';
 
-        const alertIcon = cadena.needsReview
-            ? '<i class="bi bi-exclamation-triangle-fill text-danger me-1" title="Devuelto con correcciones"></i>'
-            : '';
+        if (app.needsReview && app.returnReason !== '') {
+            claseBorde = 'border-start border-4 border-danger bg-danger-subtle';
+            badgeEstado = `
+                <div class="mt-2 small text-danger fw-bold">
+                    <i class="bi bi-exclamation-triangle-fill"></i> Devuelto: ${app.returnReason}
+                </div>`;
+        } else {
+            badgeEstado = `<div class="mt-2 small text-success opacity-75"><i class="bi bi-check-circle"></i> Dictado Nuevo</div>`;
+        }
 
-        lista.append(`
-            <button type="button" class="list-group-item list-group-item-action ${isActive} p-3 border-bottom" onclick="abrirTranscripcion('${cadena.id}')">
-                <div class="d-flex justify-content-between align-items-center mb-1">
-                    <strong class="text-truncate">${alertIcon} ${cadena.patient.lastName} ${cadena.patient.secondLastName || ''}, ${cadena.patient.name}</strong>
-                    ${cadena.hasAudio ? '<i class="bi bi-mic-fill text-danger fs-5" title="Contiene audio dictado"></i>' : '<i class="bi bi-pencil-square text-warning fs-5" title="Solo borrador de texto"></i>'}
+        const nombreCompleto = `${app.patient.name} ${app.patient.lastName} ${app.patient.secondLastName || ''}`.trim();
+
+        const item = `
+            <button type="button" class="list-group-item list-group-item-action p-3 d-flex flex-column align-items-start gap-1 ${selectedClass} ${claseBorde}" onclick="abrirTranscripcion('${app.id}')">
+                <div class="d-flex w-100 justify-content-between align-items-center">
+                    <h6 class="mb-0 fw-bold font-monospace text-truncate" style="max-width: 150px;">${app.accessionNumber}</h6>
+                    ${badgeAudio}
                 </div>
-                <div class="small ${mutedColor} mb-2">A.N.: ${cadena.accessionNumber} | <span class="fw-bold">${radAsignado}</span></div>
-                <div class="small fw-bold ${textColor} text-truncate"><i class="bi bi-file-medical me-1"></i>${examsStr}</div>
+                <strong class="m-0 text-truncate w-100" style="font-size: 0.95rem;">${nombreCompleto}</strong>
+                <div class="d-flex w-100 justify-content-between align-items-center mt-1 opacity-75 small">
+                    <span>RUT: ${app.patient.rut}</span>
+                    <span>Edad: ${app.patient.age}</span>
+                </div>
+                ${badgeEstado}
             </button>
-        `);
+        `;
+        contenedor.append(item);
     });
 }
 
-function abrirTranscripcion(citaId) {
-    currentTranscriptionChain = currentTranscriptionData.find(c => String(c.id) === String(citaId));
-    if (!currentTranscriptionChain) return;
+function abrirTranscripcion(id) {
+    const app = currentTranscriptionData.find(x => x.id == id);
+    if (!app) return;
 
+    currentTranscriptionChain = app;
     renderListaTranscripcion();
 
-    const radAsignado = currentTranscriptionChain.destinationDoctorId ? `Médico ID: ${currentTranscriptionChain.destinationDoctorId}` : 'Radiólogo Asignado';
+    // 💡 LÓGICA VISUAL: Alerta gigante si el paciente viene rechazado
+    const retornoAlerta = (app.needsReview && app.returnReason !== '') ? `
+        <div class="alert alert-danger py-2 px-3 mb-3 small shadow-sm d-flex align-items-center gap-2 border-danger border-2">
+            <i class="bi bi-exclamation-octagon-fill fs-4"></i>
+            <div><strong class="d-block">Devuelto por Validación Médica:</strong> ${app.returnReason}</div>
+        </div>
+    ` : '';
 
-    let alertaHtml = '';
-    if (currentTranscriptionChain.needsReview && currentTranscriptionChain.returnReason) {
-        alertaHtml = `
-            <div class="alert border-danger bg-danger-subtle shadow-sm mt-3 mb-0 d-flex align-items-center">
-                <i class="bi bi-exclamation-triangle-fill text-danger fs-2 me-3"></i>
-                <div>
-                    <h6 class="fw-bold text-danger mb-1">CORRECCIÓN SOLICITADA POR EL MÉDICO</h6>
-                    <p class="mb-0 text-dark small"><strong>Instrucciones:</strong> ${currentTranscriptionChain.returnReason}</p>
-                </div>
-            </div>
-        `;
-    }
+    const nombreCompleto = `${app.patient.name} ${app.patient.lastName} ${app.patient.secondLastName || ''}`.trim();
 
     $("#infoPacienteTranscripcion").html(`
-        <div class="d-flex justify-content-between align-items-center">
+        ${retornoAlerta}
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div>
-                <h5 class="fw-bold mb-1 text-dark">${currentTranscriptionChain.patient.name} ${currentTranscriptionChain.patient.lastName} ${currentTranscriptionChain.patient.secondLastName || ''}</h5>
-                <div class="text-muted small">
-                    RUT: ${currentTranscriptionChain.patient.rut} | A.N.: ${currentTranscriptionChain.accessionNumber} | 
-                    <span class="text-primary fw-bold"><i class="bi bi-person-badge me-1"></i>${radAsignado}</span>
-                </div>
+                <h5 class="mb-1 fw-bold text-dark"><i class="bi bi-person-fill me-2 text-secondary"></i>${nombreCompleto}</h5>
+                <span class="badge bg-dark font-monospace fs-6">${app.accessionNumber}</span>
+                <span class="text-muted small ms-3"><b>RUT:</b> ${app.patient.rut}</span>
+                <span class="text-muted small ms-3"><b>Edad:</b> ${app.patient.age}</span>
+            </div>
+            <div class="text-end">
+                <small class="text-muted d-block font-monospace">ID Cita: ${app.id}</small>
             </div>
         </div>
-        ${alertaHtml} `);
+    `);
 
-    let tabsHtml = '';
-    currentTranscriptionChain.studies.forEach((study, index) => {
-        tabsHtml += `<button id="tab-trans-${study.study_id}" class="study-tab-btn btn btn-sm btn-outline-primary fw-bold shadow-sm" onclick="cargarEstudioTranscripcion('${study.study_id}')">
-            <i class="bi bi-file-medical me-1"></i>${study.exam}</button>`;
+    const contenedorExamenes = $("#listaExamenesTranscripcion");
+    contenedorExamenes.empty();
+
+    app.studies.forEach((study, idx) => {
+        const subExamenLabel = study.subExam ? ` - <small class="opacity-75">${study.subExam}</small>` : '';
+        const btn = $(`<button class="btn btn-sm btn-outline-dark fw-bold shadow-sm text-start"></button>`);
+        btn.html(`<i class="bi bi-file-earmark-medical me-1"></i> ${study.exam} ${subExamenLabel}`);
+
+        btn.on('click', () => {
+            $("#listaExamenesTranscripcion button").removeClass("btn-dark text-white").addClass("btn-outline-dark");
+            btn.removeClass("btn-outline-dark").addClass("btn-dark text-white");
+            cargarEstudioTranscripcion(study.study_id);
+        });
+        contenedorExamenes.append(btn);
+
+        if (idx === 0) btn.click();
     });
-    $("#listaExamenesTranscripcion").html(tabsHtml);
 
-    if (currentTranscriptionChain.studies.length > 0) {
-        cargarEstudioTranscripcion(currentTranscriptionChain.studies[0].study_id);
-    }
-
+    $("#btnDevolverAudio").prop("disabled", false);
     $("#btnEnviarValidacion").prop("disabled", false);
-    $("#btnPlantillaTranscripcion").prop("disabled", false);
+    $("#btnPlantillaTrans").prop("disabled", false);
 }
 
 function cargarEstudioTranscripcion(studyId) {
-    currentTransStudy = currentTranscriptionChain.studies.find(s => String(s.study_id) === String(studyId));
-
-    $(".study-tab-btn").removeClass("bg-primary text-white").addClass("btn-outline-primary");
-    $(`#tab-trans-${studyId}`).removeClass("btn-outline-primary").addClass("bg-primary text-white");
-
-    $("#textoTranscripcion").val(currentTransStudy.reportText || "").prop("disabled", false);
-
-    if (currentTransStudy.audioUrl) {
-        $("#audioStatus").html('<span class="text-success fw-bold"><i class="bi bi-play-circle-fill me-1"></i>Audio de dictado disponible</span>');
-        $("#btnPlayPause, .btn-group .btn, .dropdown-toggle").prop("disabled", false);
-        $("#audioProgress").prop("disabled", false);
-
-        initAudioPlayer(currentTransStudy.audioUrl);
-    } else {
-        $("#audioStatus").html('<span class="text-warning fw-bold"><i class="bi bi-exclamation-triangle-fill me-1"></i>Sin audio adjunto (Solo borrador escrito)</span>');
-        $("#btnPlayPause, .btn-group .btn, .dropdown-toggle").prop("disabled", true);
-        $("#audioProgress").prop("disabled", true).val(0);
-        $("#timeCurrent, #timeTotal").text("0:00");
-
-        initAudioPlayer('');
-    }
-
-    iniciarAutoguardadoTrans();
-    lastSavedTextTrans = currentTransStudy.reportText;
-}
-
-async function enviarAValidacion() {
     if (!currentTranscriptionChain) return;
 
-    if (confirm("¿Enviar TODOS los informes de esta cita a Validación? El Radiólogo deberá revisarlos y firmarlos.")) {
-        const token = localStorage.getItem('ris_token');
-        const labId = localStorage.getItem('ris_lab_id');
-        const btn = $("#btnEnviarValidacion");
+    const study = currentTranscriptionChain.studies.find(s => s.study_id == studyId);
+    if (!study) return;
+
+    currentTransStudy = study;
+
+    const txt = $("#textoTranscripcion");
+    txt.prop("disabled", false).val(study.reportText || "");
+
+    if (autoSaveIntervalTrans) {
+        clearInterval(autoSaveIntervalTrans);
+    }
+    iniciarAutoguardadoTrans();
+
+    const audioEl = document.getElementById("audioDictado");
+
+    if (study.audioUrl) {
+        audioEl.src = study.audioUrl;
+        audioEl.load();
+
+        $("#btnPlayPause").prop("disabled", false).removeClass("btn-secondary").addClass("btn-primary");
+        $("#iconPlayPause").removeClass("bi-pause-fill").addClass("bi-play-fill");
+        $("#audioProgress").val(0).prop("disabled", false);
+        $("#timeCurrent").text("0:00");
+        $("#timeTotal").text("0:00");
+        setAudioSpeed(1.0);
+    } else {
+        audioEl.src = "";
+        $("#btnPlayPause").prop("disabled", true).removeClass("btn-primary").addClass("btn-secondary");
+        $("#iconPlayPause").removeClass("bi-pause-fill").addClass("bi-play-fill");
+        $("#audioProgress").val(0).prop("disabled", true);
+        $("#timeCurrent").text("0:00");
+        $("#timeTotal").text("0:00");
+    }
+}
+
+// === ASINCRONISMO Y ESCUCHADORES DEL AUDIO ===
+function setupAudioListeners() {
+    const audio = document.getElementById("audioDictado");
+    if (!audio) return;
+
+    audio.addEventListener("timeupdate", () => {
+        if (!audio.duration) return;
+        const current = audio.currentTime;
+        const total = audio.duration;
+
+        $("#audioProgress").val((current / total) * 100);
+        $("#timeCurrent").text(formatTime(current));
+    });
+
+    audio.addEventListener("loadedmetadata", () => {
+        $("#timeTotal").text(formatTime(audio.duration));
+    });
+
+    audio.addEventListener("ended", () => {
+        $("#iconPlayPause").removeClass("bi-pause-fill").addClass("bi-play-fill");
+    });
+}
+
+function togglePlayPause() {
+    const audio = document.getElementById("audioDictado");
+    if (!audio || !audio.src) return;
+
+    if (audio.paused) {
+        audio.play();
+        $("#iconPlayPause").removeClass("bi-play-fill").addClass("bi-pause-fill");
+    } else {
+        audio.pause();
+        $("#iconPlayPause").removeClass("bi-pause-fill").addClass("bi-play-fill");
+    }
+}
+
+function skipAudio(seconds) {
+    const audio = document.getElementById("audioDictado");
+    if (!audio || !audio.src) return;
+    audio.currentTime = Math.max(0, Math.min(audio.duration, audio.currentTime + seconds));
+}
+
+function seekAudio() {
+    const audio = document.getElementById("audioDictado");
+    if (!audio || !audio.duration) return;
+    const porcentaje = $("#audioProgress").val();
+    audio.currentTime = (porcentaje / 100) * audio.duration;
+}
+
+function setAudioSpeed(speed) {
+    const audio = document.getElementById("audioDictado");
+    if (!audio) return;
+    audio.playbackRate = speed;
+    $("#speedIndicator").text(speed + "x");
+}
+
+function formatTime(seconds) {
+    if (isNaN(seconds)) return "0:00";
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+}
+
+// === CONTROL DE AUTOGUARDADO ===
+function iniciarAutoguardadoTrans() {
+    autoSaveIntervalTrans = setInterval(async () => {
+        if (!currentTranscriptionChain || !currentTransStudy) return;
+
+        const textActual = $("#textoTranscripcion").val();
 
         try {
-            btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Enviando...');
+            const token = localStorage.getItem('ris_token');
+            const labId = localStorage.getItem('ris_lab_id');
 
-            const paqueteInformes = currentTranscriptionChain.studies.map(s => ({
-                id: s.study_id,
-                text: s.reportText
-            }));
+            const payload = {
+                reports: [{
+                    id: currentTransStudy.study_id,
+                    text: textActual
+                }]
+            };
 
-            const response = await fetch(`${API_URL}/transcription/appointments/${currentTranscriptionChain.id}/complete`, {
+            $("#autoSaveIndTrans").fadeIn().html('<i class="bi bi-arrow-repeat text-primary spinning"></i> Guardando...');
+
+            const response = await fetch(`${API_URL}/transcription/appointments/${currentTranscriptionChain.id}/draft`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
-                body: JSON.stringify({ reports: paqueteInformes })
+                body: JSON.stringify(payload)
             });
 
             if (response.ok) {
-                showToast("✅ Informes enviados a la Bandeja de Firma del Radiólogo.", "success");
-                limpiarPantallaTranscripcion();
-                cargarListaTranscripcion();
-            } else {
-                throw new Error("Error en servidor");
+                currentTransStudy.reportText = textActual;
+                $("#autoSaveIndTrans").html('<i class="bi bi-cloud-arrow-up text-success me-1"></i>Guardado automáticamente').delay(2000).fadeOut();
             }
         } catch (e) {
-            console.error(e);
-            showToast("❌ Error al enviar la transcripción", "danger");
-        } finally {
-            btn.prop('disabled', false).html('<i class="bi bi-check-circle me-1"></i> ENVIAR A FIRMA DEL RADIÓLOGO');
+            console.error("Error en auto-guardado automático de transcripción", e);
+            $("#autoSaveIndTrans").html('<i class="bi bi-cloud-slash text-danger me-1"></i>Error al guardar');
         }
-    }
+    }, 15000);
 }
 
-function limpiarPantallaTranscripcion() {
-    currentTranscriptionChain = null;
-    currentTransStudy = null;
-    $("#infoPacienteTranscripcion").html('<div class="text-center text-muted p-4"><i class="bi bi-headphones fs-1 d-block mb-3"></i>Seleccione paciente de la lista izquierda para transcribir.</div>');
-    $("#textoTranscripcion").val("").prop("disabled", true);
-    $("#btnEnviarValidacion, #btnPlantillaTranscripcion").prop("disabled", true);
-
-    if (typeof initAudioPlayer === 'function') initAudioPlayer('');
-    $("#btnPlayPause, .btn-group .btn, .dropdown-toggle").prop("disabled", true);
-    $("#audioProgress").prop("disabled", true).val(0);
-    if (autoSaveIntervalTrans) clearInterval(autoSaveIntervalTrans);
-    $("#btnPlantillaTrans, #btnDevolverAudio").prop("disabled", true);
-    renderListaTranscripcion();
-}
-
-function aplicarPlantillaTranscripcion(tipo) {
-    if (!currentTranscriptionChain || !currentTransStudy) {
-        return showToast("Seleccione un paciente y estudio de la lista primero.", "warning");
-    }
-
-    const plantillas = {
-        "normal_torax": "RADIOGRAFÍA DE TÓRAX AP Y LATERAL\n\nTécnica: Se adquieren proyecciones AP y lateral de tórax.\n\nHallazgos:\n- Silueta cardiovascular de tamaño y morfología conservada.\n- Pulmones expandidos, sin condensaciones.\n- Senos costofrénicos libres.\n\nConclusión:\nRadiografía de tórax dentro de límites normales.",
-        "normal_eco": "ECOGRAFÍA ABDOMINAL\n\nTécnica: Exploración ecográfica de abdomen superior e inferior.\n\nHallazgos:\n- Hígado de tamaño, forma y ecogenicidad conservada.\n- Vesícula biliar de paredes finas, sin litiasis.\n- Riñones de características ecográficas habituales.\n\nConclusión:\nEcografía abdominal sin hallazgos patológicos."
-    };
-
-    if (!plantillas[tipo]) return;
-
-    const textarea = $("#textoTranscripcion");
-    const textoActual = textarea.val();
-    const separador = textoActual.trim() !== "" ? "\n\n---\n\n" : "";
-
-    textarea.val(textoActual + separador + plantillas[tipo]);
-    currentTransStudy.reportText = textarea.val();
-    showToast("Plantilla insertada con éxito.", "info");
-}
-
-let audioPlayer;
-function initAudioPlayer(url) {
-    audioPlayer = document.getElementById('audioDictado');
-    const p = document.getElementById('audioProgress'), tc = document.getElementById('timeCurrent'), tt = document.getElementById('timeTotal');
-    if (url) audioPlayer.src = url;
-    p.value = 0;
-    audioPlayer.addEventListener('loadedmetadata', () => { p.max = audioPlayer.duration; tt.textContent = formatTime(audioPlayer.duration); });
-    audioPlayer.addEventListener('timeupdate', () => { p.value = audioPlayer.currentTime; tc.textContent = formatTime(audioPlayer.currentTime); });
-}
-function togglePlayPause() {
-    if (!audioPlayer || !audioPlayer.src) return;
-    const ic = document.getElementById('iconPlayPause');
-    if (audioPlayer.paused) { audioPlayer.play(); ic.className = "bi bi-pause-fill fs-3"; ic.style.marginLeft = "0"; }
-    else { audioPlayer.pause(); ic.className = "bi bi-play-fill fs-3"; ic.style.marginLeft = "4px"; }
-}
-function skipAudio(s) { if (audioPlayer) { let nt = audioPlayer.currentTime + s; audioPlayer.currentTime = Math.max(0, Math.min(nt, audioPlayer.duration)); } }
-function seekAudio() { if (audioPlayer) audioPlayer.currentTime = document.getElementById('audioProgress').value; }
-function setAudioSpeed(s) { if (audioPlayer) { audioPlayer.playbackRate = s; document.getElementById('speedIndicator').textContent = s.toFixed(1) + 'x'; } }
-function formatTime(s) { if (isNaN(s)) return "0:00"; const m = Math.floor(s / 60), sc = Math.floor(s % 60); return `${m}:${sc < 10 ? '0' : ''}${sc}`; }
-
-$(document).ready(function () {
-    initTranscription();
-
-    $(document).on("input", "#textoTranscripcion", function () {
-        if (currentTransStudy) {
-            currentTransStudy.reportText = $(this).val();
-        }
-    });
-});
-
-// === 1. ATAJOS DE TECLADO ===
-function setupKeyboardShortcuts() {
-    document.addEventListener('keydown', function (e) {
-        if (!currentTransStudy || !audioPlayer) return;
-
-        // F4: Play / Pausa
-        if (e.key === 'F4') {
-            e.preventDefault(); // Evita funciones por defecto del navegador
-            togglePlayPause();
-        }
-        // F2: Retroceder 5 segundos
-        if (e.key === 'F2') {
-            e.preventDefault();
-            skipAudio(-5);
-        }
-    });
-}
-
-// === 2. PLANTILLAS DINÁMICAS ===
-async function cargarPlantillasTranscripcion() {
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
-    try {
-        const response = await fetch(`${API_URL}/templates`, {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
-        });
-        const data = await response.json();
-        if (response.ok && data.success) {
-            allTemplatesTrans = data.data;
-            const dropdown = $("#dropdownPlantillasTrans");
-            dropdown.empty();
-            if (allTemplatesTrans.length === 0) return dropdown.append('<li><span class="dropdown-item text-muted">No hay plantillas creadas</span></li>');
-
-            allTemplatesTrans.forEach(tpl => {
-                dropdown.append(`<li><a class="dropdown-item" href="javascript:void(0);" onclick="aplicarPlantillaIdTrans('${tpl.id}')"><b>[${tpl.group_code}]</b> ${tpl.title}</a></li>`);
-            });
-        }
-    } catch (e) { console.error("Error cargando plantillas:", e); }
-}
-
-function aplicarPlantillaIdTrans(id) {
-    if (!currentTransStudy) return;
-    const tpl = allTemplatesTrans.find(t => String(t.id) === String(id));
-    if (!tpl) return;
-
-    const textarea = $("#textoTranscripcion");
-    const separador = textarea.val().trim() !== "" ? "\n\n---\n\n" : "";
-    textarea.val(textarea.val() + separador + tpl.content);
-    currentTransStudy.reportText = textarea.val();
-    ejecutarAutoguardadoTrans();
-}
-
-// === 3. AUTOGUARDADO ===
-function iniciarAutoguardadoTrans() {
-    if (autoSaveIntervalTrans) clearInterval(autoSaveIntervalTrans);
-    autoSaveIntervalTrans = setInterval(ejecutarAutoguardadoTrans, 20000); // Cada 20s
-}
-
-async function ejecutarAutoguardadoTrans() {
-    if (!currentTranscriptionChain || !currentTransStudy) return;
-
-    const textoActual = $("#textoTranscripcion").val();
-    if (textoActual === lastSavedTextTrans) return;
-
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
-    $("#autoSaveIndTrans").html('<span class="spinner-border spinner-border-sm text-primary"></span>').fadeIn();
-
-    try {
-        const paqueteInformes = currentTranscriptionChain.studies.map(s => ({
-            id: s.study_id,
-            text: s.reportText
-        }));
-
-        const response = await fetch(`${API_URL}/transcription/appointments/${currentTranscriptionChain.id}/draft`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
-            body: JSON.stringify({ reports: paqueteInformes })
-        });
-
-        if (response.ok) {
-            lastSavedTextTrans = textoActual;
-            $("#autoSaveIndTrans").html('<i class="bi bi-cloud-check-fill text-success me-1"></i>Guardado');
-            setTimeout(() => $("#autoSaveIndTrans").fadeOut(), 3000);
-        }
-    } catch (e) { console.error("Error auto-save", e); }
-}
-
-// Escuchar cambios en el textarea para actualizar el objeto
 $(document).on("input", "#textoTranscripcion", function () {
     if (currentTransStudy) currentTransStudy.reportText = $(this).val();
 });
 
-// === 4. DEVOLVER AL MÉDICO ===
+async function enviarAValidacion() {
+    if (!currentTranscriptionChain) return;
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+    const btn = $("#btnEnviarValidacion");
+
+    // Construcción exacta del payload: 
+    // El backend espera un array llamado 'reports'
+    const payload = {
+        reports: currentTranscriptionChain.studies.map(s => ({
+            id: s.study_id,
+            text: s.reportText || '' // Asegura que no sea null
+        }))
+    };
+
+    try {
+        btn.prop('disabled', true).html('Enviando...');
+
+        const response = await fetch(`${API_URL}/transcription/appointments/${currentTranscriptionChain.id}/validate`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+                'X-Lab-Id': labId
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            limpiarPantallaTranscripcion();
+            cargarListaTranscripcion();
+        } else {
+            throw new Error(result.message || "Error al validar");
+        }
+    } catch (e) {
+        console.error("Error en enviarAValidacion:", e);
+        alert("Error al enviar: " + e.message);
+    } finally {
+        btn.prop('disabled', false).html('<i class="bi bi-check-circle me-1"></i> ENVIAR A FIRMA...');
+    }
+}
+
 async function devolverAudioAlMedico() {
     if (!currentTranscriptionChain) return;
 
@@ -381,13 +369,89 @@ async function devolverAudioAlMedico() {
         });
 
         if (response.ok) {
-            showToast("Audio devuelto al Radiólogo.", "warning");
+            if (typeof showToast === 'function') showToast("Audio devuelto a la bandeja del Radiólogo.", "warning");
             limpiarPantallaTranscripcion();
             cargarListaTranscripcion();
         }
     } catch (e) {
-        showToast("Error al devolver.", "danger");
+        console.error(e);
+        if (typeof showToast === 'function') showToast("Error al retornar flujo al médico.", "danger");
     } finally {
         btn.prop('disabled', false).html('<i class="bi bi-exclamation-triangle me-1"></i> Reportar Audio');
     }
-}  
+}
+
+function limpiarPantallaTranscripcion() {
+    if (autoSaveIntervalTrans) {
+        clearInterval(autoSaveIntervalTrans);
+        autoSaveIntervalTrans = null;
+    }
+
+    const audioEl = document.getElementById("audioDictado");
+    if (audioEl) audioEl.src = "";
+
+    currentTranscriptionChain = null;
+    currentTransStudy = null;
+
+    $("#infoPacienteTranscripcion").html(`
+        <div class="text-center text-muted p-4">
+            <i class="bi bi-headphones fs-1 d-block mb-3"></i>
+            Seleccione un dictado del panel izquierdo para comenzar a transcribir.
+        </div>
+    `);
+
+    $("#listaExamenesTranscripcion").empty();
+    $("#textoTranscripcion").val("").prop("disabled", true);
+    $("#btnDevolverAudio").prop("disabled", true);
+    $("#btnEnviarValidacion").prop("disabled", true);
+    $("#btnPlantillaTrans").prop("disabled", true);
+    $("#audioProgress").val(0).prop("disabled", true);
+    $("#timeCurrent").text("0:00");
+    $("#timeTotal").text("0:00");
+}
+
+// === PLANTILLAS DE TRANSCRIPCIÓN ===
+async function cargarPlantillasTranscripcion() {
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+    try {
+        const response = await fetch(`${API_URL}/templates`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+        const data = await response.json();
+        if (response.ok && data.success) {
+            const dropdown = $("#dropdownPlantillasTrans");
+            dropdown.empty();
+            if (data.data.length === 0) {
+                dropdown.append('<li><span class="dropdown-item text-muted">No hay plantillas creadas</span></li>');
+                return;
+            }
+            data.data.forEach(t => {
+                const item = $(`<li><a class="dropdown-item small" style="cursor:pointer;"><b>${t.title}</b> <small class="text-muted">(${t.exam_name || 'General'})</small></a></li>`);
+                item.find('a').on('click', () => {
+                    const txt = $("#textoTranscripcion");
+                    const currentVal = txt.val();
+                    txt.val(currentVal + (currentVal ? "\n" : "") + t.content).focus();
+                    if (currentTransStudy) currentTransStudy.reportText = txt.val();
+                });
+                dropdown.append(item);
+            });
+        }
+    } catch (e) { console.error("Error cargando plantillas:", e); }
+}
+
+// === ATAJOS DE TECLADO MUNDIALES (F4 y F2) ===
+function setupKeyboardShortcuts() {
+    $(document).on('keydown', function (e) {
+        if (currentTranscriptionChain) {
+            if (e.key === 'F4') {
+                e.preventDefault();
+                togglePlayPause();
+            }
+            if (e.key === 'F2') {
+                e.preventDefault();
+                skipAudio(-5);
+            }
+        }
+    });
+}

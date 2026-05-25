@@ -9,6 +9,7 @@ let audioBlob = null;
 let mediaRecorder;
 let audioChunks = [];
 let currentDictationMethod = 'teclado';
+let dragonSyncInterval = null;
 
 // === NUEVAS VARIABLES GLOBALES ===
 let allTemplates = [];
@@ -16,18 +17,29 @@ let autoSaveInterval = null;
 let lastSavedText = "";
 let recordingInterval;
 let recordingSeconds = 0;
-const MAX_RECORDING_SECONDS = 600; // 10 minutos
+const MAX_RECORDING_SECONDS = 600;
 let isSplitScreen = false;
+let radiologistRefreshInterval = null;
 
 function initRadiologist() {
+    const userRole = localStorage.getItem('ris_role'); 
+    
+    if (userRole === 'admin' || userRole === 'sis_admin') {
+        $("#filtroAdminContainer").removeClass("d-none");
+    }
+
     cargarPlantillasRadiologo();
     cargarEstudiosRadiologo();
     setupAudioEvents();
 
-    setInterval(cargarEstudiosRadiologo, 30000);
+    if (radiologistRefreshInterval) clearInterval(radiologistRefreshInterval);
+
+    radiologistRefreshInterval = setInterval(() => {
+        if (currentRadioStudy || currentReportingChain || $("#modalInforme").is(":visible")) return;
+        cargarEstudiosRadiologo();
+    }, 30000);
 }
 
-// === 1. PLANTILLAS DINÁMICAS DESDE BD ===
 async function cargarPlantillasRadiologo() {
     const token = localStorage.getItem('ris_token');
     const labId = localStorage.getItem('ris_lab_id');
@@ -185,71 +197,142 @@ async function cargarHistorialSplit() {
     }
 }
 
-// === Carga Principal de Estudios ===
 async function cargarEstudiosRadiologo() {
     const token = localStorage.getItem('ris_token');
     const labId = localStorage.getItem('ris_lab_id');
-    const lista = $("#radiologistStudies");
+    
+    const viewMode = $("#filtroRadiologoActivo").val() || 'ME';
 
     try {
-        const response = await fetch(`${API_URL}/radiologist/studies`, {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        const response = await fetch(`${API_URL}/radiologist/studies?view=${viewMode}`, {
+            headers: { 
+                'Authorization': `Bearer ${token}`, 
+                'X-Lab-Id': labId 
+            }
         });
+        
         const data = await response.json();
-
         if (response.ok && data.success) {
             currentRadiologistData = data.data;
-            renderRadiologistStudies();
+            renderRadiologistStudies(); 
         }
     } catch (e) {
-        console.error("Error al cargar bandeja del radiólogo:", e);
+        console.error("Error al cargar estudios:", e);
     }
 }
 
-function renderRadiologistStudies() {
-    const lista = $("#radiologistStudies");
-    lista.empty();
+function abrirRadiologo(id) {
+    const app = currentRadiologistData.find(x => String(x.id) === String(id));
+    if (!app) return;
 
-    $("#badgePendientesInformar").text(currentRadiologistData.length);
+    currentReportingChain = app;
+    renderRadiologistStudies();
+
+    const retornoAlerta = (app.needsReview && app.returnReason !== '') ? `
+        <div class="alert alert-warning py-2 px-3 mb-3 small shadow-sm d-flex align-items-center gap-2 border-warning border-2">
+            <i class="bi bi-exclamation-octagon-fill fs-4"></i>
+            <div><strong class="d-block">Audio Devuelto por Transcripción:</strong> ${app.returnReason}</div>
+        </div>
+    ` : '';
+
+    const nombreCompleto = `${app.patient.name} ${app.patient.lastName} ${app.patient.secondLastName || ''}`.trim();
+
+    $("#infoPacienteRadiologo").html(`
+        ${retornoAlerta}
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <h5 class="mb-1 fw-bold text-dark"><i class="bi bi-person-bounding-box me-2 text-secondary"></i>${nombreCompleto}</h5>
+                <span class="badge bg-dark font-monospace fs-6">${app.accessionNumber}</span>
+                <span class="text-muted small ms-3"><b>RUT:</b> ${app.patient.rut}</span>
+            </div>
+        </div>
+    `);
+
+    let tabsHtml = '<div class="d-flex gap-2 flex-wrap">';
+    currentReportingChain.studies.forEach((study, index) => {
+        const btnClass = index === 0 ? 'bg-primary text-white' : 'btn-outline-primary';
+        tabsHtml += `<button id="tab-${study.study_id}" class="study-tab-btn btn btn-sm ${btnClass} fw-bold shadow-sm" onclick="cargarEstudioEnEditor('${study.study_id}')">
+            <i class="bi bi-file-medical me-1"></i>${study.exam}</button>`;
+    });
+    tabsHtml += '</div>';
+    $("#listaExamenesRadiologo").html(tabsHtml);
+
+    if (currentReportingChain.studies.length > 0) {
+        cargarEstudioEnEditor(currentReportingChain.studies[0].study_id);
+    }
+
+    if (isSplitScreen) cargarHistorialSplit();
+}
+
+function renderRadiologistStudies() {
+    const contenedor = $("#radiologistStudies");
+    contenedor.empty();
 
     if (currentRadiologistData.length === 0) {
-        lista.append('<div class="p-4 text-center text-muted"><i class="bi bi-check-circle fs-2 d-block mb-2 text-success"></i>Su bandeja está al día.</div>');
+        contenedor.append('<div class="p-4 text-center text-muted small"><i class="bi bi-check2-circle fs-3 d-block mb-2 text-success"></i>Bandeja al día. No tienes pacientes pendientes.</div>');
+        $("#badgePendientesInformar").text(0);
         return;
     }
 
-    currentRadiologistData.forEach(cadena => {
-        const isActive = currentReportingChain && currentReportingChain.id === cadena.id ? 'active bg-primary text-white border-primary' : '';
-        const textColor = isActive ? 'text-white' : 'text-primary';
+    $("#badgePendientesInformar").text(currentRadiologistData.length);
 
-        const nombresExamenes = cadena.studies.map(s => s.exam).join(" + ");
+    currentRadiologistData.forEach(app => {
+        const selectedClass = (currentReportingChain && currentReportingChain.id === app.id) ? 'active bg-primary text-white' : '';
 
-        lista.append(`
-            <button type="button" class="list-group-item list-group-item-action ${isActive} p-3 border-bottom" onclick="abrirInforme('${cadena.id}')">
-                <div class="d-flex justify-content-between align-items-center mb-1">
-                    <strong class="text-truncate">${cadena.patient.lastName}, ${cadena.patient.name}</strong>
+        let badgeEstado = '';
+        let claseBorde = 'border-start border-4 border-info';
+
+        if (app.needsReview && app.returnReason !== '') {
+            claseBorde = 'border-start border-4 border-warning bg-warning-subtle';
+            badgeEstado = `
+                <div class="mt-2 small text-warning-emphasis fw-bold">
+                    <i class="bi bi-exclamation-triangle-fill"></i> Secretaria reporta: ${app.returnReason}
+                </div>`;
+        }
+
+        const nombreCompleto = `${app.patient.name} ${app.patient.lastName} ${app.patient.secondLastName || ''}`.trim();
+
+        const item = `
+            <button type="button" class="list-group-item list-group-item-action p-3 d-flex flex-column align-items-start gap-1 ${selectedClass} ${claseBorde}" onclick="abrirRadiologo('${app.id}')">
+                <div class="d-flex w-100 justify-content-between align-items-center">
+                    <h6 class="mb-0 fw-bold font-monospace text-truncate" style="max-width: 150px;">${app.accessionNumber}</h6>
                 </div>
-                <div class="small fw-bold ${textColor} text-truncate"><i class="bi bi-file-medical me-1"></i>${nombresExamenes}</div>
+                <strong class="m-0 text-truncate w-100" style="font-size: 0.95rem;">${nombreCompleto}</strong>
+                <div class="d-flex w-100 justify-content-between align-items-center mt-1 opacity-75 small">
+                    <span>RUT: ${app.patient.rut}</span>
+                    <span>Edad: ${app.patient.age}</span>
+                </div>
+                ${badgeEstado}
             </button>
-        `);
+        `;
+        contenedor.append(item);
     });
 }
 
 function abrirInforme(citaId) {
-    currentReportingChain = currentRadiologistData.find(c => String(c.id) === String(citaId));
-    if (!currentReportingChain) return;
+    const app = currentRadiologistData.find(x => x.id == id);
+    if (!app) return;
 
+    currentReportingChain = app;
     renderRadiologistStudies();
-    iniciarAutoguardado(); // Activar el auto-save para esta cita
+
+    const retornoAlerta = (app.needsReview && app.returnReason !== '') ? `
+        <div class="alert alert-warning py-2 px-3 mb-3 small shadow-sm d-flex align-items-center gap-2 border-warning border-2">
+            <i class="bi bi-exclamation-octagon-fill fs-4"></i>
+            <div><strong class="d-block">Audio Devuelto por Transcripción:</strong> ${app.returnReason}</div>
+        </div>
+    ` : '';
+
+    const nombreCompleto = `${app.patient.name} ${app.patient.lastName} ${app.patient.secondLastName || ''}`.trim();
 
     $("#infoPacienteRadiologo").html(`
-        <div class="row align-items-center">
-            <div class="col-md-7">
-                <h5 class="fw-bold mb-1 text-dark">${currentReportingChain.patient.name} ${currentReportingChain.patient.lastName}</h5>
-                <div class="text-muted small">RUT: ${currentReportingChain.patient.rut} | Accession: ${currentReportingChain.accessionNumber}</div>
+        ${retornoAlerta}
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <h5 class="mb-1 fw-bold text-dark"><i class="bi bi-person-bounding-box me-2 text-secondary"></i>${nombreCompleto}</h5>
+                <span class="badge bg-dark font-monospace fs-6">${app.accessionNumber}</span>
+                <span class="text-muted small ms-3"><b>RUT:</b> ${app.patient.rut}</span>
             </div>
-        </div>
-        <div class="bg-warning-subtle p-2 mt-2 rounded small border-start border-4 border-warning">
-            <strong class="text-warning-emphasis"><i class="bi bi-chat-square-text me-1"></i>Anamnesis (T.M):</strong> ${currentReportingChain.anamnesis}
         </div>
     `);
 
@@ -479,6 +562,7 @@ $(document).ready(function () {
 function activarDragon() {
     if (!currentRadioStudy) return;
     currentDictationMethod = 'dragon';
+
     const txt = $("#textoInforme");
     txt.prop("disabled", false).focus();
     txt.addClass("border border-success border-2 shadow").removeClass("border-0");
@@ -486,7 +570,21 @@ function activarDragon() {
     if (mediaRecorder && mediaRecorder.state !== "inactive") {
         $("#btnStop").click();
     }
-    if (typeof showToast === 'function') showToast("🟢 Dragon Medical activo en esta caja de texto.", "success");
+
+    if (typeof showToast === 'function') showToast("🟢 Dragon Medical activo. Sincronización continua en proceso.", "success");
+
+    if (dragonSyncInterval) clearInterval(dragonSyncInterval);
+
+    dragonSyncInterval = setInterval(() => {
+        if (currentDictationMethod === 'dragon' && currentRadioStudy) {
+            const dragonText = txt.val();
+            if (currentRadioStudy.reportText !== dragonText) {
+                currentRadioStudy.reportText = dragonText;
+            }
+        } else {
+            clearInterval(dragonSyncInterval);
+        }
+    }, 1000);
 }
 
 function abrirVisorDicom() {
@@ -497,7 +595,7 @@ function abrirVisorDicom() {
 async function abrirVisorPACS(accessionNumber) {
     const pacsConfig = {
         accession_number: accessionNumber,
-        pacs_ip: "170.246.172.83",
+        pacs_ip: "172.16.66.11",
         pacs_port: 4242,
         pacs_aet: "HealthTICloud"
     };
@@ -509,7 +607,10 @@ async function abrirVisorPACS(accessionNumber) {
             body: JSON.stringify(pacsConfig)
         });
     } catch (error) {
-        const urlWeb = `http://170.246.172.83:8042/osimis-viewer/app/index.html?accession=${accessionNumber}`;
+        const token = localStorage.getItem('ris_token');
+
+        const urlWeb = `https://viewer.healthticloud.cl/viewer?AccessionNumber=${accessionNumber}&token=${token}`;
+
         window.open(urlWeb, '_blank');
     }
 }

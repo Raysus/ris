@@ -8,6 +8,7 @@ use App\Models\Supply;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class WorklistController extends Controller
 {
@@ -156,12 +157,13 @@ class WorklistController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
+
     public function complete(Request $request, $appointmentId)
     {
         $request->validate([
             'anamnesis' => 'required|string',
             'supplies' => 'array',
-            'supplies.*.id' => 'required|string', // 🔥 CORRECCIÓN CRÍTICA: Ahora acepta UUIDs (string)
+            'supplies.*.id' => 'required',
             'supplies.*.quantity' => 'required|integer|min:1',
             'status' => 'required|string'
         ]);
@@ -207,6 +209,7 @@ class WorklistController extends Controller
             }
 
             DB::table('appointment_logs')->insert([
+                'id' => (string) Str::orderedUuid(),
                 'appointment_id' => $appointment->id,
                 'user_id' => $userId,
                 'action' => 'WORKLIST_COMPLETED',
@@ -226,13 +229,23 @@ class WorklistController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 400);
+            Log::error("Error completando Worklist (Cita {$appointmentId}): " . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 400);
         }
     }
 
     public function updateStatus(Request $request, $appointmentId)
     {
-        // ... (Tu código actual está bien, mantén lo que tenías) ...
+        $request->validate([
+            'status' => 'required|string',
+            'needs_review' => 'nullable|boolean',
+            'return_reason' => 'nullable|string'
+        ]);
+
         try {
             $userId = $request->user()->id;
 
@@ -249,6 +262,7 @@ class WorklistController extends Controller
             $appointment->save();
 
             DB::table('appointment_logs')->insert([
+                'id' => (string) Str::orderedUuid(),
                 'appointment_id' => $appointment->id,
                 'user_id' => $userId,
                 'action' => 'RETURNED_TO_RECEPTION',

@@ -46,8 +46,15 @@ class AppointmentController extends Controller
         $appointments = $this->getSecureQuery()
             ->with([
                 'patient.persona',
+                'machine',
+                'studies.exam',
                 'studies.machine',
-                'supplies'
+                'studies.radiologist',
+                'referringDoctor',
+                'destinationDoctor.persona',
+                'supplies',
+                'insurance',
+                'insurancePlan'
             ])
             ->orderBy('start_time', 'asc')
             ->get();

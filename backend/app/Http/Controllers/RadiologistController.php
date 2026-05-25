@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Appointment;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Illuminate\Support\Str;
 
 class RadiologistController extends Controller
 {
@@ -28,7 +29,7 @@ class RadiologistController extends Controller
     {
         $appointments = $this->getSecureAppointmentQuery()
             ->with(['patient.persona', 'studies'])
-            ->where('status', 'en_informe')
+            ->whereIn('status', ['en_informe', 'pendiente_radiologo'])
             ->orderBy('start_time', 'asc')
             ->get();
 
@@ -43,6 +44,8 @@ class RadiologistController extends Controller
                     'rut' => $app->patient->persona->rut,
                     'name' => $app->patient->persona->names,
                     'lastName' => $app->patient->persona->last_name_1,
+                    'age' => $app->patient->persona->birth_date ? \Carbon\Carbon::parse($app->patient->persona->birth_date)->age : ($app->patient->persona->age ?? 'N/A'),
+
                 ],
                 'studies' => $app->studies->map(function ($s) {
                     return [
@@ -89,6 +92,7 @@ class RadiologistController extends Controller
             }
 
             DB::table('appointment_logs')->insert([
+                'id' => (string) Str::orderedUuid(),
                 'appointment_id' => $appointment->id,
                 'user_id' => $userId,
                 'action' => 'REPORT_SIGNED',
@@ -97,11 +101,14 @@ class RadiologistController extends Controller
                     'mensaje' => 'El radiólogo firmó y liberó los informes individuales.'
                 ]),
                 'ip_address' => $request->ip(),
-                'created_at' => now()
+                'created_at' => now(),
+                'updated_at' => now()
             ]);
+
             $appointment->touch();
             $appointment->load(['patient.persona', 'studies', 'supplies']);
             \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+
             DB::commit();
             return response()->json(['success' => true]);
 
@@ -111,7 +118,6 @@ class RadiologistController extends Controller
         }
     }
 
-    // === 🔥 NUEVA FUNCIÓN DE AUTOGUARDADO (BORRADOR) 🔥 ===
     public function saveDraft(Request $request, $id)
     {
         $request->validate([
@@ -133,7 +139,6 @@ class RadiologistController extends Controller
                     ]);
             }
 
-            // Opcional: Sincronizar el borrador a la nube para evitar pérdidas
             $appointment->touch();
             $appointment->load(['patient.persona', 'studies', 'supplies']);
             \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
@@ -167,16 +172,20 @@ class RadiologistController extends Controller
                 ]);
 
             DB::table('appointment_logs')->insert([
+                'id' => (string) Str::orderedUuid(),
                 'appointment_id' => $appointment->id,
                 'user_id' => $userId,
                 'action' => 'RETURNED_TO_WORKLIST_BY_DOC',
                 'details' => json_encode(['motivo' => $request->reason]),
                 'ip_address' => $request->ip(),
-                'created_at' => now()
+                'created_at' => now(),
+                'updated_at' => now()
             ]);
+
             $appointment->touch();
             $appointment->load(['patient.persona', 'studies', 'supplies']);
             \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+
             DB::commit();
             return response()->json(['success' => true]);
 
@@ -191,6 +200,7 @@ class RadiologistController extends Controller
         $request->validate([
             'study_id' => 'required|string',
             'audio' => 'required|file|mimes:webm,mp3,wav,ogg,mp4|max:15360',
+            'reason' => 'nullable|string'
         ]);
 
         $userId = $request->user()->id;
@@ -201,38 +211,47 @@ class RadiologistController extends Controller
 
             $audioPath = null;
             if ($request->hasFile('audio')) {
-                $folder = 'audios/' . date('Y/m');
-                $audioPath = $request->file('audio')->store($folder, 'public');
+                $audioPath = $request->file('audio')->store('audios_dictados', 'public');
             }
 
-            $appointment->status = 'en_transcripcion';
-            $appointment->save();
+            $appointment->update([
+                'status' => 'en_transcripcion',
+                'return_reason' => $request->reason,
+                'needs_review' => true,
+            ]);
 
             DB::table('appointment_studies')
-                ->where('id', $request->study_id)
                 ->where('appointment_id', $appointment->id)
                 ->update([
-                    'report' => $request->report_text ?? '',
-                    'audio_path' => $audioPath,
                     'status' => 'en_transcripcion',
                     'updated_at' => now()
                 ]);
 
+            if ($audioPath) {
+                DB::table('appointment_studies')
+                    ->where('appointment_id', $appointment->id)
+                    ->where('id', $request->study_id)
+                    ->update([
+                        'audio_path' => $audioPath
+                    ]);
+            }
+
             DB::table('appointment_logs')->insert([
+                'id' => (string) Str::orderedUuid(),
                 'appointment_id' => $appointment->id,
                 'user_id' => $userId,
                 'action' => 'SENT_TO_TRANSCRIPTION',
-                'details' => json_encode([
-                    'estudio_id' => $request->study_id,
-                    'mensaje' => 'Audio grabado y enviado a digitación'
-                ]),
+                'details' => json_encode(['motivo' => $request->reason ?? 'Derivado a transcripción con audio adjunto.']),
                 'ip_address' => $request->ip(),
-                'created_at' => now()
+                'created_at' => now(),
+                'updated_at' => now()
             ]);
-            $appointment->touch();
+
+            DB::commit();
+
             $appointment->load(['patient.persona', 'studies', 'supplies']);
             \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
-            DB::commit();
+
             return response()->json(['success' => true]);
 
         } catch (\Exception $e) {
@@ -324,15 +343,19 @@ class RadiologistController extends Controller
                 ]);
 
             DB::table('appointment_logs')->insert([
+                'id' => (string) Str::orderedUuid(),
                 'appointment_id' => $appointment->id,
                 'user_id' => $userId,
                 'action' => 'REJECTED_TRANSCRIPTION',
                 'details' => json_encode(['motivo' => $request->reason]),
                 'ip_address' => $request->ip(),
-                'created_at' => now()
+                'created_at' => now(),
+                'updated_at' => now()
             ]);
+
             $appointment->load(['patient.persona', 'studies', 'supplies']);
             \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+
             return response()->json(['success' => true]);
 
         } catch (\Exception $e) {
@@ -340,6 +363,62 @@ class RadiologistController extends Controller
                 'success' => false,
                 'message' => 'Error en el servidor',
                 'error_real' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function uploadStudyAudio(Request $request, $studyId)
+    {
+        // Validar que el archivo sea un archivo de audio binario válido
+        $request->validate([
+            'audio' => 'required|file|mimes:wav,mp3,ogg,webm|max:10240', // máx 10MB
+        ]);
+
+        try {
+            // 1. Buscar el registro del sub-examen específico
+            $study = DB::table('appointment_studies')->where('id', $studyId)->first();
+
+            if (!$study) {
+                return response()->json(['success' => false, 'message' => 'Estudio no encontrado.'], 404);
+            }
+
+            // 2. Procesar y almacenar el archivo físico en storage/app/public/audios
+            if ($request->hasFile('audio')) {
+                $file = $request->file('audio');
+
+                // Lo guardamos con un nombre único y descriptivo usando el ID del estudio
+                $fileName = "dictado_estudio_{$studyId}_" . time() . '.' . $file->getClientOriginalExtension();
+                $path = $file->storeAs('audios', $fileName, 'public');
+
+                // 3. Actualizar el registro en 'appointment_studies'
+                DB::table('appointment_studies')
+                    ->where('id', $studyId)
+                    ->update([
+                        'audio_path' => $path,
+                        'status' => 'en_transcripcion',
+                        'updated_at' => now()
+                    ]);
+
+                // 4. Opcional: Actualizar el estado de la cita global (appointment) a 'en_transcripcion'
+                DB::table('appointments')
+                    ->where('id', $study->appointment_id)
+                    ->update([
+                        'status' => 'en_transcripcion',
+                        'updated_at' => now()
+                    ]);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Audio de examen almacenado con éxito.',
+                'audio_path' => $path
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error interno al procesar el audio.',
+                'error' => $e->getMessage()
             ], 500);
         }
     }

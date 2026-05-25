@@ -30,7 +30,11 @@ class Persona extends Model
     {
         return $this->hasOne(User::class);
     }
+    
     protected $casts = [
         'has_sso_account' => 'boolean',
+        'rut' => 'encrypted',
+        'email' => 'encrypted',
+        'phone' => 'encrypted',
     ];
 }
