@@ -173,7 +173,68 @@ body {
 #appContent {
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 2rem;
+}
+
+.skip-link:focus {
+    position: fixed;
+    top: 0.5rem;
+    left: 0.5rem;
+    z-index: 12000;
+    padding: 0.5rem 1rem;
+    background: var(--primary);
+    color: #fff;
+    border-radius: 8px;
+    text-decoration: none;
+}
+
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+    z-index: 99;
+}
+
+.sidebar-overlay.show {
+    display: block;
+}
+
+:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+/* Wizard agenda */
+.agenda-wizard-nav .nav-link {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    border-radius: 999px;
+    padding: 0.5rem 1rem;
+}
+
+.agenda-wizard-nav .nav-link.active {
+    background: var(--primary);
+    color: #fff;
+}
+
+.skeleton-row td {
+    padding: 1rem;
+}
+
+.skeleton-bar {
+    height: 12px;
+    border-radius: 6px;
+    background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.2s infinite;
+}
+
+@keyframes skeleton-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
 }
 
 /* =========================================
@@ -185,11 +246,13 @@ body {
     border-radius: var(--radius);
     box-shadow: var(--shadow);
     margin-bottom: 1.5rem;
-    transition: transform 0.2s ease;
+    transition: box-shadow 0.2s ease;
 }
 
-.card:hover {
+.card-interactive:hover,
+.study-card:hover {
     transform: translateY(-2px);
+    box-shadow: 0 8px 16px -4px rgb(0 0 0 / 0.12);
 }
 
 .card-header {
@@ -465,6 +528,7 @@ body {
     align-items: center;
     justify-content: center;
     z-index: 9999;
+    flex-direction: column;
 }
 
 /* =========================================
@@ -559,8 +623,8 @@ body.dark,
     color: #0d9488 !important;
 }
 
-[data-bs-theme="dark"] canvas {
-    filter: invert(0.8) hue-rotate(180deg) brightness(1.2);
+[data-bs-theme="dark"] .chart-card canvas {
+    filter: none;
 }
 
 .nav-pills .nav-link.active,
@@ -605,4 +669,100 @@ body.dark,
 
 .blink-icon {
     animation: blinker 1s linear infinite;
+}
+
+/* =========================================
+   RESPONSIVE — tablet y móvil
+   ========================================= */
+@media (max-width: 992px) {
+    #appContent {
+        padding: 1rem;
+    }
+
+    .topbar {
+        padding: 0 1rem;
+    }
+
+    #calendar {
+        min-height: 400px;
+        height: calc(100vh - 260px);
+    }
+}
+
+@media (max-width: 768px) {
+    body {
+        overflow: hidden;
+    }
+
+    .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        height: 100vh;
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.2);
+    }
+
+    .sidebar.mobile-open {
+        transform: translateX(0);
+    }
+
+    .sidebar.collapsed {
+        width: var(--sidebar-width);
+    }
+
+    .sidebar.collapsed nav a span {
+        display: inline;
+    }
+
+    #appContent {
+        padding: 0.75rem;
+    }
+
+    .card-header .d-flex,
+    .card-body .d-flex.gap-2,
+    .topbar .right {
+        flex-wrap: wrap;
+    }
+
+    #navLabSelectorContainer {
+        max-width: 100%;
+    }
+
+    .modal-xl {
+        max-width: 98vw;
+        margin: 0.5rem auto;
+    }
+
+    .agenda-wizard-nav {
+        flex-wrap: wrap;
+        gap: 0.25rem;
+    }
+
+    .fc .fc-toolbar {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+}
+
+.filter-machine-select { min-width: 160px; max-width: 220px; }
+.search-patient-input { min-width: 180px; max-width: 280px; }
+
+@media (max-width: 768px) {
+    .filter-machine-select,
+    .search-patient-input {
+        width: 100%;
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 576px) {
+    .table-responsive {
+        font-size: 0.85rem;
+    }
+
+    .display-6 {
+        font-size: 1.75rem;
+    }
 }

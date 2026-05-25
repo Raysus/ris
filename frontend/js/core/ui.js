@@ -1,45 +1,247 @@
+/* =========================================
+   UTILIDADES UI GLOBALES (ui.js)
+   ========================================= */
+
 function updateSidebarUI(element) {
     $(".sidebar nav a").removeClass("active");
     $(element).addClass("active");
 }
 
-function showLoader() {
-    $("#globalLoader").fadeIn(100);
+function showLoader(message) {
+    const $loader = $("#globalLoader");
+    if (message) {
+        let $msg = $loader.find(".loader-message");
+        if (!$msg.length) {
+            $loader.append('<p class="loader-message text-white mt-3 mb-0 fw-bold"></p>');
+            $msg = $loader.find(".loader-message");
+        }
+        $msg.text(message);
+    }
+    $loader.css("display", "flex").hide().fadeIn(100);
 }
 
 function hideLoader() {
     $("#globalLoader").fadeOut(100);
 }
 
-function showToast(msg, tipo) {
-    if ($(".toast-container").length === 0) {
-        $("body").append('<div class="toast-container position-fixed bottom-0 end-0 p-3"></div>');
+function _ensureToastContainer() {
+    if (!$(".toast-container-ris").length) {
+        $("body").append(
+            '<div class="toast-container toast-container-ris position-fixed bottom-0 end-0 p-3" style="z-index: 11000;" aria-live="polite" aria-atomic="true"></div>'
+        );
     }
+}
 
-    const bgClass = tipo === 'danger' ? 'text-bg-danger'
-        : tipo === 'warning' ? 'text-bg-warning'
-        : tipo === 'success' ? 'text-bg-success'
-        : 'text-bg-primary';
+function showToast(msg, tipo = "info") {
+    _ensureToastContainer();
 
-    const id = Date.now();
+    const bgClass = tipo === "danger" ? "text-bg-danger"
+        : tipo === "warning" ? "text-bg-warning"
+        : tipo === "success" ? "text-bg-success"
+        : "text-bg-primary";
+
+    const closeClass = tipo === "warning" ? "btn-close" : "btn-close btn-close-white";
+    const id = `toast-${Date.now()}`;
+
     const html = `
-        <div id="toast-${id}" class="toast align-items-center ${bgClass} border-0 show" role="alert">
+        <div id="${id}" class="toast align-items-center ${bgClass} border-0" role="alert" aria-live="assertive" aria-atomic="true">
             <div class="d-flex">
                 <div class="toast-body">${msg}</div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                <button type="button" class="${closeClass} me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button>
             </div>
         </div>`;
 
-    $(".toast-container").append(html);
-    setTimeout(() => { $(`#toast-${id}`).fadeOut(300, function () { $(this).remove(); }); }, 3000);
-}
+    const $container = $(".toast-container-ris");
+    $container.append(html);
+    const el = document.getElementById(id);
 
-function notify(title, message, type = 'info') {
-    console.log(`[${type.toUpperCase()}] ${title}: ${message}`);
-
-    if (typeof showToast === 'function') {
-        showToast(`${title}: ${message}`, type);
+    if (typeof bootstrap !== "undefined" && bootstrap.Toast) {
+        const toast = bootstrap.Toast.getOrCreateInstance(el, { delay: 4000 });
+        toast.show();
+        el.addEventListener("hidden.bs.toast", () => el.remove());
     } else {
-        alert(`${title}\n${message}`);
+        setTimeout(() => $(`#${id}`).fadeOut(300, function () { $(this).remove(); }), 4000);
     }
 }
+
+function showAlert(message, title = "Aviso", type = "info") {
+    const modalEl = document.getElementById("risAlertModal");
+    if (!modalEl) {
+        showToast(message, type === "danger" ? "danger" : "info");
+        return Promise.resolve();
+    }
+    $("#risAlertTitle").text(title);
+    $("#risAlertMessage").text(message);
+    const header = $("#risAlertModal .modal-header");
+    header.removeClass("bg-danger bg-success bg-primary bg-warning text-white text-dark");
+    if (type === "danger") header.addClass("bg-danger text-white");
+    else if (type === "success") header.addClass("bg-success text-white");
+    else if (type === "warning") header.addClass("bg-warning text-dark");
+    else header.addClass("bg-primary text-white");
+    return openModal("risAlertModal");
+}
+
+function showConfirm(message, options = {}) {
+    const {
+        title = "Confirmar acción",
+        confirmText = "Confirmar",
+        cancelText = "Cancelar",
+        variant = "primary",
+        dangerous = false
+    } = options;
+
+    return new Promise((resolve) => {
+        const modalEl = document.getElementById("risConfirmModal");
+        if (!modalEl) {
+            resolve(window.confirm(message));
+            return;
+        }
+
+        $("#risConfirmTitle").text(title);
+        $("#risConfirmMessage").text(message);
+        const $btn = $("#risConfirmBtn");
+        $btn.text(confirmText).removeClass("btn-danger btn-primary btn-success btn-warning");
+        $btn.addClass(dangerous ? "btn-danger" : `btn-${variant}`);
+        $("#risConfirmCancelBtn").text(cancelText);
+
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+        const cleanup = () => {
+            $btn.off("click.risConfirm");
+            $("#risConfirmCancelBtn").off("click.risConfirm");
+            modalEl.removeEventListener("hidden.bs.modal", onHidden);
+        };
+
+        const onHidden = () => {
+            cleanup();
+            resolve(false);
+        };
+
+        $btn.off("click.risConfirm").on("click.risConfirm", () => {
+            cleanup();
+            modal.hide();
+            resolve(true);
+        });
+
+        $("#risConfirmCancelBtn").off("click.risConfirm").on("click.risConfirm", () => {
+            cleanup();
+            modal.hide();
+            resolve(false);
+        });
+
+        modalEl.addEventListener("hidden.bs.modal", onHidden, { once: true });
+        modal.show();
+    });
+}
+
+function openModal(id) {
+    const el = document.getElementById(id);
+    if (!el) return Promise.resolve();
+    const modal = bootstrap.Modal.getOrCreateInstance(el);
+    modal.show();
+    return Promise.resolve(modal);
+}
+
+function closeModal(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const modal = bootstrap.Modal.getInstance(el);
+    if (modal) modal.hide();
+}
+
+function notify(title, message, type = "info") {
+    showToast(`${title}: ${message}`, type);
+}
+
+function initMobileSidebar() {
+    const $sidebar = $("#sidebar");
+    const $overlay = $("#sidebarOverlay");
+    const $toggle = $("#toggleSidebar");
+
+    $toggle.off("click.mobileSidebar").on("click.mobileSidebar", () => {
+        $sidebar.toggleClass("mobile-open");
+        $overlay.toggleClass("show");
+    });
+
+    $overlay.off("click.mobileSidebar").on("click.mobileSidebar", () => {
+        $sidebar.removeClass("mobile-open");
+        $overlay.removeClass("show");
+    });
+
+    $("#sidebar nav a").off("click.mobileSidebar").on("click.mobileSidebar", () => {
+        if (window.innerWidth <= 768) {
+            $sidebar.removeClass("mobile-open");
+            $overlay.removeClass("show");
+        }
+    });
+}
+
+/* Wizard de agenda */
+let _agendaWizardStep = 1;
+const AGENDA_WIZARD_MAX = 4;
+
+function initAgendaWizard() {
+    _agendaWizardStep = 1;
+    updateAgendaWizardUI();
+}
+
+function goAgendaWizardStep(step) {
+    if (step < 1 || step > AGENDA_WIZARD_MAX) return;
+    if (step > _agendaWizardStep && !validateAgendaWizardStep(_agendaWizardStep)) return;
+    _agendaWizardStep = step;
+    updateAgendaWizardUI();
+}
+
+function nextAgendaWizardStep() {
+    if (!validateAgendaWizardStep(_agendaWizardStep)) return;
+    if (_agendaWizardStep < AGENDA_WIZARD_MAX) {
+        _agendaWizardStep++;
+        updateAgendaWizardUI();
+    }
+}
+
+function prevAgendaWizardStep() {
+    if (_agendaWizardStep > 1) {
+        _agendaWizardStep--;
+        updateAgendaWizardUI();
+    }
+}
+
+function validateAgendaWizardStep(step) {
+    if (step === 1) {
+        if (!$("#pRut").val()?.trim() || !$("#pName").val()?.trim() || !$("#pLastName").val()?.trim()) {
+            showToast("Complete RUT, nombres y apellido del paciente.", "warning");
+            return false;
+        }
+    }
+    if (step === 2) {
+        if (!$("#mTratante").val()) {
+            showToast("Seleccione el médico tratante.", "warning");
+            return false;
+        }
+    }
+    if (step === 3) {
+        if ($(".study-entry").length === 0 || !$(".study-entry .eExam").first().val()) {
+            showToast("Agregue al menos un examen.", "warning");
+            return false;
+        }
+    }
+    return true;
+}
+
+function updateAgendaWizardUI() {
+    $(".agenda-wizard-step").addClass("d-none");
+    $(`.agenda-wizard-step[data-step="${_agendaWizardStep}"]`).removeClass("d-none");
+
+    $(".agenda-wizard-nav .nav-link").removeClass("active");
+    $(`.agenda-wizard-nav .nav-link[data-step="${_agendaWizardStep}"]`).addClass("active");
+
+    $("#btnWizardPrev").toggle(_agendaWizardStep > 1);
+    $("#btnWizardNext").toggle(_agendaWizardStep < AGENDA_WIZARD_MAX);
+    $("#btnGuardarCita").toggle(_agendaWizardStep === AGENDA_WIZARD_MAX);
+}
+
+$(document).ready(function () {
+    initMobileSidebar();
+    $(window).on("resize", initMobileSidebar);
+});

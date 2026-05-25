@@ -23,9 +23,8 @@ class UserController extends Controller
     {
         $allowedLabs = config('app.allowed_lab_ids');
 
-        // 🔥 CAMBIAR ESTA LÍNEA
         $query = User::with(['persona', 'tipoUsuario', 'laboratories'])
-            ->where('username', '!=', 'admin'); // <-- Antes era ->where('id', '!=', 1)
+            ->whereHas('tipoUsuario', fn ($q) => $q->where('name', '!=', 'sis_admin'));
 
         if ($allowedLabs !== ['*']) {
             if (empty($allowedLabs)) {
@@ -69,6 +68,14 @@ class UserController extends Controller
 
             // 🔥 CORRECCIÓN: Rescatamos el tipo de usuario desde el arreglo de roles
             $rolesSeleccionados = $request->input('roles', []);
+
+            if (in_array('sis_admin', $rolesSeleccionados, true)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se puede asignar el rol Sys. Admin desde la interfaz.',
+                ], 422);
+            }
+
             $primerRol = $rolesSeleccionados[0] ?? 'recepcion';
 
             // Buscar en BD el ID técnico del rol

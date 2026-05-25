@@ -343,7 +343,7 @@ async function enviarAValidacion() {
         }
     } catch (e) {
         console.error("Error en enviarAValidacion:", e);
-        alert("Error al enviar: " + e.message);
+        showToast("Error al enviar: " + e.message, "danger");
     } finally {
         btn.prop('disabled', false).html('<i class="bi bi-check-circle me-1"></i> ENVIAR A FIRMA...');
     }

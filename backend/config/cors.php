@@ -20,12 +20,20 @@ return [
     'allowed_methods' => ['*'],
 
     'allowed_origins' => [
-        env('FRONTEND_URL', 'https://ris.healthticloud.cl'),
+        env('FRONTEND_URL', 'http://127.0.0.1:5500'),
         'http://127.0.0.1:5500',
+        'http://localhost:5500',
+        'http://127.0.0.1:8080',
+        'http://localhost:8080',
+        'http://127.0.0.1:3000',
         'http://localhost:3000',
     ],
     
-    'allowed_origins_patterns' => [],
+    'allowed_origins_patterns' => [
+        '#^http://192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$#',
+        '#^http://10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$#',
+        '#^http://172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}(:\d+)?$#',
+    ],
 
     'allowed_headers' => ['Content-Type', 'Authorization', 'X-Lab-Id', 'X-Requested-With'],
 

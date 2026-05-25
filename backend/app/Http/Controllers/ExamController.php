@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Exam;
+use App\Models\ExamInstruction;
 use Illuminate\Http\Request;
 
 class ExamController extends Controller
@@ -21,7 +22,7 @@ class ExamController extends Controller
             }
         }
 
-        $data = $query->orderBy('name')->get();
+        $data = $query->with('instruction')->orderBy('name')->get();
         return response()->json(['success' => true, 'data' => $data]);
     }
 
@@ -34,6 +35,10 @@ class ExamController extends Controller
             'fonasa_code' => 'nullable|string',
             'price' => 'nullable|numeric',
             'sub_exams' => 'nullable|array',
+            'instruction' => 'nullable|array',
+            'instruction.body' => 'nullable|string',
+            'instruction.subject' => 'nullable|string|max:255',
+            'instruction.is_active' => 'nullable|boolean',
         ]);
 
         $labId = $request->header('X-Lab-Id') ?: config('app.current_lab_id');
@@ -55,11 +60,40 @@ class ExamController extends Controller
             ]
         );
 
+        $this->syncExamInstruction($exam, $validated['instruction'] ?? null);
+
+        $exam->load('instruction');
+
         // === ☁️ INICIO SINCRONIZACIÓN CON LA NUBE (VÍA REDIS) ☁️ ===
         \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Exam', 'updated', $exam->toArray());
         // === FIN SINCRONIZACIÓN ===
 
         return response()->json(['success' => true, 'exam' => $exam]);
+    }
+
+    private function syncExamInstruction(Exam $exam, ?array $instruction): void
+    {
+        if ($instruction === null) {
+            return;
+        }
+
+        $body = trim($instruction['body'] ?? '');
+
+        if ($body === '') {
+            ExamInstruction::where('exam_id', $exam->id)->delete();
+            return;
+        }
+
+        ExamInstruction::updateOrCreate(
+            ['exam_id' => $exam->id],
+            [
+                'subject' => $instruction['subject'] ?? null,
+                'body' => $body,
+                'is_active' => array_key_exists('is_active', $instruction)
+                    ? (bool) $instruction['is_active']
+                    : true,
+            ]
+        );
     }
 
     public function importExams(Request $request)

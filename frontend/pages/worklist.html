@@ -8,17 +8,19 @@
                 <h5 class="mb-0 fw-bold text-primary"><i class="bi bi-list-task me-2"></i>Worklist Operativa</h5>
                 <small class="text-muted">Pacientes en espera de atención técnica</small>
             </div>
-            <div class="d-flex gap-2">
+            <div class="d-flex gap-2 flex-wrap">
                 <button class="btn btn-sm btn-outline-primary" onclick="cargarWorklistDesdeServidor()"
-                    title="Actualizar lista">
-                    <i class="bi bi-arrow-clockwise"></i>
+                    aria-label="Actualizar lista de worklist">
+                    <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
                 </button>
-                <select id="filterMachine" class="form-select form-select-sm" style="width: 180px;"
-                    onchange="renderWorklist()">
+                <label for="filterMachine" class="visually-hidden">Filtrar por sala</label>
+                <select id="filterMachine" class="form-select form-select-sm filter-machine-select"
+                    onchange="renderWorklist()" aria-label="Filtrar por sala">
                     <option value="">Todas las Salas</option>
                 </select>
-                <input type="text" id="searchPatient" class="form-control form-control-sm"
-                    placeholder="Buscar RUT o Nombre..." onkeyup="renderWorklist()">
+                <label for="searchPatient" class="visually-hidden">Buscar paciente</label>
+                <input type="search" id="searchPatient" class="form-control form-control-sm search-patient-input"
+                    placeholder="Buscar RUT o Nombre..." onkeyup="renderWorklist()" aria-label="Buscar paciente por RUT o nombre">
             </div>
         </div>
         <div class="card-body p-0">
@@ -82,7 +84,10 @@
                     <div class="col-md-5">
                         <div class="card border-0 shadow-sm h-100">
                             <div class="card-body">
-                                <h6 class="fw-bold text-dark mb-2 mt-4"><i
+                                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-clipboard2-pulse me-2"></i>Estudios en la cadena</h6>
+                                <div id="atencionEstudios" class="list-group list-group-flush mb-4" role="list" aria-label="Estudios programados"></div>
+
+                                <h6 class="fw-bold text-dark mb-2 mt-2"><i
                                         class="bi bi-folder-check text-success me-1"></i> Documentos del Paciente</h6>
                                 <div class="d-flex gap-2 mb-4">
                                     <button id="btnVerOrdenTM" class="btn btn-sm btn-outline-success flex-fill fw-bold"

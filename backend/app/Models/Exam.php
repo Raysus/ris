@@ -36,4 +36,9 @@ class Exam extends Model
     {
         return $this->hasMany(SubExam::class);
     }
+
+    public function instruction()
+    {
+        return $this->hasOne(ExamInstruction::class);
+    }
 }

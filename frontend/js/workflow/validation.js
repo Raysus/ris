@@ -142,7 +142,8 @@ function cargarEstudioValidacion(studyId) {
 async function firmarInforme() {
     if (!currentValidationChain) return;
 
-    if (confirm("¿Firmar digitalmente TODOS los informes de esta cita? El paciente podrá descargarlos inmediatamente.")) {
+    if (!(await showConfirm("¿Firmar digitalmente TODOS los informes de esta cita? El paciente podrá descargarlos inmediatamente.", { title: "Firmar informes", confirmText: "Firmar" }))) return;
+
         const token = localStorage.getItem('ris_token');
         const labId = localStorage.getItem('ris_lab_id');
         const btn = $("#btnAprobar");
@@ -176,7 +177,6 @@ async function firmarInforme() {
         } finally {
             btn.prop('disabled', false).html('<i class="bi bi-pen-fill me-1"></i> APROBAR Y FIRMAR INFORME');
         }
-    }
 }
 
 async function rechazarInforme() {
@@ -243,7 +243,7 @@ function generarVistaPrevia() {
         });
     } else {
         if (typeof hideLoader === 'function') hideLoader();
-        alert("Librería html2pdf no cargada.");
+        showAlert("Librería html2pdf no cargada.", "Error", "danger");
     }
 }
 

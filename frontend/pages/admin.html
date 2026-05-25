@@ -63,6 +63,10 @@
                     data-bs-target="#tab-examenes" type="button" role="tab">
                     <i class="bi bi-file-medical me-2 text-primary"></i>Producción Mensual
                 </button>
+                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
+                    data-bs-target="#tab-nomina" type="button" role="tab">
+                    <i class="bi bi-table me-2 text-success"></i>Nómina Diaria
+                </button>
 
                 <span class="small text-muted text-uppercase fw-bolder mb-1 mt-3 px-2"
                     style="font-size: 0.7rem;">Sistema</span>
@@ -219,6 +223,7 @@
                                         <th>Nombre del Examen</th>
                                         <th>Código FONASA/Interno</th>
                                         <th class="text-end">Arancel (Precio Base)</th>
+                                        <th class="text-center">Instrucciones</th>
                                         <th class="text-center pe-4">Acciones</th>
                                     </tr>
                                 </thead>
@@ -309,9 +314,69 @@
                                 <tbody></tbody>
                             </table>
                         </div>
-                        <div class="text-end mt-3">
+                        <div class="text-end mt-3 d-flex gap-2 justify-content-end">
                             <button class="btn btn-outline-primary fw-bold shadow-sm" onclick="exportarExcelExamenes()">
-                                <i class="bi bi-file-earmark-excel-fill me-2"></i>Exportar Exámenes a Excel
+                                <i class="bi bi-file-earmark-excel-fill me-2"></i>Exportar Producción (Excel)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade h-100" id="tab-nomina" role="tabpanel">
+                    <div class="d-flex flex-column h-100">
+                        <div class="card bg-white border-0 shadow-sm mb-3">
+                            <div class="card-body py-3">
+                                <div class="row g-3 align-items-end">
+                                    <div class="col-md-4">
+                                        <label class="form-label small fw-bold text-muted mb-1">
+                                            <i class="bi bi-calendar-date me-1"></i>Nómina del día
+                                        </label>
+                                        <input type="date" id="fechaNomina" class="form-control fw-bold text-primary"
+                                            onchange="renderNominaDiaria()">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small fw-bold text-muted mb-1">
+                                            <i class="bi bi-calendar-month me-1"></i>Exportar mes completo
+                                        </label>
+                                        <input type="month" id="mesNomina" class="form-control fw-bold text-success">
+                                    </div>
+                                    <div class="col-md-4 text-md-end">
+                                        <h6 class="small fw-bold text-muted mb-1">Pacientes del día</h6>
+                                        <h3 class="mb-0 fw-bold text-success" id="totalNominaDia">0</h3>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card shadow-sm border-0 flex-grow-1 overflow-auto">
+                            <table class="table table-sm table-hover align-middle mb-0" id="tablaNominaDiaria">
+                                <thead class="bg-light sticky-top small">
+                                    <tr>
+                                        <th>N°</th>
+                                        <th>Paciente</th>
+                                        <th>RUT</th>
+                                        <th>Edad</th>
+                                        <th>RX Intracoral</th>
+                                        <th>Cone Beam</th>
+                                        <th class="text-end">Total</th>
+                                        <th>Radiólogo</th>
+                                        <th>Institución</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                        <div class="text-end mt-3 d-flex gap-2 justify-content-end flex-wrap">
+                            <button class="btn btn-outline-secondary fw-bold shadow-sm" onclick="exportarNominaDiariaCSV()">
+                                <i class="bi bi-filetype-csv me-2"></i>CSV del día
+                            </button>
+                            <button class="btn btn-outline-success fw-bold shadow-sm" onclick="exportarNominaDiariaExcel()">
+                                <i class="bi bi-file-earmark-excel-fill me-2"></i>Excel del día
+                            </button>
+                            <button class="btn btn-success fw-bold shadow-sm" onclick="exportarNominaMensualExcel()">
+                                <i class="bi bi-journals me-2"></i>Excel mes (1 hoja/día)
+                            </button>
+                            <button class="btn btn-outline-dark fw-bold shadow-sm" onclick="exportarNominaMensualCSV()">
+                                <i class="bi bi-filetype-csv me-2"></i>CSV mes completo
                             </button>
                         </div>
                     </div>
@@ -741,19 +806,18 @@
             <div class="modal-body row g-3">
                 <input type="hidden" id="salaId">
                 <div class="col-md-6">
-                    <label class="form-label fw-bold small text-muted">Nombre Interno *</label>
-                    <input type="text" class=\"form-control req-sala\" id=\"salaName\" placeholder=\"Ej. Resonador
-                        Principal\">
+                    <label class="form-label fw-bold small text-muted" for="salaName">Nombre Interno *</label>
+                    <input type="text" class="form-control req-sala" id="salaName" placeholder="Ej. Resonador Principal">
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label fw-bold small text-muted">Modalidad / Grupo *</label>
-                    <select class=\"form-select req-sala\" id=\"salaGroup\">
-                        <option value=\"SCANNER\">Scanner (CT)</option>
-                        <option value=\"RM\">Resonancia Magnética (MR)</option>
-                        <option value=\"RX\">Rayos X (CR/DX)</option>
-                        <option value=\"ECO\">Ecografía (US)</option>
-                        <option value=\"MAMO\">Mamografía (MG)</option>
-                        <option value=\"DENSITO\">Densitometría</option>
+                    <label class="form-label fw-bold small text-muted" for="salaGroup">Modalidad / Grupo *</label>
+                    <select class="form-select req-sala" id="salaGroup">
+                        <option value="SCANNER">Scanner (CT)</option>
+                        <option value="RM">Resonancia Magnética (MR)</option>
+                        <option value="RX">Rayos X (CR/DX)</option>
+                        <option value="ECO">Ecografía (US)</option>
+                        <option value="MAMO">Mamografía (MG)</option>
+                        <option value="DENSITO">Densitometría</option>
                     </select>
                 </div>
 
@@ -803,7 +867,7 @@
 </div>
 
 <div class="modal fade" id="modalExamen" tabindex="-1" data-bs-backdrop="static">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content border-0 shadow-lg">
             <div class="modal-header bg-danger text-white py-3">
                 <h5 class="modal-title fw-bold"><i class="bi bi-tags-fill me-2"></i>Prestación / Examen</h5>
@@ -839,12 +903,30 @@
                                 placeholder="Ej. 120000">
                         </div>
                     </div>
-                    <div class="mb-1">
+                    <div class="mb-3">
                         <label class="form-label fw-bold small text-muted">Sub-Exámenes / Variantes</label>
                         <input type="text" class="form-control" id="catSubs"
                             placeholder="Ej. Con Contraste, Sin Contraste">
                         <div class="form-text" style="font-size: 0.7rem;">Sepárelos por comas. Déjelo en blanco si no
                             tiene variantes.</div>
+                    </div>
+
+                    <hr class="my-3">
+                    <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-envelope-paper me-2"></i>Instrucciones por correo (opcional)</h6>
+                    <p class="small text-muted mb-3">Se envían al paciente al agendar la cita, excepto si la procedencia es <strong>Ambulatorio</strong>.</p>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Asunto personalizado (opcional)</label>
+                        <input type="text" class="form-control" id="catInstrSubject"
+                            placeholder="Ej. Preparación para TC con contraste">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Texto de instrucciones</label>
+                        <textarea class="form-control" id="catInstrBody" rows="5"
+                            placeholder="Ej. Ayuno de 6 horas, suspender metformina 48h antes..."></textarea>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="catInstrActive" checked>
+                        <label class="form-check-label small" for="catInstrActive">Enviar instrucciones por correo al agendar</label>
                     </div>
                 </form>
             </div>

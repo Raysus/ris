@@ -30,6 +30,7 @@ class AgendaCatalogController extends Controller
         $refDoctorsQuery = ReferringDoctor::select('id', 'rut', 'names', 'last_name_1', 'last_name_2');
 
         $destDoctorsQuery = User::with('persona')
+            ->whereHas('tipoUsuario', fn ($q) => $q->where('name', '!=', 'sis_admin'))
             ->whereJsonContains('settings->roles', 'radiologo')
             ->where('is_active', true);
 

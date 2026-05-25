@@ -14,6 +14,7 @@ const pesosPrioridad = {
 };
 
 function initWorklist() {
+    cargarMaquinasFiltro();
     cargarInsumosBodega();
     cargarWorklistDesdeServidor();
 
@@ -24,6 +25,26 @@ function initWorklist() {
         }
         cargarWorklistDesdeServidor();
     }, 30000);
+}
+
+async function cargarMaquinasFiltro() {
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+    const select = $("#filterMachine");
+    try {
+        const response = await fetch(`${API_URL}/machines`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
+        });
+        const data = await response.json();
+        select.find('option:not(:first)').remove();
+        if (response.ok && data.data) {
+            data.data.filter(m => m.is_active !== false).forEach(m => {
+                select.append(`<option value="${m.id}">${m.name}</option>`);
+            });
+        }
+    } catch (e) {
+        console.error("Error cargando salas para filtro", e);
+    }
 }
 
 async function cargarInsumosBodega() {
@@ -228,7 +249,7 @@ function abrirAtencion(chainId) {
     } else {
         $("#btnVerEncuestaTM").prop("disabled", true).removeClass("btn-danger text-white").addClass("btn-outline-danger");
     }
-    $("#modalAtencion").modal('show');
+    openModal("modalAtencion");
 }
 
 function setDicomUI(enviado, acc = null) {
@@ -432,7 +453,7 @@ async function finalizarAtencion() {
             }
         }
 
-        $("#modalAtencion").modal('hide');
+        closeModal("modalAtencion");
         cargarWorklistDesdeServidor();
         cargarInsumosBodega();
         if (typeof showToast === 'function') showToast("✅ Estudios finalizados y derivados al Radiólogo.", "success");
@@ -501,7 +522,7 @@ async function devolverAAgenda() {
             }
         }
 
-        $("#modalAtencion").modal('hide');
+        closeModal("modalAtencion");
         cargarWorklistDesdeServidor();
         if (typeof showToast === 'function') showToast("Paciente devuelto a Recepción exitosamente.", "warning");
 

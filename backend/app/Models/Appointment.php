@@ -47,6 +47,11 @@ class Appointment extends Model
         return $this->belongsTo(Machine::class);
     }
 
+    public function laboratory()
+    {
+        return $this->belongsTo(Laboratory::class);
+    }
+
     public function studies()
     {
         return $this->hasMany(AppointmentStudy::class);

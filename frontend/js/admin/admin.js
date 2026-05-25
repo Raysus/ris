@@ -40,9 +40,12 @@ function initAdmin() {
     const mesActual = `${fechaActual.getFullYear()}-${String(fechaActual.getMonth() + 1).padStart(2, '0')}`;
     $("#mesHonorarios").val(mesActual);
     $("#mesExamenes").val(mesActual);
+    $("#fechaNomina").val(new Date().toISOString().split('T')[0]);
+    $("#mesNomina").val(mesActual);
 
     renderReporteHonorarios();
     renderReporteExamenes();
+    renderNominaDiaria();
     setupAdminEvents();
 }
 
@@ -193,7 +196,8 @@ async function guardarServicio() {
 
 async function eliminarServicio() {
     const id = $("#srvId").val();
-    if (!id || !confirm("⚠️ ¿Estás seguro de eliminar este servicio?")) return;
+    if (!id) return;
+    if (!(await showConfirm("¿Estás seguro de eliminar este servicio?", { dangerous: true, confirmText: "Eliminar" }))) return;
 
     const token = localStorage.getItem('ris_token');
     const labId = localStorage.getItem('ris_lab_id');
@@ -281,6 +285,8 @@ async function renderListaUsuariosAdmin() {
             const searchStr = $("#searchUsuario").val().toLowerCase();
 
             const filtrados = currentUsersFromDB.filter(u => {
+                const tipo = u.tipo_usuario?.name || u.tipoUsuario?.name || '';
+                if (tipo === 'sis_admin') return false;
                 const p = u.persona || {};
                 const fullName = `${p.names || ''} ${p.last_name_1 || ''}`.toLowerCase();
                 return fullName.includes(searchStr) || (u.username || '').toLowerCase().includes(searchStr);
@@ -452,7 +458,8 @@ async function guardarUsuario() {
 
 async function eliminarUsuario() {
     const id = $("#uId").val();
-    if (!id || !confirm("¿Revocar acceso a este usuario en la Base de Datos?")) return;
+    if (!id) return;
+    if (!(await showConfirm("¿Revocar acceso a este usuario en la Base de Datos?", { dangerous: true, confirmText: "Revocar" }))) return;
 
     const token = localStorage.getItem('ris_token');
     const labId = localStorage.getItem('ris_lab_id');
@@ -593,7 +600,8 @@ async function guardarInsumo() {
 
 async function eliminarInsumo() {
     const id = $("#insId").val();
-    if (!id || !confirm("¿Eliminar este insumo de la base de datos?")) return;
+    if (!id) return;
+    if (!(await showConfirm("¿Eliminar este insumo de la base de datos?", { dangerous: true, confirmText: "Eliminar" }))) return;
 
     const token = localStorage.getItem('ris_token');
     const labId = localStorage.getItem('ris_lab_id');
@@ -955,7 +963,8 @@ async function guardarSucursal() {
 
 async function eliminarSucursal() {
     const id = $("#sucId").val();
-    if (!id || !confirm("¿Eliminar sucursal?")) return;
+    if (!id) return;
+    if (!(await showConfirm("¿Eliminar sucursal?", { dangerous: true, confirmText: "Eliminar" }))) return;
     const token = localStorage.getItem('ris_token');
     const labId = localStorage.getItem('ris_lab_id');
     try {
@@ -975,7 +984,7 @@ async function renderCatalogoAdmin() {
     const tbody = $("#tablaCatalogoAdmin tbody");
     if (!tbody.length) return;
 
-    tbody.empty().append(`<tr><td colspan="5" class="text-center p-3"><span class="spinner-border spinner-border-sm text-primary"></span> Cargando catálogo...</td></tr>`);
+    tbody.empty().append(`<tr><td colspan="6" class="text-center p-3"><span class="spinner-border spinner-border-sm text-primary"></span> Cargando catálogo...</td></tr>`);
 
     const token = localStorage.getItem('ris_token');
     const labId = localStorage.getItem('ris_lab_id');
@@ -995,7 +1004,8 @@ async function renderCatalogoAdmin() {
             currentExamsFromDB.forEach(ex => {
                 if (!examTypes[ex.group_code]) examTypes[ex.group_code] = { exams: {} };
                 examTypes[ex.group_code].exams[ex.name] = {
-                    id: ex.id, code: ex.fonasa_code, price: ex.price, subs: ex.sub_exams || []
+                    id: ex.id, code: ex.fonasa_code, price: ex.price, subs: ex.sub_exams || [],
+                    instruction: ex.instruction || null
                 };
             });
 
@@ -1013,6 +1023,12 @@ async function renderCatalogoAdmin() {
                     if (grupo === 'MRI') badgeColor = 'bg-danger';
                     if (grupo === 'ECO') badgeColor = 'bg-success';
 
+                    const instr = exData.instruction;
+                    const hasInstr = instr && instr.body && instr.is_active;
+                    const instrBadge = hasInstr
+                        ? `<span class="badge bg-success" title="Se envían por correo al agendar"><i class="bi bi-envelope-check"></i> Sí</span>`
+                        : `<span class="badge bg-light text-muted border">—</span>`;
+
                     tbody.append(`
                         <tr>
                             <td class="ps-4"><span class="badge ${badgeColor}">${grupo}</span></td>
@@ -1021,6 +1037,7 @@ async function renderCatalogoAdmin() {
                             </td>
                             <td class="font-monospace text-secondary">${exData.code || '--'}</td>
                             <td class="text-end fw-bold text-success">$${parseFloat(exData.price).toLocaleString('es-CL')}</td>
+                            <td class="text-center">${instrBadge}</td>
                             <td class="text-center pe-4">
                                 <button class="btn btn-sm btn-outline-danger fw-bold" onclick="cargarExamen('${exData.id}')">
                                     <i class="bi bi-pencil-square"></i> Editar
@@ -1031,16 +1048,17 @@ async function renderCatalogoAdmin() {
                 });
             });
 
-            if (totalExamenes === 0) tbody.append(`<tr><td colspan="5" class="text-center text-muted p-4">No se encontraron prestaciones.</td></tr>`);
+            if (totalExamenes === 0) tbody.append(`<tr><td colspan="6" class="text-center text-muted p-4">No se encontraron prestaciones.</td></tr>`);
         }
     } catch (error) {
-        tbody.empty().append(`<tr><td colspan="5" class="text-center text-danger p-4">Error de conexión.</td></tr>`);
+        tbody.empty().append(`<tr><td colspan="6" class="text-center text-danger p-4">Error de conexión.</td></tr>`);
     }
 }
 
 function nuevoExamen() {
     $("#formExamen")[0].reset();
     $("#catId").val("");
+    $("#catInstrActive").prop('checked', true);
     $(".req-cat").removeClass("is-invalid");
     $("#btnEliminarExamen").hide();
     $("#modalExamen").modal('show');
@@ -1056,6 +1074,11 @@ function cargarExamen(id) {
     $("#catCodigo").val(ex.fonasa_code);
     $("#catPrecio").val(ex.price);
     $("#catSubs").val((ex.sub_exams || []).join(", "));
+
+    const instr = ex.instruction;
+    $("#catInstrSubject").val(instr?.subject || "");
+    $("#catInstrBody").val(instr?.body || "");
+    $("#catInstrActive").prop('checked', instr ? instr.is_active !== false : true);
 
     $(".req-cat").removeClass("is-invalid");
     $("#btnEliminarExamen").show();
@@ -1078,7 +1101,12 @@ async function guardarExamen() {
         name: $("#catNombre").val().trim(),
         fonasa_code: $("#catCodigo").val().trim(),
         price: $("#catPrecio").val(),
-        sub_exams: subsArray
+        sub_exams: subsArray,
+        instruction: {
+            subject: $("#catInstrSubject").val().trim() || null,
+            body: $("#catInstrBody").val().trim(),
+            is_active: $("#catInstrActive").is(':checked')
+        }
     };
 
     const token = localStorage.getItem('ris_token');
@@ -1106,7 +1134,8 @@ async function guardarExamen() {
 
 async function eliminarExamen() {
     const id = $("#catId").val();
-    if (!id || !confirm(`¿Eliminar permanentemente este examen del catálogo?`)) return;
+    if (!id) return;
+    if (!(await showConfirm("¿Eliminar permanentemente este examen del catálogo?", { dangerous: true, confirmText: "Eliminar" }))) return;
 
     const token = localStorage.getItem('ris_token');
     const labId = localStorage.getItem('ris_lab_id');
@@ -1123,6 +1152,11 @@ async function eliminarExamen() {
         }
     } catch (error) { showToast("Error al eliminar", "danger"); }
 }
+
+let currentReporteHonorariosData = [];
+let currentReporteExamenesData = [];
+let currentReporteDiasMes = 30;
+let currentNominaDiaria = null;
 
 async function renderReporteHonorarios() {
     const tbody = $("#tablaHonorariosAdmin tbody");
@@ -1146,8 +1180,9 @@ async function renderReporteHonorarios() {
         tbody.empty();
 
         if (res.success) {
+            currentReporteHonorariosData = res.data || [];
             let granTotalHonorarios = 0;
-            const medicosArray = res.data;
+            const medicosArray = currentReporteHonorariosData;
 
             if (medicosArray.length === 0) {
                 tbody.append(`<tr><td colspan="5" class="text-center text-muted p-5"><i class="bi bi-file-earmark-x fs-1 d-block mb-2"></i>No hay informes firmados en este mes.</td></tr>`);
@@ -1171,8 +1206,11 @@ async function renderReporteHonorarios() {
             });
 
             $("#totalHonorariosGlobal").text(`$${granTotalHonorarios.toLocaleString('es-CL')}`);
+        } else {
+            currentReporteHonorariosData = [];
         }
     } catch (e) {
+        currentReporteHonorariosData = [];
         tbody.empty().append(`<tr><td colspan="5" class="text-center text-danger p-4">Error al cargar honorarios.</td></tr>`);
     }
 }
@@ -1195,8 +1233,298 @@ function validarRut(rut) {
     return vlp == digv;
 }
 
-let currentReporteExamenesData = [];
-let currentReporteDiasMes = 30;
+$(document).on('change', '#mesExamenes', renderReporteExamenes);
+$(document).on('change', '#fechaNomina', renderNominaDiaria);
+
+async function renderNominaDiaria() {
+    const tbody = $("#tablaNominaDiaria tbody");
+    if (!tbody.length) return;
+
+    const fecha = $("#fechaNomina").val();
+    if (!fecha) return;
+
+    tbody.empty().append(`<tr><td colspan="9" class="text-center p-4"><span class="spinner-border spinner-border-sm text-primary"></span> Cargando nómina...</td></tr>`);
+    $("#totalNominaDia").text('...');
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(`${API_URL}/reports/nomina-diaria?date=${fecha}`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
+        });
+        const res = await response.json();
+        tbody.empty();
+
+        if (!res.success) {
+            currentNominaDiaria = null;
+            tbody.append(`<tr><td colspan="9" class="text-center text-danger p-4">${res.message || 'Error al cargar nómina.'}</td></tr>`);
+            $("#totalNominaDia").text('0');
+            return;
+        }
+
+        currentNominaDiaria = res;
+        $("#totalNominaDia").text(res.data.length);
+
+        if (res.data.length === 0) {
+            tbody.append(`<tr><td colspan="9" class="text-center text-muted p-5">Sin pacientes agendados para esta fecha.</td></tr>`);
+            return;
+        }
+
+        res.data.forEach(row => {
+            tbody.append(`
+                <tr>
+                    <td class="text-center">${row.numero}</td>
+                    <td class="fw-bold">${row.nombre_paciente}</td>
+                    <td>${row.rut || ''}</td>
+                    <td class="text-center">${row.edad ?? ''}</td>
+                    <td class="small">${row.rx_intracoral || ''}</td>
+                    <td class="small">${row.cone_beam || ''}</td>
+                    <td class="text-end fw-bold">$${Number(row.total_boleta || 0).toLocaleString('es-CL')}</td>
+                    <td>${row.radiologo || ''}</td>
+                    <td class="small">${row.institucion || ''}</td>
+                </tr>
+            `);
+        });
+    } catch (e) {
+        currentNominaDiaria = null;
+        tbody.empty().append(`<tr><td colspan="9" class="text-center text-danger p-4">Error de conexión al cargar nómina.</td></tr>`);
+        $("#totalNominaDia").text('0');
+    }
+}
+
+function obtenerResponsableReporte() {
+    try {
+        const user = JSON.parse(localStorage.getItem('ris_user_data') || '{}');
+        const persona = user.persona || user;
+        const nombre = `${persona.names || user.names || ''} ${persona.last_name_1 || user.last_name_1 || ''}`.trim();
+        return nombre.toUpperCase() || 'ADMINISTRADOR';
+    } catch {
+        return 'ADMINISTRADOR';
+    }
+}
+
+function encabezadosNominaRDOX() {
+    return [
+        'N°', 'NOMBRE PACIENTE', 'RUT', 'EDAD', 'RX INTRACORAL', 'CONE BEAM',
+        'BOLETA', 'TOTAL BOLETA', 'EFECTIVO', 'TRANSBANK', 'TRANSFERENCIA', 'BONO',
+        'RADIOLOGO', 'OPERADOR', 'DENTISTAS', 'INSTITUCION', 'OBSERVACION'
+    ];
+}
+
+function construirMatrizNominaRDOX(nomina) {
+    if (!nomina || !nomina.data) return [];
+
+    const matriz = [];
+    matriz.push([`AGENDA DIARIA ${nomina.centro} ${nomina.ciudad}`]);
+    matriz.push(['NOMINA PACIENTES PARA INFORME']);
+    matriz.push([nomina.fecha_formato || nomina.fecha]);
+    matriz.push([]);
+    matriz.push(encabezadosNominaRDOX());
+
+    nomina.data.forEach(row => {
+        matriz.push([
+            row.numero,
+            row.nombre_paciente,
+            row.rut,
+            row.edad,
+            row.rx_intracoral,
+            row.cone_beam,
+            row.boleta,
+            row.total_boleta,
+            row.efectivo,
+            row.transbank,
+            row.transferencia,
+            row.bono,
+            row.radiologo,
+            row.operador,
+            row.dentistas,
+            row.institucion,
+            row.observacion
+        ]);
+    });
+
+    const t = nomina.totales || {};
+    matriz.push([
+        'TOTAL', '', '', '', '', '', '',
+        t.total_boleta || 0,
+        t.efectivo || 0,
+        t.transbank || 0,
+        t.transferencia || 0,
+        t.bono || 0,
+        '', '', '', '', ''
+    ]);
+    matriz.push([]);
+    matriz.push([`RESPONSABLE: ${obtenerResponsableReporte()}`]);
+
+    return matriz;
+}
+
+function descargarMatrizCSV(datos, nombreArchivo) {
+    let csv = '\uFEFF';
+    datos.forEach(fila => {
+        const row = (fila || []).map(celda => {
+            let v = celda == null ? '' : String(celda);
+            v = v.replace(/"/g, '""');
+            return /[;"\n\r]/.test(v) ? `"${v}"` : v;
+        });
+        csv += row.join(';') + '\n';
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = nombreArchivo.endsWith('.csv') ? nombreArchivo : `${nombreArchivo}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+}
+
+function exportarNominaDiariaCSV() {
+    if (!currentNominaDiaria || !currentNominaDiaria.data?.length) {
+        return showToast('No hay datos de nómina para exportar.', 'warning');
+    }
+    const matriz = construirMatrizNominaRDOX(currentNominaDiaria);
+    descargarMatrizCSV(matriz, `Nomina_RDOX_${currentNominaDiaria.fecha}.csv`);
+    showToast('Nómina exportada a CSV', 'success');
+}
+
+function exportarNominaDiariaExcel() {
+    if (!currentNominaDiaria || !currentNominaDiaria.data?.length) {
+        return showToast('No hay datos de nómina para exportar.', 'warning');
+    }
+    const matriz = construirMatrizNominaRDOX(currentNominaDiaria);
+    descargarExcelXLSX(matriz, `Nomina_RDOX_${currentNominaDiaria.fecha}.xlsx`, 'Nomina');
+    showToast('Nómina exportada a Excel', 'success');
+}
+
+function sanitizarNombreHojaExcel(nombre) {
+    return String(nombre || 'Dia')
+        .replace(/[\\/?*\[\]:]/g, ' ')
+        .trim()
+        .substring(0, 31) || 'Dia';
+}
+
+function descargarExcelMultihoja(hojas, nombreArchivo) {
+    if (typeof XLSX === 'undefined') {
+        return showToast('SheetJS no está cargado. Recargue la página (Ctrl+F5).', 'danger');
+    }
+
+    const libro = XLSX.utils.book_new();
+    const nombresUsados = new Set();
+
+    hojas.forEach(({ nombre, matriz }) => {
+        let nombreHoja = sanitizarNombreHojaExcel(nombre);
+        let base = nombreHoja;
+        let i = 2;
+        while (nombresUsados.has(nombreHoja)) {
+            const sufijo = ` ${i}`;
+            nombreHoja = sanitizarNombreHojaExcel(base.substring(0, 31 - sufijo.length) + sufijo);
+            i++;
+        }
+        nombresUsados.add(nombreHoja);
+
+        const hoja = XLSX.utils.aoa_to_sheet(matriz);
+        hoja['!cols'] = Array(17).fill({ wch: 16 });
+        XLSX.utils.book_append_sheet(libro, hoja, nombreHoja);
+    });
+
+    XLSX.writeFile(libro, nombreArchivo);
+}
+
+async function cargarNominaMensual(mes) {
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    const response = await fetch(`${API_URL}/reports/nomina-mensual?month=${mes}`, {
+        headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
+    });
+
+    const res = await response.json();
+    if (!response.ok || !res.success) {
+        throw new Error(res.message || 'No se pudo cargar la nómina mensual.');
+    }
+    return res;
+}
+
+async function exportarNominaMensualExcel() {
+    const mes = $("#mesNomina").val();
+    if (!mes) return showToast('Seleccione un mes para exportar.', 'warning');
+
+    const $btn = $('button[onclick="exportarNominaMensualExcel()"]');
+    const textoOriginal = $btn.html();
+    $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Generando...');
+
+    try {
+        const res = await cargarNominaMensual(mes);
+        if (!res.dias || res.dias.length === 0) {
+            return showToast('No hay citas registradas en ese mes.', 'warning');
+        }
+
+        const hojas = res.dias.map(dia => ({
+            nombre: dia.hoja_nombre || dia.fecha_formato || dia.fecha,
+            matriz: construirMatrizNominaRDOX(dia)
+        }));
+
+        descargarExcelMultihoja(hojas, `Nomina_Mensual_RDOX_${mes}.xlsx`);
+        showToast(`Excel generado: ${hojas.length} hoja(s)`, 'success');
+    } catch (e) {
+        console.error(e);
+        showToast(e.message || 'Error al exportar nómina mensual.', 'danger');
+    } finally {
+        $btn.prop('disabled', false).html(textoOriginal);
+    }
+}
+
+async function exportarNominaMensualCSV() {
+    const mes = $("#mesNomina").val();
+    if (!mes) return showToast('Seleccione un mes para exportar.', 'warning');
+
+    const $btn = $('button[onclick="exportarNominaMensualCSV()"]');
+    const textoOriginal = $btn.html();
+    $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Generando...');
+
+    try {
+        const res = await cargarNominaMensual(mes);
+        if (!res.dias || res.dias.length === 0) {
+            return showToast('No hay citas registradas en ese mes.', 'warning');
+        }
+
+        let matrizCompleta = [];
+        matrizCompleta.push([`NOMINAS DIARIAS RDOX PORTAL - ${res.mes_formato || mes}`]);
+        matrizCompleta.push([`${res.centro} ${res.ciudad}`]);
+        matrizCompleta.push([]);
+
+        res.dias.forEach((dia, idx) => {
+            if (idx > 0) {
+                matrizCompleta.push([]);
+                matrizCompleta.push(['========================================']);
+                matrizCompleta.push([]);
+            }
+            matrizCompleta = matrizCompleta.concat(construirMatrizNominaRDOX(dia));
+        });
+
+        if (res.totales_mes) {
+            matrizCompleta.push([]);
+            matrizCompleta.push(['RESUMEN DEL MES']);
+            matrizCompleta.push([
+                'PACIENTES', res.totales_mes.pacientes,
+                'TOTAL BOLETA', res.totales_mes.total_boleta,
+                'EFECTIVO', res.totales_mes.efectivo,
+                'TRANSBANK', res.totales_mes.transbank,
+                'TRANSFERENCIA', res.totales_mes.transferencia,
+                'BONO', res.totales_mes.bono
+            ]);
+        }
+
+        descargarMatrizCSV(matrizCompleta, `Nomina_Mensual_RDOX_${mes}.csv`);
+        showToast(`CSV generado: ${res.dias.length} día(s)`, 'success');
+    } catch (e) {
+        console.error(e);
+        showToast(e.message || 'Error al exportar nómina mensual.', 'danger');
+    } finally {
+        $btn.prop('disabled', false).html(textoOriginal);
+    }
+}
 
 async function renderReporteExamenes() {
     const tbody = $("#tablaExamenesAdmin tbody");
@@ -1229,10 +1557,8 @@ async function renderReporteExamenes() {
             }
 
             let granTotal = 0;
-
             currentReporteExamenesData.forEach(est => {
                 granTotal += est.total;
-
                 tbody.append(`
                     <tr>
                         <td class="fw-bold text-dark ps-4"><i class="bi bi-file-medical text-primary me-2"></i>${est.examen}</td>
@@ -1248,9 +1574,6 @@ async function renderReporteExamenes() {
         tbody.empty().append(`<tr><td colspan="3" class="text-center text-danger p-4">Error al cargar la producción.</td></tr>`);
     }
 }
-
-$(document).on('change', '#mesExamenes', renderReporteExamenes);
-
 
 function descargarCSV(filename, tableId) {
     const table = document.getElementById(tableId);
@@ -1289,70 +1612,52 @@ function descargarCSV(filename, tableId) {
  */
 function exportarExcelHonorarios() {
     const mes = $("#mesHonorarios").val();
-    
+    const porcentajeComision = parseFloat($("#porcentajeComision").val()) / 100;
+
     if (!currentReporteHonorariosData || currentReporteHonorariosData.length === 0) {
         return showToast("No hay datos de honorarios para exportar.", "warning");
     }
 
-    // Crear datos para Excel
     let excelData = [];
-    
-    // Encabezados principales
     excelData.push(['LIQUIDACIÓN DE HONORARIOS - RDOX PORTAL']);
     excelData.push([`Mes: ${mes}`]);
-    excelData.push([]); // Fila vacía
-    
-    // Encabezados de tabla
+    excelData.push([]);
     excelData.push([
-        'RADIÓLOGO/TÉCNICO',
-        'RUT',
-        'HORAS TRABAJADAS',
-        'VALOR HORA ($)',
-        'TOTAL HONORARIOS ($)',
-        'OBSERVACIONES'
+        'MÉDICO RADIÓLOGO', 'INFORMES FIRMADOS', 'EXÁMENES', 'PRODUCCIÓN ($)', 'HONORARIOS ($)'
     ]);
 
-    // Datos de honorarios
-    let totalHoras = 0;
+    let totalInformes = 0;
+    let totalExamenes = 0;
+    let totalProduccion = 0;
     let totalHonorarios = 0;
 
-    if (Array.isArray(currentReporteHonorariosData)) {
-        currentReporteHonorariosData.forEach(row => {
-            const horas = parseFloat(row.horas) || 0;
-            const valorHora = parseFloat(row.valor_hora) || 0;
-            const total = horas * valorHora;
+    currentReporteHonorariosData.forEach(med => {
+        const honorarios = Math.round(med.totalFacturado * porcentajeComision);
+        excelData.push([
+            med.nombre,
+            med.informes,
+            med.examenes,
+            med.totalFacturado,
+            honorarios
+        ]);
+        totalInformes += med.informes;
+        totalExamenes += med.examenes;
+        totalProduccion += med.totalFacturado;
+        totalHonorarios += honorarios;
+    });
 
-            excelData.push([
-                row.nombre || row.radiolog || '',
-                row.rut || '',
-                horas,
-                valorHora,
-                total,
-                row.observaciones || ''
-            ]);
+    excelData.push([]);
+    excelData.push(['TOTAL', totalInformes, totalExamenes, totalProduccion, totalHonorarios]);
+    excelData.push([]);
+    excelData.push([`RESPONSABLE: ${obtenerResponsableReporte()}`]);
+    excelData.push([`Comisión aplicada: ${Math.round(porcentajeComision * 100)}%`]);
 
-            totalHoras += horas;
-            totalHonorarios += total;
-        });
-    }
-
-    excelData.push([]); // Fila vacía
-    excelData.push(['TOTAL', '', totalHoras, '', totalHonorarios, '']);
-
-    excelData.push([]); // Fila vacía
-    const fecha = new Date();
-    const responsable = localStorage.getItem('ris_user_name') || 'ADMINISTRADOR';
-    excelData.push([`RESPONSABLE: ${responsable}`]);
-    excelData.push([`Generado: ${fecha.toLocaleDateString('es-CL')}`]);
-
-    // Crear y descargar archivo
-    descargarExcelXLSX(excelData, `Liquidacion_Honorarios_${mes}.xlsx`);
-    showToast("✅ Honorarios exportados a Excel", "success");
+    descargarExcelXLSX(excelData, `Liquidacion_Honorarios_${mes}.xlsx`, 'Honorarios');
+    showToast("Honorarios exportados a Excel", "success");
 }
 
 /**
- * Exportar Exámenes a Excel
- * Similar a la imagen: Agenda Diaria RDOX Portal
+ * Exportar producción mensual (matriz por examen y día)
  */
 function exportarExcelExamenes() {
     if (!currentReporteExamenesData || currentReporteExamenesData.length === 0) {
@@ -1362,112 +1667,46 @@ function exportarExcelExamenes() {
     const mes = $("#mesExamenes").val();
     let excelData = [];
 
-    // Encabezados principales
-    excelData.push(['AGENDA DIARIA RDOX PORTAL']);
+    excelData.push(['PRODUCCIÓN MENSUAL RDOX PORTAL']);
     excelData.push([`Mes: ${mes}`]);
-    excelData.push([]); // Fila vacía
+    excelData.push([]);
 
-    // Encabezados de tabla
-    let headers = [
-        'NOMBRE PACIENTE',
-        'RUT',
-        'EDAD',
-        'INTERVALO',
-        'COMP. BEAM',
-        'BOLETA',
-        'TOTAL BOLETA ($)',
-        'FACTURADO ($)',
-        'RADIOGRAFÍA',
-        'RADIOSCOPIA',
-        'OPERADOR',
-        'RADIÓLOGO',
-        'ESPECIALISTA'
-    ];
-
-    // Agregar columnas de días si existen
-    if (currentReporteDiasMes && currentReporteDiasMes > 0) {
-        for (let i = 1; i <= currentReporteDiasMes; i++) {
-            headers.push(`Día ${i}`);
-        }
+    let headers = ['EXAMEN', 'SALA / MODALIDAD', 'TOTAL MES'];
+    for (let i = 1; i <= currentReporteDiasMes; i++) {
+        headers.push(`Día ${i}`);
     }
-
     excelData.push(headers);
 
-    // Datos de exámenes
-    let totalBoletas = 0;
-    let totalFacturado = 0;
-
+    let granTotal = 0;
     currentReporteExamenesData.forEach(row => {
-        let fila = [
-            row.paciente || row.nombre || '',
-            row.rut || '',
-            row.edad || '',
-            row.intervalo || row.intervaloal || '',
-            row.compBeam || row.comp_beam || '',
-            row.boleta || '',
-            row.totalBoleta || row.total_boleta || 0,
-            row.facturado || 0,
-            row.radiografia || '',
-            row.radioscopia || '',
-            row.operador || '',
-            row.radiologia || row.radiolog || '',
-            row.especialista || ''
-        ];
-
-        // Agregar datos por día si existen
-        if (row.dias) {
-            for (let i = 1; i <= currentReporteDiasMes; i++) {
-                fila.push(row.dias[i] || '');
-            }
+        const fila = [row.examen, row.sala, row.total];
+        granTotal += row.total;
+        for (let i = 1; i <= currentReporteDiasMes; i++) {
+            fila.push(row.dias?.[i] || 0);
         }
-
         excelData.push(fila);
-
-        totalBoletas += parseFloat(row.totalBoleta || row.total_boleta || 0);
-        totalFacturado += parseFloat(row.facturado || 0);
     });
 
-    excelData.push([]); // Fila vacía
-    let filaTotal = ['TOTAL DEPÓSITOS', '', '', '', '', '', totalBoletas, totalFacturado, '', '', '', '', ''];
-    excelData.push(filaTotal);
+    excelData.push([]);
+    excelData.push(['TOTAL GENERAL', '', granTotal]);
+    excelData.push([]);
+    excelData.push([`RESPONSABLE: ${obtenerResponsableReporte()}`]);
 
-    excelData.push([]); // Fila vacía
-    const responsable = localStorage.getItem('ris_user_name') || 'ADMINISTRADOR';
-    excelData.push([`RESPONSABLE: ${responsable}`]);
-    
-    const fecha = new Date();
-    excelData.push([`Generado: ${fecha.toLocaleDateString('es-CL')} ${fecha.toLocaleTimeString('es-CL')}`]);
-
-    // Crear y descargar archivo
-    descargarExcelXLSX(excelData, `Agenda_RDOX_${mes}.xlsx`);
-    showToast("✅ Agenda exportada a Excel", "success");
+    descargarExcelXLSX(excelData, `Produccion_Mensual_${mes}.xlsx`, 'Produccion');
+    showToast("Producción mensual exportada a Excel", "success");
 }
 
-/**
- * Función auxiliar para descargar Excel XLSX
- * Requiere que SheetJS esté incluido: <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
- */
-function descargarExcelXLSX(datos, nombreArchivo) {
+function descargarExcelXLSX(datos, nombreArchivo, nombreHoja = 'Reporte') {
     if (typeof XLSX === 'undefined') {
-        console.warn('SheetJS no está cargado. Intentando fallback a CSV...');
-        descargarCSV(nombreArchivo, datos);
+        console.warn('SheetJS no está cargado. Usando fallback CSV...');
+        descargarMatrizCSV(datos, nombreArchivo.replace(/\.xlsx$/i, '.csv'));
         return;
     }
 
-    // Crear libro de Excel
     const libro = XLSX.utils.book_new();
-    
-    // Crear hoja a partir de los datos
     const hoja = XLSX.utils.aoa_to_sheet(datos);
-
-    // Configurar anchos de columnas
-    const anchos = [25, 15, 10, 15, 15, 12, 15, 15, 12, 12, 12, 15, 20];
-    hoja['!cols'] = anchos.map(w => ({ wch: w }));
-
-    // Agregar la hoja al libro
-    XLSX.utils.book_append_sheet(libro, hoja, 'Reporte');
-
-    // Descargar
+    hoja['!cols'] = Array(Math.max(...datos.map(f => f.length), 1)).fill({ wch: 18 });
+    XLSX.utils.book_append_sheet(libro, hoja, nombreHoja.substring(0, 31));
     XLSX.writeFile(libro, nombreArchivo);
 }
 
@@ -1728,7 +1967,8 @@ async function guardarPlan() {
 
 async function eliminarPlan() {
     const id = $("#planId").val();
-    if (!id || !confirm("¿Está seguro de eliminar este plan?")) return;
+    if (!id) return;
+    if (!(await showConfirm("¿Está seguro de eliminar este plan?", { dangerous: true, confirmText: "Eliminar" }))) return;
 
     const token = localStorage.getItem('ris_token');
     const labId = localStorage.getItem('ris_lab_id');
@@ -1867,7 +2107,8 @@ async function guardarPrevision() {
 
 async function eliminarPrevision() {
     const id = $("#prevId").val();
-    if (!id || !confirm("¿Está seguro de eliminar esta previsión? Se eliminarán los planes asociados a ella.")) return;
+    if (!id) return;
+    if (!(await showConfirm("¿Está seguro de eliminar esta previsión? Se eliminarán los planes asociados.", { dangerous: true, confirmText: "Eliminar" }))) return;
 
     const token = localStorage.getItem('ris_token');
     const labId = localStorage.getItem('ris_lab_id');
@@ -1900,9 +2141,8 @@ function nuevaSala() {
 async function eliminarSala() {
     const id = $("#salaId").val();
 
-    if (!id || !confirm("⚠️ ¿Está seguro de eliminar esta Sala/Equipo? Esto podría afectar la agenda histórica.")) {
-        return;
-    }
+    if (!id) return;
+    if (!(await showConfirm("¿Está seguro de eliminar esta Sala/Equipo? Esto podría afectar la agenda histórica.", { dangerous: true, confirmText: "Eliminar" }))) return;
 
     const token = localStorage.getItem('ris_token');
     const labId = localStorage.getItem('ris_lab_id');
@@ -2140,7 +2380,8 @@ async function guardarPlantilla() {
 
 async function eliminarPlantilla() {
     const id = $("#tplId").val();
-    if (!id || !confirm("¿Está seguro de eliminar esta plantilla?")) return;
+    if (!id) return;
+    if (!(await showConfirm("¿Está seguro de eliminar esta plantilla?", { dangerous: true, confirmText: "Eliminar" }))) return;
 
     const token = localStorage.getItem('ris_token');
     const labId = localStorage.getItem('ris_lab_id');
@@ -2309,7 +2550,8 @@ async function guardarPaciente() {
 
 async function eliminarPaciente() {
     const id = $("#pacienteId").val();
-    if (!id || !confirm("¿Está absolutamente seguro de eliminar este paciente y todo su historial? Esta acción es irreversible.")) return;
+    if (!id) return;
+    if (!(await showConfirm("¿Está absolutamente seguro de eliminar este paciente y todo su historial? Esta acción es irreversible.", { dangerous: true, confirmText: "Eliminar definitivamente" }))) return;
 
     const token = localStorage.getItem('ris_token');
     const labId = localStorage.getItem('ris_lab_id');
@@ -2396,12 +2638,12 @@ async function pingDicom(id) {
         const data = await response.json();
 
         if (response.ok && data.success) {
-            alert(`✅ CONEXIÓN ESTABLECIDA\n\n${data.message}`);
+            showAlert(data.message, "Conexión establecida", "success");
         } else {
-            alert(`❌ ERROR DE RED\n\n${data.message}`);
+            showAlert(data.message || "Error de red", "Error de conexión", "danger");
         }
     } catch (e) {
-        alert("❌ Error crítico: No se pudo contactar al servidor RIS.");
+        showAlert("No se pudo contactar al servidor RIS.", "Error crítico", "danger");
     }
 }
 

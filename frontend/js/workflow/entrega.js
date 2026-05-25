@@ -118,10 +118,9 @@ function abrirModalEntrega(id) {
     modal.show();
 }
 
-function revertirEntrega(id) {
-    if (confirm("¿Deshacer entrega y volver a bandeja de pendientes?")) {
-        ejecutarLlamadaEntrega(id, 'revert', {});
-    }
+async function revertirEntrega(id) {
+    if (!(await showConfirm("¿Deshacer entrega y volver a bandeja de pendientes?", { title: "Revertir entrega", dangerous: true }))) return;
+    ejecutarLlamadaEntrega(id, 'revert', {});
 }
 
 async function procesarEntrega() {
@@ -310,7 +309,7 @@ async function enviarResultadosPorEmail(id) {
     const item = currentDeliveryData.find(c => String(c.id) === String(id));
     if (!item) return;
 
-    if (!confirm(`¿Desea enviar los informes médicos al correo registrado del paciente ${item.patient.name} ${item.patient.lastName}?`)) return;
+    if (!(await showConfirm(`¿Desea enviar los informes médicos al correo registrado del paciente ${item.patient.name} ${item.patient.lastName}?`, { title: "Enviar por correo", confirmText: "Enviar" }))) return;
 
     const token = localStorage.getItem('ris_token');
     const labId = localStorage.getItem('ris_lab_id');

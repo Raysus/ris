@@ -4,16 +4,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>HealthTiCloud</title>
-    <meta name="theme-color" content="#0d6efd">
+    <title>HealthTiCloud RIS</title>
+    <meta name="theme-color" content="#2ec4b6">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-
     <link rel="stylesheet" href="css/style.css">
     <link href="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.11/main.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/@fullcalendar/timeline@6.1.11/main.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/@fullcalendar/resource-timeline@6.1.11/main.min.css" rel="stylesheet">
-
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar-scheduler@6.1.11/index.global.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.11/locales-all.global.min.js"></script>
@@ -22,56 +20,46 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 
 <body>
+    <a href="#appContent" class="skip-link visually-hidden-focusable">Saltar al contenido principal</a>
+
     <div class="app">
-        <aside class="sidebar" id="sidebar">
+        <div id="sidebarOverlay" class="sidebar-overlay" aria-hidden="true"></div>
+
+        <aside class="sidebar" id="sidebar" aria-label="Menú principal">
             <div class="logo">
-                <i class="bi bi-shield-plus"></i> <span>RIS Pro</span>
+                <i class="bi bi-shield-plus" aria-hidden="true"></i> <span>RIS Pro</span>
             </div>
 
-            <nav>
-
-                <a data-page="agenda">
-                    <i class="bi bi-calendar3 me-2"></i> <span>Agenda</span>
-                </a>
-                <a data-page="worklist">
-                    <i class="bi bi-list-ul me-2"></i> <span>Worklist</span>
-                </a>
-                <a data-page="radiologist">
-                    <i class="bi bi-person-video me-2"></i> <span>Radiólogo</span>
-                </a>
-                <a data-page="transcription">
-                    <i class="bi bi-mic me-2"></i> <span>Transcripción</span>
-                </a>
-                <a data-page="validation">
-                    <i class="bi bi-check2-all me-2"></i> <span>Validación</span>
-                </a>
-                <a data-page="entrega">
-                    <i class="bi bi-box-seam me-2"></i> <span>Entrega/Retiro</span>
-                </a>
-                <a data-page="admin">
-                    <i class="bi bi-gear-fill me-2 text-secondary"></i> <span>Administración</span>
-                </a>
-                <a data-page="dashboard">
-                    <i class="bi bi-speedometer2 me-2 text-secondary"></i> <span>Dashboard</span>
-                </a>
+            <nav aria-label="Módulos del sistema">
+                <a href="#" data-page="agenda" role="menuitem"><i class="bi bi-calendar3 me-2" aria-hidden="true"></i> <span>Agenda</span></a>
+                <a href="#" data-page="worklist" role="menuitem"><i class="bi bi-list-ul me-2" aria-hidden="true"></i> <span>Worklist</span></a>
+                <a href="#" data-page="radiologist" role="menuitem"><i class="bi bi-person-video me-2" aria-hidden="true"></i> <span>Radiólogo</span></a>
+                <a href="#" data-page="transcription" role="menuitem"><i class="bi bi-mic me-2" aria-hidden="true"></i> <span>Transcripción</span></a>
+                <a href="#" data-page="validation" role="menuitem"><i class="bi bi-check2-all me-2" aria-hidden="true"></i> <span>Validación</span></a>
+                <a href="#" data-page="entrega" role="menuitem"><i class="bi bi-box-seam me-2" aria-hidden="true"></i> <span>Entrega/Retiro</span></a>
+                <a href="#" data-page="admin" role="menuitem"><i class="bi bi-gear-fill me-2 text-secondary" aria-hidden="true"></i> <span>Administración</span></a>
+                <a href="#" data-page="dashboard" role="menuitem"><i class="bi bi-speedometer2 me-2 text-secondary" aria-hidden="true"></i> <span>Dashboard</span></a>
             </nav>
         </aside>
 
         <div class="main">
-            <header class="topbar">
+            <header class="topbar" role="banner">
                 <div class="left">
-                    <button id="toggleSidebar" class="btn btn-light btn-sm shadow-sm">
-                        <i class="bi bi-list"></i>
+                    <button id="toggleSidebar" class="btn btn-light btn-sm shadow-sm" type="button"
+                        aria-label="Mostrar u ocultar menú lateral" aria-expanded="true" aria-controls="sidebar">
+                        <i class="bi bi-list" aria-hidden="true"></i>
                     </button>
                 </div>
                 <div class="right d-flex align-items-center gap-3">
                     <div class="d-none me-3" id="navLabSelectorContainer">
+                        <label for="navLabSelector" class="visually-hidden">Laboratorio activo</label>
                         <div class="input-group input-group-sm shadow-sm">
                             <span class="input-group-text bg-white border-primary text-primary">
-                                <i class="bi bi-building"></i>
+                                <i class="bi bi-building" aria-hidden="true"></i>
                             </span>
                             <select class="form-select border-primary fw-bold text-primary bg-light" id="navLabSelector"
                                 style="cursor: pointer;">
@@ -83,41 +71,71 @@
                         <span id="userRoleDisplay" class="text-muted"
                             style="font-size: 0.65rem; text-transform: uppercase;">Rol</span>
                     </div>
-
-                    <button id="darkMode" class="btn btn-outline-secondary btn-sm rounded-circle shadow-sm">
-                        <i class="bi bi-moon-stars"></i>
+                    <button id="darkMode" class="btn btn-outline-secondary btn-sm rounded-circle shadow-sm" type="button"
+                        aria-label="Alternar modo oscuro">
+                        <i class="bi bi-moon-stars" aria-hidden="true"></i>
                     </button>
-
-                    <div class="vr"></div> <button id="btnLogout" class="btn btn-danger btn-sm rounded-circle shadow-sm"
-                        title="Cerrar Sesión">
-                        <i class="bi bi-box-arrow-right"></i>
+                    <div class="vr" aria-hidden="true"></div>
+                    <button id="btnLogout" class="btn btn-danger btn-sm rounded-circle shadow-sm" type="button"
+                        aria-label="Cerrar sesión">
+                        <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
                     </button>
                 </div>
             </header>
 
-            <section id="appContent"></section>
+            <main id="appContent" role="main" tabindex="-1"></main>
         </div>
     </div>
 
-    <div id="globalLoader">
-        <div class="spinner-border text-primary" role="status"></div>
+    <div id="globalLoader" aria-live="polite" aria-busy="true">
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando…</span>
+            </div>
+        </div>
     </div>
+
+    <!-- Modal confirmación reutilizable -->
+    <div class="modal fade" id="risConfirmModal" tabindex="-1" aria-labelledby="risConfirmTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold" id="risConfirmTitle">Confirmar acción</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="risConfirmMessage" class="mb-0 text-secondary"></p>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-light fw-bold" id="risConfirmCancelBtn" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary fw-bold" id="risConfirmBtn">Confirmar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal alerta reutilizable -->
+    <div class="modal fade" id="risAlertModal" tabindex="-1" aria-labelledby="risAlertTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold" id="risAlertTitle">Aviso</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="risAlertMessage" class="mb-0"></p>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-primary fw-bold" data-bs-dismiss="modal">Entendido</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="js/config.js"></script>
-    <script src="js/app.js"></script>
-
-    <script src="js/core/router.js"></script>
     <script src="js/core/ui.js"></script>
-
-    <script src="js/workflow/agenda.js"></script>
-    <script src="js/workflow/worklist.js"></script>
-    <script src="js/workflow/radiologist.js"></script>
-    <script src="js/workflow/transcription.js"></script>
-    <script src="js/workflow/validation.js"></script>
-    <script src="js/workflow/entrega.js"></script>
-    <script src="js/workflow/payments.js"></script>
-    <script src="js/dashboard/dashboard.js"></script>
-    <script src="js/admin/admin.js"></script>
-
+    <script src="js/core/router.js"></script>
+    <script src="js/app.js"></script>
 </body>
 
 </html>

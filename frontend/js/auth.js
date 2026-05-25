@@ -1,20 +1,27 @@
 $(document).ready(function () {
 
+    if ($("#rememberMe").is(":checked") || localStorage.getItem("ris_remember_user") === "true") {
+        const saved = localStorage.getItem("ris_saved_username");
+        if (saved) {
+            $("#username").val(saved);
+            $("#rememberMe").prop("checked", true);
+        }
+    }
 
     async function intentarLogin() {
         const emailInput = $("#username").val().trim();
         const passwordInput = $("#password").val();
 
-        const laboratorioSeleccionado = $("#laboratorio").val() || 1;
+        $("#loginError").addClass("d-none");
 
         if (!emailInput || !passwordInput) {
-            alert("Por favor, ingrese su correo y contraseña.");
+            $("#loginError").removeClass("d-none").text("Por favor, ingrese su usuario y contraseña.");
             return;
         }
 
         const $btn = $("#loginBtn");
-        const textoOriginal = $btn.text();
-        $btn.prop("disabled", true).text("Conectando...");
+        const textoOriginal = $btn.html();
+        $btn.prop("disabled", true).html('<span class="spinner-border spinner-border-sm me-2"></span>Conectando...');
 
         try {
             const response = await fetch(`${API_URL}/login`, {
@@ -37,6 +44,14 @@ $(document).ready(function () {
             }
 
             if (response.ok && data.success) {
+                if ($("#rememberMe").is(":checked")) {
+                    localStorage.setItem("ris_remember_user", "true");
+                    localStorage.setItem("ris_saved_username", emailInput);
+                } else {
+                    localStorage.removeItem("ris_remember_user");
+                    localStorage.removeItem("ris_saved_username");
+                }
+
                 localStorage.setItem('ris_token', data.access_token);
 
                 let labIdInicial = data.contexto_laboratorio.laboratorio_id;
@@ -56,37 +71,36 @@ $(document).ready(function () {
                 localStorage.setItem('ris_user_profile', profileName);
                 localStorage.setItem('ris_permissions', JSON.stringify(permissions));
                 localStorage.setItem('ris_user_data', JSON.stringify(data.user));
-
                 localStorage.setItem('ris_all_labs', data.contexto_laboratorio.laboratorios_permitidos.includes('*') ? 'true' : 'false');
 
                 window.location.href = "layout.html";
             } else {
-                alert("Error: " + (data.message || "Usuario o contraseña incorrectos."));
+                $("#loginError").removeClass("d-none").text(data.message || "Usuario o contraseña incorrectos.");
                 $("#password").val("").focus();
             }
 
         } catch (error) {
             console.error('Error de red o servidor:', error);
-            alert('No se pudo conectar con el servidor. Revise su conexión o contacte soporte.');
+            $("#loginError").removeClass("d-none").text('No se pudo conectar con el servidor. Revise su conexión.');
         } finally {
-            $btn.prop("disabled", false).text(textoOriginal);
+            $btn.prop("disabled", false).html(textoOriginal);
         }
     }
 
     $("#loginBtn").click(intentarLogin);
 
-    $("#password").keypress(function (e) {
+    $("#password, #username").keypress(function (e) {
         if (e.which === 13) intentarLogin();
     });
 });
 
 function mostrarModalRecuperar() {
-    $("#modalRecuperarPassword").modal('show');
+    openModal("modalRecuperarPassword");
 }
 
 async function enviarSolicitudRecuperacion() {
     const email = $("#emailRecuperar").val().trim();
-    if (!email) return showToast("⚠️ Ingrese un correo válido.", "warning");
+    if (!email) return showToast("Ingrese un correo válido.", "warning");
 
     const $btn = $("#modalRecuperarPassword .btn-primary");
 
@@ -105,60 +119,14 @@ async function enviarSolicitudRecuperacion() {
         const data = await response.json();
 
         if (response.ok && data.success) {
-            showToast("✅ Correo enviado. Revise su bandeja de entrada.", "success");
-            $("#modalRecuperarPassword").modal('hide');
+            showToast("Correo enviado. Revise su bandeja de entrada.", "success");
+            closeModal("modalRecuperarPassword");
         } else {
-            showToast(`❌ ${data.message || 'El correo no existe en el sistema.'}`, "danger");
+            showToast(data.message || 'El correo no existe en el sistema.', "danger");
         }
     } catch (error) {
-        showToast("🔌 Error de conexión", "danger");
+        showToast("Error de conexión", "danger");
     } finally {
         $btn.prop("disabled", false).text('Enviar Instrucciones');
-    }
-}
-
-function showToast(mensaje, tipo = "info") {
-    let toastContainer = document.getElementById("toast-container-login");
-    if (!toastContainer) {
-        const containerHtml = `<div id="toast-container-login" class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1055;"></div>`;
-        document.body.insertAdjacentHTML("beforeend", containerHtml);
-        toastContainer = document.getElementById("toast-container-login");
-    }
-
-    let bgClass = "bg-primary text-white";
-    let btnCloseClass = "btn-close-white";
-
-    if (tipo === "danger") bgClass = "bg-danger text-white";
-    if (tipo === "success") bgClass = "bg-success text-white";
-    if (tipo === "warning") {
-        bgClass = "bg-warning text-dark";
-        btnCloseClass = "";
-    }
-
-    const toastId = "toast-" + Date.now();
-    const toastHtml = `
-        <div id="${toastId}" class="toast align-items-center ${bgClass} border-0" role="alert" aria-live="assertive" aria-atomic="true">
-            <div class="d-flex">
-                <div class="toast-body fw-bold">
-                    ${mensaje}
-                </div>
-                <button type="button" class="btn-close ${btnCloseClass} me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-            </div>
-        </div>
-    `;
-
-    toastContainer.insertAdjacentHTML("beforeend", toastHtml);
-    const toastEl = document.getElementById(toastId);
-
-    if (typeof bootstrap !== 'undefined') {
-        const toast = new bootstrap.Toast(toastEl, { delay: 4000 });
-        toast.show();
-
-        toastEl.addEventListener('hidden.bs.toast', () => {
-            toastEl.remove();
-        });
-    } else {
-        alert(mensaje);
-        toastEl.remove();
     }
 }

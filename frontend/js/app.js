@@ -101,24 +101,23 @@ $(document).ready(async function () {
 
     $("#btnLogout").click(async function (e) {
         e.preventDefault();
-        if (confirm("¿Está seguro que desea cerrar su sesión?")) {
-            try {
-                await fetch(`${API_URL}/logout`, {
-                    method: 'POST',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-            } catch (e) { console.warn("Error avisando al servidor", e); }
+        if (!(await showConfirm("¿Está seguro que desea cerrar su sesión?", { title: "Cerrar sesión", confirmText: "Salir" }))) return;
+        try {
+            await fetch(`${API_URL}/logout`, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+        } catch (e) { console.warn("Error avisando al servidor", e); }
 
-            localStorage.removeItem("ris_token");
-            localStorage.removeItem("ris_lab_id");
-            localStorage.removeItem("ris_user_profile");
-            localStorage.removeItem("ris_permissions");
-            localStorage.removeItem("ris_user_data");
-            window.location.href = "index.html";
-        }
+        localStorage.removeItem("ris_token");
+        localStorage.removeItem("ris_lab_id");
+        localStorage.removeItem("ris_user_profile");
+        localStorage.removeItem("ris_permissions");
+        localStorage.removeItem("ris_user_data");
+        window.location.href = "index.html";
     });
 
     if (typeof sincronizarSidebar === "function") {
@@ -152,12 +151,12 @@ async function cargarSelectorLaboratorios() {
             selector.empty();
 
             if (esSisAdmin) {
-                selector.append('<option value="">🌍 Visión Global (Todo el Sistema)</option>');
+                selector.append('<option value="">Visión Global (Todo el Sistema)</option>');
 
                 data.data.forEach(padre => {
-                    selector.append(`<option value="${padre.id}" class="fw-bold">🏢 ${padre.name}</option>`);
+                    selector.append(`<option value="${padre.id}" class="fw-bold">${padre.name}</option>`);
                     padre.children?.forEach(hijo => {
-                        selector.append(`<option value="${hijo.id}">--- ↳ ${hijo.name}</option>`);
+                        selector.append(`<option value="${hijo.id}">— ${hijo.name}</option>`);
                     });
                 });
             } else {
@@ -165,9 +164,9 @@ async function cargarSelectorLaboratorios() {
 
                 if (labs.length > 0) {
                     labs.forEach(matriz => {
-                        selector.append(`<option value="${matriz.id}" class="fw-bold">🏢 ${matriz.name}</option>`);
+                        selector.append(`<option value="${matriz.id}" class="fw-bold">${matriz.name}</option>`);
                         matriz.children?.forEach(sucursal => {
-                            selector.append(`<option value="${sucursal.id}">--- ↳ ${sucursal.name}</option>`);
+                            selector.append(`<option value="${sucursal.id}">— ${sucursal.name}</option>`);
                         });
                     });
                 }

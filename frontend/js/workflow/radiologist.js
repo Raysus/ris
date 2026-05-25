@@ -375,7 +375,8 @@ function cargarEstudioEnEditor(studyId) {
 async function firmarDirecto() {
     if (!currentReportingChain) return;
 
-    if (confirm("¿Firmar digitalmente TODOS los informes de esta cita? El paciente podrá descargarlos inmediatamente.")) {
+    if (!(await showConfirm("¿Firmar digitalmente TODOS los informes de esta cita? El paciente podrá descargarlos inmediatamente.", { title: "Firmar informes", confirmText: "Firmar" }))) return;
+
         const token = localStorage.getItem('ris_token');
         const labId = localStorage.getItem('ris_lab_id');
         const btn = $("#btnFirmarDirecto");
@@ -409,7 +410,6 @@ async function firmarDirecto() {
         } finally {
             btn.prop('disabled', false).html('<i class="bi bi-pen me-1"></i> Firmar y Liberar');
         }
-    }
 }
 
 async function devolverATecnologo() {
@@ -452,7 +452,8 @@ async function enviarATranscripcion() {
 
     const texto = $("#textoInforme").val().trim();
 
-    if (confirm(`¿Enviar el audio grabado para el examen "${currentRadioStudy.exam}" a la bandeja de la secretaria?`)) {
+    if (!(await showConfirm(`¿Enviar el audio grabado para el examen "${currentRadioStudy.exam}" a la bandeja de la secretaria?`, { title: "Enviar a transcripción", confirmText: "Enviar" }))) return;
+
         const token = localStorage.getItem('ris_token');
         const labId = localStorage.getItem('ris_lab_id');
         const btn = $("#btnGrabarAudio");
@@ -483,7 +484,6 @@ async function enviarATranscripcion() {
         } finally {
             btn.prop('disabled', false).html('<i class="bi bi-headphones me-1"></i> Enviar a Transcripción');
         }
-    }
 }
 
 // === 5. LÍMITE DE AUDIO (MEDIA RECORDER) ===

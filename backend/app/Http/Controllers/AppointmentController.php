@@ -16,13 +16,16 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\PortalCredentialsMail;
+use App\Services\AppointmentInstructionMailService;
 
 class AppointmentController extends Controller
 {
     protected $keycloakService;
 
-    public function __construct(KeycloakService $keycloakService)
-    {
+    public function __construct(
+        KeycloakService $keycloakService,
+        protected AppointmentInstructionMailService $instructionMailService
+    ) {
         $this->keycloakService = $keycloakService;
     }
 
@@ -179,7 +182,13 @@ class AppointmentController extends Controller
                 $appointment->load(['patient.persona', 'studies', 'supplies']);
                 \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'created', $appointment->toArray());
 
-                return response()->json(['success' => true, 'appointment' => $appointment], 201);
+                $mailResult = $this->instructionMailService->sendIfApplicable($appointment);
+
+                return response()->json([
+                    'success' => true,
+                    'appointment' => $appointment,
+                    'instructions_email' => $mailResult,
+                ], 201);
             });
 
         } catch (\Exception $e) {

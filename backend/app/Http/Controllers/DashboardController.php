@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Appointment;
 use App\Models\Machine;
+use App\Models\Payment;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
@@ -45,6 +46,42 @@ class DashboardController extends Controller
     }
 
     /**
+     * Calcula el monto estimado de una cita (estudios + insumos), igual que nómina/reportes.
+     */
+    private function calculateAppointmentRevenue(Appointment $appointment): float
+    {
+        $total = (float) $appointment->studies->sum('price');
+
+        foreach ($appointment->supplies as $supply) {
+            $total += (float) ($supply->pivot->price_charged ?? 0);
+        }
+
+        return $total;
+    }
+
+    /**
+     * Ingresos efectivamente cobrados en caja para citas de una fecha.
+     */
+    private function sumPaymentsForDate(Carbon $date): float
+    {
+        $allowedLabs = config('app.allowed_lab_ids');
+
+        $query = Payment::query()
+            ->whereHas('appointment', function ($q) use ($date, $allowedLabs) {
+                $q->whereDate('start_time', $date);
+                if ($allowedLabs !== ['*']) {
+                    if (empty($allowedLabs)) {
+                        $q->whereRaw('1 = 0');
+                    } else {
+                        $q->whereIn('laboratory_id', $allowedLabs);
+                    }
+                }
+            });
+
+        return (float) $query->sum('amount');
+    }
+
+    /**
      * Genera todas las métricas para el Dashboard.
      */
     public function getMetrics(Request $request)
@@ -55,7 +92,7 @@ class DashboardController extends Controller
 
         // 1. OBTENCIÓN DE DATOS BASE
         $query = $this->getSecureAppointmentQuery()
-            ->with(['studies', 'machine'])
+            ->with(['studies', 'supplies', 'machine'])
             ->whereDate('start_time', $fechaFiltro);
 
         $appointments = $query->get();
@@ -63,12 +100,20 @@ class DashboardController extends Controller
         // 2. CÁLCULO DE KPIs BÁSICOS
         $totalPacientes = $appointments->unique('patient_id')->count();
 
-        // Ingresos de hoy vs Ayer (Métrica de Tendencia)
-        $ingresosHoy = $appointments->sum('total_price');
+        // Ingresos: pagos registrados en caja; si no hay, monto estimado por estudios/insumos
+        $ingresosHoy = $this->sumPaymentsForDate($fechaFiltro);
+        if ($ingresosHoy <= 0) {
+            $ingresosHoy = $appointments->sum(fn ($app) => $this->calculateAppointmentRevenue($app));
+        }
 
-        $ingresosAyer = $this->getSecureAppointmentQuery()
-            ->whereDate('start_time', $ayer)
-            ->sum('total_price');
+        $ingresosAyer = $this->sumPaymentsForDate($ayer);
+        if ($ingresosAyer <= 0) {
+            $ingresosAyer = $this->getSecureAppointmentQuery()
+                ->with(['studies', 'supplies'])
+                ->whereDate('start_time', $ayer)
+                ->get()
+                ->sum(fn ($app) => $this->calculateAppointmentRevenue($app));
+        }
 
         $tendencia = $ingresosAyer > 0 ? (($ingresosHoy - $ingresosAyer) / $ingresosAyer) * 100 : 0;
 

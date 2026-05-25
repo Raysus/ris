@@ -6,91 +6,133 @@ let chartEstadosInstance = null;
 let chartModalidadesInstance = null;
 
 function initDashboard() {
-    const opcionesFecha = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-    $("#dashFechaActual").text(new Date().toLocaleDateString('es-CL', opcionesFecha).toUpperCase());
+    const hoy = new Date().toISOString().split("T")[0];
+    if ($("#filtroFechaDash").length && !$("#filtroFechaDash").val()) {
+        $("#filtroFechaDash").val(hoy);
+    }
+
+    const opcionesFecha = { weekday: "long", year: "numeric", month: "long", day: "numeric" };
+    $("#dashFechaActual").text(new Date().toLocaleDateString("es-CL", opcionesFecha));
 
     actualizarMetricas();
 
-    setInterval(() => {
-        console.log("Actualizando métricas automáticamente...");
-        actualizarMetricas();
-    }, 120000);
+    if (window._dashInterval) clearInterval(window._dashInterval);
+    window._dashInterval = setInterval(actualizarMetricas, 120000);
 }
 
 async function actualizarMetricas() {
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id') || '';
+    const token = localStorage.getItem("ris_token");
+    const labId = localStorage.getItem("ris_lab_id") || "";
+    const fechaSel = $("#filtroFechaDash").length
+        ? $("#filtroFechaDash").val()
+        : new Date().toISOString().split("T")[0];
 
-    let fechaSel = $("#filtroFechaDash").length ? $("#filtroFechaDash").val() : new Date().toISOString().split('T')[0];
+    $("#dashError").addClass("d-none");
 
     try {
         const response = await fetch(`${API_URL}/dashboard/metrics?date=${fechaSel}`, {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: { Authorization: `Bearer ${token}`, "X-Lab-Id": labId, Accept: "application/json" },
         });
         const res = await response.json();
 
-        if (res.success) {
-            const d = res.data;
-
-            // Actualizar nuevo KPI de TAT
-            $("#kpiTat").text(d.kpis.tat_promedio);
-
-            // === LÓGICA DE ALERTAS DE CUELLO DE BOTELLA ===
-            const limiteSaturacion = 15; // Definible por el usuario
-            const enSecretaria = d.charts.flujo['Secretaria'] || 0;
-
-            if (enSecretaria > limiteSaturacion) {
-                $("#containerAlertasCriticas").removeClass("d-none");
-                $("#nombreSectorCritico").text("TRANSCRIPCIÓN (Secretaría)");
-                $("#kpiInformes").addClass("text-danger").addClass("animate__animated animate__pulse animate__infinite");
-            } else {
-                $("#containerAlertasCriticas").addClass("d-none");
-                $("#kpiInformes").removeClass("text-danger animate__pulse");
-            }
+        if (!response.ok || !res.success) {
+            throw new Error(res.message || "No se pudieron cargar las métricas.");
         }
+
+        const d = res.data;
+        const kpis = d.kpis || {};
+        const flujo = d.charts?.flujo || {};
+
+        $("#kpiPacientes").text(kpis.pacientes ?? 0);
+        $("#kpiExamenes").text(kpis.examenes ?? 0);
+        $("#kpiIngresos").text("$" + Number(kpis.ingresos ?? 0).toLocaleString("es-CL"));
+        $("#kpiTat").text(kpis.tat_promedio ?? 0);
+
+        const informesPendientes = (flujo["Radiólogo"] || 0) + (flujo["Secretaría"] || 0);
+        $("#kpiInformes").text(informesPendientes).removeClass("text-danger animate__pulse");
+
+        const tendencia = kpis.tendencia ?? 0;
+        const $tend = $("#kpiTendencia");
+        if (tendencia > 0) {
+            $tend.html(`<i class="bi bi-arrow-up-short text-success"></i> +${tendencia}% vs ayer`).removeClass("text-danger").addClass("text-success");
+        } else if (tendencia < 0) {
+            $tend.html(`<i class="bi bi-arrow-down-short text-danger"></i> ${tendencia}% vs ayer`).removeClass("text-success").addClass("text-danger");
+        } else {
+            $tend.text("Sin variación vs ayer").removeClass("text-success text-danger");
+        }
+
+        const limiteSaturacion = 15;
+        const enSecretaria = flujo["Secretaría"] || 0;
+        if (enSecretaria > limiteSaturacion) {
+            $("#containerAlertasCriticas").removeClass("d-none");
+            $("#nombreSectorCritico").text("TRANSCRIPCIÓN (Secretaría)");
+            $("#kpiInformes").addClass("text-danger");
+        } else {
+            $("#containerAlertasCriticas").addClass("d-none");
+        }
+
+        dibujarGraficoEstados(flujo);
+        dibujarGraficoModalidades(d.charts?.modalidades || {});
     } catch (e) {
         console.error("Error en dashboard:", e);
+        $("#dashError").removeClass("d-none").text(e.message || "Error al cargar el dashboard.");
+        showToast("No se pudieron cargar las métricas del dashboard.", "danger");
     }
 }
 
 function dibujarGraficoEstados(datos) {
-    const ctx = document.getElementById('chartEstados');
+    const ctx = document.getElementById("chartEstados");
     if (!ctx) return;
     if (chartEstadosInstance) chartEstadosInstance.destroy();
 
     chartEstadosInstance = new Chart(ctx, {
-        type: 'doughnut',
+        type: "doughnut",
         data: {
             labels: Object.keys(datos),
             datasets: [{
                 data: Object.values(datos),
-                backgroundColor: ['#f59e0b', '#0dcaf0', '#dc3545', '#6f42c1', '#198754'],
-                borderWidth: 2, borderColor: '#ffffff'
-            }]
+                backgroundColor: ["#f59e0b", "#0dcaf0", "#dc3545", "#6f42c1", "#198754"],
+                borderWidth: 2,
+                borderColor: "#ffffff",
+            }],
         },
-        options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { position: 'right' } } }
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: "65%",
+            plugins: {
+                legend: { position: "right" },
+                title: { display: false },
+            },
+        },
     });
 }
 
 function dibujarGraficoModalidades(datos) {
-    const ctx = document.getElementById('chartModalidades');
+    const ctx = document.getElementById("chartModalidades");
     if (!ctx) return;
     if (chartModalidadesInstance) chartModalidadesInstance.destroy();
 
-    const gruposActivos = Object.keys(datos).filter(key => datos[key] > 0);
-    const valoresActivos = gruposActivos.map(key => datos[key]);
+    const gruposActivos = Object.keys(datos).filter((key) => datos[key] > 0);
+    const valoresActivos = gruposActivos.map((key) => datos[key]);
 
     chartModalidadesInstance = new Chart(ctx, {
-        type: 'bar',
+        type: "bar",
         data: {
-            labels: gruposActivos,
+            labels: gruposActivos.length ? gruposActivos : ["Sin datos"],
             datasets: [{
-                label: 'Exámenes',
-                data: valoresActivos,
-                backgroundColor: '#0d6efd',
-                borderRadius: 4, barPercentage: 0.6
-            }]
+                label: "Exámenes",
+                data: valoresActivos.length ? valoresActivos : [0],
+                backgroundColor: "#2ec4b6",
+                borderRadius: 4,
+                barPercentage: 0.6,
+            }],
         },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+        },
     });
 }

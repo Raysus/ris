@@ -236,7 +236,7 @@ function setupCalendar(el) {
             const newEnd = info.event.end || new Date(newStart.getTime() + duracionActual);
             const newMachine = info.newResource ? info.newResource.id : info.event.getResources()[0].id;
 
-            if (!confirm(`¿Confirmas re-agendar la cita de ${info.event.title}?`)) {
+            if (!(await showConfirm(`¿Confirmas re-agendar la cita de ${info.event.title}?`, { title: "Re-agendar cita" }))) {
                 info.revert();
                 return;
             }
@@ -546,7 +546,8 @@ function abrirModalCita(data) {
         window.paymentManager.cargarHistorialPagos(appointmentId);
     }
 
-    $("#appointmentModal").modal('show');
+    initAgendaWizard();
+    openModal("appointmentModal");
 }
 
 async function guardarNuevoMedico() {
@@ -705,16 +706,37 @@ async function guardarCita() {
 
         if (!response.ok) throw new Error(await response.text());
 
-        $("#appointmentModal").modal('hide');
+        const data = await response.json();
+        closeModal("appointmentModal");
+
+        showToast("Cita guardada correctamente.", "success");
+
+        if (!idOriginal && data.instructions_email) {
+            const mail = data.instructions_email;
+            if (mail.sent) {
+                showToast(`📧 Instrucciones enviadas a ${mail.email} (${mail.count} examen${mail.count > 1 ? 'es' : ''}).`, "info");
+            } else if (payloadCitaGlobal.origin !== 'Ambulatorio') {
+                const msgs = {
+                    sin_correo: 'El paciente no tiene correo registrado.',
+                    sin_instrucciones: 'Los exámenes agendados no tienen instrucciones configuradas.',
+                    error_envio: 'No se pudieron enviar las instrucciones por correo.'
+                };
+                if (msgs[mail.reason]) {
+                    showToast(`⚠️ ${msgs[mail.reason]}`, "warning");
+                }
+            }
+        }
 
         // IMPRESIÓN DEL COMPROBANTE
-        if (confirm("✅ Cita guardada correctamente. ¿Desea imprimir el comprobante para el paciente?")) {
+        if (await showConfirm("¿Desea imprimir el comprobante para el paciente?", { title: "Imprimir comprobante", confirmText: "Imprimir" })) {
             imprimirComprobantePaciente(payloadCitaGlobal);
         }
 
         cargarAgendaDesdeServidor();
     } catch (error) {
-        showToast(`❌ Error al guardar: ${error.message}`, "danger");
+        showToast(`Error al guardar: ${error.message}`, "danger");
+    } finally {
+        btnGuardar.prop('disabled', false);
     }
 }
 
@@ -754,7 +776,8 @@ async function eliminarCita() {
     const id = $("#appointmentId").val();
     if (!id || String(id).startsWith('APP-')) return;
 
-    if (confirm("⚠️ ¿Estás seguro de anular esta cita? Quedará registro en la auditoría.")) {
+    if (!(await showConfirm("¿Estás seguro de anular esta cita? Quedará registro en la auditoría.", { title: "Anular cita", dangerous: true, confirmText: "Anular" }))) return;
+
         const token = localStorage.getItem('ris_token');
         const labId = localStorage.getItem('ris_lab_id');
         try {
@@ -764,14 +787,13 @@ async function eliminarCita() {
             });
 
             if (response.ok) {
-                $("#appointmentModal").modal('hide');
-                showToast("✅ Cita anulada correctamente.", "warning");
+                closeModal("appointmentModal");
+                showToast("Cita anulada correctamente.", "warning");
                 cargarAgendaDesdeServidor();
             }
         } catch (e) {
-            showToast("🔌 Error al intentar anular la cita", "danger");
+            showToast("Error al intentar anular la cita", "danger");
         }
-    }
 }
 
 function getHexColorEstado(status) {

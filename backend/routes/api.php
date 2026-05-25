@@ -111,6 +111,8 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     // MÓDULO REPORTES (ADMIN)
     Route::get('/reports/honorarios', [ReportController::class, 'getHonorarios']);
     Route::get('/reports/examenes', [ReportController::class, 'getExamenesMensuales']);
+    Route::get('/reports/nomina-diaria', [ReportController::class, 'getNominaDiaria']);
+    Route::get('/reports/nomina-mensual', [ReportController::class, 'getNominaMensual']);
 
     // MÓDULO DASHBOARD (ADMIN)
     Route::get('/dashboard/metrics', [DashboardController::class, 'getMetrics']);
