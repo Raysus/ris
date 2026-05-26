@@ -12,7 +12,7 @@ class TemplateController extends Controller
         $allowedLabs = config('app.allowed_lab_ids');
         $query = ReportTemplate::query();
 
-        if ($allowedLabs !== ['*']) {
+        if (!\App\Models\Laboratory::allowsAllLabs($allowedLabs)) {
             if (empty($allowedLabs)) {
                 $query->whereRaw('1 = 0');
             } else {
@@ -58,7 +58,7 @@ class TemplateController extends Controller
                 return response()->json(['success' => false, 'message' => 'Acceso denegado. No puede modificar plantillas globales del sistema.'], 403);
             }
 
-            if (!is_null($template->laboratory_id) && $allowedLabs !== ['*'] && !in_array($template->laboratory_id, $allowedLabs)) {
+            if (!is_null($template->laboratory_id) && !\App\Models\Laboratory::allowsAllLabs($allowedLabs) && !in_array($template->laboratory_id, $allowedLabs)) {
                 return response()->json(['success' => false, 'message' => 'Acceso denegado. Esta plantilla pertenece a otra sucursal.'], 403);
             }
 
@@ -68,7 +68,7 @@ class TemplateController extends Controller
             if ($isSysAdmin && (!$labId || $labId === 'ALL')) {
                 $template->laboratory_id = null;
             } else {
-                if ($allowedLabs !== ['*'] && !in_array($labId, $allowedLabs)) {
+                if (!\App\Models\Laboratory::allowsAllLabs($allowedLabs) && !in_array($labId, $allowedLabs)) {
                     return response()->json(['success' => false, 'message' => 'No tiene permisos para crear plantillas en esta sucursal.'], 403);
                 }
                 $template->laboratory_id = $labId;
@@ -95,7 +95,7 @@ class TemplateController extends Controller
             return response()->json(['success' => false, 'message' => 'No puede eliminar una plantilla global del sistema.'], 403);
         }
 
-        if (!is_null($template->laboratory_id) && $allowedLabs !== ['*'] && !in_array($template->laboratory_id, $allowedLabs)) {
+        if (!is_null($template->laboratory_id) && !\App\Models\Laboratory::allowsAllLabs($allowedLabs) && !in_array($template->laboratory_id, $allowedLabs)) {
             return response()->json(['success' => false, 'message' => 'No tiene permisos para eliminar esta plantilla.'], 403);
         }
 

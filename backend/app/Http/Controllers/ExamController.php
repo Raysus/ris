@@ -14,7 +14,7 @@ class ExamController extends Controller
 
         $allowedLabs = config('app.allowed_lab_ids');
 
-        if ($allowedLabs !== ['*']) {
+        if (!\App\Models\Laboratory::allowsAllLabs($allowedLabs)) {
             if (empty($allowedLabs)) {
                 $query->whereRaw('1 = 0');
             } else {

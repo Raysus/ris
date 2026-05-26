@@ -21,7 +21,7 @@ class PatientController extends Controller
             'appointments.studies.exam'
         ]);
 
-        if ($allowedLabs !== ['*']) {
+        if (!\App\Models\Laboratory::allowsAllLabs($allowedLabs)) {
             if (empty($allowedLabs)) {
                 $query->whereRaw('1 = 0');
             } else {
@@ -141,7 +141,7 @@ class PatientController extends Controller
             $labId = $request->header('X-Lab-Id') ?: config('app.current_lab_id');
             $allowedLabs = config('app.allowed_lab_ids');
 
-            if ($allowedLabs !== ['*'] && !in_array($labId, $allowedLabs)) {
+            if (!\App\Models\Laboratory::allowsAllLabs($allowedLabs) && !in_array($labId, $allowedLabs)) {
                 return response()->json(['success' => false, 'message' => 'Acceso denegado a esta sucursal.'], 403);
             }
 

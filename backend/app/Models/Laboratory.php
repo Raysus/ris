@@ -66,6 +66,35 @@ class Laboratory extends Model
             || in_array($roleName, self::MULTI_SITE_OPERATIONAL_ROLES, true);
     }
 
+    /** Visión global: allowed_lab_ids contiene el comodín «*» (no usar !== ['*'] en PHP). */
+    public static function allowsAllLabs(?array $allowedLabIds = null): bool
+    {
+        $ids = $allowedLabIds ?? config('app.allowed_lab_ids');
+
+        return is_array($ids) && in_array('*', $ids, true);
+    }
+
+    /**
+     * Restringe un query Eloquent a los laboratorios permitidos en el tenant actual.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public static function scopeQueryToAllowedLabs($query, string $column = 'laboratory_id')
+    {
+        $allowedLabs = config('app.allowed_lab_ids');
+
+        if (static::allowsAllLabs($allowedLabs)) {
+            return $query;
+        }
+
+        if (empty($allowedLabs)) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->whereIn($column, $allowedLabs);
+    }
+
     /**
      * Si el usuario tiene asignada la matriz, incluye sus sucursales hijas.
      *

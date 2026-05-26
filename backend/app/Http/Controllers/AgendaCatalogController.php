@@ -42,7 +42,7 @@ class AgendaCatalogController extends Controller
         $supplyPacksQuery = SupplyPack::with('items.supply')->where('is_active', true);
         $machinesQuery = Machine::where('is_active', true);
 
-        if ($allowedLabs !== ['*']) {
+        if (!\App\Models\Laboratory::allowsAllLabs($allowedLabs)) {
             if (empty($allowedLabs)) {
                 $destDoctorsQuery->whereRaw('1 = 0');
                 $insurancesQuery->whereRaw('1 = 0');

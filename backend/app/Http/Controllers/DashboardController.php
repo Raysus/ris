@@ -19,7 +19,7 @@ class DashboardController extends Controller
         $allowedLabs = config('app.allowed_lab_ids');
         $query = Appointment::query();
 
-        if ($allowedLabs !== ['*']) {
+        if (!\App\Models\Laboratory::allowsAllLabs($allowedLabs)) {
             if (empty($allowedLabs)) {
                 $query->whereRaw('1 = 0');
             } else {
@@ -35,7 +35,7 @@ class DashboardController extends Controller
     private function applySecureLabFilterToDBQuery($queryBuilder)
     {
         $allowedLabs = config('app.allowed_lab_ids');
-        if ($allowedLabs !== ['*']) {
+        if (!\App\Models\Laboratory::allowsAllLabs($allowedLabs)) {
             if (empty($allowedLabs)) {
                 $queryBuilder->whereRaw('1 = 0');
             } else {
@@ -69,7 +69,7 @@ class DashboardController extends Controller
         $query = Payment::query()
             ->whereHas('appointment', function ($q) use ($date, $allowedLabs) {
                 $q->whereDate('start_time', $date);
-                if ($allowedLabs !== ['*']) {
+                if (!\App\Models\Laboratory::allowsAllLabs($allowedLabs)) {
                     if (empty($allowedLabs)) {
                         $q->whereRaw('1 = 0');
                     } else {
@@ -228,7 +228,7 @@ class DashboardController extends Controller
 
         $tomorrow = Carbon::tomorrow();
         $unconfirmedTomorrow = Appointment::query()
-            ->when(config('app.allowed_lab_ids') !== ['*'], function ($q) {
+            ->when(!\App\Models\Laboratory::allowsAllLabs(), function ($q) {
                 $labs = config('app.allowed_lab_ids');
                 if (empty($labs)) {
                     $q->whereRaw('1 = 0');

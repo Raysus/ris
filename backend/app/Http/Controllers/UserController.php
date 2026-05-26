@@ -26,7 +26,7 @@ class UserController extends Controller
         $query = User::with(['persona', 'tipoUsuario', 'laboratories'])
             ->whereHas('tipoUsuario', fn ($q) => $q->where('name', '!=', 'sis_admin'));
 
-        if ($allowedLabs !== ['*']) {
+        if (!\App\Models\Laboratory::allowsAllLabs($allowedLabs)) {
             if (empty($allowedLabs)) {
                 $query->whereRaw('1 = 0');
             } else {
@@ -124,7 +124,7 @@ class UserController extends Controller
                     $syncData[$labId] = ['is_primary' => ($index === 0)];
                 }
 
-                if ($allowedLabs !== ['*'] && $existingUser) {
+                if (!\App\Models\Laboratory::allowsAllLabs($allowedLabs) && $existingUser) {
                     $existingLabs = $existingUser->laboratories()->pluck('laboratories.id')->toArray();
                     $labsOutsideScope = array_diff($existingLabs, $allowedLabs);
 

@@ -12,7 +12,7 @@ class ServiceController extends Controller
         $allowedLabs = config('app.allowed_lab_ids');
         $query = Service::query();
 
-        if ($allowedLabs !== ['*']) {
+        if (!\App\Models\Laboratory::allowsAllLabs($allowedLabs)) {
             if (empty($allowedLabs)) {
                 $query->whereRaw('1 = 0');
             } else {
@@ -57,7 +57,7 @@ class ServiceController extends Controller
                 return response()->json(['success' => false, 'message' => 'Debe seleccionar un laboratorio.'], 400);
             }
 
-            if ($allowedLabs !== ['*'] && !in_array($labId, $allowedLabs)) {
+            if (!\App\Models\Laboratory::allowsAllLabs($allowedLabs) && !in_array($labId, $allowedLabs)) {
                 return response()->json(['success' => false, 'message' => 'Acceso denegado. No puede crear servicios en esta sucursal.'], 403);
             }
 

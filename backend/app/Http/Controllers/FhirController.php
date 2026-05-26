@@ -151,7 +151,7 @@ class FhirController extends Controller
         $allowedLabs = config('app.allowed_lab_ids');
         $query = Paciente::with('persona');
 
-        if ($allowedLabs !== ['*']) {
+        if (!\App\Models\Laboratory::allowsAllLabs($allowedLabs)) {
             $query->whereIn('laboratory_id', $allowedLabs ?: ['00000000-0000-0000-0000-000000000000']);
         }
 
@@ -163,7 +163,7 @@ class FhirController extends Controller
         $allowedLabs = config('app.allowed_lab_ids');
         $query = Appointment::query();
 
-        if ($allowedLabs !== ['*']) {
+        if (!\App\Models\Laboratory::allowsAllLabs($allowedLabs)) {
             $query->whereIn('laboratory_id', $allowedLabs ?: ['00000000-0000-0000-0000-000000000000']);
         }
 

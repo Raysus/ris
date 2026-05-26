@@ -56,9 +56,16 @@ class CheckLabTenant
             $contextIds = array_merge($contextIds, $childrenIds);
         }
 
+        if ($isSysAdmin) {
+            config(['app.current_lab_id' => $laboratory->id]);
+            config(['app.allowed_lab_ids' => array_values(array_unique($contextIds))]);
+            config(['app.lab_profile' => LaboratoryProfileService::resolve($laboratory)]);
+            return $next($request);
+        }
+
         $finalAllowedContext = array_intersect($contextIds, $allowedIds);
 
-        if (empty($finalAllowedContext) && $roleName !== 'sis_admin') {
+        if (empty($finalAllowedContext)) {
             return response()->json(['success' => false, 'message' => 'Acceso denegado a esta sucursal.'], 403);
         }
 

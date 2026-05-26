@@ -10,12 +10,12 @@ class TenantScope implements Scope
 {
     public function apply(Builder $builder, Model $model)
     {
-        // En lugar de usar 'current_lab_id', usamos 'allowed_lab_ids'
-        if (config()->has('app.allowed_lab_ids')) {
-            $builder->whereIn(
-                $model->getTable() . '.laboratory_id',
-                config('app.allowed_lab_ids')
-            );
+        $allowedLabIds = config('app.allowed_lab_ids');
+
+        if (!is_array($allowedLabIds) || $allowedLabIds === ['*'] || $allowedLabIds === []) {
+            return;
         }
+
+        $builder->whereIn($model->getTable() . '.laboratory_id', $allowedLabIds);
     }
 }

@@ -77,7 +77,7 @@ class BillingController extends Controller
         $allowedLabs = config('app.allowed_lab_ids');
         $query = Appointment::with(['patient.persona', 'studies.exam', 'laboratory']);
 
-        if ($allowedLabs !== ['*']) {
+        if (!\App\Models\Laboratory::allowsAllLabs($allowedLabs)) {
             $query->whereIn('laboratory_id', $allowedLabs ?: ['00000000-0000-0000-0000-000000000000']);
         }
 

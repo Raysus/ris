@@ -14,7 +14,7 @@ class PlanController extends Controller
         $allowedLabs = config('app.allowed_lab_ids');
         $query = InsurancePlan::with('insurance');
 
-        if ($allowedLabs !== ['*']) {
+        if (!\App\Models\Laboratory::allowsAllLabs($allowedLabs)) {
             if (empty($allowedLabs)) {
                 $query->whereRaw('1 = 0');
             } else {
@@ -29,7 +29,7 @@ class PlanController extends Controller
         $allowedLabs = config('app.allowed_lab_ids');
         $query = Insurance::query();
 
-        if ($allowedLabs !== ['*']) {
+        if (!\App\Models\Laboratory::allowsAllLabs($allowedLabs)) {
             if (empty($allowedLabs)) {
                 $query->whereNull('laboratory_id');
             } else {
@@ -75,7 +75,7 @@ class PlanController extends Controller
                 return response()->json(['success' => false, 'message' => 'Debe seleccionar un laboratorio.'], 400);
             }
 
-            if ($allowedLabs !== ['*'] && !in_array($labId, $allowedLabs)) {
+            if (!\App\Models\Laboratory::allowsAllLabs($allowedLabs) && !in_array($labId, $allowedLabs)) {
                 return response()->json(['success' => false, 'message' => 'Acceso denegado. No puede crear planes en esta sucursal.'], 403);
             }
 

@@ -40,7 +40,7 @@ trait BelongsToLaboratory
                 }
             } elseif (
                 is_array($allowedLabIds)
-                && $allowedLabIds !== ['*']
+                && !Laboratory::allowsAllLabs($allowedLabIds)
                 && count($allowedLabIds) > 0
             ) {
                 $builder->whereIn('laboratory_id', $allowedLabIds);

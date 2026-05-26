@@ -251,7 +251,14 @@ async function cargarSelectorLaboratorios() {
                 }
             }
 
-            if (currentLabId) {
+            if (esSisAdmin) {
+                if (currentLabId) {
+                    selector.val(currentLabId);
+                } else {
+                    selector.val('');
+                    localStorage.removeItem('ris_lab_id');
+                }
+            } else if (currentLabId) {
                 selector.val(currentLabId);
             } else {
                 const primerVal = selector.find('option:first').val();
