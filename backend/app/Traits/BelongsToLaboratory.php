@@ -16,7 +16,7 @@ trait BelongsToLaboratory
 
             if ($user) {
                 $user->loadMissing('tipoUsuario');
-                if ($user->tipoUsuario?->name === 'sis_admin') {
+                if ($user->hasFullLabAccess()) {
                     return;
                 }
             }

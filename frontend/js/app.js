@@ -27,8 +27,12 @@ $(document).ready(async function () {
     $("#userRoleDisplay").text(profileName.toUpperCase());
 
     const userRoles = Array.isArray(userData.settings?.roles) ? userData.settings.roles : [];
-    const esSysadmin = profileName === 'sis_admin' || localStorage.getItem('ris_all_labs') === 'true';
-    const esAdmin = profileName === 'admin' || esSysadmin;
+    const esSysAdmin = typeof risIsSysAdmin === 'function'
+        ? risIsSysAdmin()
+        : (profileName === 'sis_admin' || localStorage.getItem('ris_all_labs') === 'true');
+    const esClinicAdmin = typeof risIsClinicAdmin === 'function'
+        ? risIsClinicAdmin()
+        : (profileName === 'admin' || esSysAdmin);
 
     const permisosModulos = {
         "dashboard": ["admin", "recepcion", "tecnologo", "radiologo", "transcriptor", "sis_admin"],
@@ -47,19 +51,19 @@ $(document).ready(async function () {
         if (!page || !permisosModulos[page]) return;
 
         const tieneRolPermitido = userRoles.some(rol => permisosModulos[page].includes(rol));
-        const puedeVer = esAdmin || esSysadmin || tieneRolPermitido;
+        const puedeVer = esClinicAdmin || tieneRolPermitido;
 
         $(this).toggleClass("d-none", !puedeVer);
     });
 
     await cargarSelectorLaboratorios();
 
-    const esTecnologo = userRoles.includes('tecnologo') && !esAdmin && !esSysadmin;
+    const esTecnologo = userRoles.includes('tecnologo') && !esClinicAdmin;
     const paginaOperativaTm = typeof getOperationalTechnicianPage === 'function'
         ? getOperationalTechnicianPage()
         : 'worklist';
-    const defaultPage = esTecnologo ? paginaOperativaTm : 'agenda';
-    const lastPage = localStorage.getItem("ris_last_page") || defaultPage;
+    const defaultPage = esTecnologo ? paginaOperativaTm : (esSysAdmin ? 'admin' : 'agenda');
+    const lastPage = risResolveVisiblePage(localStorage.getItem("ris_last_page") || defaultPage);
     if (typeof loadPage === "function") {
         loadPage(lastPage);
         $(`.sidebar nav a[data-page="${lastPage}"]`).addClass('active');
@@ -135,12 +139,43 @@ $(document).ready(async function () {
     if (typeof refreshLabProfileFromApi === 'function') {
         refreshLabProfileFromApi().then(() => {
             if (typeof applyOperationalModuleNav === 'function') applyOperationalModuleNav();
+            risEnsureCurrentPageVisible();
         });
     } else {
         if (typeof applyLabProfileUI === 'function') applyLabProfileUI();
         if (typeof applyOperationalModuleNav === 'function') applyOperationalModuleNav();
+        risEnsureCurrentPageVisible();
     }
 });
+
+function risResolveVisiblePage(preferred) {
+    const link = document.querySelector(`#sidebar nav a[data-page="${preferred}"]`);
+    if (link && !link.classList.contains('d-none')) {
+        return preferred;
+    }
+    const order = ['agenda', 'admin', 'worklist', 'atencion', 'dashboard', 'radiologist', 'transcription', 'validation', 'entrega'];
+    for (const page of order) {
+        const el = document.querySelector(`#sidebar nav a[data-page="${page}"]`);
+        if (el && !el.classList.contains('d-none')) {
+            return page;
+        }
+    }
+    return preferred;
+}
+
+function risEnsureCurrentPageVisible() {
+    const active = document.querySelector('#sidebar nav a.active')?.getAttribute('data-page')
+        || localStorage.getItem('ris_last_page');
+    if (!active) return;
+    const visible = risResolveVisiblePage(active);
+    if (visible === active) return;
+    document.querySelectorAll('#sidebar nav a').forEach((a) => a.classList.remove('active'));
+    const link = document.querySelector(`#sidebar nav a[data-page="${visible}"]`);
+    if (link) link.classList.add('active');
+    if (typeof loadPage === 'function') {
+        loadPage(visible);
+    }
+}
 
 const RIS_PERFILES_MULTI_SEDE = ['admin', 'radiologo', 'tecnologo', 'recepcion', 'transcriptor'];
 
@@ -165,8 +200,10 @@ async function cargarSelectorLaboratorios() {
     const userData = JSON.parse(localStorage.getItem('ris_user_data') || '{}');
 
     try {
-        const esSisAdmin = (localStorage.getItem('ris_user_profile') === 'sis_admin')
-            || localStorage.getItem('ris_all_labs') === 'true';
+        const esSisAdmin = typeof risIsSysAdmin === 'function'
+            ? risIsSysAdmin()
+            : ((localStorage.getItem('ris_user_profile') === 'sis_admin')
+                || localStorage.getItem('ris_all_labs') === 'true');
         const endpoint = esSisAdmin ? `${API_URL}/all-laboratories` : `${API_URL}/laboratories`;
 
         const response = await fetch(endpoint, {

@@ -131,8 +131,46 @@ function getOperationalTechnicianPage() {
     return p.uses_dicom_worklist === false ? 'atencion' : 'worklist';
 }
 
-/** Muestra Worklist o Atención en salas en el menú, no ambos. */
+/** Sysadmin: todos los laboratorios del sistema (ris_all_labs o perfil sis_admin). */
+function risIsSysAdmin() {
+    const profileName = (localStorage.getItem('ris_user_profile') || '').toLowerCase();
+    if (profileName === 'sis_admin' || profileName === 'super_admin') {
+        return true;
+    }
+    return localStorage.getItem('ris_all_labs') === 'true';
+}
+
+/** Admin de clínica: todos los módulos del menú, pero solo en sus labs asignados. */
+function risIsClinicAdmin() {
+    const profileName = (localStorage.getItem('ris_user_profile') || '').toLowerCase();
+    if (profileName === 'admin') {
+        return true;
+    }
+    if (risIsSysAdmin()) {
+        return true;
+    }
+    try {
+        const userData = JSON.parse(localStorage.getItem('ris_user_data') || '{}');
+        const roles = Array.isArray(userData.settings?.roles) ? userData.settings.roles : [];
+        return roles.some((r) => String(r).toLowerCase() === 'admin');
+    } catch (e) {
+        return false;
+    }
+}
+
+/** @deprecated Use risIsSysAdmin() */
+function risHasGlobalAccess() {
+    return risIsSysAdmin();
+}
+
+/** Muestra Worklist y Atención para admins; operativos ven solo uno según perfil del lab. */
 function applyOperationalModuleNav() {
+    if (risIsClinicAdmin()) {
+        document.querySelectorAll('#sidebar nav a[data-page="worklist"], #sidebar nav a[data-page="atencion"]').forEach((el) => {
+            el.classList.remove('d-none');
+        });
+        return;
+    }
     const manual = getLabProfile().uses_dicom_worklist === false;
     document.querySelectorAll('#sidebar nav a[data-page="worklist"]').forEach((el) => {
         el.classList.toggle('d-none', manual);
@@ -147,4 +185,7 @@ window.setLabProfile = setLabProfile;
 window.applyLabProfileUI = applyLabProfileUI;
 window.refreshLabProfileFromApi = refreshLabProfileFromApi;
 window.getOperationalTechnicianPage = getOperationalTechnicianPage;
+window.risIsSysAdmin = risIsSysAdmin;
+window.risIsClinicAdmin = risIsClinicAdmin;
+window.risHasGlobalAccess = risHasGlobalAccess;
 window.applyOperationalModuleNav = applyOperationalModuleNav;

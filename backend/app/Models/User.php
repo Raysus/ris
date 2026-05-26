@@ -69,4 +69,14 @@ class User extends Authenticatable
     {
         return $this->hasMany(MedicalReport::class, 'transcriptionist_id');
     }
+
+    /** Perfil con acceso a todos los laboratorios del sistema (sin asignación por sede). */
+    public const SYSTEM_WIDE_ROLE_NAMES = ['sis_admin'];
+
+    public function hasFullLabAccess(): bool
+    {
+        $this->loadMissing('tipoUsuario');
+
+        return in_array($this->tipoUsuario?->name, self::SYSTEM_WIDE_ROLE_NAMES, true);
+    }
 }

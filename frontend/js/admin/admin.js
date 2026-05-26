@@ -1009,15 +1009,20 @@ async function cargarConfigCentro() {
 
             if (typeof esAdminLogueado === 'function' && esAdminLogueado()) {
 
-                const perfil = localStorage.getItem('ris_user_profile') || '';
-                if (perfil === 'sis_admin' || perfil === 'super_admin') {
+                const esSysAdmin = typeof risIsSysAdmin === 'function'
+                    ? risIsSysAdmin()
+                    : (localStorage.getItem('ris_user_profile') === 'sis_admin');
+
+                if (esSysAdmin) {
                     $("#btnNuevaMatriz").removeClass("d-none");
                     const selectMatriz = $("#matrizTipo");
                     selectMatriz.empty().append('<option value="">Seleccione Tipo...</option>');
                     catalogLabTypes.forEach(t => selectMatriz.append(`<option value="${t.id}">${t.name}</option>`));
                 }
+
                 try {
-                    const resAll = await fetch(`${API_URL}/all-laboratories`, {
+                    const labsEndpoint = esSysAdmin ? `${API_URL}/all-laboratories` : `${API_URL}/laboratories`;
+                    const resAll = await fetch(labsEndpoint, {
                         headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
                     });
                     const dataAll = await resAll.json();
@@ -1026,9 +1031,15 @@ async function cargarConfigCentro() {
                         currentLaboratoriesTree = dataAll.data;
                         currentSucursalesAdmin = dataAll.data.flatMap(padre => padre.children || []);
 
-                        actualizarOpcionesLaboratorioGlobal(dataAll.data);
+                        if (esSysAdmin) {
+                            actualizarOpcionesLaboratorioGlobal(dataAll.data);
+                        } else {
+                            dataAll.data.forEach((matriz) => {
+                                actualizarOpcionesLaboratorioUsuario(matriz, matriz.children || []);
+                            });
+                        }
                     }
-                } catch (err) { console.error("Error cargando todos los laboratorios", err); }
+                } catch (err) { console.error("Error cargando laboratorios del admin", err); }
             } else {
                 let matrizLocal = data.data || {};
                 matrizLocal.children = data.children || [];

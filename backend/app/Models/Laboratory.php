@@ -94,12 +94,12 @@ class Laboratory extends Model
     public static function resolveAllowedLabIdsForUser(User $user): array
     {
         $user->loadMissing('tipoUsuario');
-        $roleName = $user->tipoUsuario?->name;
 
-        if ($roleName === 'sis_admin') {
+        if ($user->hasFullLabAccess()) {
             return ['*'];
         }
 
+        $roleName = $user->tipoUsuario?->name;
         $assignedIds = $user->laboratories()->pluck('laboratories.id')->toArray();
 
         if ($roleName === 'admin') {

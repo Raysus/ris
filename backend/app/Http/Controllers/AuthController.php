@@ -63,7 +63,7 @@ class AuthController extends Controller
         $perfilLaboratorio = LaboratoryProfileService::profileForCode('clinical');
         $laboratoriosPermitidos = [];
 
-        if ($user->tipoUsuario->name == 'sis_admin') {
+        if ($user->hasFullLabAccess()) {
             $laboratoriosPermitidos = ['*'];
             $isMainLab = true;
         } else {

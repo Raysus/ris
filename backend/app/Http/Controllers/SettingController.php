@@ -13,7 +13,7 @@ class SettingController extends Controller
     {
         $user = $request->user();
 
-        if ($user->tipoUsuario->name === 'sis_admin') {
+        if ($user->hasFullLabAccess()) {
             $labs = Laboratory::whereNull('parent_id')->with('children')->get();
         } else {
             $assignedLabIds = $user->laboratories()->pluck('laboratories.id')->toArray();

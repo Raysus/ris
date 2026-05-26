@@ -119,7 +119,7 @@ class DatabaseSeeder extends Seeder
         // 4. USERS
         // ==========================================
         $users = [
-            [1, 1, 1, 'admin', '$2y$12$6Llt.ROd1gYP/soeOi.W1.sDCqnphi/QMh7FfyDOPBHKh/qZkCWGO', '{}', true, null],
+            [1, 1, 2, 'admin', '$2y$12$6Llt.ROd1gYP/soeOi.W1.sDCqnphi/QMh7FfyDOPBHKh/qZkCWGO', '{"roles":["admin"]}', true, null],
             [2, 2, 2, 'rgutierrez', '$2y$12$yXYmAXSw4qjrXdUUnqxCIOSQkY8CBuX7Fs3GX04I8NIy0nndwUhGW', '{"roles": ["admin", "recepcion", "tecnologo", "radiologo", "transcriptor"]}', true, 'Sr.'],
             [3, 3, 4, 'friquelme', '$2y$12$ofsAN0.CxLVwTYeELZjLaefwEARnJxuB5fzRkQquSEjjQJzOwYAjO', '{"roles": ["tecnologo"]}', true, 'T.M.'],
             [4, 5, 1, 'SEVG', '$2y$12$NGJ2csIngANxoWxIaPU8EesJGIKPv96Bn2eX2Yi8KOrYifMFKDE3q', '{}', true, 'Sr.']
@@ -176,6 +176,7 @@ class DatabaseSeeder extends Seeder
         // ==========================================
         $labUsers = [
             // [id_lab_viejo, id_user_viejo, es_primario]
+            [1, 1, true],
             [1, 3, true],
             [1, 2, true],
             [5, 2, false],

@@ -25,13 +25,13 @@ class CheckLabTenant
 
         $user->loadMissing('tipoUsuario');
         $roleName = $user->tipoUsuario?->name;
+        $isSysAdmin = $user->hasFullLabAccess();
 
-        if ($roleName === 'sis_admin') {
-            if (!$labId || $labId === 'ALL') {
-                config(['app.allowed_lab_ids' => ['*']]);
-                config(['app.lab_profile' => LaboratoryProfileService::profileForCode('clinical')]);
-                return $next($request);
-            }
+        if ($isSysAdmin && (!$labId || $labId === 'ALL' || $labId === '')) {
+            config(['app.current_lab_id' => null]);
+            config(['app.allowed_lab_ids' => ['*']]);
+            config(['app.lab_profile' => LaboratoryProfileService::profileForCode('clinical')]);
+            return $next($request);
         }
 
         $allowedIds = Laboratory::resolveAllowedLabIdsForUser($user);
