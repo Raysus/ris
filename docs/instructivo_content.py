@@ -20,7 +20,8 @@ TOC = [
     "9. Módulo Entrega y retiro",
     "10. Módulo Administración",
     "11. Módulo Dashboard",
-    "12. Anexo técnico",
+    "12. Anexo: centros dental y veterinarios",
+    "13. Anexo técnico",
 ]
 
 
@@ -339,11 +340,84 @@ def render_instructivo(
         "Usar el selector de laboratorio para filtrar sucursales (administradores multi-sede).",
     ])
 
-    doc.chapter("12", "Anexo técnico")
+    doc.chapter("12", "Anexo: centros dental y veterinarios")
+    doc.p(
+        "Este manual describe el flujo clínico estándar (centro de diagnóstico por imágenes humano). "
+        "Si su centro es dental o veterinario, el mismo HealthTiCloud RIS aplica, pero la interfaz "
+        "y algunas opciones de facturación se adaptan automáticamente al tipo de laboratorio. "
+        "No necesita otro manual: use los capítulos 1 a 11 y consulte aquí las diferencias."
+    )
+    doc.h2("Configuración inicial (administrador)")
+    doc.steps([
+        "Ingrese a Administración con un usuario administrador.",
+        "Al crear o editar la matriz o una sucursal, seleccione el Tipo de laboratorio correcto: "
+        "Clínico Humano, Centro Dental o Veterinario.",
+        "Guarde los cambios. Los usuarios deben cerrar sesión y volver a entrar, o cambiar de "
+        "laboratorio en la barra superior, para que el perfil se actualice.",
+        "Verifique en Agenda que no aparecen bonos FONASA ni previsión clínica si corresponde a dental.",
+    ])
+    doc.p(
+        "El tipo queda guardado en el registro del laboratorio. Si el tipo no coincide con la realidad "
+        "del centro (por ejemplo, un dental configurado como clínico), verá pantallas de FONASA que "
+        "no debería usar; corrija el tipo en Administración."
+    )
+    doc.h2("Resumen por tipo de centro")
+    doc.render_table(
+        ["Aspecto", "Clínico humano", "Centro dental", "Veterinario"],
+        [
+            ["Bonos y panel FONASA", "Sí", "No (oculto)", "No (oculto)"],
+            ["Previsión en cita (FONASA/ISAPRE)", "Sí", "Oculta en agenda", "Solo Particular / Convenios"],
+            ["Etiqueta del sujeto de atención", "Paciente", "Paciente", "Mascota"],
+            ["Identificación", "RUT / Documento", "RUT / Documento", "ID mascota / microchip"],
+            ["Código de prestación en exámenes", "Cód. FONASA", "Cód. prestación", "Cód. prestación"],
+            ["Flujo Worklist → Informe → Entrega", "Igual", "Igual", "Igual"],
+        ],
+        (42, 48, 48, 50),
+    )
+    doc.h2("Recepción y Agenda")
+    doc.bullets([
+        "El calendario, wizard de cita, pagos y estados funcionan igual que en un centro clínico.",
+        "En dental y veterinario no se ofrecen tipos de bono Manual ni Electrónico; el cobro es "
+        "particular, convenio u otro método configurado en su centro.",
+        "Si intenta registrar un bono FONASA por integración externa, el sistema responderá que "
+        "no aplica a ese tipo de laboratorio.",
+        "En dental no verá los campos de previsión ni plan en el paso Paciente de la cita.",
+        "En veterinario sí puede elegir previsión, pero solo las opciones Particular o Convenios "
+        "(no listas FONASA/ISAPRE chilenas).",
+        "Las etiquetas en pantalla cambian en veterinario (por ejemplo «Mascota» en lugar de «Paciente»).",
+    ])
+    doc.h2("Centro dental: puntos clave")
+    doc.bullets([
+        "Ideal para radiología intraoral, panorámicas, CBCT u otros estudios odontológicos.",
+        "Catálogo de exámenes e insumos se administra igual en Administración; use códigos internos "
+        "o de convenio en lugar de arancel FONASA.",
+        "Médico derivante y sala/equipo se configuran como en cualquier sede.",
+        "Correos de preparación al paciente (capítulo 4) siguen disponibles si tiene SMTP configurado.",
+    ])
+    doc.h2("Centro veterinario: puntos clave")
+    doc.bullets([
+        "El dueño o responsable se registra en los datos de contacto del paciente (mascota).",
+        "Use el identificador de la mascota (microchip, ficha interna) en el campo de documento.",
+        "Previsión limitada a Particular o Convenios; copago clínico no se calcula automáticamente.",
+        "Worklist, radiólogo, transcripción, validación y entrega operan igual; el informe es del estudio veterinario.",
+    ])
+    doc.h2("Qué no cambia")
+    doc.bullets([
+        "Usuarios, roles, salas, modalidades DICOM, Orthanc/PACS y visor OHIF (si está desplegado).",
+        "Dashboard, reportes de producción, sync nube, HL7 y documentos tributarios (DTE), si su plan los incluye.",
+        "Portal del paciente y visor web suelen ser servicios aparte (subdominios del proveedor).",
+    ])
+    doc.p(
+        "Documentación técnica ampliada (códigos API, migraciones): docs/ESCALA_COMERCIAL.md, "
+        "sección «Tipos de laboratorio»."
+    )
+
+    doc.chapter("13", "Anexo técnico")
     doc.p("Información para soporte TI o regeneración de este manual.")
     doc.bullets([
         "Regenerar PDF: python docs/generate_instructivo.py",
         "Regenerar DOCX: python docs/generate_instructivo_docx.py",
         "Regenerar capturas: node docs/capture_screenshots.mjs (frontend en puerto 8765, API en 8000).",
         "Correo en desarrollo: MAIL_MAILER=log escribe en storage/logs/laravel.log.",
+        "Perfil de laboratorio API: GET /api/lab-profile (header X-Lab-Id).",
     ])
