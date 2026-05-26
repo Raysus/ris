@@ -23,8 +23,15 @@ $(document).ready(function () {
         const textoOriginal = $btn.html();
         $btn.prop("disabled", true).html('<span class="spinner-border spinner-border-sm me-2"></span>Conectando...');
 
+        const apiBase = typeof API_URL !== 'undefined' ? API_URL : window.API_URL;
+        if (!apiBase) {
+            $("#loginError").removeClass("d-none").text('Configuración incompleta: no se cargó js/config.js. Recargue la página (Ctrl+F5).');
+            $btn.prop("disabled", false).html(textoOriginal);
+            return;
+        }
+
         try {
-            const response = await fetch(`${API_URL}/login`, {
+            const response = await fetch(`${apiBase}/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -116,7 +123,12 @@ async function enviarSolicitudRecuperacion() {
     try {
         $btn.prop("disabled", true).html('<span class="spinner-border spinner-border-sm"></span>');
 
-        const response = await fetch(`${API_URL}/password/forgot`, {
+        const apiBase = typeof API_URL !== 'undefined' ? API_URL : window.API_URL;
+        if (!apiBase) {
+            showToast('No se cargó js/config.js. Recargue la página (Ctrl+F5).', 'danger');
+            return;
+        }
+        const response = await fetch(`${apiBase}/password/forgot`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
