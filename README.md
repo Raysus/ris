@@ -671,6 +671,16 @@ tail -f backend/storage/logs/laravel.log
 
 ---
 
+## Producción en nube
+
+El sistema desplegado en **https://ris.healthticloud.cl** (frontend) y **https://api.healthticloud.cl** (API) usa PostgreSQL y PHP **nativos en el servidor** (sin Docker).
+
+Guía completa: **[docs/PRODUCCION_NUBE.md](docs/PRODUCCION_NUBE.md)**
+
+Incluye: variables `.env`, Nginx, colas systemd, respaldos (`php artisan ris:backup`), health check (`GET /api/health`) y despliegue con Envoy.
+
+---
+
 ## Tests
 
 ```bash

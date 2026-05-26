@@ -1,0 +1,59 @@
+# Ejemplo Nginx — producción nube (sin Docker)
+#
+# Frontend: https://ris.healthticloud.cl  → carpeta frontend/
+# API:      https://api.healthticloud.cl → backend/public
+
+server {
+    listen 443 ssl http2;
+    server_name ris.healthticloud.cl;
+
+    # Certificados (Let's Encrypt / su proveedor)
+    ssl_certificate     /etc/letsencrypt/live/ris.healthticloud.cl/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/ris.healthticloud.cl/privkey.pem;
+
+    root /var/www/ris.healthticloud.cl/frontend;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff2?)$ {
+        expires 7d;
+        add_header Cache-Control "public, immutable";
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    server_name api.healthticloud.cl;
+
+    ssl_certificate     /etc/letsencrypt/live/api.healthticloud.cl/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api.healthticloud.cl/privkey.pem;
+
+    root /var/www/ris.healthticloud.cl/backend/public;
+    index index.php;
+
+    client_max_body_size 32M;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+    }
+
+    location ~ /\.(?!well-known).* {
+        deny all;
+    }
+}
+
+# Redirección HTTP → HTTPS
+server {
+    listen 80;
+    server_name ris.healthticloud.cl api.healthticloud.cl;
+    return 301 https://$host$request_uri;
+}

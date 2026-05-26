@@ -5,6 +5,7 @@
 
 @setup
     $app_dir = '/var/www/ris.healthticloud.cl';
+    $backend_dir = $app_dir . '/backend';
 
     // Rama desplegada en el servidor central (nube)
     $branch_nube = 'nube';
@@ -33,7 +34,7 @@
     restart_worklist
 @endstory
 
-{{-- --- TAREAS PARA LA NUBE (Instalación tradicional) --- --}}
+{{-- --- TAREAS PARA LA NUBE (PostgreSQL + PHP nativos, sin Docker) --- --}}
 
 @task('git_pull_nube', ['on' => 'nube'])
     echo "📥 Actualizando código en la Nube (rama {{ $branch_nube }})..."
@@ -65,33 +66,33 @@
 @endtask
 
 @task('composer_nube', ['on' => 'nube'])
-    cd {{ $app_dir }}
+    cd {{ $backend_dir }}
     composer install --no-interaction --quiet --optimize-autoloader --no-dev
 @endtask
 
 @task('migrate_nube', ['on' => 'nube'])
-    cd {{ $app_dir }}
+    cd {{ $backend_dir }}
     php artisan migrate --force
 @endtask
 
 @task('optimize_nube', ['on' => 'nube'])
-    cd {{ $app_dir }}
+    cd {{ $backend_dir }}
     php artisan optimize
     echo "✅ Nube optimizada (rama {{ $branch_nube }})."
 @endtask
 
 @task('fix_permissions_nube', ['on' => 'nube'])
     echo "🔐 Restaurando permisos de storage..."
-    cd {{ $app_dir }}
+    cd {{ $backend_dir }}
     sudo chown -R www-data:www-data storage bootstrap/cache
     sudo chmod -R 775 storage bootstrap/cache
     echo "✅ Permisos listos."
 @endtask
 
 @task('restart_queue_nube', ['on' => 'nube'])
-    cd {{ $app_dir }}
+    cd {{ $backend_dir }}
     php artisan queue:restart
-    echo "✅ Colas de la nube reiniciadas."
+    echo "✅ Colas de la nube reiniciadas (systemd debe levantar el worker)."
 @endtask
 
 {{-- --- TAREAS PARA LABORATORIO / CLÍNICA (Docker / Sail) --- --}}

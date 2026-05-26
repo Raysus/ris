@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use App\Models\User;
+use App\Models\Persona;
 
 class AuthController extends Controller
 {
@@ -18,13 +19,20 @@ class AuthController extends Controller
 
         $user = User::query()
             ->when($isEmail, function ($q) use ($loginField) {
-                $q->whereHas('persona', fn ($p) => $p->where('email', $loginField));
+                $q->whereHas('persona', fn ($p) => $p->where(
+                    'email_hash',
+                    \App\Models\Persona::hashEmail($loginField)
+                ));
             }, function ($q) use ($loginField) {
                 $q->where('username', $loginField);
             })
             ->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
+            \App\Services\AuditLogger::record('auth.login_failed', 'User', null, [
+                'login_field' => $isEmail ? '[email]' : $loginField,
+            ], $request);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Credenciales incorrectas'
@@ -40,6 +48,10 @@ class AuthController extends Controller
 
         $token = $user->createToken('auth_token')->plainTextToken;
         $user->load('persona', 'tipoUsuario', 'laboratories');
+
+        \App\Services\AuditLogger::record('auth.login', 'User', $user->id, [
+            'username' => $user->username,
+        ], $request);
 
         $primaryLabId = null;
         $isMainLab = false;
@@ -98,7 +110,10 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
+        $userId = $request->user()->id;
         $request->user()->currentAccessToken()->delete();
+
+        \App\Services\AuditLogger::record('auth.logout', 'User', $userId, [], $request);
 
         return response()->json([
             'success' => true,
@@ -111,7 +126,7 @@ class AuthController extends Controller
         $request->validate(['email' => 'required|email']);
 
         $user = User::whereHas('persona', function ($q) use ($request) {
-            $q->where('email', $request->email);
+            $q->where('email_hash', Persona::hashEmail($request->email));
         })->first();
 
         if (!$user) {
@@ -142,7 +157,7 @@ class AuthController extends Controller
         $request->validate([
             'token' => 'required',
             'email' => 'required|email',
-            'password' => 'required|min:6|confirmed',
+            'password' => 'required|min:8|confirmed',
         ]);
 
         $reset = DB::table('password_reset_tokens')
@@ -155,7 +170,7 @@ class AuthController extends Controller
         }
 
         $user = User::whereHas('persona', function ($q) use ($request) {
-            $q->where('email', $request->email);
+            $q->where('email_hash', Persona::hashEmail($request->email));
         })->first();
 
         if ($user) {
@@ -163,6 +178,8 @@ class AuthController extends Controller
             $user->save();
 
             DB::table('password_reset_tokens')->where('email', $request->email)->delete();
+
+            \App\Services\AuditLogger::record('auth.password_reset', 'User', $user->id, [], $request);
 
             return response()->json(['success' => true, 'message' => 'Contraseña actualizada.']);
         }

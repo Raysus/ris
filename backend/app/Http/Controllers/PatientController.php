@@ -50,9 +50,7 @@ class PatientController extends Controller
         $labId = $request->header('X-Lab-Id') ?: config('app.current_lab_id');
 
         return DB::transaction(function () use ($request, $labId) {
-            $persona = Persona::updateOrCreate(
-                ['rut' => $request->rut],
-                [
+            $persona = Persona::upsertByRut($request->rut, [
                     'names' => $request->names,
                     'last_name_1' => $request->last_name_1,
                     'last_name_2' => $request->last_name_2,
@@ -60,8 +58,7 @@ class PatientController extends Controller
                     'phone' => $request->phone,
                     'gender' => $request->gender,
                     'birth_date' => $request->birth_date
-                ]
-            );
+            ]);
 
             $patient = Paciente::updateOrCreate(
                 ['persona_id' => $persona->id, 'laboratory_id' => $labId],
@@ -132,7 +129,7 @@ class PatientController extends Controller
                 return response()->json(['success' => false, 'message' => 'Acceso denegado a esta sucursal.'], 403);
             }
 
-            $persona = Persona::where('rut', $rut)->first();
+            $persona = Persona::where('rut_hash', Persona::hashRut($rut))->first();
 
             if (!$persona) {
                 return response()->json(['success' => false, 'message' => 'Paciente no encontrado'], 404);

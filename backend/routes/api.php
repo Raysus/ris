@@ -24,6 +24,9 @@ use App\Http\Controllers\TemplateController;
 
 
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\HealthController;
+
+Route::get('/health', HealthController::class);
 
 Route::post('/login', [AuthController::class, 'login'])
     ->middleware('throttle:5,1')

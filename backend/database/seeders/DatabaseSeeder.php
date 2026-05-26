@@ -6,6 +6,7 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
+use App\Models\Persona;
 
 class DatabaseSeeder extends Seeder
 {
@@ -95,8 +96,7 @@ class DatabaseSeeder extends Seeder
             [5, '8.376.767-7', 'ENRIQUE VASQUEZ', 'GUTIERREZ', null, null, null, null, null, false]
         ];
         foreach ($personas as $p) {
-            DB::table('personas')->insert([
-                'id' => $this->getNewId('personas', $p[0]),
+            $persona = new Persona([
                 'rut' => $p[1],
                 'names' => $p[2],
                 'last_name_1' => $p[3],
@@ -106,9 +106,11 @@ class DatabaseSeeder extends Seeder
                 'phone' => $p[7],
                 'email' => $p[8],
                 'has_sso_account' => $p[9],
-                'created_at' => $now,
-                'updated_at' => $now
             ]);
+            $persona->id = $this->getNewId('personas', $p[0]);
+            $persona->created_at = $now;
+            $persona->updated_at = $now;
+            $persona->save();
         }
 
         // ==========================================

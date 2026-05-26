@@ -42,7 +42,13 @@ class SyncEntityToCloud implements ShouldQueue
         // === 📦 EMPAQUETAR ARCHIVOS FÍSICOS A BASE64 ===
         $this->packFiles();
 
-        $response = Http::withoutVerifying()
+        $http = Http::timeout(15);
+
+        if (app()->environment('local', 'testing')) {
+            $http = $http->withoutVerifying();
+        }
+
+        $response = $http
             ->withToken($secret)
             ->acceptJson()
             ->asJson()
@@ -50,7 +56,6 @@ class SyncEntityToCloud implements ShouldQueue
                 'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'X-Requested-With' => 'XMLHttpRequest'
             ])
-            ->timeout(15)
             ->post($cloudUrl, [
                 'model' => $this->entityType,
                 'action' => $this->action,

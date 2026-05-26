@@ -1,0 +1,16 @@
+[Unit]
+Description=HealthTiCloud RIS scheduler (backups, tareas programadas)
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+Restart=always
+RestartSec=30
+WorkingDirectory=/var/www/ris.healthticloud.cl/backend
+ExecStart=/usr/bin/php artisan schedule:work
+StandardOutput=append:/var/www/ris.healthticloud.cl/backend/storage/logs/scheduler.log
+StandardError=append:/var/www/ris.healthticloud.cl/backend/storage/logs/scheduler.log
+
+[Install]
+WantedBy=multi-user.target

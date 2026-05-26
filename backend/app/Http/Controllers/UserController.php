@@ -57,14 +57,11 @@ class UserController extends Controller
         ]);
 
         return DB::transaction(function () use ($request, $allowedLabs) {
-            $persona = Persona::updateOrCreate(
-                ['rut' => $request->rut],
-                [
-                    'names' => $request->nombres,
-                    'last_name_1' => $request->apellidoPaterno,
-                    'last_name_2' => $request->apellidoMaterno,
-                ]
-            );
+            $persona = Persona::upsertByRut($request->rut, [
+                'names' => $request->nombres,
+                'last_name_1' => $request->apellidoPaterno,
+                'last_name_2' => $request->apellidoMaterno,
+            ]);
 
             // 🔥 CORRECCIÓN: Rescatamos el tipo de usuario desde el arreglo de roles
             $rolesSeleccionados = $request->input('roles', []);

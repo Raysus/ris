@@ -1,0 +1,16 @@
+[Unit]
+Description=HealthTiCloud RIS queue worker
+After=network.target postgresql.service
+
+[Service]
+User=www-data
+Group=www-data
+Restart=always
+RestartSec=5
+WorkingDirectory=/var/www/ris.healthticloud.cl/backend
+ExecStart=/usr/bin/php artisan queue:work database --sleep=3 --tries=3 --max-time=3600
+StandardOutput=append:/var/www/ris.healthticloud.cl/backend/storage/logs/queue.log
+StandardError=append:/var/www/ris.healthticloud.cl/backend/storage/logs/queue.log
+
+[Install]
+WantedBy=multi-user.target

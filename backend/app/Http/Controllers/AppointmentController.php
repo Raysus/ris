@@ -96,18 +96,15 @@ class AppointmentController extends Controller
                 $patientData = $data['patient'];
                 $cleanRut = strtoupper(str_replace(['.', ' '], '', $patientData['rut']));
 
-                $persona = \App\Models\Persona::updateOrCreate(
-                    ['rut' => $cleanRut],
-                    [
-                        'names' => $patientData['names'],
-                        'last_name_1' => $patientData['last_name_1'],
-                        'last_name_2' => $patientData['last_name_2'] ?? null,
-                        'gender' => $patientData['gender'] ?? null,
-                        'birth_date' => $patientData['birth_date'] ?? null,
-                        'email' => $patientData['email'] ?? null,
-                        'phone' => $patientData['phone'] ?? null,
-                    ]
-                );
+                $persona = \App\Models\Persona::upsertByRut($cleanRut, [
+                    'names' => $patientData['names'],
+                    'last_name_1' => $patientData['last_name_1'],
+                    'last_name_2' => $patientData['last_name_2'] ?? null,
+                    'gender' => $patientData['gender'] ?? null,
+                    'birth_date' => $patientData['birth_date'] ?? null,
+                    'email' => $patientData['email'] ?? null,
+                    'phone' => $patientData['phone'] ?? null,
+                ]);
 
                 $patient = \App\Models\Paciente::firstOrCreate(
                     ['persona_id' => $persona->id, 'laboratory_id' => $labId],
@@ -339,6 +336,13 @@ class AppointmentController extends Controller
                 'action' => 'anulado',
                 'ip_address' => request()->ip()
             ]);
+
+            \App\Services\AuditLogger::record(
+                'appointment.cancelled',
+                'Appointment',
+                $appointment->id,
+                ['status' => $appointment->status],
+            );
 
             $appointment->status = 'anulado';
             $appointment->save();
