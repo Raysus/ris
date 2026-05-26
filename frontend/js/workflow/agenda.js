@@ -37,6 +37,24 @@ function validarRut(rut) {
     return vlp == digv;
 }
 
+function actualizarCtaAtencionSalas() {
+    const wrap = $("#agendaIrAtencionWrap");
+    if (!wrap.length) return;
+    const status = ($("#agendaStatus").val() || '').toLowerCase();
+    if (status !== 'confirmado') {
+        wrap.addClass('d-none');
+        return;
+    }
+    const p = typeof getLabProfile === 'function' ? getLabProfile() : {};
+    const moduloLabel = p.technician_module_label || (p.uses_dicom_worklist === false ? 'Atención en salas' : 'Worklist');
+    const icon = p.uses_dicom_worklist === false ? 'bi-door-open' : 'bi-list-task';
+    wrap.removeClass('d-none');
+    $("#agendaIrAtencionTexto").html(
+        `<i class="bi ${icon} me-1"></i> Cita confirmada: el tecnólogo debe atenderla en <strong>${moduloLabel}</strong>.`
+    );
+    $("#agendaIrAtencionBtn").text(`Ir a ${moduloLabel}`);
+}
+
 async function initAgenda() {
     window.RIS = window.RIS || {
         agenda: [],
@@ -97,6 +115,7 @@ async function cargarCatalogosDesdeBD() {
 
             if (catalogosAgenda.lab_profile && typeof setLabProfile === 'function') {
                 setLabProfile(catalogosAgenda.lab_profile);
+                if (typeof applyOperationalModuleNav === 'function') applyOperationalModuleNav();
             }
 
             sincronizarRecursosCalendario();
@@ -509,6 +528,7 @@ function abrirModalCita(data) {
         }
 
         $("#agendaStatus").val(data.status || "pre-agendado").trigger("change");
+        actualizarCtaAtencionSalas();
         $("#mTratante").val(data.mTratante || "");
         $("#mDestinado").val(data.mDestinado || "");
         $("#mProcedencia").val(data.procedencia || "Ambulatorio");
@@ -547,6 +567,7 @@ function abrirModalCita(data) {
         $("#modalTitle").html('<i class="bi bi-calendar-plus me-2"></i>Nueva Cita Médica');
         $("#btnEliminarCita").hide();
         $("#agendaStatus").val("pre-agendado").trigger("change");
+        actualizarCtaAtencionSalas();
 
         addStudyRow('principal', { machine: data.machine });
         renderInsumos();
@@ -1038,7 +1059,10 @@ function configurarInsumosAgenda() {
 }
 
 function setupProEventListeners() {
-    $("#agendaStatus").on("change", colorSelectorEstado);
+    $("#agendaStatus").on("change", function () {
+        colorSelectorEstado();
+        actualizarCtaAtencionSalas();
+    });
     $(document).on("input", ".eQty", calculateTotal);
     window.addEventListener('ris_updated', actualizarCalendarioEnVivo);
     window.addEventListener('storage', (e) => { if (e.key === 'ris_app_data') actualizarCalendarioEnVivo(); });

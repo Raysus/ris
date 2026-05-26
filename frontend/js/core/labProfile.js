@@ -5,6 +5,8 @@ window.RIS_LAB_PROFILE = window.RIS_LAB_PROFILE || null;
 
 const RIS_DEFAULT_PROFILE = {
     code: 'clinical',
+    uses_dicom_worklist: true,
+    dicom_integration_mode: 'worklist',
     uses_fonasa: true,
     uses_bono: true,
     uses_clinical_insurance: true,
@@ -113,6 +115,7 @@ async function refreshLabProfileFromApi() {
         if (res.ok && json.success) {
             setLabProfile(json.data);
             applyLabProfileUI();
+            if (typeof applyOperationalModuleNav === 'function') applyOperationalModuleNav();
             return getLabProfile();
         }
     } catch (e) {
@@ -122,7 +125,26 @@ async function refreshLabProfileFromApi() {
     return getLabProfile();
 }
 
+/** Página de atención técnica según perfil del lab (worklist vs salas). */
+function getOperationalTechnicianPage() {
+    const p = getLabProfile();
+    return p.uses_dicom_worklist === false ? 'atencion' : 'worklist';
+}
+
+/** Muestra Worklist o Atención en salas en el menú, no ambos. */
+function applyOperationalModuleNav() {
+    const manual = getLabProfile().uses_dicom_worklist === false;
+    document.querySelectorAll('#sidebar nav a[data-page="worklist"]').forEach((el) => {
+        el.classList.toggle('d-none', manual);
+    });
+    document.querySelectorAll('#sidebar nav a[data-page="atencion"]').forEach((el) => {
+        el.classList.toggle('d-none', !manual);
+    });
+}
+
 window.getLabProfile = getLabProfile;
 window.setLabProfile = setLabProfile;
 window.applyLabProfileUI = applyLabProfileUI;
 window.refreshLabProfileFromApi = refreshLabProfileFromApi;
+window.getOperationalTechnicianPage = getOperationalTechnicianPage;
+window.applyOperationalModuleNav = applyOperationalModuleNav;

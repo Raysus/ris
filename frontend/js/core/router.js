@@ -4,7 +4,8 @@
 
 const RIS_MODULE_SCRIPTS = {
     agenda: "js/workflow/agenda.js",
-    worklist: "js/workflow/worklist.js",
+    worklist: ["js/workflow/atencionTecnica.js", "js/workflow/worklist.js"],
+    atencion: ["js/workflow/atencionTecnica.js", "js/workflow/atencion.js"],
     radiologist: "js/workflow/radiologist.js",
     transcription: "js/workflow/transcription.js",
     validation: "js/workflow/validation.js",
@@ -16,6 +17,7 @@ const RIS_MODULE_SCRIPTS = {
 const RIS_MODULE_INIT = {
     agenda: "initAgenda",
     worklist: "initWorklist",
+    atencion: "initAtencion",
     radiologist: "initRadiologist",
     transcription: "initTranscription",
     validation: "initValidation",
@@ -51,8 +53,11 @@ function loadScriptOnce(src) {
 }
 
 async function ensureModuleLoaded(page) {
-    const src = RIS_MODULE_SCRIPTS[page];
-    if (src) await loadScriptOnce(src);
+    const spec = RIS_MODULE_SCRIPTS[page];
+    const scripts = Array.isArray(spec) ? spec : (spec ? [spec] : []);
+    for (const src of scripts) {
+        await loadScriptOnce(src);
+    }
     if (page === "agenda") await loadScriptOnce("js/workflow/payments.js");
 }
 

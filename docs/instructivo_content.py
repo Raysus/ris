@@ -13,7 +13,7 @@ TOC = [
     "2. Flujo clínico completo",
     "3. Acceso, interfaz y menú según su perfil",
     "4. Módulo Agenda (Recepción)",
-    "5. Módulo Worklist (Tecnología)",
+    "5. Tecnología: Worklist y Atención en salas",
     "6. Módulo Radiólogo",
     "7. Módulo Transcripción",
     "8. Módulo Validación",
@@ -76,7 +76,8 @@ def render_instructivo(
         ["Módulo", "Para qué sirve", "Perfiles que suelen usarlo"],
         [
             ["Agenda", "Citación, calendario, pagos y confirmación de pacientes.", "Recepcionista, Administrador"],
-            ["Worklist", "Atención en sala, insumos y envío DICOM al equipo.", "Tecnólogo, Administrador"],
+            ["Worklist", "Atención en sala con worklist DICOM (centros clínicos).", "Tecnólogo, Administrador"],
+            ["Atención en salas", "Atención técnica y subida manual de imágenes (dental / vet).", "Tecnólogo, Administrador"],
             ["Radiólogo", "Lectura de imágenes, borrador y firma de informes.", "Médico radiólogo, Administrador"],
             ["Transcripción", "Redacción del informe a partir del audio dictado.", "Transcriptor, Administrador"],
             ["Validación", "Revisión y firma final del informe transcrito.", "Médico radiólogo, Administrador"],
@@ -97,7 +98,7 @@ def render_instructivo(
     doc.steps([
         "Recepción crea la cita en Agenda (paciente, examen, pago).",
         "Recepción confirma la llegada del paciente al centro.",
-        "Tecnología atiende en Worklist y envía la orden al equipo de imágenes.",
+        "Tecnología atiende en Worklist (clínico) o en Atención en salas (dental/vet) y deja las imágenes en PACS.",
         "El radiólogo interpreta el estudio y produce el informe.",
         "Si hubo dictado por audio, transcripción redacta el texto.",
         "El radiólogo valida y firma el informe final.",
@@ -107,7 +108,7 @@ def render_instructivo(
         ["Estado de la cita", "Quién actúa", "Módulo"],
         [
             ["Agendado / Confirmado / En espera", "Recepcionista", "Agenda"],
-            ["DICOM enviado", "Tecnólogo", "Worklist"],
+            ["DICOM enviado / imágenes en PACS", "Tecnólogo", "Worklist o Atención en salas"],
             ["En informe / En transcripción", "Radiólogo / Transcriptor", "Radiólogo / Transcripción"],
             ["Entregable", "—", "Entrega"],
             ["Entregado", "Recepcionista", "Entrega"],
@@ -131,7 +132,8 @@ def render_instructivo(
     )
     doc.bullets([
         "Si su usuario es Recepcionista, verá Agenda y Entrega/Retiro (y Dashboard si está habilitado).",
-        "Si es Tecnólogo, verá Worklist (y Dashboard si aplica).",
+        "Si es Tecnólogo en un centro clínico, verá Worklist; en dental o veterinario verá "
+        "Atención en salas (no Worklist).",
         "Si es Radiólogo, verá Radiólogo y Validación.",
         "Si es Transcriptor, verá solo Transcripción.",
         "Si es Administrador del centro, verá todos los módulos operativos más Administración y Dashboard.",
@@ -156,7 +158,8 @@ def render_instructivo(
         ["Módulo en menú", "Roles con acceso"],
         [
             ["Agenda", "recepcion, admin"],
-            ["Worklist", "tecnologo, admin"],
+            ["Worklist", "tecnologo, admin (solo centros con MWL)"],
+            ["Atención en salas", "tecnologo, admin (dental / veterinario / sin MWL)"],
             ["Radiólogo", "radiologo, admin"],
             ["Transcripción", "transcriptor, admin"],
             ["Validación", "radiologo, admin"],
@@ -185,6 +188,8 @@ def render_instructivo(
         "Agregar uno o más exámenes, insumos y adjuntar orden médica si corresponde.",
         "Registrar pago (pendiente, parcial o pagado) y método de cobro.",
         "Cambiar estado de la cita: confirmar llegada, marcar en espera, anular, etc.",
+        "Si la cita queda Confirmada y el centro es dental o veterinario, aparece un aviso con "
+        "botón para ir al módulo Atención en salas.",
     ])
     if s("11_wizard_agenda"):
         doc.figure(s("11_wizard_agenda"), "Figura 5. Formulario de cita por pasos.", max_height=88)
@@ -211,26 +216,51 @@ def render_instructivo(
         "Gris: ya atendido.",
     ])
 
-    doc.chapter("5", "Módulo Worklist (Tecnología)")
-    doc.p("Acceso: tecnólogos y administradores.")
+    doc.chapter("5", "Tecnología: Worklist y Atención en salas")
+    doc.p(
+        "Acceso: tecnólogos y administradores. El menú muestra Worklist o Atención en salas "
+        "según el tipo de laboratorio activo (no ambos a la vez)."
+    )
     if s("04_modulo_worklist"):
         doc.figure(
             s("04_modulo_worklist"),
-            "Figura 6. Lista de pacientes en espera de atención técnica.",
+            "Figura 6. Lista de pacientes en espera de atención técnica (ejemplo Worklist).",
             max_height=78,
         )
-    doc.h2("Qué puede hacer aquí")
-    doc.bullets([
-        "Ver pacientes confirmados o en atención, agrupados por cadena de estudios.",
-        "Filtrar por sala/equipo o buscar por RUT o nombre.",
-        "Abrir el modal de Atención técnica para un paciente.",
-        "Revisar exámenes solicitados, datos clínicos e insumos.",
-        "Registrar insumos consumidos durante la atención.",
-        "Enviar la orden DICOM al equipo (PACS/Orthanc según configuración del centro).",
-        "Confirmar que el estudio quedó disponible en el equipo.",
-        "Completar la atención para que el caso pase al radiólogo.",
-        "Devolver el paciente a recepción indicando motivo (preparación, documentación, etc.).",
+    doc.h2("Flujo común (todos los centros)")
+    doc.steps([
+        "Recepción agenda y confirma la cita en el módulo Agenda.",
+        "El tecnólogo abre la lista del día y pulsa Atender sobre el paciente.",
+        "Registra anamnesis, insumos y deja las imágenes disponibles en PACS.",
+        "Finaliza la atención para derivar el caso al radiólogo.",
     ])
+    doc.h2("Worklist — centros clínicos con MWL")
+    doc.bullets([
+        "Ver pacientes confirmados, agrupados por cadena de estudios.",
+        "Filtrar por sala/equipo o buscar por RUT o nombre.",
+        "Crear accession y enviar la orden DICOM al equipo (worklist Orthanc).",
+        "El equipo adquiere el estudio; el estado pasa a «En modalidad».",
+        "Completar la atención cuando las imágenes estén en PACS.",
+        "Devolver a recepción con motivo si corresponde.",
+    ])
+    doc.h2("Atención en salas — dental, veterinario o sin worklist")
+    doc.p(
+        "Para CBCT, sensores intraorales u otros equipos que exportan DICOM por archivo "
+        "(sin licencia MWL o sin integración worklist), use este módulo en lugar de Worklist."
+    )
+    doc.bullets([
+        "Misma lista de pacientes confirmados desde Agenda.",
+        "En el modal de atención: subir archivo .dcm o .zip exportado del equipo.",
+        "El sistema envía las imágenes a Orthanc y etiqueta RUT, nombre y accession de la cita.",
+        "Estado «Imágenes en PACS» cuando la subida fue exitosa.",
+        "Luego registre anamnesis e insumos y finalice hacia el radiólogo.",
+        "En la barra superior seleccione el laboratorio dental o veterinario correcto antes de operar.",
+    ])
+    doc.p(
+        "Entornos de prueba tras db:seed incluyen «Dental Demo — CBCT Temuco», "
+        "«Dental Demo — Sucursal Centro», «Veterinaria Demo Sur» y «Veterinaria Demo — Urgencias 24h». "
+        "El usuario tecnólogo de prueba (friquelme) tiene acceso a esas sedes."
+    )
 
     doc.chapter("6", "Módulo Radiólogo")
     doc.p("Acceso: médicos radiólogos y administradores.")
@@ -370,7 +400,9 @@ def render_instructivo(
             ["Etiqueta del sujeto de atención", "Paciente", "Paciente", "Mascota"],
             ["Identificación", "RUT / Documento", "RUT / Documento", "ID mascota / microchip"],
             ["Código de prestación en exámenes", "Cód. FONASA", "Cód. prestación", "Cód. prestación"],
-            ["Flujo Worklist → Informe → Entrega", "Igual", "Igual", "Igual"],
+            ["Módulo de tecnología", "Worklist (MWL)", "Atención en salas", "Atención en salas"],
+            ["Subida de imágenes", "Equipo + worklist", "Archivo .dcm/.zip manual", "Archivo .dcm/.zip manual"],
+            ["Flujo → Informe → Entrega", "Igual", "Igual", "Igual"],
         ],
         (42, 48, 48, 50),
     )
@@ -389,9 +421,10 @@ def render_instructivo(
     doc.h2("Centro dental: puntos clave")
     doc.bullets([
         "Ideal para radiología intraoral, panorámicas, CBCT u otros estudios odontológicos.",
-        "Catálogo de exámenes e insumos se administra igual en Administración; use códigos internos "
-        "o de convenio en lugar de arancel FONASA.",
-        "Médico derivante y sala/equipo se configuran como en cualquier sede.",
+        "Flujo: Agenda (confirmar) → Atención en salas (subir DICOM) → Radiólogo → Entrega.",
+        "No aparece el menú Worklist; solo Atención en salas.",
+        "Catálogo de exámenes e insumos se administra igual; use códigos de prestación internos.",
+        "Médico derivante y sala/equipo (CBCT, sensor) se configuran en Administración.",
         "Correos de preparación al paciente (capítulo 4) siguen disponibles si tiene SMTP configurado.",
     ])
     doc.h2("Centro veterinario: puntos clave")
@@ -399,8 +432,26 @@ def render_instructivo(
         "El dueño o responsable se registra en los datos de contacto del paciente (mascota).",
         "Use el identificador de la mascota (microchip, ficha interna) en el campo de documento.",
         "Previsión limitada a Particular o Convenios; copago clínico no se calcula automáticamente.",
-        "Worklist, radiólogo, transcripción, validación y entrega operan igual; el informe es del estudio veterinario.",
+        "Atención en salas, radiólogo, transcripción, validación y entrega operan igual que en clínico.",
+        "Subida manual de imágenes cuando el equipo no usa worklist DICOM.",
     ])
+    doc.h2("Laboratorios de demostración (desarrollo)")
+    doc.render_table(
+        ["Nombre en selector", "Tipo", "Uso"],
+        [
+            ["Dental Demo — CBCT Temuco", "Centro Dental", "Matriz dental de prueba"],
+            ["Dental Demo — Sucursal Centro", "Centro Dental", "Sucursal hija dental"],
+            ["Veterinaria Demo Sur", "Veterinario", "Matriz veterinaria de prueba"],
+            ["Veterinaria Demo — Urgencias 24h", "Veterinario", "Sucursal veterinaria"],
+            ["Centro de Diagnóstico RIS PRO", "Clínico", "Flujo worklist clásico"],
+        ],
+        (58, 38, 94),
+    )
+    doc.p(
+        "Se crean al ejecutar php artisan db:seed. Para forzar modo manual en un centro clínico, "
+        "el administrador puede guardar en settings del laboratorio: "
+        '{"uses_dicom_worklist": false}.'
+    )
     doc.h2("Qué no cambia")
     doc.bullets([
         "Usuarios, roles, salas, modalidades DICOM, Orthanc/PACS y visor OHIF (si está desplegado).",

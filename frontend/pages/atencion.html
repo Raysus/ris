@@ -2,15 +2,22 @@
 
     <div id="alertasInsumosContainer" class="mb-3"></div>
 
+    <div class="alert alert-info border-0 shadow-sm mb-3 py-2 small" role="status">
+        <i class="bi bi-info-circle me-2"></i>
+        Flujo: <strong>Agenda</strong> (recepción confirma la cita) → <strong>Atención en salas</strong> (tecnólogo sube DICOM y registra anamnesis) → <strong>Radiólogo</strong>.
+    </div>
+
     <div class="card shadow-sm border-0 mb-4">
         <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
             <div>
-                <h5 class="mb-0 fw-bold text-primary" id="atencionPageTitle"><i class="bi bi-list-task me-2"></i>Worklist operativa</h5>
-                <small class="text-muted" id="atencionPageSubtitle">Pacientes confirmados en agenda — envío DICOM a modalidades</small>
+                <h5 class="mb-0 fw-bold text-primary" id="atencionPageTitle">
+                    <i class="bi bi-door-open me-2"></i>Atención en salas
+                </h5>
+                <small class="text-muted" id="atencionPageSubtitle">Pacientes confirmados en agenda</small>
             </div>
             <div class="d-flex gap-2 flex-wrap">
                 <button class="btn btn-sm btn-outline-primary" onclick="cargarWorklistDesdeServidor()"
-                    aria-label="Actualizar lista de worklist">
+                    aria-label="Actualizar lista">
                     <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
                 </button>
                 <label for="filterMachine" class="visually-hidden">Filtrar por sala</label>
@@ -49,8 +56,7 @@
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content border-0 shadow-lg">
             <div class="modal-header bg-dark text-white py-3">
-                <h5 class="modal-title fw-bold"><i class="bi bi-person-bounding-box me-2"></i>Atención Técnica de
-                    Paciente</h5>
+                <h5 class="modal-title fw-bold"><i class="bi bi-door-open me-2"></i>Atención en sala</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
 
@@ -87,31 +93,29 @@
                                 <h6 class="fw-bold text-primary mb-2"><i class="bi bi-clipboard2-pulse me-2"></i>Estudios en la cadena</h6>
                                 <div id="atencionEstudios" class="list-group list-group-flush mb-4" role="list" aria-label="Estudios programados"></div>
 
-                                <h6 class="fw-bold text-dark mb-2 mt-2"><i
-                                        class="bi bi-folder-check text-success me-1"></i> Documentos del Paciente</h6>
+                                <h6 class="fw-bold text-dark mb-2 mt-2"><i class="bi bi-folder-check text-success me-1"></i> Documentos del Paciente</h6>
                                 <div class="d-flex gap-2 mb-4">
                                     <button id="btnVerOrdenTM" class="btn btn-sm btn-outline-success flex-fill fw-bold"
                                         onclick="abrirDocWorklist('orden')" disabled>
                                         <i class="bi bi-file-earmark-medical me-1"></i> Ver Orden
                                     </button>
-                                    <button id="btnVerEncuestaTM"
-                                        class="btn btn-sm btn-outline-danger flex-fill fw-bold"
+                                    <button id="btnVerEncuestaTM" class="btn btn-sm btn-outline-danger flex-fill fw-bold"
                                         onclick="abrirDocWorklist('encuesta')" disabled>
                                         <i class="bi bi-ui-checks me-1"></i> Ver Encuesta
                                     </button>
                                 </div>
-                                <h6 class="fw-bold text-dark mb-2"><i class="bi bi-hdd-network text-info me-1"></i>
-                                    Integración DICOM</h6>
+                                <h6 class="fw-bold text-dark mb-2"><i class="bi bi-cloud-upload text-info me-1"></i>
+                                    Imágenes (PACS)</h6>
 
-                                <div id="dicomWorklistPanel">
+                                <div id="dicomWorklistPanel" class="d-none">
                                     <button id="btnDicom" onclick="enviarADicom()"
                                         class="btn btn-info w-100 fw-bold py-2 shadow-sm text-white fs-6 mb-2">
                                         <i class="bi bi-broadcast me-2"></i> CREAR A.N. Y ENVIAR A EQUIPOS
                                     </button>
                                 </div>
 
-                                <div id="dicomManualUploadPanel" class="d-none">
-                                    <p class="small text-muted mb-2">Sin worklist en el equipo: suba el CBCT o exportación DICOM (.dcm o .zip).</p>
+                                <div id="dicomManualUploadPanel">
+                                    <p class="small text-muted mb-2">Exporte el estudio desde el equipo (CBCT, sensor, etc.) y suba el archivo <strong>.dcm</strong> o <strong>.zip</strong>.</p>
                                     <input type="file" id="dicomManualFile" class="form-control form-control-sm mb-2"
                                         accept=".dcm,.zip,application/dicom,application/zip">
                                     <button type="button" id="btnDicomUpload" onclick="subirDicomManual()"
@@ -130,23 +134,20 @@
                     <div class="col-md-7">
                         <div class="card border-0 shadow-sm mb-3">
                             <div class="card-body">
-                                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-chat-left-text me-2"></i>2.
-                                    Síntomas / Anamnesis</h6>
+                                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-chat-left-text me-2"></i>Anamnesis / notas técnicas</h6>
                                 <textarea id="txtAnamnesis" class="form-control" rows="3"
-                                    placeholder="Describa síntomas generales para el médico radiólogo..."></textarea>
+                                    placeholder="Describa hallazgos o contexto clínico para el radiólogo..."></textarea>
                             </div>
                         </div>
 
                         <div class="card border-0 shadow-sm border-top border-warning border-3">
                             <div class="card-body">
-                                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-box-seam me-2 text-warning"></i>3.
-                                    Registro de Insumos</h6>
+                                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-box-seam me-2 text-warning"></i>Insumos</h6>
                                 <p class="small text-muted mb-3">Se descontarán del inventario automáticamente.</p>
 
                                 <div class="row g-2 mb-3 align-items-end">
                                     <div class="col-md-8">
-                                        <label class="form-label small text-muted fw-bold mb-1">Insumo /
-                                            Medicamento</label>
+                                        <label class="form-label small text-muted fw-bold mb-1">Insumo</label>
                                         <select id="insumoSelect" class="form-select form-select-sm border-secondary">
                                             <option value="">Cargando bodega...</option>
                                         </select>
@@ -171,8 +172,7 @@
                                                 <th width="50" class="text-center"><i class="bi bi-trash"></i></th>
                                             </tr>
                                         </thead>
-                                        <tbody>
-                                        </tbody>
+                                        <tbody></tbody>
                                     </table>
                                 </div>
                             </div>
@@ -187,7 +187,6 @@
                         <i class="bi bi-reply-all"></i> Devolver a Recepción
                     </button>
                 </div>
-
                 <div>
                     <button type="button" class="btn btn-light text-dark fw-bold px-4 border"
                         data-bs-dismiss="modal">Cerrar</button>

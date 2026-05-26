@@ -12,7 +12,7 @@ class LaboratoryProfileService
         $laboratory ??= self::currentLaboratory();
         $code = self::codeFromLaboratory($laboratory);
 
-        return self::profileForCode($code, $laboratory?->type?->name);
+        return self::profileForCode($code, $laboratory?->type?->name, $laboratory?->settings);
     }
 
     public static function codeFromLaboratory(?Laboratory $laboratory): string
@@ -45,7 +45,7 @@ class LaboratoryProfileService
         return 'clinical';
     }
 
-    public static function profileForCode(string $code, ?string $typeName = null): array
+    public static function profileForCode(string $code, ?string $typeName = null, ?array $labSettings = null): array
     {
         $code = strtolower($code);
 
@@ -53,8 +53,16 @@ class LaboratoryProfileService
         $isDental = $code === 'dental';
         $isVeterinary = $code === 'veterinary';
 
+        // Clínico: MWL por defecto. Dental/veterinario: subida manual (CBCT, intraoral, etc.).
+        $usesDicomWorklist = $isClinical;
+        if (is_array($labSettings) && array_key_exists('uses_dicom_worklist', $labSettings)) {
+            $usesDicomWorklist = (bool) $labSettings['uses_dicom_worklist'];
+        }
+
         return [
             'code' => $code,
+            'uses_dicom_worklist' => $usesDicomWorklist,
+            'dicom_integration_mode' => $usesDicomWorklist ? 'worklist' : 'manual_upload',
             'type_name' => $typeName ?? match ($code) {
                 'dental' => 'Centro Dental',
                 'veterinary' => 'Veterinario',
@@ -74,6 +82,8 @@ class LaboratoryProfileService
                 'veterinary' => 'Centro veterinario',
                 default => 'Diagnóstico por imágenes',
             },
+            'technician_module' => $usesDicomWorklist ? 'worklist' : 'atencion',
+            'technician_module_label' => $usesDicomWorklist ? 'Worklist' : 'Atención en salas',
         ];
     }
 

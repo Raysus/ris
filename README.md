@@ -18,6 +18,18 @@ Incluye: instalación local, red LAN, producción en nube, bridge escáner/visor
 
 **Manual de usuario:** `docs/INSTRUCTIVO_HealthTiCloud_RIS.pdf` o `.docx`
 
+Regenerar tras cambios: `cd docs` → `python generate_instructivo.py` y `python generate_instructivo_docx.py`
+
+### Laboratorios de prueba (tras `db:seed`)
+
+| Laboratorio | Tipo | Módulo tecnólogo |
+|-------------|------|------------------|
+| Centro de Diagnóstico RIS PRO | Clínico | Worklist (MWL) |
+| Dental Demo — CBCT Temuco / Sucursal Centro | Dental | Atención en salas |
+| Veterinaria Demo Sur / Urgencias 24h | Veterinario | Atención en salas |
+
+Seleccione la sede en la barra superior. Usuario tecnólogo de prueba: `friquelme` (ver contraseña en seeder).
+
 ---
 
 ## Inicio rápido (local)

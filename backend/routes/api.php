@@ -81,6 +81,8 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
 
     Route::get('/worklist', [WorklistController::class, 'index']);
     Route::post('/appointments/{id}/dicom', [WorklistController::class, 'sendToDicom']);
+    Route::post('/appointments/{id}/upload-dicom', [WorklistController::class, 'uploadDicomStudy']);
+    Route::post('/appointments/{id}/mark-dicom-received', [WorklistController::class, 'markDicomReceived']);
     Route::post('/appointments/{id}/complete-worklist', [WorklistController::class, 'complete']);
 
     // MÓDULO RADIÓLOGO

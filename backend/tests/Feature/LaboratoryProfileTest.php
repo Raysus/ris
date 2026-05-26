@@ -52,6 +52,39 @@ class LaboratoryProfileTest extends TestCase
         $profile = LaboratoryProfileService::resolve($dentalLab->load('type'));
         $this->assertFalse($profile['uses_fonasa']);
         $this->assertFalse($profile['show_insurance_fields']);
+        $this->assertFalse($profile['uses_dicom_worklist']);
+        $this->assertSame('manual_upload', $profile['dicom_integration_mode']);
+
+        $this->withHeaders($this->authHeaders($dentalLab->id))
+            ->getJson('/api/lab-profile')
+            ->assertOk()
+            ->assertJsonPath('data.uses_dicom_worklist', false);
+    }
+
+    public function test_clinical_lab_uses_dicom_worklist_by_default(): void
+    {
+        $profile = LaboratoryProfileService::resolve();
+        $this->assertTrue($profile['uses_dicom_worklist']);
+
+        $this->withHeaders($this->authHeaders())
+            ->getJson('/api/lab-profile')
+            ->assertOk()
+            ->assertJsonPath('data.uses_dicom_worklist', true);
+    }
+
+    public function test_lab_settings_can_force_manual_dicom_on_clinical(): void
+    {
+        $clinical = Laboratory::whereHas('type', fn ($q) => $q->where('code', 'clinical'))->first()
+            ?? Laboratory::firstOrFail();
+
+        $clinical->settings = ['uses_dicom_worklist' => false];
+        $clinical->save();
+
+        $profile = LaboratoryProfileService::resolve($clinical->fresh('type'));
+        $this->assertFalse($profile['uses_dicom_worklist']);
+
+        $clinical->settings = null;
+        $clinical->save();
     }
 
     public function test_agenda_catalogs_exclude_fonasa_for_veterinary(): void

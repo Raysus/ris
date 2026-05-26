@@ -87,6 +87,19 @@ Abrir: **http://127.0.0.1:5500/index.html**
 Tras `db:seed`, usar usuario del seeder (ej. `rgutierrez` / contraseña del seeder).  
 Cambiar contraseñas antes de producción.
 
+**Probar perfiles dental / veterinario:** en el selector superior del RIS elija una sede de demostración:
+
+| Laboratorio | Tipo | Qué validar |
+|-------------|------|-------------|
+| Dental Demo — CBCT Temuco | Centro Dental | Menú **Atención en salas** (no Worklist); Agenda sin FONASA |
+| Dental Demo — Sucursal Centro | Centro Dental | Sucursal hija; mismo flujo |
+| Veterinaria Demo Sur | Veterinario | Atención en salas; etiqueta «Mascota» en agenda |
+| Veterinaria Demo — Urgencias 24h | Veterinario | Sucursal veterinaria |
+| Centro de Diagnóstico RIS PRO | Clínico | Menú **Worklist** y envío MWL |
+
+Flujo dental/vet: Agenda (confirmar cita) → **Atención en salas** → subir `.dcm`/`.zip` a PACS → finalizar → Radiólogo.  
+Requiere `ORTHANC_URL` accesible desde el backend en desarrollo.
+
 ### 2.5 Comprobar que funciona
 
 ```bash
@@ -292,7 +305,9 @@ En Agenda: **Escanear** (bridge) o **Subir** (PDF/imagen sin bridge).
 | FONASA (solo clínico) | `FONASA_*` |
 | Factura electrónica | `DTE_*` |
 | HL7 hospital | `HL7_*` |
-| Centros dental/vet | Tipo de laboratorio en **Admin** (sin FONASA) |
+| Centros dental/vet | Tipo **Centro Dental** o **Veterinario** en Admin; módulo **Atención en salas** |
+| Subida manual PACS | `POST /api/appointments/{id}/upload-dicom` (sin MWL) |
+| Forzar modo manual en clínico | `laboratories.settings`: `{"uses_dicom_worklist": false}` |
 
 Tras cambiar `.env`: `php artisan config:clear`
 
@@ -317,7 +332,15 @@ Logs: `backend/storage/logs/laravel.log`
 ## 8. Manual de usuario
 
 - PDF/DOCX: `docs/INSTRUCTIVO_HealthTiCloud_RIS.pdf` (o `.docx`)
-- Regenerar: `cd docs` → `python generate_instructivo_docx.py`
+- Regenerar ambos formatos:
+
+```bash
+cd docs
+python generate_instructivo.py
+python generate_instructivo_docx.py
+```
+
+El capítulo 5 describe Worklist (clínico) y **Atención en salas** (dental/vet). El capítulo 12 detalla diferencias por tipo de centro y los laboratorios de demostración del seeder.
 
 ---
 

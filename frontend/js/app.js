@@ -34,6 +34,7 @@ $(document).ready(async function () {
         "dashboard": ["admin", "recepcion", "tecnologo", "radiologo", "transcriptor", "sis_admin"],
         "agenda": ["admin", "recepcion", "sis_admin"],
         "worklist": ["admin", "tecnologo", "sis_admin"],
+        "atencion": ["admin", "tecnologo", "sis_admin"],
         "radiologist": ["admin", "radiologo", "sis_admin"],
         "transcription": ["admin", "transcriptor", "sis_admin"],
         "validation": ["admin", "radiologo", "sis_admin"],
@@ -53,7 +54,12 @@ $(document).ready(async function () {
 
     await cargarSelectorLaboratorios();
 
-    const lastPage = localStorage.getItem("ris_last_page") || "agenda";
+    const esTecnologo = userRoles.includes('tecnologo') && !esAdmin && !esSysadmin;
+    const paginaOperativaTm = typeof getOperationalTechnicianPage === 'function'
+        ? getOperationalTechnicianPage()
+        : 'worklist';
+    const defaultPage = esTecnologo ? paginaOperativaTm : 'agenda';
+    const lastPage = localStorage.getItem("ris_last_page") || defaultPage;
     if (typeof loadPage === "function") {
         loadPage(lastPage);
         $(`.sidebar nav a[data-page="${lastPage}"]`).addClass('active');
@@ -126,9 +132,12 @@ $(document).ready(async function () {
     }
 
     if (typeof refreshLabProfileFromApi === 'function') {
-        refreshLabProfileFromApi();
-    } else if (typeof applyLabProfileUI === 'function') {
-        applyLabProfileUI();
+        refreshLabProfileFromApi().then(() => {
+            if (typeof applyOperationalModuleNav === 'function') applyOperationalModuleNav();
+        });
+    } else {
+        if (typeof applyLabProfileUI === 'function') applyLabProfileUI();
+        if (typeof applyOperationalModuleNav === 'function') applyOperationalModuleNav();
     }
 });
 

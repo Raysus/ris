@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use App\Services\DicomImportService;
+use App\Services\LaboratoryProfileService;
 
 class WorklistController extends Controller
 {
@@ -77,6 +79,14 @@ class WorklistController extends Controller
 
     public function sendToDicom(Request $request, $appointmentId)
     {
+        $profile = LaboratoryProfileService::resolve();
+        if (!($profile['uses_dicom_worklist'] ?? true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Este centro no usa worklist DICOM. Suba el estudio con «Subir imágenes a PACS».',
+            ], 422);
+        }
+
         $userId = $request->user()->id;
         $appointment = $this->getSecureAppointmentQuery()
             ->with(['patient.persona', 'machine'])
@@ -127,6 +137,119 @@ class WorklistController extends Controller
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Subida manual de DICOM (ZIP o .dcm) para centros sin MWL — p. ej. laboratorios dentales.
+     */
+    public function uploadDicomStudy(Request $request, $appointmentId, DicomImportService $dicomImport)
+    {
+        $profile = LaboratoryProfileService::resolve();
+        if ($profile['uses_dicom_worklist'] ?? true) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Este centro usa worklist DICOM. Use «Enviar a equipos».',
+            ], 422);
+        }
+
+        $request->validate([
+            'dicom_file' => 'required|file|max:512000',
+        ]);
+
+        $ext = strtolower($request->file('dicom_file')->getClientOriginalExtension());
+        if (!in_array($ext, ['zip', 'dcm', ''], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Formato no soportado. Use archivo .dcm o .zip con estudios DICOM.',
+            ], 422);
+        }
+
+        $appointment = $this->getSecureAppointmentQuery()
+            ->with(['patient.persona', 'machine', 'laboratory'])
+            ->findOrFail($appointmentId);
+
+        $persona = $appointment->patient?->persona;
+        if (!$persona) {
+            return response()->json(['success' => false, 'message' => 'La cita no tiene paciente asociado.'], 422);
+        }
+
+        try {
+            $accession = $appointment->accession_number
+                ?: ('ACC-' . date('Ymd') . '-' . substr($appointment->id, 0, 8));
+
+            $lab = $appointment->laboratory ?? LaboratoryProfileService::currentLaboratory();
+            $institution = $lab?->name ?? config('app.name', 'HealthTiCloud');
+
+            $patientName = $dicomImport->formatPatientNameDicom(
+                (string) ($persona->names ?? ''),
+                (string) ($persona->last_name_1 ?? '')
+            );
+
+            $result = $dicomImport->uploadAndTag(
+                $request->file('dicom_file'),
+                (string) $persona->rut,
+                $patientName,
+                $accession,
+                $institution
+            );
+
+            $appointment->accession_number = $result['accession'];
+            $appointment->status = 'dicom_enviado';
+            $appointment->images_received_at = now();
+            $appointment->save();
+
+            DB::table('appointment_logs')->insert([
+                'id' => (string) Str::orderedUuid(),
+                'appointment_id' => $appointment->id,
+                'user_id' => $request->user()->id,
+                'action' => 'DICOM_MANUAL_UPLOAD',
+                'details' => json_encode([
+                    'accession' => $result['accession'],
+                    'studies' => $result['study_ids'],
+                    'instances' => $result['instances_count'],
+                ]),
+                'ip_address' => $request->ip(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            $appointment->load(['patient.persona', 'studies', 'supplies']);
+            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+
+            return response()->json([
+                'success' => true,
+                'accession' => $result['accession'],
+                'studies' => count($result['study_ids']),
+                'message' => 'Estudio subido y etiquetado en PACS.',
+            ]);
+        } catch (\Exception $e) {
+            Log::error("uploadDicomStudy cita {$appointmentId}: " . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Marca citas adicionales de la misma cadena como DICOM recibido (mismo accession, sin re-subir archivo).
+     */
+    public function markDicomReceived(Request $request, $appointmentId)
+    {
+        $request->validate(['accession' => 'required|string|max:64']);
+
+        $appointment = $this->getSecureAppointmentQuery()->findOrFail($appointmentId);
+
+        $appointment->accession_number = $request->input('accession');
+        $appointment->status = 'dicom_enviado';
+        $appointment->images_received_at = now();
+        $appointment->save();
+
+        $appointment->load(['patient.persona', 'studies', 'supplies']);
+        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+
+        return response()->json(['success' => true, 'accession' => $appointment->accession_number]);
     }
 
     public function complete(Request $request, $appointmentId)

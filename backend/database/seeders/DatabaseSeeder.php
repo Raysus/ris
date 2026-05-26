@@ -73,16 +73,17 @@ class DatabaseSeeder extends Seeder
         // 2. TIPOS DE LABORATORIO
         // ==========================================
         $labTypes = [
-            [1, 'Clínico Humano'],
-            [2, 'Veterinario'],
-            [3, 'Centro Dental']
+            [1, 'Clínico Humano', 'clinical'],
+            [2, 'Veterinario', 'veterinary'],
+            [3, 'Centro Dental', 'dental'],
         ];
         foreach ($labTypes as $lt) {
             DB::table('laboratory_types')->insert([
                 'id' => $this->getNewId('laboratory_types', $lt[0]),
                 'name' => $lt[1],
+                'code' => $lt[2],
                 'created_at' => $now,
-                'updated_at' => $now
+                'updated_at' => $now,
             ]);
         }
 
@@ -147,7 +148,12 @@ class DatabaseSeeder extends Seeder
             [5, 1, null, 'Siresa', 'Manuel Montt 942', 'Temuco', '(45) 269 0000', '{"horaFin": "20:00:00", "intervalo": "00:15:00", "horaInicio": "08:00:00", "colorInforme": "#000000"}'],
             [6, 1, 5, 'Siresa Dinamarca', 'Dinamarca 661', 'Temuco', '(45) 288 8724', '[]'],
             [7, 1, 5, 'Siresa Lautaro', 'Av. O\'higgins 915', 'Lautaro', '(45) 273 8218', '[]'],
-            [8, 1, 5, 'Siresa Victoria', 'Av. Arturo Prat 1130', 'Victoria', '(45) 288 8731', '[]']
+            [8, 1, 5, 'Siresa Victoria', 'Av. Arturo Prat 1130', 'Victoria', '(45) 288 8731', '[]'],
+            // --- Laboratorios de prueba dental / veterinario (sin MWL; subida manual a PACS) ---
+            [9, 3, null, 'Dental Demo — CBCT Temuco', 'Av. Alemania 1200', 'Temuco', '(45) 200 0100', '{"horaInicio":"09:00:00","horaFin":"20:00:00","intervalo":"00:15:00","uses_dicom_worklist":false}'],
+            [10, 3, 9, 'Dental Demo — Sucursal Centro', 'Manuel Montt 450', 'Temuco', '(45) 200 0101', '{"horaInicio":"09:00:00","horaFin":"19:00:00","intervalo":"00:15:00","uses_dicom_worklist":false}'],
+            [11, 2, null, 'Veterinaria Demo Sur', 'Ruta 5 Km 8', 'Temuco', '(45) 200 0200', '{"horaInicio":"08:30:00","horaFin":"21:00:00","intervalo":"00:15:00","uses_dicom_worklist":false}'],
+            [12, 2, 11, 'Veterinaria Demo — Urgencias 24h', 'Camino a Labranza 90', 'Temuco', '(45) 200 0201', '{"horaInicio":"00:00:00","horaFin":"23:45:00","intervalo":"00:15:00","uses_dicom_worklist":false}'],
         ];
         foreach ($labs as $l) {
             DB::table('laboratories')->insert([
@@ -173,7 +179,16 @@ class DatabaseSeeder extends Seeder
             [1, 3, true],
             [1, 2, true],
             [5, 2, false],
-            [1, 4, true]
+            [1, 4, true],
+            // Acceso a sedes dental / vet de prueba
+            [9, 2, false],
+            [9, 3, true],
+            [10, 2, false],
+            [10, 3, false],
+            [11, 2, false],
+            [11, 3, true],
+            [12, 2, false],
+            [12, 3, false],
         ];
 
         foreach ($labUsers as $lu) {
@@ -274,6 +289,20 @@ class DatabaseSeeder extends Seeder
             ]);
         }
 
+        // Plan particular para laboratorios dental / vet de prueba (cobro sin FONASA)
+        foreach ([9, 10, 11, 12] as $labOldId) {
+            DB::table('insurance_plans')->insert([
+                'id' => $this->getNewId('insurance_plans', 'demo_part_' . $labOldId),
+                'insurance_id' => $this->getNewId('insurances', 3),
+                'name' => 'Particular sin copago',
+                'percentage' => 0,
+                'laboratory_id' => $this->getNewId('laboratories', $labOldId),
+                'is_active' => true,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+
         // ==========================================
         // 8. MACHINES
         // ==========================================
@@ -286,7 +315,13 @@ class DatabaseSeeder extends Seeder
             [8, 1, 'Scanner GE', 'CT', '192.168.1.55', 'QrRisSCP', true],
             [9, 1, 'LORAD - M4', 'MAMO', '192.168.1.55', 'QrRisSCP', true],
             [10, 1, 'TOSHIBA - APLIO 500', 'ECO', '192.168.1.55', 'QrRisSCP', false],
-            [236, 1, 'Siemens', 'RX', '192.168.1.55', 'QrRisSCP', true]
+            [236, 1, 'Siemens', 'RX', '192.168.1.55', 'QrRisSCP', true],
+            // Salas — Dental Demo
+            [301, 9, 'CBCT Planmeca (Demo)', 'CT', '192.168.2.10', 'DENTAL_CBCT', true],
+            [302, 9, 'Sensor Intraoral (Demo)', 'IO', '192.168.2.11', 'DENTAL_IO', true],
+            // Salas — Veterinaria Demo
+            [401, 11, 'RX Veterinaria (Demo)', 'RX', '192.168.3.10', 'VET_RX', true],
+            [402, 11, 'Ecógrafo Veterinario (Demo)', 'US', '192.168.3.11', 'VET_US', true],
         ];
         foreach ($machines as $m) {
             DB::table('machines')->insert([
@@ -325,7 +360,17 @@ class DatabaseSeeder extends Seeder
             [78, 1, 'CT', 'Angiotac de torax', '0403102', 210000.00, 30],
             [79, 1, 'CT', 'Angiotac de ...', '0403103', 210000.00, 30],
             [80, 1, 'CT', 'Angiotac de cuello', '0403118', 210000.00, 30],
-            [82, 1, 'CT', 'Columna Lumbar', '0403019', 115000.00, 70]
+            [82, 1, 'CT', 'Columna Lumbar', '0403019', 115000.00, 70],
+            // Prestaciones — Dental Demo (sin código FONASA)
+            [201, 9, 'CBCT', 'Tomografía cone beam maxilar superior', 'D-CBCT-01', 95000.00, 25],
+            [202, 9, 'RX', 'Panorámica digital', 'D-PANO-01', 38000.00, 15],
+            [203, 9, 'RX', 'Telerradiografía lateral', 'D-TEL-01', 32000.00, 15],
+            [204, 10, 'CBCT', 'CBCT ambos maxilares (sucursal)', 'D-CBCT-02', 120000.00, 30],
+            // Prestaciones — Veterinaria Demo
+            [501, 11, 'RX', 'Radiografía de tórax (mascota)', 'V-RX-01', 28000.00, 15],
+            [502, 11, 'RX', 'Radiografía de extremidad', 'V-RX-02', 22000.00, 15],
+            [503, 11, 'US', 'Ecografía abdominal veterinaria', 'V-ECO-01', 48000.00, 30],
+            [504, 12, 'US', 'Ecografía urgencia (sucursal)', 'V-ECO-02', 55000.00, 25],
         ];
         foreach ($exams as $e) {
             DB::table('exams')->insert([
@@ -383,7 +428,11 @@ class DatabaseSeeder extends Seeder
             [7, 1, 'FUNGIBLE', 'Catéter Endovenoso 20G', 200, 1000, 800.00],
             [8, 1, 'PROTECCION', 'Bata Desechable Paciente', 300, 1000, 1200.00],
             [9, 1, 'FUNGIBLE', 'Placas / Film 14x17', 100, 1000, 3500.00],
-            [2, 1, 'CONTRASTE', 'Gadolinio (Resonancia) 15ml', 29, 100, 42000.00]
+            [2, 1, 'CONTRASTE', 'Gadolinio (Resonancia) 15ml', 29, 100, 42000.00],
+            [101, 9, 'FUNGIBLE', 'Placa sensor intraoral (desechable)', 200, 500, 2500.00],
+            [102, 9, 'FUNGIBLE', 'Delantal plomo paciente', 20, 50, 45000.00],
+            [103, 11, 'FUNGIBLE', 'Gasas y vendaje', 100, 300, 800.00],
+            [104, 11, 'FUNGIBLE', 'Guantes talla M', 500, 2000, 120.00],
         ];
         foreach ($supplies as $sup) {
             DB::table('supplies')->insert([
