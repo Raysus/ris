@@ -143,7 +143,6 @@ class DatabaseSeeder extends Seeder
         // 5. LABORATORIES (Manejo de parent_id recursivo)
         // ==========================================
         $labs = [
-            [3, 1, null, 'IMEX Temuco', 'Dinamarca 621 Oficina 104', 'Temuco', '(45)2204250', '{}'],
             [1, 1, null, 'Centro de Diagnóstico RIS PRO', 'Av. Las Araucarias 1020', 'Temuco', null, '{"horaFin": "18:30", "intervalo": "00:15:00", "horaInicio": "08:30"}'],
             [4, 1, 1, 'Sucursal Sur', 'test', 'Temuco', '1233414', '[]'],
             [5, 1, null, 'Siresa', 'Manuel Montt 942', 'Temuco', '(45) 269 0000', '{"horaFin": "20:00:00", "intervalo": "00:15:00", "horaInicio": "08:00:00", "colorInforme": "#000000"}'],
@@ -190,6 +189,8 @@ class DatabaseSeeder extends Seeder
             [11, 3, true],
             [12, 2, false],
             [12, 3, false],
+            [4, 2, false],
+            [4, 3, false],
         ];
 
         foreach ($labUsers as $lu) {
@@ -290,6 +291,18 @@ class DatabaseSeeder extends Seeder
             ]);
         }
 
+        // Planes para sucursal demo clínica (4)
+        DB::table('insurance_plans')->insert([
+            'id' => $this->getNewId('insurance_plans', 'demo_part_4'),
+            'insurance_id' => $this->getNewId('insurances', 3),
+            'name' => 'Particular sin copago',
+            'percentage' => 0,
+            'laboratory_id' => $this->getNewId('laboratories', 4),
+            'is_active' => true,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
         // Plan particular para laboratorios dental / vet de prueba (cobro sin FONASA)
         foreach ([9, 10, 11, 12] as $labOldId) {
             DB::table('insurance_plans')->insert([
@@ -317,6 +330,8 @@ class DatabaseSeeder extends Seeder
             [9, 1, 'LORAD - M4', 'MAMO', '192.168.1.55', 'QrRisSCP', true],
             [10, 1, 'TOSHIBA - APLIO 500', 'ECO', '192.168.1.55', 'QrRisSCP', false],
             [236, 1, 'Siemens', 'RX', '192.168.1.55', 'QrRisSCP', true],
+            [237, 4, 'RX Sucursal Sur (Demo)', 'RX', '192.168.1.56', 'QrRisSCP', true],
+            [238, 4, 'Ecógrafo Sucursal (Demo)', 'ECO', '192.168.1.57', 'QrRisSCP', true],
             // Salas — Dental Demo
             [301, 9, 'CBCT Planmeca (Demo)', 'CT', '192.168.2.10', 'DENTAL_CBCT', true],
             [302, 9, 'Sensor Intraoral (Demo)', 'IO', '192.168.2.11', 'DENTAL_IO', true],
@@ -372,6 +387,9 @@ class DatabaseSeeder extends Seeder
             [502, 11, 'RX', 'Radiografía de extremidad', 'V-RX-02', 22000.00, 15],
             [503, 11, 'US', 'Ecografía abdominal veterinaria', 'V-ECO-01', 48000.00, 30],
             [504, 12, 'US', 'Ecografía urgencia (sucursal)', 'V-ECO-02', 55000.00, 25],
+            // Prestaciones — Sucursal Sur (demo clínico)
+            [601, 4, 'RX', 'Tórax simple (sucursal demo)', '0401070', 28000.00, 15],
+            [602, 4, 'ECO', 'Ecotomografía abdominal (sucursal demo)', '0404003', 48000.00, 20],
         ];
         foreach ($exams as $e) {
             DB::table('exams')->insert([
@@ -434,6 +452,7 @@ class DatabaseSeeder extends Seeder
             [102, 9, 'FUNGIBLE', 'Delantal plomo paciente', 20, 50, 45000.00],
             [103, 11, 'FUNGIBLE', 'Gasas y vendaje', 100, 300, 800.00],
             [104, 11, 'FUNGIBLE', 'Guantes talla M', 500, 2000, 120.00],
+            [105, 4, 'FUNGIBLE', 'Placas RX sucursal', 80, 400, 3500.00],
         ];
         foreach ($supplies as $sup) {
             DB::table('supplies')->insert([
@@ -469,6 +488,8 @@ class DatabaseSeeder extends Seeder
                 'updated_at' => $now
             ]);
         }
+
+        $this->call(DemoModulesSeeder::class);
 
         // Reactivamos las llaves foráneas
         \Schema::enableForeignKeyConstraints();
