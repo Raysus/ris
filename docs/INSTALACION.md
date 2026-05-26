@@ -227,6 +227,16 @@ sudo chmod 440 /etc/sudoers.d/ris-deploy
 sudo visudo -c -f /etc/sudoers.d/ris-deploy
 ```
 
+Si `visudo` falla con `unknown setting: requiretty`, el archivo viejo tenía `Defaults:userit !requiretty` (no compatible con **sudo-rs** en Ubuntu 24+). Actualice el repo (`git pull`) y vuelva a copiar `deploy/sudoers-ris-deploy.example`, o pegue manualmente:
+
+```
+Cmnd_Alias RIS_DEPLOY_CHOWN = /usr/bin/chown, /usr/bin/chmod, /bin/chown, /bin/chmod
+Cmnd_Alias RIS_DEPLOY_ARTISAN = /usr/bin/php /var/www/ris.healthticloud.cl/backend/artisan *
+userit ALL=(root) NOPASSWD: RIS_DEPLOY_CHOWN
+userit ALL=(www-data) NOPASSWD: RIS_DEPLOY_ARTISAN
+```
+```
+
 Probar: `sudo -n -u www-data php /var/www/ris.healthticloud.cl/backend/artisan --version`
 
 ### 4.5 Verificar

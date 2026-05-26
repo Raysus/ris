@@ -40,13 +40,17 @@ if command -v setfacl >/dev/null 2>&1; then
   echo "==> ACL aplicadas."
 fi
 
-# Sudo sin contraseña para Envoy
+# Sudo sin contraseña para Envoy (sin Defaults requiretty: incompatible con sudo-rs)
 SUDOERS_SRC="${APP_DIR}/deploy/sudoers-ris-deploy.example"
 if [ -f "${SUDOERS_SRC}" ]; then
   cp "${SUDOERS_SRC}" /etc/sudoers.d/ris-deploy
   chmod 440 /etc/sudoers.d/ris-deploy
-  visudo -c -f /etc/sudoers.d/ris-deploy
-  echo "==> /etc/sudoers.d/ris-deploy instalado."
+  if visudo -c -f /etc/sudoers.d/ris-deploy 2>/dev/null; then
+    echo "==> /etc/sudoers.d/ris-deploy instalado (visudo OK)."
+  else
+    echo "⚠ visudo reportó error; valide manualmente el archivo."
+    echo "  Si el script dejó storage/ACL listos, puede continuar y corregir sudoers después."
+  fi
 else
   echo "⚠ No se encontró ${SUDOERS_SRC}. Copie manualmente deploy/sudoers-ris-deploy.example"
 fi
