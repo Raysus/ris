@@ -195,18 +195,26 @@ sudo -u www-data php artisan optimize
 sudo -u www-data php artisan queue:restart
 ```
 
-Opcional desde PC con SSH: `php vendor/bin/envoy run deploy-nube`
+Desde su PC: `cd backend && php vendor/bin/envoy run deploy-nube`
 
-Si Envoy falla con `Permission denied` en `storage/` o `bootstrap/cache`, en el servidor (una vez o antes de volver a desplegar):
+**Envoy y sudo:** las tareas usan `sudo -n` (sin contraseña). Si ve `Authentication failed`, en el servidor **como root** (una sola vez):
 
 ```bash
-cd /var/www/ris.healthticloud.cl/backend
-sudo chown -R userit:userit storage bootstrap/cache
 cd /var/www/ris.healthticloud.cl
-git fetch origin && git reset --hard origin/nube
+sudo bash deploy/scripts/server-setup-deploy-user.sh
 ```
 
-Luego vuelva a ejecutar `envoy run deploy-nube` (el script ya incluye `prepare_git_nube`).
+Eso instala ACL + `/etc/sudoers.d/ris-deploy` y deja `userit` + `www-data` compartiendo `storage/`.
+
+Manual alternativo:
+
+```bash
+sudo cp /var/www/ris.healthticloud.cl/deploy/sudoers-ris-deploy.example /etc/sudoers.d/ris-deploy
+sudo chmod 440 /etc/sudoers.d/ris-deploy
+sudo visudo -c -f /etc/sudoers.d/ris-deploy
+```
+
+Probar: `sudo -n -u www-data php /var/www/ris.healthticloud.cl/backend/artisan --version`
 
 ### 4.5 Verificar
 

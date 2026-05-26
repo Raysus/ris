@@ -1,0 +1,14 @@
+# Copiar en el servidor (como root):
+#   sudo cp deploy/sudoers-ris-deploy.example /etc/sudoers.d/ris-deploy
+#   sudo chmod 440 /etc/sudoers.d/ris-deploy
+#   sudo visudo -c -f /etc/sudoers.d/ris-deploy
+#
+# Permite que Envoy (usuario userit) ejecute deploy sin pedir contraseña.
+
+Defaults:userit !requiretty
+
+# Git pull: dueño temporal storage/bootstrap
+userit ALL=(root) NOPASSWD: /usr/bin/chown, /usr/bin/chmod
+
+# Artisan como www-data (mismo usuario que PHP-FPM)
+userit ALL=(www-data) NOPASSWD: /usr/bin/php /var/www/ris.healthticloud.cl/backend/artisan *

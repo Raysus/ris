@@ -43,8 +43,13 @@
     cd {{ $backend_dir }}
     DEPLOY_USER=$(whoami)
     mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views storage/app/public bootstrap/cache
-    sudo chown -R "${DEPLOY_USER}:${DEPLOY_USER}" storage bootstrap/cache
-    echo "✅ ${DEPLOY_USER} puede actualizar archivos con git."
+    if sudo -n chown -R "${DEPLOY_USER}:${DEPLOY_USER}" storage bootstrap/cache 2>/dev/null; then
+        echo "✅ chown para git (sudo -n)."
+    else
+        echo "⚠ sudo pide contraseña o no está permitido."
+        echo "  En el servidor (root, una vez): sudo bash {{ $app_dir }}/deploy/scripts/server-setup-deploy-user.sh"
+        echo "  O: sudo cp {{ $app_dir }}/deploy/sudoers-ris-deploy.example /etc/sudoers.d/ris-deploy && sudo visudo -c -f /etc/sudoers.d/ris-deploy"
+    fi
 @endtask
 
 @task('git_pull_nube', ['on' => 'nube'])
@@ -83,31 +88,51 @@
 
 @task('migrate_nube', ['on' => 'nube'])
     cd {{ $backend_dir }}
-    sudo -u www-data php artisan migrate --force
+    if sudo -n -u www-data php artisan migrate --force; then
+        echo "✅ migrate (www-data)."
+    else
+        echo "❌ migrate falló. Configure sudo sin contraseña (deploy/sudoers-ris-deploy.example)."
+        exit 1
+    fi
 @endtask
 
 @task('optimize_nube', ['on' => 'nube'])
     cd {{ $backend_dir }}
-    sudo -u www-data php artisan optimize
-    echo "✅ Nube optimizada (rama {{ $branch_nube }})."
+    if sudo -n -u www-data php artisan optimize; then
+        echo "✅ Nube optimizada (rama {{ $branch_nube }})."
+    else
+        echo "❌ optimize falló. Configure sudo sin contraseña."
+        exit 1
+    fi
 @endtask
 
 @task('fix_permissions_nube', ['on' => 'nube'])
     echo "🔐 Restaurando permisos de storage..."
     cd {{ $backend_dir }}
+    WEB_USER=www-data
+    DEPLOY_USER=$(whoami)
     mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views storage/app/public bootstrap/cache
-    sudo chown -R www-data:www-data storage bootstrap/cache
-    sudo chmod -R ug+rwx storage bootstrap/cache
-    if [ -f storage/logs/laravel.log ]; then
-        sudo chown www-data:www-data storage/logs/laravel.log
+    if sudo -n chown -R "${DEPLOY_USER}:${WEB_USER}" storage bootstrap/cache 2>/dev/null \
+        && sudo -n chmod -R ug+rwx storage bootstrap/cache 2>/dev/null; then
+        find storage bootstrap/cache -type d -exec sudo -n chmod g+s {} \; 2>/dev/null || true
+        echo "✅ Permisos ${DEPLOY_USER}:${WEB_USER}."
+    elif sudo -n chown -R www-data:www-data storage bootstrap/cache 2>/dev/null \
+        && sudo -n chmod -R ug+rwx storage bootstrap/cache 2>/dev/null; then
+        echo "✅ Permisos www-data (sudo -n)."
+    else
+        chmod -R ug+rwx storage bootstrap/cache 2>/dev/null || true
+        echo "⚠ Sin sudo -n: chmod local solo. Ejecute server-setup-deploy-user.sh en el servidor."
     fi
-    echo "✅ Permisos listos."
 @endtask
 
 @task('restart_queue_nube', ['on' => 'nube'])
     cd {{ $backend_dir }}
-    sudo -u www-data php artisan queue:restart
-    echo "✅ Colas de la nube reiniciadas (systemd debe levantar el worker)."
+    if sudo -n -u www-data php artisan queue:restart; then
+        echo "✅ Colas reiniciadas."
+    else
+        echo "❌ queue:restart falló. Configure sudo sin contraseña."
+        exit 1
+    fi
 @endtask
 
 {{-- --- TAREAS PARA LABORATORIO / CLÍNICA (Docker / Sail) --- --}}
