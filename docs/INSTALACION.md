@@ -197,6 +197,17 @@ sudo -u www-data php artisan queue:restart
 
 Opcional desde PC con SSH: `php vendor/bin/envoy run deploy-nube`
 
+Si Envoy falla con `Permission denied` en `storage/` o `bootstrap/cache`, en el servidor (una vez o antes de volver a desplegar):
+
+```bash
+cd /var/www/ris.healthticloud.cl/backend
+sudo chown -R userit:userit storage bootstrap/cache
+cd /var/www/ris.healthticloud.cl
+git fetch origin && git reset --hard origin/nube
+```
+
+Luego vuelva a ejecutar `envoy run deploy-nube` (el script ya incluye `prepare_git_nube`).
+
 ### 4.5 Verificar
 
 ```bash

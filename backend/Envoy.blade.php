@@ -18,6 +18,7 @@
 @endsetup
 
 @story('deploy-nube')
+    prepare_git_nube
     git_pull_nube
     composer_nube
     fix_permissions_nube
@@ -36,6 +37,15 @@
 @endstory
 
 {{-- --- TAREAS PARA LA NUBE (PostgreSQL + PHP nativos, sin Docker) --- --}}
+
+@task('prepare_git_nube', ['on' => 'nube'])
+    echo "🔓 Permisos temporales para git (storage/bootstrap)..."
+    cd {{ $backend_dir }}
+    DEPLOY_USER=$(whoami)
+    mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views storage/app/public bootstrap/cache
+    sudo chown -R "${DEPLOY_USER}:${DEPLOY_USER}" storage bootstrap/cache
+    echo "✅ ${DEPLOY_USER} puede actualizar archivos con git."
+@endtask
 
 @task('git_pull_nube', ['on' => 'nube'])
     echo "📥 Actualizando código en la Nube (rama {{ $branch_nube }})..."
