@@ -32,13 +32,13 @@ $(document).ready(async function () {
 
     const permisosModulos = {
         "dashboard": ["admin", "recepcion", "tecnologo", "radiologo", "transcriptor", "sis_admin"],
-        "agenda": ["admin", "recepcion", "sis_admin"],
+        "agenda": ["admin", "recepcion", "secretaria", "secretario", "sis_admin"],
         "worklist": ["admin", "tecnologo", "sis_admin"],
         "atencion": ["admin", "tecnologo", "sis_admin"],
         "radiologist": ["admin", "radiologo", "sis_admin"],
         "transcription": ["admin", "transcriptor", "sis_admin"],
         "validation": ["admin", "radiologo", "sis_admin"],
-        "entrega": ["admin", "recepcion", "sis_admin"],
+        "entrega": ["admin", "recepcion", "secretaria", "secretario", "sis_admin"],
         "admin": ["admin", "sis_admin"]
     };
 
@@ -122,6 +122,7 @@ $(document).ready(async function () {
         localStorage.removeItem("ris_lab_id");
         localStorage.removeItem("ris_user_profile");
         localStorage.removeItem("ris_permissions");
+        localStorage.removeItem("ris_lab_name");
         localStorage.removeItem("ris_user_data");
         window.location.href = "index.html";
     });

@@ -113,6 +113,7 @@ class AuthController extends Controller
             ],
             'contexto_laboratorio' => [
                 'laboratorio_id' => $primaryLabId,
+                'laboratorio_nombre' => $primaryLab?->name,
                 'es_matriz' => $isMainLab,
                 'tipo_laboratorio_id' => $labTypeId,
                 'tipo_laboratorio_code' => $labTypeCode,

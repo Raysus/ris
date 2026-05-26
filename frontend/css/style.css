@@ -5,13 +5,15 @@
     --htc-teal: #8eb5a8;
     --htc-teal-deep: #6f9a8c;
     --htc-lavender: #b8a9c8;
+    --htc-lavender-deep: #a894c4;
+    --htc-lavender-hover: #9482ab;
     --htc-blush: #e0b8c8;
     --htc-sky: #a8c5d8;
     --htc-plum: #3d3848;
 
-    --primary: var(--htc-teal);
-    --primary-hover: var(--htc-teal-deep);
-    --primary-rgb: 142, 181, 168;
+    --primary: var(--htc-lavender-deep);
+    --primary-hover: var(--htc-lavender-hover);
+    --primary-rgb: 168, 148, 196;
     --secondary: #8a8794;
     --success: #8eb5a8;
     --danger: #d4a0a8;
@@ -564,9 +566,9 @@ body {
 body.dark,
 [data-bs-theme="dark"] body,
 [data-bs-theme="dark"] .bg-app {
-    --primary: #9ec4b8;
-    --primary-hover: #8eb5a8;
-    --primary-rgb: 158, 196, 184;
+    --primary: #c4b8d4;
+    --primary-hover: #b8a9c8;
+    --primary-rgb: 196, 184, 212;
     --bg-app: #1e1c24;
     --bg-card: #2a2732;
     --text-main: #ece8f0;

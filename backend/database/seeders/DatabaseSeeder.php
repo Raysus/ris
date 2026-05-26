@@ -53,6 +53,7 @@ class DatabaseSeeder extends Seeder
             [7, 'auxiliar', 'Auxiliar'],
             [3, 'recepcion', 'Recepcionista'],
             [8, 'secretario', 'Secretario(a)'],
+            [9, 'secretaria', 'Secretaria'],
             [2, 'admin', 'Administrador(a)'],
             [4, 'tecnologo', 'Tecnólogo(a)'],
             [5, 'radiologo', 'Médico Radiólogo(a)'],

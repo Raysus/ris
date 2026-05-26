@@ -2646,6 +2646,15 @@ async function eliminarPlantilla() {
 
 // === MÓDULO DE PACIENTES (CRUD) ===
 
+function canEditPatientsRis() {
+    const profile = (localStorage.getItem('ris_user_profile') || '').toLowerCase();
+    if (!['secretaria', 'secretario'].includes(profile)) {
+        return true;
+    }
+    const labName = (localStorage.getItem('ris_lab_name') || '').toUpperCase();
+    return labName.includes('RDOX') && labName.includes('OSORNO');
+}
+
 async function cargarPacientes() {
     const token = localStorage.getItem('ris_token');
     const labId = localStorage.getItem('ris_lab_id');
@@ -2691,7 +2700,9 @@ function renderListaPacientesAdmin() {
                 <td>${per.email || '<span class="text-muted small">Sin correo</span>'}</td>
                 <td>${per.phone || '-'}</td>
                 <td class="text-end">
-                    <button class="btn btn-sm btn-outline-primary" onclick="abrirModalPaciente('${p.id}')"><i class="bi bi-pencil"></i> Editar</button>
+                    ${canEditPatientsRis()
+                        ? `<button class="btn btn-sm btn-outline-primary" onclick="abrirModalPaciente('${p.id}')"><i class="bi bi-pencil"></i> Editar</button>`
+                        : '<span class="text-muted small">Solo lectura</span>'}
                 </td>
             </tr>
         `);
@@ -2728,6 +2739,9 @@ function abrirModalPaciente(id = null) {
 }
 
 async function guardarPaciente() {
+    if (!canEditPatientsRis()) {
+        return showToast('Su perfil no puede editar pacientes en esta sede.', 'warning');
+    }
     if (!validarFormulario(".req-pac")) return;
 
     const id = $("#pacienteId").val();

@@ -10,7 +10,7 @@ window.currentInsumosTotal = 0;
 /** Paleta pastel HealthTiCloud (legible en calendario claro y oscuro) */
 const AGENDA_ESTADO_COLORES = {
     'pre-agendado': '#c4b8d4',
-    'agendado': '#8eb5a8',
+    'agendado': '#a894c4',
     'confirmado': '#9eb8cc',
     'espera': '#d4c4a8',
     'anulado': '#d4a8b0'

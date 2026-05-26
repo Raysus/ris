@@ -71,6 +71,12 @@ $(document).ready(function () {
                 } else {
                     localStorage.removeItem('ris_lab_id');
                 }
+                const labNombre = data.contexto_laboratorio?.laboratorio_nombre || '';
+                if (labNombre) {
+                    localStorage.setItem('ris_lab_name', labNombre);
+                } else {
+                    localStorage.removeItem('ris_lab_name');
+                }
 
                 const profileName = data.user.tipo_usuario?.name || data.user.role || 'Invitado';
                 const permissions = data.user.tipo_usuario?.permissions || {};

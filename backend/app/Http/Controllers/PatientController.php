@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ChecksPatientMutationAccess;
 use App\Http\Requests\StorePatientRequest;
 use App\Models\Paciente;
 use App\Models\Persona;
@@ -10,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 
 class PatientController extends Controller
 {
+    use ChecksPatientMutationAccess;
     private function getSecurePatientQuery()
     {
         $allowedLabs = config('app.allowed_lab_ids');
@@ -80,6 +82,13 @@ class PatientController extends Controller
 
     public function update(Request $request, $id)
     {
+        if (!$this->userCanMutatePatients($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Su perfil no puede editar pacientes en esta sede.',
+            ], 403);
+        }
+
         $patient = $this->getSecurePatientQuery()->findOrFail($id);
 
         $request->validate([
@@ -110,6 +119,13 @@ class PatientController extends Controller
 
     public function destroy($id)
     {
+        if (!$this->userCanMutatePatients(request())) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Su perfil no puede eliminar pacientes.',
+            ], 403);
+        }
+
         $patient = $this->getSecurePatientQuery()->findOrFail($id);
         $patient->delete();
 
