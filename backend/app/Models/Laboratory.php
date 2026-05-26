@@ -52,8 +52,42 @@ class Laboratory extends Model
         return $this->hasMany(Paciente::class);
     }
 
+    /** Perfiles que pueden usar vista «Todas mis sucursales» (solo sedes permitidas). */
+    public const MULTI_SITE_OPERATIONAL_ROLES = [
+        'radiologo',
+        'tecnologo',
+        'recepcion',
+        'transcriptor',
+    ];
+
+    public static function supportsMultiSiteView(?string $roleName): bool
+    {
+        return $roleName === 'admin'
+            || in_array($roleName, self::MULTI_SITE_OPERATIONAL_ROLES, true);
+    }
+
     /**
-     * IDs de laboratorios que el usuario puede ver (matriz + sucursales para admin).
+     * Si el usuario tiene asignada la matriz, incluye sus sucursales hijas.
+     *
+     * @param list<string> $assignedIds
+     * @return list<string>
+     */
+    public static function expandMatrixChildrenForAssigned(array $assignedIds): array
+    {
+        $matrices = static::whereIn('id', $assignedIds)->whereNull('parent_id')->pluck('id')->toArray();
+
+        if ($matrices === []) {
+            return array_values(array_unique($assignedIds));
+        }
+
+        $children = static::whereIn('parent_id', $matrices)->pluck('id')->toArray();
+
+        return array_values(array_unique(array_merge($assignedIds, $children)));
+    }
+
+    /**
+     * IDs de laboratorios que el usuario puede ver.
+     * Admin: matriz + todas sus sucursales. Operativos: asignados (+ hijas si tiene la matriz).
      *
      * @return list<string>|array{0: '*'}
      */
@@ -75,6 +109,10 @@ class Laboratory extends Model
             $sucursales = static::whereIn('parent_id', $todasLasMatrices)->pluck('id')->toArray();
 
             return array_values(array_unique(array_merge($todasLasMatrices, $sucursales)));
+        }
+
+        if (in_array($roleName, self::MULTI_SITE_OPERATIONAL_ROLES, true)) {
+            return static::expandMatrixChildrenForAssigned($assignedIds);
         }
 
         return array_values(array_unique($assignedIds));

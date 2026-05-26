@@ -23,16 +23,27 @@ class SettingController extends Controller
 
             $accessibleMatrizIds = array_unique(array_merge($matrizIds, $parentIds));
 
-            if ($user->tipoUsuario->name === 'admin') {
+            $roleName = $user->tipoUsuario->name;
+            $matrizAsignadaIds = $matrizIds;
+
+            if ($roleName === 'admin') {
                 $labs = Laboratory::whereIn('id', $accessibleMatrizIds)
                     ->with('children')
                     ->get();
             } else {
                 $labs = Laboratory::whereIn('id', $accessibleMatrizIds)
                     ->with([
-                        'children' => function ($query) use ($assignedLabIds) {
-                            $query->whereIn('id', $assignedLabIds);
-                        }
+                        'children' => function ($query) use ($assignedLabIds, $matrizAsignadaIds, $roleName) {
+                            $query->where(function ($q) use ($assignedLabIds, $matrizAsignadaIds, $roleName) {
+                                $q->whereIn('id', $assignedLabIds);
+                                if (
+                                    !empty($matrizAsignadaIds)
+                                    && Laboratory::supportsMultiSiteView($roleName)
+                                ) {
+                                    $q->orWhereIn('parent_id', $matrizAsignadaIds);
+                                }
+                            });
+                        },
                     ])
                     ->get();
             }

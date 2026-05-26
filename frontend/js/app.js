@@ -132,6 +132,23 @@ $(document).ready(async function () {
     }
 });
 
+const RIS_PERFILES_MULTI_SEDE = ['admin', 'radiologo', 'tecnologo', 'recepcion', 'transcriptor'];
+
+function risTieneVariasSedesAsignadas() {
+    try {
+        const permitidos = JSON.parse(localStorage.getItem('ris_labs_permitidos') || '[]');
+        if (Array.isArray(permitidos) && permitidos.length > 1 && permitidos[0] !== '*') {
+            return true;
+        }
+    } catch (e) { /* ignore */ }
+    return false;
+}
+
+function risPuedeElegirTodasMisSucursales() {
+    const perfil = localStorage.getItem('ris_user_profile');
+    return RIS_PERFILES_MULTI_SEDE.includes(perfil) && risTieneVariasSedesAsignadas();
+}
+
 async function cargarSelectorLaboratorios() {
     const token = localStorage.getItem('ris_token');
     const currentLabId = localStorage.getItem('ris_lab_id') || '';
@@ -167,10 +184,13 @@ async function cargarSelectorLaboratorios() {
                 });
             } else {
                 const labs = data.data;
-                const esAdminCentro = localStorage.getItem('ris_user_profile') === 'admin';
-                const tieneVariasSedes = labs.some(m => (m.children?.length || 0) > 0) || labs.length > 1;
+                const opcionesSede = labs.reduce(
+                    (n, m) => n + 1 + (m.children?.length || 0),
+                    0
+                );
+                const tieneVariasSedes = opcionesSede > 1 || labs.length > 1;
 
-                if (esAdminCentro && tieneVariasSedes) {
+                if (risPuedeElegirTodasMisSucursales() || (localStorage.getItem('ris_user_profile') === 'admin' && tieneVariasSedes)) {
                     selector.append('<option value="ALL">Todas mis sucursales</option>');
                 }
 
