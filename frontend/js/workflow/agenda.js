@@ -7,6 +7,16 @@ let currentInsumos = [];
 let catalogosAgenda = {};
 window.currentInsumosTotal = 0;
 
+/** Paleta pastel HealthTiCloud (legible en calendario claro y oscuro) */
+const AGENDA_ESTADO_COLORES = {
+    'pre-agendado': '#c4b8d4',
+    'agendado': '#8eb5a8',
+    'confirmado': '#9eb8cc',
+    'espera': '#d4c4a8',
+    'anulado': '#d4a8b0'
+};
+const AGENDA_ESTADO_TEXTO = '#3a3644';
+
 function calcularDuracionCita(machineId, cantidadExamenes) {
     const sala = (window.RIS.resources || []).find(r => r.id === machineId);
     const minutosBase = (sala && window.RIS.tiemposPorGrupo[sala.group]) ? window.RIS.tiemposPorGrupo[sala.group] : 15;
@@ -312,7 +322,7 @@ function setupCalendar(el) {
             const isLocked = !estadosIniciales.includes(props.status);
             const lockIcon = isLocked ? '<i class="bi bi-lock-fill text-white me-1"></i>' : '';
 
-            const bgColor = arg.event.backgroundColor || '#3788d8';
+            const bgColor = arg.event.backgroundColor || '#9eb8cc';
 
             if (!patient) return { html: `<div class="p-1" style="background-color:${bgColor}; color:white; border-radius:3px;">${lockIcon}${arg.event.title}</div>` };
 
@@ -352,13 +362,7 @@ function setupCalendar(el) {
 function getEventsFromRIS() {
     if (!window.RIS || !window.RIS.agenda) return [];
 
-    const colors = {
-        'pre-agendado': '#8b5cf6',
-        'agendado': '#10b981',
-        'confirmado': '#3b82f6',
-        'espera': '#f59e0b',
-        'anulado': '#ef4444'
-    };
+    const colors = AGENDA_ESTADO_COLORES;
 
     return window.RIS.agenda.map(a => {
         let estadoRaw = String(a.status).trim().toLowerCase();
@@ -378,7 +382,7 @@ function getEventsFromRIS() {
             end: a.end,
             backgroundColor: colors[estadoLimpio],
             borderColor: colors[estadoLimpio],
-            textColor: '#ffffff',
+            textColor: AGENDA_ESTADO_TEXTO,
             extendedProps: { patient: a.patient, status: estadoLimpio, needsReview: a.needsReview }
         };
     });
@@ -458,7 +462,7 @@ async function cargarAgendaDesdeServidor() {
                         resourceId: String(item.machine),
                         color: colorEstado,
                         display: 'block',
-                        textColor: '#ffffff'
+                        textColor: AGENDA_ESTADO_TEXTO
                     };
                 });
 
@@ -837,14 +841,8 @@ async function eliminarCita() {
 }
 
 function getHexColorEstado(status) {
-    const exactColors = {
-        'pre-agendado': '#8b5cf6', // Morado
-        'agendado': '#10b981',     // Verde
-        'confirmado': '#3b82f6',   // Azul
-        'espera': '#f59e0b',       // Naranja
-        'anulado': '#ef4444'       // Rojo
-    };
-    return exactColors[status ? status.toLowerCase() : ''] || '#64748b';
+    const key = status ? String(status).trim().toLowerCase() : '';
+    return AGENDA_ESTADO_COLORES[key] || '#9a95a5';
 }
 
 function colorSelectorEstado() {
