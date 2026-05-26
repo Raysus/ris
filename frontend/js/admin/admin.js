@@ -83,9 +83,10 @@ function setupAdminEvents() {
 
         const p = (window.RIS.personas || []).find(per => per.rut === rut);
         if (p) {
-            $("#uNombres").val(p.nombres);
-            $("#uPrimerApellido").val(p.apellidoPaterno);
-            $("#uSegundoApellido").val(p.apellidoMaterno);
+            $("#uNombres").val(p.nombres || p.names);
+            $("#uPrimerApellido").val(p.apellidoPaterno || p.last_name_1);
+            $("#uSegundoApellido").val(p.apellidoMaterno || p.last_name_2);
+            if (p.email) $("#uEmail").val(p.email);
             showToast("Identidad recuperada de la base de datos.", "info");
         }
     });
@@ -531,7 +532,10 @@ async function renderListaUsuariosAdmin() {
                 if (tipo === 'sis_admin') return false;
                 const p = u.persona || {};
                 const fullName = `${p.names || ''} ${p.last_name_1 || ''}`.toLowerCase();
-                return fullName.includes(searchStr) || (u.username || '').toLowerCase().includes(searchStr);
+                const email = (p.email || '').toLowerCase();
+                return fullName.includes(searchStr)
+                    || (u.username || '').toLowerCase().includes(searchStr)
+                    || email.includes(searchStr);
             });
 
             if (filtrados.length === 0) return tbody.append(`<tr><td colspan="6" class="text-center p-4">No hay usuarios.</td></tr>`);
@@ -549,6 +553,7 @@ async function renderListaUsuariosAdmin() {
                         <td class="ps-4">
                             <div class="fw-bold text-dark">${u.medical_title || ''} ${p.names || ''} ${p.last_name_1 || ''}</div>
                             <small class="text-muted">@${u.username}</small>
+                            ${p.email ? `<div class="small text-secondary"><i class="bi bi-envelope me-1"></i>${p.email}</div>` : ''}
                         </td>
                         <td class="fw-bold text-secondary">${p.rut || '--'}</td>
                         <td><span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3">${tipoPrincipal}</span></td>
@@ -594,6 +599,7 @@ function abrirModalUsuario(id = null) {
         $("#uNombres").val(p.names || "");
         $("#uPrimerApellido").val(p.last_name_1 || "");
         $("#uSegundoApellido").val(p.last_name_2 || "");
+        $("#uEmail").val(p.email || "");
 
         $("#uTitulo").val(u.medical_title || "");
         $("#uUsername").val(u.username || "");
@@ -652,11 +658,19 @@ async function guardarUsuario() {
     const rut = $("#uRut").val().toUpperCase();
     if (!validarRut(rut)) return showToast("❌ RUT inválido.", "danger");
 
+    const email = $("#uEmail").val().trim();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        $("#uEmail").addClass("is-invalid");
+        return showToast("❌ Correo electrónico inválido.", "danger");
+    }
+    $("#uEmail").removeClass("is-invalid");
+
     const formData = new FormData();
     formData.append('rut', rut);
     formData.append('nombres', $("#uNombres").val().trim());
     formData.append('apellidoPaterno', $("#uPrimerApellido").val().trim());
     formData.append('apellidoMaterno', $("#uSegundoApellido").val().trim());
+    if (email) formData.append('email', email);
     formData.append('titulo', $("#uTitulo").val());
 
     // 🔥 CORRECCIÓN: Enviar siempre el username, aunque esté deshabilitado en el HTML
@@ -689,7 +703,10 @@ async function guardarUsuario() {
 
         if (response.ok && data.success) {
             $("#modalUsuario").modal('hide');
-            showToast(`✅ Usuario guardado correctamente.`, "success");
+            const msgEmail = email && data.keycloak_synced
+                ? ' Usuario guardado. Si es nuevo en Keycloak, se envió correo de activación.'
+                : '';
+            showToast(`✅ Usuario guardado correctamente.${msgEmail}`, "success");
             renderListaUsuariosAdmin();
         } else {
             showToast(`❌ Error: ${data.message}`, "danger");

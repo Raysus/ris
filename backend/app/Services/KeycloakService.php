@@ -98,9 +98,16 @@ class KeycloakService
      * @param string|null $email
      * @param string $roleName
      */
-    public function updateUser($username, $password, $email, $roleName)
+    /**
+     * @param  array{firstName?: string, lastName?: string, sendSetupEmail?: bool}  $options
+     */
+    public function updateUser($username, $password, $email, $roleName, array $options = [])
     {
         $token = $this->getAdminToken();
+        $firstName = $options['firstName'] ?? null;
+        $lastName = $options['lastName'] ?? null;
+        $sendSetupEmail = (bool) ($options['sendSetupEmail'] ?? false);
+        $createdInKeycloak = false;
 
         // 1. Buscar si el usuario ya existe
         $searchResponse = Http::withoutVerifying()
@@ -116,7 +123,11 @@ class KeycloakService
         if (!empty($users)) {
             // EL USUARIO EXISTE: Obtenemos su UUID y lo actualizamos
             $userId = $users[0]['id'];
-            $updatePayload = ['email' => $email];
+            $updatePayload = array_filter([
+                'email' => $email,
+                'firstName' => $firstName,
+                'lastName' => $lastName,
+            ], fn ($v) => $v !== null && $v !== '');
 
             if (!empty($password)) {
                 $updatePayload['credentials'] = [
@@ -141,24 +152,28 @@ class KeycloakService
                 throw new \Exception("Se requiere una contraseña inicial para crear al usuario en Keycloak.");
             }
 
-            $createPayload = [
+            $createPayload = array_filter([
                 'username' => $username,
                 'email' => $email,
+                'firstName' => $firstName,
+                'lastName' => $lastName,
                 'enabled' => true,
+                'emailVerified' => empty($email),
                 'credentials' => [
                     [
                         'type' => 'password',
                         'value' => $password,
-                        'temporary' => false,
-                    ]
-                ]
-            ];
+                        'temporary' => (bool) $sendSetupEmail,
+                    ],
+                ],
+            ], fn ($v) => $v !== null);
 
             $createResponse = Http::withoutVerifying()
                 ->withToken($token)
                 ->post("{$this->baseUrl}/admin/realms/{$this->targetRealm}/users", $createPayload);
 
             if ($createResponse->created()) {
+                $createdInKeycloak = true;
                 // Volvemos a buscarlo para obtener su UUID interno generado por Keycloak
                 $searchResponse2 = Http::withoutVerifying()
                     ->withToken($token)
@@ -177,6 +192,49 @@ class KeycloakService
         if ($userId && $roleName) {
             $this->assignRealmRole($userId, $roleName);
         }
+
+        // 3. Enviar correo de Keycloak (actualizar contraseña / verificar email)
+        if ($userId && $sendSetupEmail && filled($email)) {
+            $this->sendExecuteActionsEmail($userId, $token);
+        }
+
+        return true;
+    }
+
+    /**
+     * Dispara el envío de correo de Keycloak (execute-actions-email).
+     */
+    public function sendExecuteActionsEmail(string $userId, ?string $token = null): bool
+    {
+        $token = $token ?? $this->getAdminToken();
+        $clientId = env('KEYCLOAK_CLIENT_ID', 'patient-portal');
+        $lifespan = (int) env('KEYCLOAK_ACTION_EMAIL_LIFESPAN', 43200);
+
+        $actions = ['UPDATE_PASSWORD'];
+        if (filter_var(env('KEYCLOAK_SEND_VERIFY_EMAIL', true), FILTER_VALIDATE_BOOLEAN)) {
+            $actions[] = 'VERIFY_EMAIL';
+        }
+
+        $url = "{$this->baseUrl}/admin/realms/{$this->targetRealm}/users/{$userId}/execute-actions-email"
+            . '?client_id=' . urlencode($clientId)
+            . '&lifespan=' . $lifespan;
+
+        $response = Http::withoutVerifying()
+            ->withToken($token)
+            ->withBody(json_encode($actions), 'application/json')
+            ->put($url);
+
+        if (!$response->successful()) {
+            Log::warning('Keycloak execute-actions-email falló', [
+                'userId' => $userId,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            return false;
+        }
+
+        Log::info('Keycloak: correo de acciones enviado', ['userId' => $userId, 'actions' => $actions]);
 
         return true;
     }

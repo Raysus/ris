@@ -832,6 +832,13 @@
                                 type="text" class="form-control req-user" id="uPrimerApellido"></div>
                         <div class="col-md-6"><label class="form-label small fw-bold">Ap. Materno</label><input
                                 type="text" class="form-control" id="uSegundoApellido"></div>
+                        <div class="col-md-12">
+                            <label class="form-label small fw-bold">Correo electrónico</label>
+                            <input type="email" class="form-control" id="uEmail" placeholder="usuario@centro.cl"
+                                autocomplete="email">
+                            <small class="text-muted">Se guarda en la ficha y se envía a Keycloak al crear o actualizar el
+                                usuario (correo de bienvenida / acciones requeridas).</small>
+                        </div>
                     </div>
                     <h6 class="fw-bold text-primary mb-3 border-bottom pb-2">2. Privilegios de Sistema</h6>
                     <div class="row g-3 mb-4">

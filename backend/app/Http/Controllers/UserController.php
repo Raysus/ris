@@ -52,15 +52,21 @@ class UserController extends Controller
             'rut' => 'required|string',
             'nombres' => 'required|string|max:255',
             'apellidoPaterno' => 'required|string|max:255',
+            'email' => 'nullable|email|max:255',
             'username' => 'required|string|max:255',
             'password' => 'nullable|string|min:6',
         ]);
 
         return DB::transaction(function () use ($request, $allowedLabs) {
+            $email = $request->filled('email')
+                ? strtolower(trim((string) $request->email))
+                : null;
+
             $persona = Persona::upsertByRut($request->rut, [
                 'names' => $request->nombres,
                 'last_name_1' => $request->apellidoPaterno,
                 'last_name_2' => $request->apellidoMaterno,
+                'email' => $email,
             ]);
 
             // 🔥 CORRECCIÓN: Rescatamos el tipo de usuario desde el arreglo de roles
@@ -144,7 +150,11 @@ class UserController extends Controller
             \App\Jobs\SyncEntityToCloud::dispatch('App\Models\User', 'updated', $user->makeVisible(['password'])->toArray())
                 ->delay(now()->addSeconds(3));
 
-            return response()->json(['success' => true, 'user' => $user]);
+            return response()->json([
+                'success' => true,
+                'user' => $user,
+                'keycloak_synced' => $this->shouldSyncKeycloak(),
+            ]);
         });
     }
     public function destroy($id)
@@ -165,5 +175,12 @@ class UserController extends Controller
             ->get();
 
         return response()->json(['success' => true, 'data' => $roles]);
+    }
+
+    private function shouldSyncKeycloak(): bool
+    {
+        return filled(env('KEYCLOAK_BASE_URL'))
+            && filled(env('KEYCLOAK_ADMIN_USER'))
+            && filled(env('KEYCLOAK_ADMIN_PASSWORD'));
     }
 }
