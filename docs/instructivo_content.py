@@ -1,0 +1,349 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Contenido compartido del instructivo (PDF y DOCX)."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Protocol
+
+
+TOC = [
+    "1. Introducción al sistema",
+    "2. Flujo clínico completo",
+    "3. Acceso, interfaz y menú según su perfil",
+    "4. Módulo Agenda (Recepción)",
+    "5. Módulo Worklist (Tecnología)",
+    "6. Módulo Radiólogo",
+    "7. Módulo Transcripción",
+    "8. Módulo Validación",
+    "9. Módulo Entrega y retiro",
+    "10. Módulo Administración",
+    "11. Módulo Dashboard",
+    "12. Anexo técnico",
+]
+
+
+class InstructivoRenderer(Protocol):
+    def cover(self, banner: Path | None) -> None: ...
+    def toc(self, items: list[str]) -> None: ...
+    def chapter(self, number: str, title: str) -> None: ...
+    def h2(self, text: str) -> None: ...
+    def p(self, text: str) -> None: ...
+    def bullets(self, items: list[str]) -> None: ...
+    def steps(self, items: list[str]) -> None: ...
+    def figure(
+        self,
+        path: Path,
+        caption: str,
+        max_height: float = 88,
+        caption_below: bool = True,
+    ) -> None: ...
+    def render_table(
+        self,
+        headers: list[str],
+        rows: list[list[str]],
+        col_widths: tuple[float, ...] | None = None,
+    ) -> None: ...
+
+
+def render_instructivo(
+    doc: InstructivoRenderer,
+    shots: dict[str, Path],
+    flujo: Path,
+) -> None:
+    def s(name: str) -> Path | None:
+        return shots.get(name)
+
+    doc.cover(s("02_layout_agenda") or s("03_modulo_agenda"))
+    doc.toc(TOC)
+
+    doc.chapter("1", "Introducción al sistema")
+    doc.p(
+        "HealthTiCloud RIS es la aplicación web del centro para gestionar el recorrido del paciente: "
+        "desde la cita en recepción hasta la entrega del informe. Cada persona del equipo accede "
+        "con su usuario y ve solo los módulos que le corresponden según su rol."
+    )
+    if s("02_layout_agenda"):
+        doc.figure(
+            s("02_layout_agenda"),
+            "Figura 1. Vista principal del sistema (ejemplo: Agenda).",
+            max_height=76,
+        )
+    doc.h2("Módulos del sistema")
+    doc.render_table(
+        ["Módulo", "Para qué sirve", "Perfiles que suelen usarlo"],
+        [
+            ["Agenda", "Citación, calendario, pagos y confirmación de pacientes.", "Recepcionista, Administrador"],
+            ["Worklist", "Atención en sala, insumos y envío DICOM al equipo.", "Tecnólogo, Administrador"],
+            ["Radiólogo", "Lectura de imágenes, borrador y firma de informes.", "Médico radiólogo, Administrador"],
+            ["Transcripción", "Redacción del informe a partir del audio dictado.", "Transcriptor, Administrador"],
+            ["Validación", "Revisión y firma final del informe transcrito.", "Médico radiólogo, Administrador"],
+            ["Entrega/Retiro", "Entrega de resultados al paciente o autorizado.", "Recepcionista, Administrador"],
+            ["Administración", "Usuarios, catálogos, salas, reportes y configuración.", "Administrador"],
+            ["Dashboard", "Indicadores del día: citas, ingresos, flujo clínico.", "Administrador y supervisión"],
+        ],
+        (38, 72, 80),
+    )
+
+    doc.chapter("2", "Flujo clínico completo")
+    doc.p(
+        "Un paciente típico recorre estas etapas. Varios módulos intervienen en distintos momentos; "
+        "no es necesario que un mismo usuario vea todos los pasos."
+    )
+    if flujo.exists():
+        doc.figure(flujo, "Figura 2. Diagrama del flujo clínico.", max_height=46)
+    doc.steps([
+        "Recepción crea la cita en Agenda (paciente, examen, pago).",
+        "Recepción confirma la llegada del paciente al centro.",
+        "Tecnología atiende en Worklist y envía la orden al equipo de imágenes.",
+        "El radiólogo interpreta el estudio y produce el informe.",
+        "Si hubo dictado por audio, transcripción redacta el texto.",
+        "El radiólogo valida y firma el informe final.",
+        "Recepción registra la entrega del resultado al paciente.",
+    ])
+    doc.render_table(
+        ["Estado de la cita", "Quién actúa", "Módulo"],
+        [
+            ["Agendado / Confirmado / En espera", "Recepcionista", "Agenda"],
+            ["DICOM enviado", "Tecnólogo", "Worklist"],
+            ["En informe / En transcripción", "Radiólogo / Transcriptor", "Radiólogo / Transcripción"],
+            ["Entregable", "—", "Entrega"],
+            ["Entregado", "Recepcionista", "Entrega"],
+        ],
+        (52, 42, 96),
+    )
+
+    doc.chapter("3", "Acceso, interfaz y menú según su perfil")
+    if s("01_login"):
+        doc.figure(s("01_login"), "Figura 3. Pantalla de inicio de sesión.", max_height=58)
+    doc.h2("Inicio de sesión")
+    doc.steps([
+        "Abra la URL del sistema e ingrese el usuario y contraseña entregados por su administrador.",
+        "Tras ingresar, seleccione el laboratorio o sucursal en la barra superior (si aplica).",
+        "El menú lateral muestra los módulos disponibles para usted.",
+    ])
+    doc.h2("¿Por qué veo menos módulos que un compañero?")
+    doc.p(
+        "Es normal. El menú lateral se adapta automáticamente al rol asignado a su usuario. "
+        "Solo aparecen los módulos que necesita para su trabajo diario."
+    )
+    doc.bullets([
+        "Si su usuario es Recepcionista, verá Agenda y Entrega/Retiro (y Dashboard si está habilitado).",
+        "Si es Tecnólogo, verá Worklist (y Dashboard si aplica).",
+        "Si es Radiólogo, verá Radiólogo y Validación.",
+        "Si es Transcriptor, verá solo Transcripción.",
+        "Si es Administrador del centro, verá todos los módulos operativos más Administración y Dashboard.",
+        "Un mismo usuario puede tener varios roles (por ejemplo recepción y tecnología); "
+        "en ese caso verá la unión de los módulos de esos roles.",
+    ])
+    doc.h2("Qué hacer si falta un módulo")
+    doc.bullets([
+        "Verifique que seleccionó el laboratorio correcto en la barra superior.",
+        "Cierre sesión y vuelva a entrar (por si hubo un cambio reciente de permisos).",
+        "Contacte al administrador del centro para revisar sus roles asignados.",
+        "No intente acceder a pantallas ocultas: la API también valida permisos y puede rechazar operaciones.",
+    ])
+    doc.h2("Elementos comunes de la interfaz")
+    doc.bullets([
+        "Menú lateral izquierdo: cambio entre módulos visibles para usted.",
+        "Barra superior: laboratorio activo, nombre de usuario y rol.",
+        "Toasts (avisos abajo a la derecha): confirmaciones y errores.",
+        "Modales de confirmación: acciones importantes piden confirmación antes de ejecutarse.",
+    ])
+    doc.render_table(
+        ["Módulo en menú", "Roles con acceso"],
+        [
+            ["Agenda", "recepcion, admin"],
+            ["Worklist", "tecnologo, admin"],
+            ["Radiólogo", "radiologo, admin"],
+            ["Transcripción", "transcriptor, admin"],
+            ["Validación", "radiologo, admin"],
+            ["Entrega/Retiro", "recepcion, admin"],
+            ["Administración", "admin"],
+            ["Dashboard", "admin, recepcion, tecnologo, radiologo, transcriptor"],
+        ],
+        (70, 120),
+    )
+
+    doc.chapter("4", "Módulo Agenda (Recepción)")
+    doc.p("Acceso: recepcionistas y administradores del centro.")
+    if s("03_modulo_agenda"):
+        doc.figure(
+            s("03_modulo_agenda"),
+            "Figura 4. Calendario de agenda por sala y horario.",
+            max_height=78,
+        )
+    doc.h2("Qué puede hacer aquí")
+    doc.bullets([
+        "Ver el calendario de citas por sala/equipo con códigos de color por estado.",
+        "Buscar pacientes por RUT o apellido en la barra superior.",
+        "Crear una cita nueva (clic en horario libre o botón equivalente).",
+        "Editar una cita existente (clic sobre el evento en el calendario).",
+        "Registrar o actualizar datos del paciente, previsión y médicos.",
+        "Agregar uno o más exámenes, insumos y adjuntar orden médica si corresponde.",
+        "Registrar pago (pendiente, parcial o pagado) y método de cobro.",
+        "Cambiar estado de la cita: confirmar llegada, marcar en espera, anular, etc.",
+    ])
+    if s("11_wizard_agenda"):
+        doc.figure(s("11_wizard_agenda"), "Figura 5. Formulario de cita por pasos.", max_height=88)
+    doc.h2("Wizard de nueva cita (4 pasos)")
+    doc.steps([
+        "Paciente: RUT, nombres, contacto, previsión. Puede recuperar un paciente ya registrado.",
+        "Cita: médico tratante/destinador, sala, fecha, procedencia (Ambulatorio, Hospitalizado, etc.) y prioridad.",
+        "Exámenes: prestaciones del catálogo; puede ajustar precio con justificación.",
+        "Pago: método, montos y estado de cobro antes de guardar.",
+    ])
+    doc.h2("Correo de instrucciones al paciente")
+    doc.p(
+        "Al guardar una cita cuya procedencia NO sea Ambulatorio, el sistema puede enviar por correo "
+        "las instrucciones de preparación configuradas en Administración para cada examen. "
+        "Requiere email válido del paciente y correo SMTP configurado en el servidor."
+    )
+    doc.h2("Colores del calendario")
+    doc.bullets([
+        "Violeta: pre-agendado.",
+        "Verde: agendado.",
+        "Azul: confirmado.",
+        "Ámbar: en espera / recepcionado.",
+        "Rojo: anulado o no asiste.",
+        "Gris: ya atendido.",
+    ])
+
+    doc.chapter("5", "Módulo Worklist (Tecnología)")
+    doc.p("Acceso: tecnólogos y administradores.")
+    if s("04_modulo_worklist"):
+        doc.figure(
+            s("04_modulo_worklist"),
+            "Figura 6. Lista de pacientes en espera de atención técnica.",
+            max_height=78,
+        )
+    doc.h2("Qué puede hacer aquí")
+    doc.bullets([
+        "Ver pacientes confirmados o en atención, agrupados por cadena de estudios.",
+        "Filtrar por sala/equipo o buscar por RUT o nombre.",
+        "Abrir el modal de Atención técnica para un paciente.",
+        "Revisar exámenes solicitados, datos clínicos e insumos.",
+        "Registrar insumos consumidos durante la atención.",
+        "Enviar la orden DICOM al equipo (PACS/Orthanc según configuración del centro).",
+        "Confirmar que el estudio quedó disponible en el equipo.",
+        "Completar la atención para que el caso pase al radiólogo.",
+        "Devolver el paciente a recepción indicando motivo (preparación, documentación, etc.).",
+    ])
+
+    doc.chapter("6", "Módulo Radiólogo")
+    doc.p("Acceso: médicos radiólogos y administradores.")
+    if s("05_modulo_radiologo"):
+        doc.figure(
+            s("05_modulo_radiologo"),
+            "Figura 7. Estudios pendientes de informe.",
+            max_height=78,
+        )
+    doc.h2("Qué puede hacer aquí")
+    doc.bullets([
+        "Ver estudios listos para lectura (cadena de atención completa en worklist).",
+        "Abrir visor DICOM/PACS vinculado al accession number del estudio.",
+        "Redactar borrador con hallazgos y conclusión.",
+        "Guardar borrador y continuar más tarde.",
+        "Firmar y liberar el informe (si redactó directamente en pantalla).",
+        "Enviar a Transcripción si dictó el informe por audio.",
+        "Devolver al tecnólogo con motivo si la imagen tiene problemas técnicos.",
+    ])
+
+    doc.chapter("7", "Módulo Transcripción")
+    doc.p("Acceso: transcriptores y administradores.")
+    if s("06_modulo_transcripcion"):
+        doc.figure(
+            s("06_modulo_transcripcion"),
+            "Figura 8. Cola de audios pendientes de transcribir.",
+            max_height=78,
+        )
+    doc.h2("Qué puede hacer aquí")
+    doc.bullets([
+        "Ver estudios con audio dictado pendiente de redacción.",
+        "Escuchar el audio y transcribir al editor de informe.",
+        "Guardar borrador sin cerrar el caso.",
+        "Enviar a Validación cuando el texto esté completo.",
+        "Devolver el audio al radiólogo si está inaudible, cortado o vacío (indicando motivo).",
+    ])
+
+    doc.chapter("8", "Módulo Validación")
+    doc.p("Acceso: radiólogos (validación de informes transcritos) y administradores.")
+    if s("07_modulo_validacion"):
+        doc.figure(
+            s("07_modulo_validacion"),
+            "Figura 9. Informes pendientes de validación.",
+            max_height=78,
+        )
+    doc.h2("Qué puede hacer aquí")
+    doc.bullets([
+        "Revisar informes transcritos antes de la firma definitiva.",
+        "Comparar texto con datos del paciente y estándares del centro.",
+        "Firmar y liberar: la cita pasa a estado entregable.",
+        "Devolver a secretaría/transcripción con observaciones si requiere corrección.",
+    ])
+
+    doc.chapter("9", "Módulo Entrega y retiro")
+    doc.p("Acceso: recepcionistas y administradores.")
+    if s("08_modulo_entrega"):
+        doc.figure(
+            s("08_modulo_entrega"),
+            "Figura 10. Resultados listos para retiro.",
+            max_height=78,
+        )
+    doc.h2("Qué puede hacer aquí")
+    doc.bullets([
+        "Buscar pacientes con informes firmados (estado entregable).",
+        "Filtrar pendientes de retiro o ya entregados.",
+        "Registrar quién retira (RUT), relación con el paciente y método.",
+        "Confirmar entrega presencial, envío por correo o registro de impresión.",
+        "Revertir una entrega si hubo error (según permisos del centro).",
+    ])
+
+    doc.chapter("10", "Módulo Administración")
+    doc.p(
+        "Acceso: administradores del centro. "
+        "No visible para recepción, tecnología ni radiología en su día a día."
+    )
+    if s("09_modulo_admin"):
+        doc.figure(
+            s("09_modulo_admin"),
+            "Figura 11. Panel de administración del centro.",
+            max_height=78,
+        )
+    doc.h2("Qué puede hacer aquí")
+    doc.bullets([
+        "Gestionar usuarios: crear, editar roles, asignar laboratorios.",
+        "Configurar salas/equipos: modalidad, AE Title, IP DICOM.",
+        "Mantener catálogo de exámenes, precios e instrucciones por correo.",
+        "Administrar insumos, previsiones, planes y convenios.",
+        "Plantillas de informes y parámetros del centro.",
+        "Reportes de producción, honorarios y nómina.",
+        "Exportar datos a Excel donde esté disponible.",
+    ])
+
+    doc.chapter("11", "Módulo Dashboard")
+    doc.p("Acceso: administradores y perfiles operativos con permiso de visualización.")
+    if s("10_modulo_dashboard"):
+        doc.figure(
+            s("10_modulo_dashboard"),
+            "Figura 12. Indicadores operativos del día.",
+            max_height=78,
+        )
+    doc.h2("Qué puede hacer aquí")
+    doc.bullets([
+        "Consultar KPIs del día: pacientes, exámenes realizados, ingresos estimados.",
+        "Ver tiempo promedio de entrega (TAT) y tendencia respecto al día anterior.",
+        "Revisar producción por modalidad y distribución por previsión.",
+        "Monitorear en qué etapa del flujo clínico están las citas del día.",
+        "Usar el selector de laboratorio para filtrar sucursales (administradores multi-sede).",
+    ])
+
+    doc.chapter("12", "Anexo técnico")
+    doc.p("Información para soporte TI o regeneración de este manual.")
+    doc.bullets([
+        "Regenerar PDF: python docs/generate_instructivo.py",
+        "Regenerar DOCX: python docs/generate_instructivo_docx.py",
+        "Regenerar capturas: node docs/capture_screenshots.mjs (frontend en puerto 8765, API en 8000).",
+        "Correo en desarrollo: MAIL_MAILER=log escribe en storage/logs/laravel.log.",
+    ])

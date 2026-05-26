@@ -182,7 +182,10 @@ async function firmarInforme() {
 async function rechazarInforme() {
     if (!currentValidationChain) return;
 
-    const motivo = prompt("Indique el motivo por el cual devuelve este informe a la secretaria:");
+    const motivo = await showPrompt(
+        "Indique el motivo por el cual devuelve este informe a la secretaria:",
+        { title: "Devolver informe" }
+    );
     if (!motivo) return;
 
     const token = localStorage.getItem('ris_token');

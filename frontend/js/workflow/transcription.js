@@ -352,7 +352,10 @@ async function enviarAValidacion() {
 async function devolverAudioAlMedico() {
     if (!currentTranscriptionChain) return;
 
-    const motivo = prompt("Indique por qué devuelve este audio al Radiólogo (Ej: Audio inaudible, cortado, vacío):");
+    const motivo = await showPrompt(
+        "Indique por qué devuelve este audio al Radiólogo (Ej: Audio inaudible, cortado, vacío):",
+        { title: "Devolver audio" }
+    );
     if (!motivo) return;
 
     const token = localStorage.getItem('ris_token');

@@ -752,7 +752,7 @@ function imprimirComprobantePaciente(data) {
         </style>
         </head><body>
         <div class="ticket">
-            <h2>RIS PRO CLÍNICA</h2>
+            <h2>HealthTiCloud RIS</h2>
             <div class="sep"></div>
             <b>Paciente:</b> ${data.patient.names} ${data.patient.last_name_1}<br>
             <b>RUT:</b> ${data.patient.rut}<br>
@@ -1049,12 +1049,14 @@ function setupProEventListeners() {
         $("#lblTransactionCode").text(lbl);
     });
 
-    $(document).on("change", ".ePrice", function () {
+    $(document).on("change", ".ePrice", async function () {
         const row = $(this).closest("tr");
         const originalPrice = parseFloat(row.data("original-price")) || 0;
         const newPrice = parseFloat($(this).val()) || 0;
         if (originalPrice > 0 && newPrice !== originalPrice) {
-            const motivo = prompt("Justifique el cambio de precio arancelario:");
+            const motivo = await showPrompt("Justifique el cambio de precio arancelario:", {
+                title: "Cambio de precio"
+            });
             if (motivo) {
                 $(this).addClass("bg-success text-white border-success").attr("title", "Cambio justificado: " + motivo);
                 row.data("motivo-cambio", motivo);

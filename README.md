@@ -233,11 +233,13 @@ Usuarios de prueba incluidos tras `php artisan db:seed`:
 
 | Usuario | Rol | Notas |
 |---|---|---|
-| `admin` | Sys. Admin (`sis_admin`) | Acceso global a todos los laboratorios. **No aparece** en el listado de usuarios del módulo Admin. |
-| `rgutierrez` | Administrador | Usuario operativo con múltiples roles de prueba. |
-| `friquelme` | Tecnólogo | Usuario de ejemplo. |
+| `admin` | Sys. Admin (`sis_admin`) | Acceso global a todos los laboratorios. **No aparece** en el listado de usuarios del módulo Admin. Contraseña demo: `admin` |
+| `rgutierrez` | Administrador | Usuario operativo con múltiples roles de prueba. Contraseña demo: `rgutierrez` |
+| `friquelme` | Tecnólogo | Usuario de ejemplo. Contraseña demo: `friquelme` |
 
-Las contraseñas están definidas en `backend/database/seeders/DatabaseSeeder.php`. Para entornos nuevos, cambie las contraseñas desde Admin → Usuarios o con:
+> **Datos personales:** en desarrollo, los campos de `personas` (RUT, email, teléfono) se almacenan en texto plano. Solo algunos campos sensibles del usuario (`pacs_ae`, `dragon_profile`) usan encriptación Laravel. Cambie las contraseñas demo antes de producción.
+
+Las contraseñas también están hasheadas en `backend/database/seeders/DatabaseSeeder.php`. Para entornos nuevos, cámbielas desde Admin → Usuarios o con:
 
 ```bash
 cd backend
@@ -259,6 +261,7 @@ Ejecute esta lista después de instalar:
 - [ ] Login en el frontend funciona
 - [ ] Selector de laboratorio visible en la barra superior
 - [ ] Módulo **Agenda** carga citas y catálogo
+- [ ] `php artisan test` — Suite de smoke tests en verde
 
 ### Probar la API manualmente
 
@@ -266,7 +269,7 @@ Ejecute esta lista después de instalar:
 curl -X POST http://127.0.0.1:8000/api/login \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
-  -d "{\"login_field\":\"rgutierrez\",\"password\":\"SU_CLAVE\"}"
+  -d "{\"login_field\":\"rgutierrez\",\"password\":\"rgutierrez\"}"
 ```
 
 Debe devolver `"success": true` y un `access_token`.

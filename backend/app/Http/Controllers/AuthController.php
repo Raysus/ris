@@ -125,7 +125,9 @@ class AuthController extends Controller
             ['token' => $token, 'created_at' => now()]
         );
 
-        $recoveryLink = "https://tu-ris.cl/recovery.html?token=" . $token . "&email=" . urlencode($request->email);
+        $recoveryLink = rtrim(env('FRONTEND_URL', 'http://127.0.0.1:5500'), '/')
+            . '/recovery.html?token=' . $token
+            . '&email=' . urlencode($request->email);
 
         // Mail::to($request->email)->send(new ResetPasswordMail($recoveryLink));
 

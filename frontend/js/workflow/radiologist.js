@@ -415,7 +415,10 @@ async function firmarDirecto() {
 async function devolverATecnologo() {
     if (!currentReportingChain) return;
 
-    const motivo = prompt("Indique el motivo médico/técnico para rechazar la imagen y devolver al Tecnólogo:");
+    const motivo = await showPrompt(
+        "Indique el motivo médico/técnico para rechazar la imagen y devolver al Tecnólogo:",
+        { title: "Devolver a Tecnólogo" }
+    );
     if (!motivo) return;
 
     const token = localStorage.getItem('ris_token');

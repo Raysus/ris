@@ -186,7 +186,7 @@ function imprimirComprobanteEntrega(citaId) {
     // 🔥 Registro de Auditoría de Impresión (Silencioso)
     registrarImpresionEnLog(citaId);
 
-    const clinicName = "Centro Médico RIS PRO";
+    const clinicName = "HealthTiCloud RIS";
     const clinicAddress = "Av. Principal 123, Ciudad";
 
     let informesHtml = "";
@@ -268,7 +268,7 @@ function imprimirEtiquetaCD(citaId) {
     const baseItem = currentDeliveryData.find(c => String(c.id) === String(citaId));
     if (!baseItem) return;
 
-    const clinicName = "Centro Médico RIS PRO";
+    const clinicName = "HealthTiCloud RIS";
     const fecha = new Date().toLocaleDateString('es-CL');
     const examsStr = baseItem.studies.map(s => s.exam).join(" + ");
 

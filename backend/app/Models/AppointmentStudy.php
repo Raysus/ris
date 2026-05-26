@@ -27,6 +27,12 @@ class AppointmentStudy extends Model
     {
         return $this->belongsTo(Machine::class);
     }
+
+    public function exam()
+    {
+        return $this->belongsTo(Exam::class);
+    }
+
     public function report()
     {
         return $this->hasOne(MedicalReport::class);

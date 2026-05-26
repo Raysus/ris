@@ -134,6 +134,65 @@ function showConfirm(message, options = {}) {
     });
 }
 
+function showPrompt(message, options = {}) {
+    const {
+        title = "Ingrese información",
+        confirmText = "Aceptar",
+        cancelText = "Cancelar",
+        placeholder = "Escriba aquí...",
+        required = true
+    } = options;
+
+    return new Promise((resolve) => {
+        const modalEl = document.getElementById("risPromptModal");
+        if (!modalEl) {
+            resolve(window.prompt(message));
+            return;
+        }
+
+        $("#risPromptTitle").text(title);
+        $("#risPromptMessage").text(message);
+        const $input = $("#risPromptInput");
+        $input.val("").attr("placeholder", placeholder);
+        $("#risPromptConfirmBtn").text(confirmText);
+        $("#risPromptCancelBtn").text(cancelText);
+
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+        const cleanup = () => {
+            $("#risPromptConfirmBtn").off("click.risPrompt");
+            $("#risPromptCancelBtn").off("click.risPrompt");
+            modalEl.removeEventListener("hidden.bs.modal", onHidden);
+        };
+
+        const onHidden = () => {
+            cleanup();
+            resolve(null);
+        };
+
+        $("#risPromptConfirmBtn").off("click.risPrompt").on("click.risPrompt", () => {
+            const value = $input.val()?.trim() ?? "";
+            if (required && !value) {
+                showToast("Debe ingresar un valor.", "warning");
+                return;
+            }
+            cleanup();
+            modal.hide();
+            resolve(value || null);
+        });
+
+        $("#risPromptCancelBtn").off("click.risPrompt").on("click.risPrompt", () => {
+            cleanup();
+            modal.hide();
+            resolve(null);
+        });
+
+        modalEl.addEventListener("hidden.bs.modal", onHidden, { once: true });
+        modal.show();
+        setTimeout(() => $input.trigger("focus"), 200);
+    });
+}
+
 function openModal(id) {
     const el = document.getElementById(id);
     if (!el) return Promise.resolve();

@@ -484,7 +484,10 @@ function abrirDocWorklist(tipo) {
 async function devolverAAgenda() {
     if (!currentAtencionChain) return;
 
-    const motivo = prompt("Indique el motivo por el cual devuelve al paciente a recepción:\n(Ej: Paciente no tomó agua, orden incorrecta)");
+    const motivo = await showPrompt(
+        "Indique el motivo por el cual devuelve al paciente a recepción:\n(Ej: Paciente no tomó agua, orden incorrecta)",
+        { title: "Devolver a recepción" }
+    );
     if (motivo === null) return;
     if (motivo.trim() === "") return showToast("⚠️ Debe ingresar un motivo.", "warning");
 
