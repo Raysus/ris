@@ -63,9 +63,16 @@
                                     title="Dividir pantalla para ver historial previo">
                                     <i class="bi bi-layout-split me-1"></i> HISTORIAL (SPLIT)
                                 </button>
-                                <button class="btn btn-sm btn-secondary fw-bold shadow-sm" onclick="abrirVisorDicom()">
-                                    <i class="bi bi-display me-1"></i> VISOR PACS
-                                </button>
+                                <div class="btn-group">
+                                    <button type="button" class="btn btn-sm btn-secondary fw-bold shadow-sm"
+                                        onclick="abrirVisorDicom()" title="Bridge local → URL custom → OHIF">
+                                        <i class="bi bi-display me-1"></i> VISOR PACS
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-primary fw-bold shadow-sm"
+                                        onclick="abrirVisorDicomSoloOhif()" title="Abrir solo visor web OHIF">
+                                        <i class="bi bi-cloud me-1"></i> OHIF
+                                    </button>
+                                </div>
                             </div>
                         </div>
 

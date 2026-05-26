@@ -443,18 +443,33 @@ async function cargarPlantillasTranscripcion() {
     } catch (e) { console.error("Error cargando plantillas:", e); }
 }
 
-// === ATAJOS DE TECLADO MUNDIALES (F4 y F2) ===
+// === ATAJOS DE TECLADO (pedaleras suelen emular F1–F4) ===
 function setupKeyboardShortcuts() {
     $(document).on('keydown', function (e) {
-        if (currentTranscriptionChain) {
-            if (e.key === 'F4') {
+        if (!currentTranscriptionChain) return;
+        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') && e.key !== 'F4') {
+            return;
+        }
+
+        switch (e.key) {
+            case 'F4':
                 e.preventDefault();
                 togglePlayPause();
-            }
-            if (e.key === 'F2') {
+                break;
+            case 'F2':
                 e.preventDefault();
                 skipAudio(-5);
-            }
+                break;
+            case 'F3':
+                e.preventDefault();
+                skipAudio(5);
+                break;
+            case 'F1':
+                e.preventDefault();
+                skipAudio(-15);
+                break;
+            default:
+                break;
         }
     });
 }

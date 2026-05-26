@@ -122,7 +122,7 @@ function abrirValidacion(citaId) {
 
     // === ACTIVAR BOTONES DE HERRAMIENTAS ENTERPRISE ===
     $("#toolbarValidacion").attr("style", "display: flex !important;");
-    $("#btnRechazar, #btnAprobar, #btnPreview, #btnVisorPacsValidacion, #btnEditarValidacion").prop("disabled", false);
+    $("#btnRechazar, #btnAprobar, #btnPreview, #btnVisorPacsValidacion, #btnVisorOhifValidacion, #btnEditarValidacion").prop("disabled", false);
 }
 
 function cargarEstudioValidacion(studyId) {
@@ -225,7 +225,7 @@ function limpiarPantallaValidacion() {
 
     // Desactivar herramientas Enterprise
     $("#toolbarValidacion").attr("style", "display: none !important;");
-    $("#btnRechazar, #btnAprobar, #btnPreview, #btnVisorPacsValidacion, #btnEditarValidacion").prop("disabled", true);
+    $("#btnRechazar, #btnAprobar, #btnPreview, #btnVisorPacsValidacion, #btnVisorOhifValidacion, #btnEditarValidacion").prop("disabled", true);
 
     // Limpiar estilos si quedó editando
     $("#finalReportText").removeClass("border border-warning border-2 bg-warning-subtle shadow-sm");
@@ -255,6 +255,11 @@ function generarVistaPrevia() {
 async function abrirVisorPACSValidacion() {
     if (!currentValidationChain) return;
     await abrirVisorPACS(currentValidationChain.accessionNumber);
+}
+
+async function abrirVisorSoloOHIFValidacion() {
+    if (!currentValidationChain) return;
+    await abrirVisorSoloOHIF(currentValidationChain.accessionNumber);
 }
 
 function habilitarEdicionValidacion() {

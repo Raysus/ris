@@ -1,0 +1,13 @@
+{
+    "viewer": "radiant",
+    "paths": {
+        "radiant": "C:\\Program Files\\RadiAntViewer64bit\\RadiAntViewer.exe",
+        "horos": "C:\\Program Files\\Horos\\Horos.exe",
+        "osirix": "/Applications/OsiriX.app/Contents/MacOS/OsiriX",
+        "weasis": "C:\\Program Files\\Weasis\\Weasis.exe"
+    },
+    "scanner": {
+        "naps2_path": "C:\\Program Files\\NAPS2\\NAPS2.Console.exe",
+        "profile": "Brother"
+    }
+}

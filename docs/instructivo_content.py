@@ -408,8 +408,7 @@ def render_instructivo(
         "Portal del paciente y visor web suelen ser servicios aparte (subdominios del proveedor).",
     ])
     doc.p(
-        "Documentación técnica ampliada (códigos API, migraciones): docs/ESCALA_COMERCIAL.md, "
-        "sección «Tipos de laboratorio»."
+        "Documentación técnica de instalación: docs/INSTALACION.md"
     )
 
     doc.chapter("13", "Anexo técnico")

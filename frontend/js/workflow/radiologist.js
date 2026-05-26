@@ -595,4 +595,9 @@ function abrirVisorDicom() {
     abrirVisorPACS(currentReportingChain.accessionNumber);
 }
 
-/* abrirVisorPACS definido en js/core/viewer.js */
+function abrirVisorDicomSoloOhif() {
+    if (!currentReportingChain) return;
+    abrirVisorSoloOHIF(currentReportingChain.accessionNumber);
+}
+
+/* abrirVisorPACS / abrirVisorSoloOHIF en js/core/viewer.js */

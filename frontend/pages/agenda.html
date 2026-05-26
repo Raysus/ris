@@ -286,13 +286,17 @@
 
                                 <div class="mb-3">
                                     <label class="form-label fw-bold small text-muted mb-1">Orden Médica</label>
-                                    <div class="d-flex gap-2">
+                                    <div class="d-flex gap-2 flex-wrap">
                                         <input type="file" id="fileOrdenMedica" class="d-none"
                                             accept="image/*,application/pdf">
                                         <input type="hidden" id="docOrdenMedica">
-                                        <button type="button" class="btn btn-sm btn-outline-primary flex-fill fw-bold"
+                                        <button type="button" class="btn btn-sm btn-outline-primary fw-bold"
                                             id="btnEscanearOrden" onclick="iniciarEscaneoDirecto('orden')">
-                                            <i class="bi bi-upc-scan me-1"></i>Escanear Documento
+                                            <i class="bi bi-upc-scan me-1"></i>Escanear
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary fw-bold"
+                                            onclick="subirDocumentoAgenda('orden')" title="PDF o imagen desde el equipo">
+                                            <i class="bi bi-upload me-1"></i>Subir
                                         </button>
                                         <button type="button" class="btn btn-sm btn-info text-white d-none"
                                             id="btnVerOrden" onclick="verDocumento('orden')"><i
@@ -305,13 +309,17 @@
                                 <div>
                                     <label class="form-label fw-bold small text-muted mb-1">Encuesta de Seguridad /
                                         Consentimiento</label>
-                                    <div class="d-flex gap-2">
+                                    <div class="d-flex gap-2 flex-wrap">
                                         <input type="file" id="fileEncuesta" class="d-none"
                                             accept="image/*,application/pdf">
                                         <input type="hidden" id="docEncuesta">
-                                        <button type="button" class="btn btn-sm btn-outline-primary flex-fill fw-bold"
+                                        <button type="button" class="btn btn-sm btn-outline-primary fw-bold"
                                             id="btnEscanearEncuesta" onclick="iniciarEscaneoDirecto('encuesta')">
-                                            <i class="bi bi-upc-scan me-1"></i>Escanear Documento
+                                            <i class="bi bi-upc-scan me-1"></i>Escanear
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary fw-bold"
+                                            onclick="subirDocumentoAgenda('encuesta')" title="PDF o imagen desde el equipo">
+                                            <i class="bi bi-upload me-1"></i>Subir
                                         </button>
                                         <button type="button" class="btn btn-sm btn-info text-white d-none"
                                             id="btnVerEncuesta" onclick="verDocumento('encuesta')"><i

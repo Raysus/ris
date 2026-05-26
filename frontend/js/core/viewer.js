@@ -1,4 +1,4 @@
-/* Configuración centralizada del visor DICOM (OHIF) / PACS */
+/* Configuración centralizada del visor DICOM (OHIF / bridge / URL custom) */
 
 let _viewerConfigCache = null;
 
@@ -40,6 +40,63 @@ function buildOhifViewerUrl(cfg, accessionNumber) {
     return url.toString();
 }
 
+function buildCustomViewerUrl(cfg, accessionNumber) {
+    const tpl = (cfg.viewer_custom_url || "").trim();
+    if (!tpl) return null;
+
+    const map = {
+        "{accession}": encodeURIComponent(accessionNumber),
+        "{accession_number}": encodeURIComponent(accessionNumber),
+        "{pacs_ip}": encodeURIComponent(cfg.pacs_ip || ""),
+        "{pacs_port}": encodeURIComponent(String(cfg.pacs_port ?? "")),
+        "{pacs_aet}": encodeURIComponent(cfg.pacs_aet || ""),
+    };
+
+    let url = tpl;
+    Object.entries(map).forEach(([key, val]) => {
+        url = url.split(key).join(val);
+        url = url.split(key.toUpperCase()).join(val);
+    });
+
+    return url;
+}
+
+function tryOpenCustomViewerUrl(url) {
+    if (!url) return false;
+
+    try {
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.target = "_blank";
+        anchor.rel = "noopener noreferrer";
+        anchor.style.display = "none";
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        return true;
+    } catch (e) {
+        console.warn("No se pudo abrir URL custom del visor:", e);
+        return false;
+    }
+}
+
+async function abrirVisorOHIF(accessionNumber, cfg) {
+    const config = cfg || (await getViewerConfig());
+    const urlWeb = buildOhifViewerUrl(config, accessionNumber);
+    window.open(urlWeb, "_blank");
+    if (typeof showToast === "function") {
+        showToast("Visor web (OHIF) abierto en nueva pestaña.", "info");
+    }
+}
+
+async function abrirVisorSoloOHIF(accessionNumber) {
+    if (!accessionNumber) {
+        showToast("No hay número de acceso para abrir el visor.", "warning");
+        return;
+    }
+    await abrirVisorOHIF(accessionNumber);
+}
+
 async function abrirVisorPACS(accessionNumber) {
     if (!accessionNumber) {
         showToast("No hay número de acceso para abrir el visor.", "warning");
@@ -54,14 +111,45 @@ async function abrirVisorPACS(accessionNumber) {
         pacs_aet: cfg.pacs_aet,
     };
 
+    let bridgeOk = false;
+
     try {
-        await fetch(cfg.pacs_bridge_url, {
+        const res = await fetch(cfg.pacs_bridge_url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(pacsConfig),
         });
+
+        let data = {};
+        try {
+            data = await res.json();
+        } catch (e) {
+            data = {};
+        }
+
+        if (res.ok && data.success !== false) {
+            bridgeOk = true;
+            if (typeof showToast === "function") {
+                showToast("Visor local abierto.", "success");
+            }
+        }
     } catch (error) {
-        const urlWeb = buildOhifViewerUrl(cfg, accessionNumber);
-        window.open(urlWeb, "_blank");
+        console.warn("Bridge local no detectado:", error);
     }
+
+    if (bridgeOk) return;
+
+    const customUrl = buildCustomViewerUrl(cfg, accessionNumber);
+    if (customUrl && tryOpenCustomViewerUrl(customUrl)) {
+        if (typeof showToast === "function") {
+            showToast("Enlace al visor (URL custom) enviado. Si no abre, use OHIF.", "info");
+        }
+        return;
+    }
+
+    await abrirVisorOHIF(accessionNumber, cfg);
 }
+
+window.abrirVisorPACS = abrirVisorPACS;
+window.abrirVisorOHIF = abrirVisorOHIF;
+window.abrirVisorSoloOHIF = abrirVisorSoloOHIF;

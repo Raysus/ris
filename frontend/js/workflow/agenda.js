@@ -1260,6 +1260,12 @@ function buscarDisponibilidad() {
     showToast("Disponibilidad sugerida ingresada en los controles de hora.", "success");
 }
 
+function subirDocumentoAgenda(tipo) {
+    const inputId = tipo === 'orden' ? '#fileOrdenMedica' : '#fileEncuesta';
+    $(inputId).val('');
+    $(inputId).trigger('click');
+}
+
 $(document).ready(function () {
     $('#fileOrdenMedica').on('change', function (e) { procesarArchivoEscaner(e, 'orden'); });
     $('#fileEncuesta').on('change', function (e) { procesarArchivoEscaner(e, 'encuesta'); });
