@@ -56,6 +56,7 @@ class AuthController extends Controller
         ], $request);
 
         $primaryLabId = null;
+        $primaryLab = null;
         $isMainLab = false;
         $labTypeId = null;
         $labTypeCode = 'clinical';
