@@ -239,7 +239,7 @@
                                         <th style="width: 25%">Examen a Realizar</th>
                                         <th style="width: 20%">Variante / Sub-Examen</th>
                                         <th style="width: 8%" class="text-center">Cant.</th>
-                                        <th style="width: 12%" class="text-center">Cód. Fonasa</th>
+                                        <th style="width: 12%" class="text-center" data-ris-label="service-code">Cód. prestación</th>
                                         <th style="width: 20%">Arancel ($)</th>
                                         <th style="width: 5%" class="text-center">Eliminar</th>
                                     </tr>
@@ -346,8 +346,8 @@
                                 <label class="form-label small fw-bold text-muted mb-1">Tipo Bono</label>
                                 <select id="pTipoBono" class="form-select form-select-sm">
                                     <option value="Sin Bono">Sin Bono</option>
-                                    <option value="Manual">Manual</option>
-                                    <option value="Electrónico">Electrónico</option>
+                                    <option value="Manual" data-requires-fonasa="true">Manual (FONASA)</option>
+                                    <option value="Electrónico" data-requires-fonasa="true">Electrónico (FONASA)</option>
                                 </select>
                             </div>
                             <div class="col-md-2">
@@ -383,6 +383,29 @@
                                 <label class="form-label small fw-bold text-muted mb-1">Observaciones de pago</label>
                                 <textarea id="paymentNotes" class="form-control form-control-sm" rows="1"
                                     placeholder="Notas sobre el pago..."></textarea>
+                            </div>
+                            <div id="panelFonasaBono" class="col-12 d-none border border-primary border-opacity-25 rounded p-2 bg-white mt-1">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="small fw-bold text-primary"><i class="bi bi-shield-check me-1"></i>Bono FONASA</span>
+                                    <span id="fonasaMontosPreview" class="small text-muted"></span>
+                                </div>
+                                <div class="row g-2 align-items-end">
+                                    <div class="col-md-3">
+                                        <label class="form-label small mb-0">Folio bono</label>
+                                        <input type="text" id="fonasaFolio" class="form-control form-control-sm" placeholder="Ej. 1234567890">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label small mb-0">RUT beneficiario</label>
+                                        <input type="text" id="fonasaRutBenef" class="form-control form-control-sm" placeholder="12.345.678-9">
+                                    </div>
+                                    <div class="col-md-6 d-flex gap-2 flex-wrap">
+                                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="registrarBonoFonasa()">Registrar bono</button>
+                                        <button type="button" class="btn btn-sm btn-primary" onclick="validarBonoFonasa()">Validar</button>
+                                        <button type="button" class="btn btn-sm btn-outline-success" onclick="emitirDteCita('boleta')">Emitir boleta</button>
+                                        <button type="button" class="btn btn-sm btn-outline-dark" onclick="emitirDteCita('factura')">Emitir factura</button>
+                                    </div>
+                                </div>
+                                <div id="fonasaBonoStatus" class="small mt-2 text-muted"></div>
                             </div>
                         </div>
 

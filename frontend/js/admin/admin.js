@@ -23,6 +23,7 @@ function esAdminLogueado() {
 }
 
 function initAdmin() {
+    if (typeof applyLabProfileUI === 'function') applyLabProfileUI();
     window.RIS = window.RIS || { users: [], personas: [], config: {} };
     renderListaUsuariosAdmin();
     renderListaInsumosAdmin();
@@ -42,6 +43,8 @@ function initAdmin() {
     $("#mesExamenes").val(mesActual);
     $("#fechaNomina").val(new Date().toISOString().split('T')[0]);
     $("#mesNomina").val(mesActual);
+    $("#fechaCierreCaja").val(new Date().toISOString().split('T')[0]);
+    $("#mesConsolidado").val(mesActual);
 
     renderReporteHonorarios();
     renderReporteExamenes();
@@ -89,6 +92,245 @@ function setupAdminEvents() {
     $('button[data-bs-target="#tab-config"]').on('shown.bs.tab', function (e) {
         renderTablaSucursales();
     });
+    $('button[data-bs-target="#tab-caja"]').on('shown.bs.tab', () => cargarCierreCaja());
+    $('button[data-bs-target="#tab-cloud-sync"]').on('shown.bs.tab', () => cargarCloudSyncLogs());
+    $('button[data-bs-target="#tab-hl7"]').on('shown.bs.tab', () => cargarHl7Messages());
+    $('button[data-bs-target="#tab-consolidado"]').on('shown.bs.tab', () => cargarConsolidadoMatriz());
+    $('button[data-bs-target="#tab-dte"]').on('shown.bs.tab', () => cargarListaDte());
+}
+
+let currentConsolidadoData = null;
+
+let currentCierreCajaData = null;
+
+function adminAuthHeaders() {
+    return {
+        'Authorization': `Bearer ${localStorage.getItem('ris_token')}`,
+        'Accept': 'application/json',
+        'X-Lab-Id': localStorage.getItem('ris_lab_id'),
+    };
+}
+
+async function cargarCierreCaja() {
+    const fecha = $("#fechaCierreCaja").val() || new Date().toISOString().split('T')[0];
+    try {
+        const res = await fetch(`${API_URL}/payments/reports/cash-close?fecha=${fecha}`, {
+            headers: adminAuthHeaders(),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.message || 'Error al cargar cierre');
+
+        currentCierreCajaData = json.data;
+        const r = json.data.resumen;
+        $("#cajaTotalCobrado").text('$' + (r.total_cobrado || 0).toLocaleString('es-CL'));
+        $("#cajaTransacciones").text(r.transacciones || 0);
+        $("#cajaCitasPendientes").text(r.citas_pendientes || 0);
+        $("#cajaMontoPendiente").text('$' + (r.monto_pendiente_estimado || 0).toLocaleString('es-CL'));
+
+        const tbodyPagos = $("#tablaCierreCajaPagos tbody").empty();
+        (json.data.pagos || []).forEach(p => {
+            const pac = p.appointment?.patient?.persona;
+            const nombre = pac ? `${pac.names || ''} ${pac.last_name_1 || ''}`.trim() : '-';
+            tbodyPagos.append(`<tr>
+                <td class="small">${new Date(p.created_at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</td>
+                <td class="small">${nombre}</td>
+                <td class="small">${p.payment_method}</td>
+                <td class="text-end fw-bold">$${parseFloat(p.amount).toLocaleString('es-CL')}</td>
+                <td><span class="badge bg-success-subtle text-success">${p.status}</span></td>
+            </tr>`);
+        });
+        if (!json.data.pagos?.length) {
+            tbodyPagos.append('<tr><td colspan="5" class="text-center text-muted small py-3">Sin cobros en esta fecha</td></tr>');
+        }
+
+        const tbodyPen = $("#tablaCierreCajaPendientes tbody").empty();
+        (json.data.citas_pendientes || []).forEach(c => {
+            tbodyPen.append(`<tr>
+                <td>${c.hora || '-'}</td>
+                <td>${c.paciente}</td>
+                <td><span class="badge bg-warning-subtle text-warning">${c.payment_status}</span></td>
+                <td class="text-end">$${parseFloat(c.monto_estimado || 0).toLocaleString('es-CL')}</td>
+            </tr>`);
+        });
+        if (!json.data.citas_pendientes?.length) {
+            tbodyPen.append('<tr><td colspan="4" class="text-center text-muted small py-3">Sin citas pendientes de cobro</td></tr>');
+        }
+    } catch (e) {
+        showToast(e.message, 'danger');
+    }
+}
+
+function exportarCierreCajaExcel() {
+    if (!currentCierreCajaData) {
+        showToast('Cargue el cierre de caja primero', 'warning');
+        return;
+    }
+    const d = currentCierreCajaData;
+    const rows = [
+        ['Cierre de caja', d.fecha_label],
+        [],
+        ['Total cobrado', d.resumen.total_cobrado],
+        ['Transacciones', d.resumen.transacciones],
+        ['Citas pendientes', d.resumen.citas_pendientes],
+        ['Monto pendiente estimado', d.resumen.monto_pendiente_estimado],
+        [],
+        ['COBROS'],
+        ['Hora', 'Paciente', 'Método', 'Monto', 'Estado'],
+    ];
+    (d.pagos || []).forEach(p => {
+        const pac = p.appointment?.patient?.persona;
+        rows.push([
+            new Date(p.created_at).toLocaleString('es-CL'),
+            pac ? `${pac.names} ${pac.last_name_1}` : '',
+            p.payment_method,
+            p.amount,
+            p.status,
+        ]);
+    });
+    rows.push([], ['CITAS PENDIENTES'], ['Hora', 'Paciente', 'Estado', 'Monto est.']);
+    (d.citas_pendientes || []).forEach(c => {
+        rows.push([c.hora, c.paciente, c.payment_status, c.monto_estimado]);
+    });
+    descargarExcelXLSX(rows, `Cierre_Caja_${d.fecha}.xlsx`, 'Cierre');
+    showToast('Cierre de caja exportado', 'success');
+}
+
+async function cargarCloudSyncLogs() {
+    try {
+        const res = await fetch(`${API_URL}/integrations/cloud-sync?limit=100`, {
+            headers: adminAuthHeaders(),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.message || 'Error sync');
+
+        const stats = json.data.stats;
+        $("#resumenCloudSync").html(`
+            <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body py-2"><small class="text-muted">Pendientes</small><h5 class="fw-bold mb-0">${stats.pending}</h5></div></div></div>
+            <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body py-2"><small class="text-muted">OK</small><h5 class="fw-bold text-success mb-0">${stats.success}</h5></div></div></div>
+            <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body py-2"><small class="text-muted">Fallidos</small><h5 class="fw-bold text-danger mb-0">${stats.failed}</h5></div></div></div>
+            <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body py-2"><small class="text-muted">Últimas 24h</small><h5 class="fw-bold mb-0">${stats.last_24h}</h5></div></div></div>
+        `);
+
+        const tbody = $("#tablaCloudSync tbody").empty();
+        (json.data.logs || []).forEach(log => {
+            const badge = log.status === 'success' ? 'success' : (log.status === 'failed' ? 'danger' : 'warning');
+            const retryBtn = log.status === 'failed'
+                ? `<button class="btn btn-sm btn-outline-primary" onclick="reintentarCloudSync('${log.id}')">Reintentar</button>`
+                : '';
+            tbody.append(`<tr>
+                <td class="small">${new Date(log.created_at).toLocaleString('es-CL')}</td>
+                <td class="small">${log.entity_type}</td>
+                <td class="small">${log.action}</td>
+                <td><span class="badge bg-${badge}-subtle text-${badge}">${log.status}</span></td>
+                <td>${log.attempts}</td>
+                <td class="small text-danger text-truncate" style="max-width:200px" title="${log.last_error || ''}">${log.last_error || '-'}</td>
+                <td>${retryBtn}</td>
+            </tr>`);
+        });
+        if (!json.data.logs?.length) {
+            tbody.append('<tr><td colspan="7" class="text-center text-muted py-3">Sin registros de sincronización</td></tr>');
+        }
+    } catch (e) {
+        showToast(e.message, 'danger');
+    }
+}
+
+async function reintentarCloudSync(id) {
+    try {
+        const res = await fetch(`${API_URL}/integrations/cloud-sync/${id}/retry`, {
+            method: 'POST',
+            headers: adminAuthHeaders(),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.message || 'No se pudo reintentar');
+        showToast(json.message, 'success');
+        cargarCloudSyncLogs();
+    } catch (e) {
+        showToast(e.message, 'danger');
+    }
+}
+
+async function cargarConsolidadoMatriz() {
+    const mes = $("#mesConsolidado").val() || new Date().toISOString().slice(0, 7);
+    try {
+        const res = await fetch(`${API_URL}/reports/consolidated-matrix?month=${mes}`, { headers: adminAuthHeaders() });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.message || 'Error');
+        currentConsolidadoData = json.data;
+        const tbody = $("#tablaConsolidadoMatriz tbody").empty();
+        (json.data.filas || []).forEach(f => {
+            tbody.append(`<tr>
+                <td>${f.nombre}</td>
+                <td>${f.es_matriz ? '<span class="badge bg-primary-subtle text-primary">Matriz</span>' : 'Sucursal'}</td>
+                <td class="text-end">${f.citas}</td>
+                <td class="text-end">${f.entregados}</td>
+                <td class="text-end">$${parseFloat(f.produccion).toLocaleString('es-CL')}</td>
+                <td class="text-end">$${parseFloat(f.cobrado).toLocaleString('es-CL')}</td>
+            </tr>`);
+        });
+        const t = json.data.totales;
+        $("#filaTotalesConsolidado").html(`<td colspan="2">TOTAL RED</td><td class="text-end">${t.citas}</td><td class="text-end">${t.entregados}</td><td class="text-end">$${parseFloat(t.produccion).toLocaleString('es-CL')}</td><td class="text-end">$${parseFloat(t.cobrado).toLocaleString('es-CL')}</td>`);
+    } catch (e) {
+        showToast(e.message, 'danger');
+    }
+}
+
+function exportarConsolidadoExcel() {
+    if (!currentConsolidadoData) return;
+    const rows = [['Consolidado matriz', currentConsolidadoData.mes], [], ['Sede', 'Tipo', 'Citas', 'Entregados', 'Producción', 'Cobrado']];
+    currentConsolidadoData.filas.forEach(f => rows.push([f.nombre, f.es_matriz ? 'Matriz' : 'Sucursal', f.citas, f.entregados, f.produccion, f.cobrado]));
+    rows.push([], ['TOTAL', '', currentConsolidadoData.totales.citas, currentConsolidadoData.totales.entregados, currentConsolidadoData.totales.produccion, currentConsolidadoData.totales.cobrado]);
+    descargarExcelXLSX(rows, `Consolidado_${currentConsolidadoData.mes}.xlsx`, 'Consolidado');
+    showToast('Exportado', 'success');
+}
+
+async function cargarListaDte() {
+    try {
+        const res = await fetch(`${API_URL}/billing/dte?limit=100`, { headers: adminAuthHeaders() });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.message || 'Error DTE');
+        const tbody = $("#tablaDteAdmin tbody").empty();
+        (json.data || []).forEach(d => {
+            tbody.append(`<tr>
+                <td class="small">${new Date(d.created_at).toLocaleString('es-CL')}</td>
+                <td>${d.document_type}</td>
+                <td>${d.folio || '-'}</td>
+                <td><span class="badge bg-secondary-subtle">${d.status}</span></td>
+                <td class="text-end">$${parseFloat(d.monto_total).toLocaleString('es-CL')}</td>
+                <td class="small">${d.receptor_name || '-'}</td>
+            </tr>`);
+        });
+        if (!json.data?.length) tbody.append('<tr><td colspan="6" class="text-center text-muted py-3">Sin documentos emitidos</td></tr>');
+    } catch (e) {
+        showToast(e.message, 'danger');
+    }
+}
+
+async function cargarHl7Messages() {
+    try {
+        const res = await fetch(`${API_URL}/integrations/hl7/messages?limit=80`, {
+            headers: adminAuthHeaders(),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.message || 'Error HL7');
+
+        const tbody = $("#tablaHl7Messages tbody").empty();
+        (json.data || []).forEach(m => {
+            tbody.append(`<tr>
+                <td class="small">${new Date(m.created_at).toLocaleString('es-CL')}</td>
+                <td class="small">${m.message_type}</td>
+                <td>${m.direction || '-'}</td>
+                <td><span class="badge bg-secondary-subtle">${m.status}</span></td>
+                <td class="small">${m.placer_order_id || '-'}</td>
+                <td class="small text-truncate">${m.appointment_id ? m.appointment_id.substring(0, 8) + '…' : '-'}</td>
+            </tr>`);
+        });
+        if (!json.data?.length) {
+            tbody.append('<tr><td colspan="6" class="text-center text-muted py-3">Sin mensajes HL7</td></tr>');
+        }
+    } catch (e) {
+        showToast(e.message, 'danger');
+    }
 }
 
 async function renderListaServiciosAdmin() {

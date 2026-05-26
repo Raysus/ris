@@ -109,6 +109,10 @@ class RadiologistController extends Controller
             $appointment->load(['patient.persona', 'studies', 'supplies']);
             \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
 
+            if (config('hl7.enabled') && config('hl7.send_oru_on_sign')) {
+                app(\App\Services\Hl7IntegrationService::class)->queueOruForAppointment($appointment);
+            }
+
             DB::commit();
             return response()->json(['success' => true]);
 

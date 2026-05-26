@@ -80,7 +80,10 @@ function loadPage(page) {
 
                 const initFn = RIS_MODULE_INIT[page];
                 if (initFn && typeof window[initFn] === "function") {
-                    window[initFn]();
+                    Promise.resolve(window[initFn]()).catch((err) => {
+                        console.error(`Error en ${initFn}:`, err);
+                        showToast(`Error al iniciar ${page}: ${err.message}`, 'danger');
+                    });
                 }
             });
         })

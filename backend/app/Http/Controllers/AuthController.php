@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use App\Models\User;
 use App\Models\Persona;
+use App\Models\Laboratory;
+use App\Services\LaboratoryProfileService;
 
 class AuthController extends Controller
 {
@@ -56,6 +58,8 @@ class AuthController extends Controller
         $primaryLabId = null;
         $isMainLab = false;
         $labTypeId = null;
+        $labTypeCode = 'clinical';
+        $perfilLaboratorio = LaboratoryProfileService::profileForCode('clinical');
         $laboratoriosPermitidos = [];
 
         if ($user->tipoUsuario->name == 'sis_admin') {
@@ -69,6 +73,14 @@ class AuthController extends Controller
                     $isMainLab = is_null($lab->parent_id);
                     $labTypeId = $lab->laboratory_type_id;
                 }
+            }
+        }
+
+        if ($primaryLabId) {
+            $primaryLab = Laboratory::with('type')->find($primaryLabId);
+            if ($primaryLab) {
+                $labTypeCode = LaboratoryProfileService::codeFromLaboratory($primaryLab);
+                $perfilLaboratorio = LaboratoryProfileService::resolve($primaryLab);
             }
         }
 
@@ -103,8 +115,10 @@ class AuthController extends Controller
                 'laboratorio_id' => $primaryLabId,
                 'es_matriz' => $isMainLab,
                 'tipo_laboratorio_id' => $labTypeId,
-                'laboratorios_permitidos' => $laboratoriosPermitidos
-            ]
+                'tipo_laboratorio_code' => $labTypeCode,
+                'perfil_laboratorio' => $perfilLaboratorio,
+                'laboratorios_permitidos' => $laboratoriosPermitidos,
+            ],
         ]);
     }
 

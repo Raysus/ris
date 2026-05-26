@@ -8,6 +8,7 @@ use App\Models\Tariff;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use App\Services\LaboratoryProfileService;
 
 class PaymentController extends Controller
 {
@@ -183,14 +184,20 @@ class PaymentController extends Controller
             $labId = $request->header('X-Lab-Id') ?: config('app.current_lab_id');
             $insuranceId = $request->query('insurance_id');
             
+            $insuranceQuery = \App\Models\Insurance::query()->where('is_active', true);
+            LaboratoryProfileService::filterInsurancesForProfile($insuranceQuery);
+
+            $allowedInsuranceIds = $insuranceQuery->pluck('id');
+
             $query = \App\Models\InsurancePlan::with('insurance')
                 ->where('is_active', true)
-                ->where('laboratory_id', $labId);
-            
+                ->where('laboratory_id', $labId)
+                ->whereIn('insurance_id', $allowedInsuranceIds);
+
             if ($insuranceId) {
                 $query->where('insurance_id', $insuranceId);
             }
-            
+
             $plans = $query->get();
 
             return response()->json([
@@ -333,6 +340,71 @@ class PaymentController extends Controller
                 'fecha' => $fecha->format('d/m/Y'),
                 'por_cajero' => $porCajero,
                 'total_dia' => $pagos->sum('amount'),
+            ],
+        ]);
+    }
+
+    /**
+     * Cierre de caja diario (cobros + pendientes del día).
+     * GET /api/payments/reports/cash-close?fecha=2026-05-25
+     */
+    public function getCashClose(Request $request)
+    {
+        $fecha = $request->query('fecha') ? Carbon::parse($request->query('fecha')) : Carbon::now();
+        $labId = $request->header('X-Lab-Id') ?: config('app.current_lab_id');
+
+        $pagos = Payment::whereDate('created_at', $fecha->toDateString())
+            ->when($labId, function ($q) use ($labId) {
+                $q->whereHas('appointment', fn ($aq) => $aq->where('laboratory_id', $labId));
+            })
+            ->with(['cashier.persona', 'appointment.patient.persona'])
+            ->orderBy('created_at')
+            ->get();
+
+        $citasPendientes = Appointment::query()
+            ->when($labId, fn ($q) => $q->where('laboratory_id', $labId))
+            ->whereDate('start_time', $fecha->toDateString())
+            ->whereNotIn('payment_status', ['Pagado'])
+            ->whereNotIn('status', ['anulado', 'cancelado'])
+            ->with(['patient.persona', 'studies.exam'])
+            ->get()
+            ->map(function ($app) {
+                $total = $app->studies->sum(fn ($s) => ($s->price_charged ?? 0) * ($s->quantity ?? 1));
+
+                return [
+                    'appointment_id' => $app->id,
+                    'hora' => $app->start_time?->format('H:i'),
+                    'paciente' => trim(
+                        ($app->patient?->persona?->names ?? '') . ' ' .
+                        ($app->patient?->persona?->last_name_1 ?? '')
+                    ),
+                    'payment_status' => $app->payment_status,
+                    'monto_estimado' => $total,
+                ];
+            });
+
+        $porMetodo = $pagos->groupBy('payment_method')->map(function ($items, $metodo) {
+            return [
+                'metodo' => $metodo,
+                'total' => $items->sum('amount'),
+                'cantidad' => $items->count(),
+            ];
+        })->values();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'fecha' => $fecha->format('Y-m-d'),
+                'fecha_label' => $fecha->format('d/m/Y'),
+                'resumen' => [
+                    'total_cobrado' => $pagos->sum('amount'),
+                    'transacciones' => $pagos->count(),
+                    'citas_pendientes' => $citasPendientes->count(),
+                    'monto_pendiente_estimado' => $citasPendientes->sum('monto_estimado'),
+                ],
+                'por_metodo' => $porMetodo,
+                'pagos' => $pagos,
+                'citas_pendientes' => $citasPendientes,
             ],
         ]);
     }

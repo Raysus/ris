@@ -2,6 +2,8 @@
 
 namespace App\Jobs;
 
+use App\Models\CloudSyncLog;
+use App\Services\CloudSyncLogger;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -18,28 +20,45 @@ class SyncEntityToCloud implements ShouldQueue
     public $entityType;
     public $action;
     public $payload;
+    public ?string $syncLogId;
 
     public $tries = 5;
     public $backoff = 30;
 
-    public function __construct($entityType, $action, $payload)
+    public function __construct($entityType, $action, $payload, ?string $syncLogId = null)
     {
         $this->entityType = $entityType;
         $this->action = $action;
         $this->payload = $payload;
+
+        if ($syncLogId) {
+            $this->syncLogId = $syncLogId;
+        } else {
+            $this->syncLogId = CloudSyncLogger::startPending($entityType, $action, $payload)->id;
+        }
     }
 
-    public function handle()
+    public function handle(): void
     {
+        if ($this->syncLogId) {
+            CloudSyncLogger::markAttempt($this->syncLogId);
+        }
+
         $cloudUrl = env('CLOUD_SERVER_URL');
         $secret = env('CLOUD_SYNC_SECRET');
 
         if (!$cloudUrl || !$secret) {
-            Log::error("Faltan variables de entorno para sincronizar en la nube.");
+            $msg = 'Sincronización cloud no configurada (CLOUD_SERVER_URL / CLOUD_SYNC_SECRET).';
+            Log::debug($msg);
+            if ($this->syncLogId) {
+                CloudSyncLog::where('id', $this->syncLogId)->update([
+                    'status' => 'skipped',
+                    'last_error' => null,
+                ]);
+            }
             return;
         }
 
-        // === 📦 EMPAQUETAR ARCHIVOS FÍSICOS A BASE64 ===
         $this->packFiles();
 
         $http = Http::timeout(15);
@@ -48,65 +67,82 @@ class SyncEntityToCloud implements ShouldQueue
             $http = $http->withoutVerifying();
         }
 
-        $response = $http
-            ->withToken($secret)
-            ->acceptJson()
-            ->asJson()
-            ->withHeaders([
-                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'X-Requested-With' => 'XMLHttpRequest'
-            ])
-            ->post($cloudUrl, [
-                'model' => $this->entityType,
-                'action' => $this->action,
-                'data' => $this->payload
-            ]);
+        try {
+            $response = $http
+                ->withToken($secret)
+                ->acceptJson()
+                ->asJson()
+                ->withHeaders([
+                    'User-Agent' => 'HealthTiCloud-RIS/1.0',
+                    'X-Requested-With' => 'XMLHttpRequest',
+                ])
+                ->post($cloudUrl, [
+                    'model' => $this->entityType,
+                    'action' => $this->action,
+                    'data' => $this->payload,
+                ]);
 
-        if ($response->failed()) {
-            throw new \Exception("Fallo al sincronizar {$this->entityType}. Nube respondió: " . $response->body());
+            if ($response->failed()) {
+                throw new \Exception(
+                    "Fallo al sincronizar {$this->entityType}. Nube respondió: " . $response->body()
+                );
+            }
+
+            if ($this->syncLogId) {
+                CloudSyncLogger::markSuccess($this->syncLogId);
+            }
+        } catch (\Throwable $e) {
+            if ($this->syncLogId) {
+                CloudSyncLogger::markFailed($this->syncLogId, $e);
+            }
+            throw $e;
         }
     }
 
-    /**
-     * Busca rutas de archivos en el payload y adjunta su contenido en Base64
-     */
-    private function packFiles()
+    public function failed(\Throwable $exception): void
+    {
+        if ($this->syncLogId) {
+            CloudSyncLogger::markFailed($this->syncLogId, $exception);
+        }
+    }
+
+    private function packFiles(): void
     {
         $columns = ['medical_order_path', 'survey_path', 'signature_path', 'audio_path'];
 
-        // Revisar datos principales (Citas, Usuarios)
         foreach ($columns as $col) {
             if (!empty($this->payload[$col])) {
                 $base64 = $this->fileToBase64($this->payload[$col]);
-                if ($base64)
+                if ($base64) {
                     $this->payload[$col . '_base64'] = $base64;
+                }
             }
         }
 
-        // Revisar datos anidados (Estudios dentro de una Cita)
         if (isset($this->payload['studies']) && is_array($this->payload['studies'])) {
             foreach ($this->payload['studies'] as $key => $study) {
                 if (!empty($study['audio_path'])) {
                     $base64 = $this->fileToBase64($study['audio_path']);
-                    if ($base64)
+                    if ($base64) {
                         $this->payload['studies'][$key]['audio_path_base64'] = $base64;
+                    }
                 }
             }
         }
     }
 
-   private function fileToBase64($path)
+    private function fileToBase64($path)
     {
-        $cleanPath = str_replace('/storage/', '', $path); // Normalizamos la ruta local
-        
+        $cleanPath = str_replace('/storage/', '', $path);
+
         if (Storage::disk('public')->exists($cleanPath)) {
             $content = Storage::disk('public')->get($cleanPath);
-            
             $absolutePath = Storage::disk('public')->path($cleanPath);
             $mime = mime_content_type($absolutePath);
-            
+
             return 'data:' . $mime . ';base64,' . base64_encode($content);
         }
+
         return null;
     }
 }

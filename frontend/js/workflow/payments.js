@@ -57,6 +57,15 @@ class PaymentManager {
             if (el) el.addEventListener('change', () => this.recalcularTotal());
         });
 
+        const tipoBono = document.getElementById('pTipoBono');
+        if (tipoBono) {
+            tipoBono.addEventListener('change', () => {
+                this.toggleFonasaPanel();
+                const aid = document.getElementById('appointmentId')?.value;
+                if (aid) this.cargarPreviewFonasa(aid);
+            });
+        }
+
         $(document).on('input.agendaPagos change.agendaPagos', '.ePrice, .eQty', () => {
             this.actualizarDesglosePrecios();
         });
@@ -306,6 +315,124 @@ class PaymentManager {
     formatPeso(valor) {
         return Math.round(Number(valor) || 0).toLocaleString('es-CL');
     }
+
+    toggleFonasaPanel() {
+        const profile = typeof getLabProfile === 'function' ? getLabProfile() : { show_fonasa_panel: true };
+        const panel = document.getElementById('panelFonasaBono');
+        if (panel) {
+            const tipo = document.getElementById('pTipoBono')?.value;
+            const show = profile.show_fonasa_panel && (tipo === 'Electronico' || tipo === 'Manual');
+            panel.classList.toggle('d-none', !show);
+        }
+    }
+
+    async cargarPreviewFonasa(appointmentId) {
+        const profile = typeof getLabProfile === 'function' ? getLabProfile() : {};
+        if (!profile.show_fonasa_panel || !appointmentId) return;
+        try {
+            const res = await fetch(`${API_URL}/fonasa/appointments/${appointmentId}/preview`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('ris_token')}`,
+                    'X-Lab-Id': localStorage.getItem('ris_lab_id'),
+                },
+            });
+            const json = await res.json();
+            if (json.success) {
+                const el = document.getElementById('fonasaMontosPreview');
+                if (el) {
+                    el.textContent = `Bonif. $${this.formatPeso(json.data.monto_bonificacion)} · Copago $${this.formatPeso(json.data.monto_copago)}`;
+                }
+            }
+        } catch (e) {
+            console.warn('Preview FONASA:', e);
+        }
+    }
+
+    async registrarBonoFonasa(appointmentId) {
+        const folio = document.getElementById('fonasaFolio')?.value?.trim();
+        if (!folio || !appointmentId) {
+            showPaymentToast('Ingrese folio y guarde la cita primero', 'warning');
+            return null;
+        }
+        const res = await fetch(`${API_URL}/fonasa/appointments/${appointmentId}/bono`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('ris_token')}`,
+                'X-Lab-Id': localStorage.getItem('ris_lab_id'),
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                folio,
+                tipo: document.getElementById('pTipoBono')?.value || 'Electronico',
+                rut_beneficiario: document.getElementById('fonasaRutBenef')?.value?.trim() || null,
+            }),
+        });
+        const json = await res.json();
+        if (json.success) {
+            showPaymentToast('Bono registrado', 'success');
+            document.getElementById('pTransactionCode').value = folio;
+            window._lastFonasaBonoId = json.data.id;
+            return json.data;
+        }
+        showPaymentToast(json.message || 'Error al registrar bono', 'danger');
+        return null;
+    }
+
+    async validarBonoFonasa(appointmentId, bonoId) {
+        bonoId = bonoId || window._lastFonasaBonoId;
+        if (!appointmentId || !bonoId) {
+            showPaymentToast('Registre el bono antes de validar', 'warning');
+            return;
+        }
+        const res = await fetch(`${API_URL}/fonasa/appointments/${appointmentId}/bono/${bonoId}/validate`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('ris_token')}`,
+                'X-Lab-Id': localStorage.getItem('ris_lab_id'),
+            },
+        });
+        const json = await res.json();
+        const statusEl = document.getElementById('fonasaBonoStatus');
+        if (statusEl) statusEl.textContent = json.message || '';
+        showPaymentToast(json.message || (json.success ? 'Validado' : 'Rechazado'), json.success ? 'success' : 'danger');
+        if (json.success && json.data?.estado === 'validado') {
+            document.getElementById('paymentStatus').value = 'Pagado';
+        }
+    }
+
+    async emitirDte(appointmentId, documentType = 'boleta') {
+        if (!appointmentId) {
+            showPaymentToast('Guarde la cita antes de emitir DTE', 'warning');
+            return;
+        }
+        const res = await fetch(`${API_URL}/billing/appointments/${appointmentId}/dte`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('ris_token')}`,
+                'X-Lab-Id': localStorage.getItem('ris_lab_id'),
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ document_type: documentType }),
+        });
+        const json = await res.json();
+        if (json.success) {
+            showPaymentModal('DTE emitido', `<p><strong>Folio:</strong> ${json.data.folio}</p><p><strong>Total:</strong> $${this.formatPeso(json.data.monto_total)}</p><p><strong>Estado:</strong> ${json.data.status}</p>`);
+        } else {
+            showPaymentToast(json.message || 'Error al emitir DTE', 'danger');
+        }
+    }
+}
+
+function registrarBonoFonasa() {
+    initPaymentManager().registrarBonoFonasa(document.getElementById('appointmentId')?.value);
+}
+
+function validarBonoFonasa() {
+    initPaymentManager().validarBonoFonasa(document.getElementById('appointmentId')?.value);
+}
+
+function emitirDteCita(tipo) {
+    initPaymentManager().emitirDte(document.getElementById('appointmentId')?.value, tipo);
 }
 
 function initPaymentManager() {

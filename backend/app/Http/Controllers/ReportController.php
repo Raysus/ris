@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Appointment;
+use App\Models\Laboratory;
+use App\Models\Payment;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
@@ -409,5 +411,73 @@ class ReportController extends Controller
         ]);
 
         return strtoupper(implode(' | ', $partes));
+    }
+
+    /**
+     * Consolidación matriz + sucursales (producción y cobros).
+     * GET /api/reports/consolidated-matrix?month=2026-05
+     */
+    public function getConsolidatedMatrix(Request $request)
+    {
+        $mes = $request->query('month', date('Y-m'));
+        $anio = substr($mes, 0, 4);
+        $mesNum = substr($mes, 5, 2);
+
+        $allowedLabs = config('app.allowed_lab_ids');
+        $labQuery = Laboratory::query()->orderBy('name');
+
+        if ($allowedLabs !== ['*']) {
+            $labQuery->whereIn('id', $allowedLabs ?: []);
+        }
+
+        $laboratories = $labQuery->get();
+        $inicio = Carbon::parse($mes . '-01')->startOfMonth();
+        $fin = $inicio->copy()->endOfMonth();
+
+        $filas = [];
+
+        foreach ($laboratories as $lab) {
+            $citas = Appointment::where('laboratory_id', $lab->id)
+                ->whereYear('start_time', $anio)
+                ->whereMonth('start_time', $mesNum)
+                ->whereNotIn('status', ['anulado', 'cancelado'])
+                ->with('studies')
+                ->get();
+
+            $produccion = $citas->sum(fn ($a) => $a->studies->sum(fn ($s) => (float) ($s->price ?? 0) * ($s->quantity ?? 1)));
+
+            $cobrado = Payment::whereHas('appointment', fn ($q) => $q->where('laboratory_id', $lab->id))
+                ->whereBetween('created_at', [$inicio, $fin])
+                ->sum('amount');
+
+            $entregados = $citas->whereIn('status', ['entregable', 'entregado'])->count();
+
+            $filas[] = [
+                'laboratory_id' => $lab->id,
+                'nombre' => $lab->name,
+                'es_matriz' => $lab->parent_id === null,
+                'parent_id' => $lab->parent_id,
+                'citas' => $citas->count(),
+                'entregados' => $entregados,
+                'produccion' => $produccion,
+                'cobrado' => (float) $cobrado,
+            ];
+        }
+
+        $totales = [
+            'citas' => array_sum(array_column($filas, 'citas')),
+            'entregados' => array_sum(array_column($filas, 'entregados')),
+            'produccion' => array_sum(array_column($filas, 'produccion')),
+            'cobrado' => array_sum(array_column($filas, 'cobrado')),
+        ];
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'mes' => $mes,
+                'filas' => $filas,
+                'totales' => $totales,
+            ],
+        ]);
     }
 }

@@ -20,6 +20,7 @@
 @story('deploy-nube')
     git_pull_nube
     composer_nube
+    fix_permissions_nube
     migrate_nube
     optimize_nube
     fix_permissions_nube
@@ -72,26 +73,30 @@
 
 @task('migrate_nube', ['on' => 'nube'])
     cd {{ $backend_dir }}
-    php artisan migrate --force
+    sudo -u www-data php artisan migrate --force
 @endtask
 
 @task('optimize_nube', ['on' => 'nube'])
     cd {{ $backend_dir }}
-    php artisan optimize
+    sudo -u www-data php artisan optimize
     echo "✅ Nube optimizada (rama {{ $branch_nube }})."
 @endtask
 
 @task('fix_permissions_nube', ['on' => 'nube'])
     echo "🔐 Restaurando permisos de storage..."
     cd {{ $backend_dir }}
+    mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views storage/app/public bootstrap/cache
     sudo chown -R www-data:www-data storage bootstrap/cache
-    sudo chmod -R 775 storage bootstrap/cache
+    sudo chmod -R ug+rwx storage bootstrap/cache
+    if [ -f storage/logs/laravel.log ]; then
+        sudo chown www-data:www-data storage/logs/laravel.log
+    fi
     echo "✅ Permisos listos."
 @endtask
 
 @task('restart_queue_nube', ['on' => 'nube'])
     cd {{ $backend_dir }}
-    php artisan queue:restart
+    sudo -u www-data php artisan queue:restart
     echo "✅ Colas de la nube reiniciadas (systemd debe levantar el worker)."
 @endtask
 

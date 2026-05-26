@@ -17,6 +17,7 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\PortalCredentialsMail;
 use App\Services\AppointmentInstructionMailService;
+use App\Services\AppointmentNotificationService;
 
 class AppointmentController extends Controller
 {
@@ -24,7 +25,8 @@ class AppointmentController extends Controller
 
     public function __construct(
         KeycloakService $keycloakService,
-        protected AppointmentInstructionMailService $instructionMailService
+        protected AppointmentInstructionMailService $instructionMailService,
+        protected AppointmentNotificationService $notificationService,
     ) {
         $this->keycloakService = $keycloakService;
     }
@@ -180,11 +182,13 @@ class AppointmentController extends Controller
                 \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'created', $appointment->toArray());
 
                 $mailResult = $this->instructionMailService->sendIfApplicable($appointment);
+                $confirmationResult = $this->notificationService->sendConfirmation($appointment);
 
                 return response()->json([
                     'success' => true,
                     'appointment' => $appointment,
                     'instructions_email' => $mailResult,
+                    'confirmation_email' => $confirmationResult,
                 ], 201);
             });
 

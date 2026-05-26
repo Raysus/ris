@@ -6,6 +6,7 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 use App\Models\Laboratory;
+use App\Services\LaboratoryProfileService;
 
 class CheckLabTenant
 {
@@ -28,6 +29,7 @@ class CheckLabTenant
         if ($roleName === 'sis_admin') {
             if (!$labId || $labId === 'ALL') {
                 config(['app.allowed_lab_ids' => ['*']]);
+                config(['app.lab_profile' => LaboratoryProfileService::profileForCode('clinical')]);
                 return $next($request);
             }
         }
@@ -47,10 +49,11 @@ class CheckLabTenant
         if (!$labId || $labId === 'ALL') {
             config(['app.current_lab_id' => null]);
             config(['app.allowed_lab_ids' => $allowedIds]);
+            config(['app.lab_profile' => LaboratoryProfileService::profileForCode('clinical')]);
             return $next($request);
         }
 
-        $laboratory = Laboratory::with('children')->find($labId);
+        $laboratory = Laboratory::with(['children', 'type'])->find($labId);
 
         if (!$laboratory) {
             return response()->json(['success' => false, 'message' => 'Laboratorio no existe.'], 404);
@@ -71,6 +74,7 @@ class CheckLabTenant
 
         config(['app.current_lab_id' => $laboratory->id]);
         config(['app.allowed_lab_ids' => array_values($finalAllowedContext)]);
+        config(['app.lab_profile' => LaboratoryProfileService::resolve($laboratory)]);
 
         return $next($request);
     }

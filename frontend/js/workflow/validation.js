@@ -254,25 +254,7 @@ function generarVistaPrevia() {
 
 async function abrirVisorPACSValidacion() {
     if (!currentValidationChain) return;
-    const accessionNumber = currentValidationChain.accessionNumber;
-
-    const pacsConfig = {
-        accession_number: accessionNumber,
-        pacs_ip: "170.246.172.83",
-        pacs_port: 4242,
-        pacs_aet: "HealthTICloud"
-    };
-
-    try {
-        await fetch(`http://localhost:8181/open-dicom`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(pacsConfig)
-        });
-    } catch (error) {
-        const urlWeb = `http://170.246.172.83:8042/osimis-viewer/app/index.html?accession=${accessionNumber}`;
-        window.open(urlWeb, '_blank');
-    }
+    await abrirVisorPACS(currentValidationChain.accessionNumber);
 }
 
 function habilitarEdicionValidacion() {

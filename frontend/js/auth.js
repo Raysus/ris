@@ -73,6 +73,14 @@ $(document).ready(function () {
                 localStorage.setItem('ris_user_data', JSON.stringify(data.user));
                 localStorage.setItem('ris_all_labs', data.contexto_laboratorio.laboratorios_permitidos.includes('*') ? 'true' : 'false');
 
+                if (data.contexto_laboratorio.perfil_laboratorio) {
+                    localStorage.setItem('ris_lab_profile', JSON.stringify(data.contexto_laboratorio.perfil_laboratorio));
+                    localStorage.setItem('ris_lab_type_code', data.contexto_laboratorio.tipo_laboratorio_code || 'clinical');
+                }
+                if (data.contexto_laboratorio.tipo_laboratorio_id) {
+                    localStorage.setItem('ris_lab_type_id', data.contexto_laboratorio.tipo_laboratorio_id);
+                }
+
                 window.location.href = "layout.html";
             } else {
                 $("#loginError").removeClass("d-none").text(data.message || "Usuario o contraseña incorrectos.");

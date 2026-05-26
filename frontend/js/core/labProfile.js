@@ -1,0 +1,128 @@
+/**
+ * Perfil operativo del laboratorio (clínico / dental / veterinario).
+ */
+window.RIS_LAB_PROFILE = window.RIS_LAB_PROFILE || null;
+
+const RIS_DEFAULT_PROFILE = {
+    code: 'clinical',
+    uses_fonasa: true,
+    uses_bono: true,
+    uses_clinical_insurance: true,
+    show_insurance_fields: true,
+    show_fonasa_panel: true,
+    patient_label: 'Paciente',
+    patient_id_label: 'RUT / Documento',
+    service_code_label: 'Cód. FONASA',
+    referring_label: 'Médico derivante',
+};
+
+function getLabProfile() {
+    if (window.RIS_LAB_PROFILE) {
+        return { ...RIS_DEFAULT_PROFILE, ...window.RIS_LAB_PROFILE };
+    }
+    try {
+        const stored = localStorage.getItem('ris_lab_profile');
+        if (stored) {
+            window.RIS_LAB_PROFILE = JSON.parse(stored);
+            return { ...RIS_DEFAULT_PROFILE, ...window.RIS_LAB_PROFILE };
+        }
+    } catch (e) {
+        console.warn('Perfil de laboratorio inválido en localStorage', e);
+    }
+    return { ...RIS_DEFAULT_PROFILE };
+}
+
+function setLabProfile(profile) {
+    window.RIS_LAB_PROFILE = profile ? { ...RIS_DEFAULT_PROFILE, ...profile } : null;
+    if (profile) {
+        localStorage.setItem('ris_lab_profile', JSON.stringify(window.RIS_LAB_PROFILE));
+        if (profile.code) {
+            localStorage.setItem('ris_lab_type_code', profile.code);
+        }
+    } else {
+        localStorage.removeItem('ris_lab_profile');
+    }
+}
+
+function applyLabProfileUI(root = document) {
+    const p = getLabProfile();
+    const scope = root && root.querySelector ? root : document;
+
+    const byId = (id) => scope.querySelector(`#${id}`);
+
+    scope.querySelectorAll('[data-ris-label="patient"]').forEach(el => {
+        el.textContent = p.patient_label;
+    });
+    scope.querySelectorAll('[data-ris-label="patient-id"]').forEach(el => {
+        el.textContent = p.patient_id_label;
+    });
+    scope.querySelectorAll('[data-ris-label="service-code"]').forEach(el => {
+        el.textContent = p.service_code_label;
+    });
+
+    const panelFonasa = byId('panelFonasaBono');
+    if (panelFonasa) {
+        panelFonasa.classList.toggle('d-none', !p.show_fonasa_panel);
+    }
+
+    const tipoBono = byId('pTipoBono');
+    if (tipoBono) {
+        tipoBono.querySelectorAll('option').forEach(opt => {
+            const needsFonasa = opt.dataset.requiresFonasa === 'true';
+            opt.hidden = needsFonasa && !p.uses_bono;
+            opt.disabled = needsFonasa && !p.uses_bono;
+        });
+        if (!p.uses_bono && (tipoBono.value === 'Electronico' || tipoBono.value === 'Manual')) {
+            tipoBono.value = 'Sin Bono';
+        }
+    }
+
+    const insuranceCol = byId('pInsurance')?.closest('.col-md-3');
+    const planCol = byId('pPlan')?.closest('.col-md-3');
+    if (insuranceCol) insuranceCol.classList.toggle('d-none', !p.show_insurance_fields);
+    if (planCol) planCol.classList.toggle('d-none', !p.show_insurance_fields);
+    if (!p.show_insurance_fields) {
+        const ins = byId('pInsurance');
+        const plan = byId('pPlan');
+        if (ins) ins.value = '';
+        if (plan) plan.value = '';
+    }
+
+    const copagoReadonly = byId('percentageInsurance');
+    if (copagoReadonly && !p.uses_clinical_insurance) {
+        copagoReadonly.value = '0';
+    }
+}
+
+async function refreshLabProfileFromApi() {
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+    if (!token || !labId) {
+        return getLabProfile();
+    }
+
+    try {
+        const res = await fetch(`${API_URL}/lab-profile`, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Accept': 'application/json',
+                'X-Lab-Id': labId,
+            },
+        });
+        const json = await res.json();
+        if (res.ok && json.success) {
+            setLabProfile(json.data);
+            applyLabProfileUI();
+            return getLabProfile();
+        }
+    } catch (e) {
+        console.warn('No se pudo cargar lab-profile', e);
+    }
+
+    return getLabProfile();
+}
+
+window.getLabProfile = getLabProfile;
+window.setLabProfile = setLabProfile;
+window.applyLabProfileUI = applyLabProfileUI;
+window.refreshLabProfileFromApi = refreshLabProfileFromApi;

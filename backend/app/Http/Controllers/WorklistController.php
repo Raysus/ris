@@ -29,76 +29,47 @@ class WorklistController extends Controller
 
     public function index(Request $request)
     {
-        $allowedLabs = config('app.allowed_lab_ids');
+        $query = $this->getSecureAppointmentQuery()
+            ->with([
+                'studies.machine',
+                'patient.persona',
+                'machine',
+            ])
+            ->whereIn('status', ['confirmado', 'en_atencion', 'dicom_enviado', 'devuelto_worklist']);
 
-        $query = DB::table('appointment_studies as s')
-            ->join('appointments as a', 's.appointment_id', '=', 'a.id')
-            ->leftJoin('patients as p', 'a.patient_id', '=', 'p.id')
-            ->leftJoin('personas as per', 'p.persona_id', '=', 'per.id')
-            // 🔥 NUEVO JOIN: Conectamos con la tabla de máquinas/salas
-            ->leftJoin('machines as m', 's.machine_id', '=', 'm.id')
-            ->whereNull('a.deleted_at')
-            ->whereIn(DB::raw('LOWER(a.status)'), ['confirmado', 'en_atencion', 'dicom_enviado', 'devuelto_worklist'])
-            ->select(
-                's.id as study_id',
-                's.exam_name',
-                's.sub_exam_name',
-                's.quantity',
-                's.machine_id as study_machine',
-                'm.name as machine_name', // 🔥 Traemos el nombre real de la sala
-                'a.id as appointment_id',
-                'a.start_time',
-                'a.status as appointment_status',
-                'a.priority',
-                'a.accession_number',
-                'a.return_reason',
-                'a.medical_order_path',
-                'a.survey_path',
-                'per.names',
-                'per.last_name_1',
-                'per.last_name_2',
-                'per.rut',
-                'a.laboratory_id'
-            );
-
-        if ($allowedLabs !== ['*']) {
-            if (empty($allowedLabs)) {
-                $query->whereRaw('1 = 0');
-            } else {
-                $query->whereIn('a.laboratory_id', $allowedLabs);
-            }
-        }
-
-        $studies = $query->get();
+        $appointments = $query->get();
         $formattedData = [];
 
-        foreach ($studies as $row) {
-            $formattedData[] = [
-                'id' => $row->study_id,
-                'exam_name' => $row->exam_name,
-                'sub_exam_name' => $row->sub_exam_name,
-                'quantity' => $row->quantity,
-                'machine_id' => $row->study_machine,
-                // 🔥 Lo agregamos al JSON de respuesta
-                'machine_name' => $row->machine_name ?? 'Sala Desconocida',
-                'appointment' => [
-                    'id' => $row->appointment_id,
-                    'start_time' => \Carbon\Carbon::parse($row->start_time)->format('Y-m-d\TH:i:s'),
-                    'status' => strtolower($row->appointment_status),
-                    'priority' => $row->priority,
-                    'accession_number' => $row->accession_number,
-                    'return_reason' => $row->return_reason,
-                    'medical_order_path' => $row->medical_order_path,
-                    'survey_path' => $row->survey_path,
-                    'patient' => [
-                        'persona' => [
-                            'names' => $row->names,
-                            'last_name_1' => $row->last_name_1,
-                            'rut' => $row->rut
-                        ]
-                    ]
-                ]
-            ];
+        foreach ($appointments as $appointment) {
+            $persona = $appointment->patient?->persona;
+
+            foreach ($appointment->studies as $study) {
+                $formattedData[] = [
+                    'id' => $study->id,
+                    'exam_name' => $study->exam_name,
+                    'sub_exam_name' => $study->sub_exam_name,
+                    'quantity' => $study->quantity,
+                    'machine_id' => $study->machine_id,
+                    'machine_name' => $study->machine?->name ?? $appointment->machine?->name ?? 'Sala Desconocida',
+                    'appointment' => [
+                        'id' => $appointment->id,
+                        'start_time' => $appointment->start_time?->format('Y-m-d\TH:i:s'),
+                        'status' => strtolower($appointment->status),
+                        'priority' => $appointment->priority,
+                        'accession_number' => $appointment->accession_number,
+                        'return_reason' => $appointment->return_reason,
+                        'medical_order_path' => $appointment->medical_order_path,
+                        'survey_path' => $appointment->survey_path,
+                        'patient' => [
+                            'persona' => [
+                                'names' => $persona?->names,
+                                'last_name_1' => $persona?->last_name_1,
+                                'rut' => $persona?->rut,
+                            ],
+                        ],
+                    ],
+                ];
+            }
         }
 
         return response()->json(['success' => true, 'data' => $formattedData]);

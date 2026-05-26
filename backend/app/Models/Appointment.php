@@ -30,12 +30,17 @@ class Appointment extends Model
         'insurance_id',
         'insurance_plan_id',
         'tipo_bono',
-        'entidad_pagadora'
+        'entidad_pagadora',
+        'accession_number',
+        'reminder_sent_at',
+        'images_received_at',
     ];
     protected $casts = [
         'start_time' => 'datetime',
         'end_time' => 'datetime',
         'needs_review' => 'boolean',
+        'reminder_sent_at' => 'datetime',
+        'images_received_at' => 'datetime',
     ];
 
     public function patient()
@@ -87,6 +92,16 @@ class Appointment extends Model
     public function payments()
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function fonasaBonos()
+    {
+        return $this->hasMany(FonasaBono::class);
+    }
+
+    public function electronicDocuments()
+    {
+        return $this->hasMany(ElectronicDocument::class);
     }
 
     public function destinationDoctor()

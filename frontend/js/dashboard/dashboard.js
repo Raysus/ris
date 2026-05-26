@@ -61,15 +61,7 @@ async function actualizarMetricas() {
             $tend.text("Sin variación vs ayer").removeClass("text-success text-danger");
         }
 
-        const limiteSaturacion = 15;
-        const enSecretaria = flujo["Secretaría"] || 0;
-        if (enSecretaria > limiteSaturacion) {
-            $("#containerAlertasCriticas").removeClass("d-none");
-            $("#nombreSectorCritico").text("TRANSCRIPCIÓN (Secretaría)");
-            $("#kpiInformes").addClass("text-danger");
-        } else {
-            $("#containerAlertasCriticas").addClass("d-none");
-        }
+        renderAlertasOperativas(d.alerts || [], flujo);
 
         dibujarGraficoEstados(flujo);
         dibujarGraficoModalidades(d.charts?.modalidades || {});
@@ -77,6 +69,43 @@ async function actualizarMetricas() {
         console.error("Error en dashboard:", e);
         $("#dashError").removeClass("d-none").text(e.message || "Error al cargar el dashboard.");
         showToast("No se pudieron cargar las métricas del dashboard.", "danger");
+    }
+}
+
+function renderAlertasOperativas(alerts, flujo) {
+    const $container = $("#containerAlertasOperativas");
+    const $list = $("#listaAlertasOperativas");
+
+    if (!alerts.length) {
+        $container.addClass("d-none");
+        $("#kpiInformes").removeClass("text-danger");
+        return;
+    }
+
+    $container.removeClass("d-none");
+    $list.empty();
+
+    const levelClass = { danger: "alert-danger", warning: "alert-warning", info: "alert-info" };
+    const levelIcon = { danger: "exclamation-octagon-fill", warning: "exclamation-triangle-fill", info: "info-circle-fill" };
+
+    alerts.forEach((a) => {
+        const cls = levelClass[a.level] || "alert-secondary";
+        const icon = levelIcon[a.level] || "bell-fill";
+        $list.append(`
+            <div class="alert ${cls} d-flex align-items-start shadow-sm mb-2" role="alert">
+                <i class="bi bi-${icon} fs-5 me-2 mt-1"></i>
+                <div>
+                    <strong>${a.title}</strong><br>
+                    <span class="small">${a.message}</span>
+                </div>
+            </div>
+        `);
+    });
+
+    if ((flujo["Radiólogo"] || 0) + (flujo["Secretaría"] || 0) > 15) {
+        $("#kpiInformes").addClass("text-danger");
+    } else {
+        $("#kpiInformes").removeClass("text-danger");
     }
 }
 

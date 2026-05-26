@@ -196,7 +196,46 @@ Los logs por cita (`appointment_logs`) siguen registrando acciones clínicas det
 
 ---
 
-## 9. Checklist operativo
+## 9. Error de permisos en `storage/logs/laravel.log`
+
+Si `php artisan optimize` (o migrate) falla con **Permission denied** al escribir el log, suele ser porque el comando se ejecutó como `userit`/`root` y `storage/` pertenece a `www-data`.
+
+**Corrección inmediata en el servidor:**
+
+```bash
+cd /var/www/ris.healthticloud.cl/backend
+
+mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views storage/app/public bootstrap/cache
+
+sudo chown -R www-data:www-data storage bootstrap/cache
+sudo chmod -R ug+rwx storage bootstrap/cache
+
+# Si laravel.log quedó como root:
+sudo chown www-data:www-data storage/logs/laravel.log 2>/dev/null || true
+
+# Ejecutar artisan como el mismo usuario que PHP-FPM
+sudo -u www-data php artisan optimize
+sudo -u www-data php artisan config:clear
+```
+
+Regla práctica: en producción, **`php artisan migrate`**, **`optimize`**, **`queue:*`** y **`ris:backup`** conviene lanzarlos con `sudo -u www-data`.
+
+---
+
+## 10. Punto 2 — Menos fricción clínica
+
+Detalle de correos, sync PACS, visor DICOM y alertas: **[MENOS_FRICCION_CLINICA.md](MENOS_FRICCION_CLINICA.md)**
+
+Tras deploy, verificar:
+
+```bash
+sudo -u www-data php artisan schedule:list
+curl -s https://api.healthticloud.cl/api/viewer-config -H "Authorization: Bearer TOKEN"
+```
+
+---
+
+## 11. Checklist operativo
 
 - [ ] `APP_DEBUG=false`
 - [ ] Contraseñas del seeder cambiadas

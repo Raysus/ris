@@ -13,3 +13,15 @@ Schedule::command('ris:backup')
     ->environments(['production'])
     ->onOneServer()
     ->appendOutputTo(storage_path('logs/backup.log'));
+
+Schedule::command('ris:send-appointment-reminders')
+    ->dailyAt('18:00')
+    ->environments(['production'])
+    ->onOneServer()
+    ->appendOutputTo(storage_path('logs/reminders.log'));
+
+Schedule::command('ris:sync-orthanc-status')
+    ->everyFiveMinutes()
+    ->environments(['production'])
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/orthanc-sync.log'));

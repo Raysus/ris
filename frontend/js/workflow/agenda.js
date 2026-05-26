@@ -95,13 +95,23 @@ async function cargarCatalogosDesdeBD() {
             window.RIS.supplies = catalogosAgenda.supplies || [];
             window.RIS.supplyPacks = catalogosAgenda.supply_packs || [];
 
-            if (calendar) {
-                calendar.getResources().forEach(res => res.remove());
-                window.RIS.resources.forEach(res => calendar.addResource(res));
+            if (catalogosAgenda.lab_profile && typeof setLabProfile === 'function') {
+                setLabProfile(catalogosAgenda.lab_profile);
             }
 
-            poblarSelectsAgenda();
-            configurarInsumosAgenda();
+            sincronizarRecursosCalendario();
+
+            try {
+                poblarSelectsAgenda();
+                configurarInsumosAgenda();
+            } catch (populateErr) {
+                console.error('Error poblando selects agenda:', populateErr);
+            }
+
+            if (typeof applyLabProfileUI === 'function') {
+                applyLabProfileUI(document.getElementById('appointmentModal') || document);
+            }
+
             return true;
         }
 
@@ -112,31 +122,41 @@ async function cargarCatalogosDesdeBD() {
         return false;
     }
 }
+function sincronizarRecursosCalendario() {
+    if (!calendar || !window.RIS?.resources?.length) return;
+    try {
+        calendar.getResources().forEach(res => res.remove());
+        window.RIS.resources.forEach(res => calendar.addResource(res));
+    } catch (e) {
+        console.warn('No se pudieron refrescar recursos del calendario:', e);
+    }
+}
+
 function poblarSelectsAgenda() {
     const selectTratante = $("#mTratante");
     selectTratante.empty().append('<option value="">Seleccione o escriba...</option>');
     selectTratante.append('<option value="NUEVO" class="fw-bold text-success">➕ Agregar Nuevo Médico...</option>');
-    catalogosAgenda.referring_doctors.forEach(doc => {
+    (catalogosAgenda.referring_doctors || []).forEach(doc => {
         selectTratante.append(`<option value="${doc.id}">${doc.names} ${doc.last_name_1}</option>`);
     });
 
     const selectDestinado = $("#mDestinado");
     selectDestinado.empty().append('<option value="">Seleccione Radiólogo...</option>');
-    catalogosAgenda.destination_doctors.forEach(doc => {
+    (catalogosAgenda.destination_doctors || []).forEach(doc => {
         const p = doc.persona || {};
         selectDestinado.append(`<option value="${doc.id}">Dr(a). ${p.names} ${p.last_name_1}</option>`);
     });
 
     const selectPrevision = $("#pInsurance");
     selectPrevision.empty().append('<option value="">Seleccione Previsión...</option>');
-    catalogosAgenda.insurances.forEach(ins => {
+    (catalogosAgenda.insurances || []).forEach(ins => {
         selectPrevision.append(`<option value="${ins.id}">${ins.name}</option>`);
     });
 
     const selectInsumos = $("#addInsumoSelect");
     if (selectInsumos.length) {
         selectInsumos.empty().append('<option value="">Seleccione insumo...</option>');
-        catalogosAgenda.supplies.forEach(sup => {
+        (catalogosAgenda.supplies || []).forEach(sup => {
             selectInsumos.append(`<option value="${sup.id}" data-price="${sup.price}">${sup.name} ($${sup.price})</option>`);
         });
     }
@@ -303,6 +323,7 @@ function setupCalendar(el) {
     });
 
     calendar.render();
+    sincronizarRecursosCalendario();
     } catch (err) {
         console.error('Error inicializando FullCalendar:', err);
         showToast('No se pudo dibujar el calendario. Recargue la página (Ctrl+F5).', 'danger');
@@ -437,17 +458,9 @@ function actualizarCalendarioEnVivo() {
 
 function abrirModalCita(data) {
     const $form = $("#formCita");
-    const labTypeId = parseInt(localStorage.getItem('ris_lab_type_id')) || 1;
 
-    if (labTypeId === 3) {
-        $("#pInsurance").closest('.col-md-3').addClass('d-none');
-        $("#pPlan").closest('.col-md-3').addClass('d-none');
-
-        $("#pInsurance").val("");
-        $("#pPlan").val("");
-    } else {
-        $("#pInsurance").closest('.col-md-3').removeClass('d-none');
-        $("#pPlan").closest('.col-md-3').removeClass('d-none');
+    if (typeof applyLabProfileUI === 'function') {
+        applyLabProfileUI(document.getElementById('appointmentModal') || document);
     }
     if ($form.length) $form[0].reset();
 
@@ -544,6 +557,8 @@ function abrirModalCita(data) {
     if (appointmentId && window.paymentManager) {
         window.paymentManager.cargarDesglose(appointmentId);
         window.paymentManager.cargarHistorialPagos(appointmentId);
+        window.paymentManager.toggleFonasaPanel();
+        window.paymentManager.cargarPreviewFonasa(appointmentId);
     }
 
     initAgendaWizard();
@@ -710,6 +725,10 @@ async function guardarCita() {
         closeModal("appointmentModal");
 
         showToast("Cita guardada correctamente.", "success");
+
+        if (!idOriginal && data.confirmation_email?.sent) {
+            showToast(`📧 Confirmación de cita enviada a ${data.confirmation_email.email}.`, "info");
+        }
 
         if (!idOriginal && data.instructions_email) {
             const mail = data.instructions_email;

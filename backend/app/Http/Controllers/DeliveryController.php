@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Appointment;
+use App\Services\AppointmentNotificationService;
 use Illuminate\Support\Facades\DB;
 
 class DeliveryController extends Controller
@@ -164,30 +165,25 @@ class DeliveryController extends Controller
         }
     }
 
-    // === NUEVO: ENVÍO POR CORREO ELECTRÓNICO ===
-    public function sendEmail(Request $request, $id)
+    public function sendEmail(Request $request, $id, AppointmentNotificationService $notifications)
     {
         $userId = $request->user()->id;
 
         try {
             $appointment = $this->getSecureAppointmentQuery()->with('patient.persona')->findOrFail($id);
-            $email = $appointment->patient->persona->email;
 
-            if (empty($email)) {
-                return response()->json(['success' => false, 'message' => 'El paciente no tiene un correo electrónico registrado.'], 400);
+            $result = $notifications->sendReportReady($appointment);
+            if (!($result['sent'] ?? false)) {
+                $reason = $result['reason'] ?? 'error';
+                $message = match ($reason) {
+                    'sin_correo' => 'El paciente no tiene un correo electrónico registrado.',
+                    default => $result['message'] ?? 'No se pudo enviar el correo.',
+                };
+
+                return response()->json(['success' => false, 'message' => $message], 400);
             }
 
-            // Aquí va tu lógica de envío real (ej: Mail::to($email)->send(new ReportMail($appointment)); )
-            // Para el propósito de esta arquitectura, simulamos el éxito y registramos el log.
-
-            DB::table('appointment_logs')->insert([
-                'appointment_id' => $appointment->id,
-                'user_id' => $userId,
-                'action' => 'REPORT_EMAILED',
-                'details' => json_encode(['email' => $email, 'mensaje' => 'Resultados enviados exitosamente por correo electrónico.']),
-                'ip_address' => $request->ip(),
-                'created_at' => now()
-            ]);
+            $email = $result['email'];
 
             // Si no estaba entregado, lo marcamos como entregado automáticamente
             if ($appointment->status === 'entregable') {

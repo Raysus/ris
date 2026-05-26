@@ -11,6 +11,7 @@ use App\Models\SupplyPack;
 use App\Models\Machine;
 use Illuminate\Http\Request;
 use App\Services\KeycloakService;
+use App\Services\LaboratoryProfileService;
 use Illuminate\Support\Facades\Log;
 
 class AgendaCatalogController extends Controller
@@ -35,6 +36,7 @@ class AgendaCatalogController extends Controller
             ->where('is_active', true);
 
         $insurancesQuery = Insurance::with('plans')->where('is_active', true);
+        LaboratoryProfileService::filterInsurancesForProfile($insurancesQuery);
         $examsQuery = Exam::with('subExams')->where('is_active', true);
         $suppliesQuery = Supply::where('stock', '>', 0)->where('is_active', true);
         $supplyPacksQuery = SupplyPack::with('items.supply')->where('is_active', true);
@@ -64,6 +66,8 @@ class AgendaCatalogController extends Controller
             }
         }
 
+        $labProfile = config('app.lab_profile') ?: LaboratoryProfileService::resolve();
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -74,7 +78,8 @@ class AgendaCatalogController extends Controller
                 'supplies' => $suppliesQuery->get(),
                 'supply_packs' => $supplyPacksQuery->get(),
                 'machines' => $machinesQuery->get(),
-            ]
+                'lab_profile' => $labProfile,
+            ],
         ]);
     }
 

@@ -67,6 +67,29 @@
                     data-bs-target="#tab-nomina" type="button" role="tab">
                     <i class="bi bi-table me-2 text-success"></i>Nómina Diaria
                 </button>
+                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
+                    data-bs-target="#tab-caja" type="button" role="tab">
+                    <i class="bi bi-wallet2 me-2 text-warning"></i>Cierre de Caja
+                </button>
+                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
+                    data-bs-target="#tab-consolidado" type="button" role="tab">
+                    <i class="bi bi-buildings me-2 text-primary"></i>Matriz / Sucursales
+                </button>
+                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
+                    data-bs-target="#tab-dte" type="button" role="tab">
+                    <i class="bi bi-receipt me-2 text-danger"></i>DTE / Boletas
+                </button>
+
+                <span class="small text-muted text-uppercase fw-bolder mb-1 mt-3 px-2"
+                    style="font-size: 0.7rem;">Integraciones</span>
+                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
+                    data-bs-target="#tab-cloud-sync" type="button" role="tab">
+                    <i class="bi bi-cloud-arrow-up me-2 text-info"></i>Sync Nube
+                </button>
+                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
+                    data-bs-target="#tab-hl7" type="button" role="tab">
+                    <i class="bi bi-hdd-network me-2 text-secondary"></i>HL7 / HIS
+                </button>
 
                 <span class="small text-muted text-uppercase fw-bolder mb-1 mt-3 px-2"
                     style="font-size: 0.7rem;">Sistema</span>
@@ -378,6 +401,130 @@
                             <button class="btn btn-outline-dark fw-bold shadow-sm" onclick="exportarNominaMensualCSV()">
                                 <i class="bi bi-filetype-csv me-2"></i>CSV mes completo
                             </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade h-100" id="tab-caja" role="tabpanel">
+                    <div class="d-flex flex-column h-100">
+                        <div class="card bg-white border-0 shadow-sm mb-3">
+                            <div class="card-body py-3">
+                                <div class="row g-3 align-items-end">
+                                    <div class="col-md-4">
+                                        <label class="form-label small fw-bold text-muted mb-1">Fecha de cierre</label>
+                                        <input type="date" id="fechaCierreCaja" class="form-control fw-bold text-primary"
+                                            onchange="cargarCierreCaja()">
+                                    </div>
+                                    <div class="col-md-8 text-md-end">
+                                        <button class="btn btn-outline-success fw-bold" onclick="exportarCierreCajaExcel()">
+                                            <i class="bi bi-file-earmark-excel-fill me-2"></i>Exportar Excel
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row g-3 mb-3" id="resumenCierreCaja">
+                            <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body"><small class="text-muted">Total cobrado</small><h4 class="fw-bold text-success mb-0" id="cajaTotalCobrado">$0</h4></div></div></div>
+                            <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body"><small class="text-muted">Transacciones</small><h4 class="fw-bold mb-0" id="cajaTransacciones">0</h4></div></div></div>
+                            <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body"><small class="text-muted">Citas pendientes</small><h4 class="fw-bold text-warning mb-0" id="cajaCitasPendientes">0</h4></div></div></div>
+                            <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body"><small class="text-muted">Monto pendiente est.</small><h4 class="fw-bold text-danger mb-0" id="cajaMontoPendiente">$0</h4></div></div></div>
+                        </div>
+                        <div class="card shadow-sm border-0 flex-grow-1 overflow-auto mb-3">
+                            <div class="card-header bg-white fw-bold">Cobros del día</div>
+                            <table class="table table-sm table-hover mb-0" id="tablaCierreCajaPagos">
+                                <thead class="bg-light sticky-top small"><tr><th>Hora</th><th>Paciente</th><th>Método</th><th class="text-end">Monto</th><th>Estado</th></tr></thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                        <div class="card shadow-sm border-0 overflow-auto">
+                            <div class="card-header bg-white fw-bold text-warning">Citas con cobro pendiente</div>
+                            <table class="table table-sm table-hover mb-0" id="tablaCierreCajaPendientes">
+                                <thead class="bg-light sticky-top small"><tr><th>Hora</th><th>Paciente</th><th>Estado pago</th><th class="text-end">Monto est.</th></tr></thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade h-100" id="tab-consolidado" role="tabpanel">
+                    <div class="d-flex flex-column h-100">
+                        <div class="card bg-white border-0 shadow-sm mb-3">
+                            <div class="card-body py-3 row g-3 align-items-end">
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-bold text-muted mb-1">Mes</label>
+                                    <input type="month" id="mesConsolidado" class="form-control" onchange="cargarConsolidadoMatriz()">
+                                </div>
+                                <div class="col-md-8 text-md-end">
+                                    <button class="btn btn-outline-success fw-bold" onclick="exportarConsolidadoExcel()"><i class="bi bi-file-earmark-excel-fill me-2"></i>Excel</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card shadow-sm border-0 flex-grow-1 overflow-auto">
+                            <table class="table table-hover mb-0" id="tablaConsolidadoMatriz">
+                                <thead class="bg-light sticky-top small">
+                                    <tr><th>Sede</th><th>Tipo</th><th class="text-end">Citas</th><th class="text-end">Entregados</th><th class="text-end">Producción</th><th class="text-end">Cobrado</th></tr>
+                                </thead>
+                                <tbody></tbody>
+                                <tfoot class="table-light fw-bold"><tr id="filaTotalesConsolidado"></tr></tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade h-100" id="tab-dte" role="tabpanel">
+                    <div class="d-flex flex-column h-100">
+                        <div class="d-flex justify-content-between mb-3">
+                            <h5 class="fw-bold text-danger mb-0"><i class="bi bi-receipt me-2"></i>Documentos tributarios electrónicos</h5>
+                            <button class="btn btn-sm btn-outline-primary fw-bold" onclick="cargarListaDte()"><i class="bi bi-arrow-clockwise"></i> Actualizar</button>
+                        </div>
+                        <div class="card shadow-sm border-0 flex-grow-1 overflow-auto">
+                            <table class="table table-sm table-hover mb-0" id="tablaDteAdmin">
+                                <thead class="bg-light sticky-top small"><tr><th>Fecha</th><th>Tipo</th><th>Folio</th><th>Estado</th><th class="text-end">Total</th><th>Receptor</th></tr></thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade h-100" id="tab-cloud-sync" role="tabpanel">
+                    <div class="d-flex flex-column h-100">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="fw-bold text-info mb-0"><i class="bi bi-cloud-arrow-up me-2"></i>Sincronización a nube</h5>
+                            <button class="btn btn-sm btn-outline-primary fw-bold" onclick="cargarCloudSyncLogs()">
+                                <i class="bi bi-arrow-clockwise me-1"></i>Actualizar
+                            </button>
+                        </div>
+                        <div class="row g-3 mb-3" id="resumenCloudSync"></div>
+                        <div class="card shadow-sm border-0 flex-grow-1 overflow-auto">
+                            <table class="table table-sm table-hover mb-0" id="tablaCloudSync">
+                                <thead class="bg-light sticky-top small">
+                                    <tr><th>Fecha</th><th>Entidad</th><th>Acción</th><th>Estado</th><th>Intentos</th><th>Error</th><th></th></tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade h-100" id="tab-hl7" role="tabpanel">
+                    <div class="d-flex flex-column h-100">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="fw-bold text-secondary mb-0"><i class="bi bi-hdd-network me-2"></i>Mensajes HL7</h5>
+                            <button class="btn btn-sm btn-outline-secondary fw-bold" onclick="cargarHl7Messages()">
+                                <i class="bi bi-arrow-clockwise me-1"></i>Actualizar
+                            </button>
+                        </div>
+                        <div class="alert alert-light border small mb-3">
+                            Entrada: <code>POST /api/hl7/inbound</code> con header <code>X-HL7-Secret</code> y <code>X-Lab-Id</code>.
+                            Soporta <strong>ORM^O01</strong> para crear citas automáticamente.
+                        </div>
+                        <div class="card shadow-sm border-0 flex-grow-1 overflow-auto">
+                            <table class="table table-sm table-hover mb-0" id="tablaHl7Messages">
+                                <thead class="bg-light sticky-top small">
+                                    <tr><th>Fecha</th><th>Tipo</th><th>Dirección</th><th>Estado</th><th>Orden</th><th>Cita</th></tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
                         </div>
                     </div>
                 </div>

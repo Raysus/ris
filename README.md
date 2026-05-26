@@ -675,7 +675,7 @@ tail -f backend/storage/logs/laravel.log
 
 El sistema desplegado en **https://ris.healthticloud.cl** (frontend) y **https://api.healthticloud.cl** (API) usa PostgreSQL y PHP **nativos en el servidor** (sin Docker).
 
-Guía completa: **[docs/PRODUCCION_NUBE.md](docs/PRODUCCION_NUBE.md)**
+Guía completa: **[docs/PRODUCCION_NUBE.md](docs/PRODUCCION_NUBE.md)** · Menos fricción clínica (punto 2): **[docs/MENOS_FRICCION_CLINICA.md](docs/MENOS_FRICCION_CLINICA.md)** · Escala comercial (punto 3): **[docs/ESCALA_COMERCIAL.md](docs/ESCALA_COMERCIAL.md)** (incluye perfiles **clínico / dental / veterinario** sin FONASA)
 
 Incluye: variables `.env`, Nginx, colas systemd, respaldos (`php artisan ris:backup`), health check (`GET /api/health`) y despliegue con Envoy.
 

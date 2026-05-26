@@ -152,12 +152,14 @@ class DashboardController extends Controller
 
         // 6. ESTADO DEL FLUJO CLÍNICO (Pasos del Paciente)
         $flujo = [
-            'Espera/Agendado' => $appointments->whereIn('status', ['agendado', 'confirmado', 'espera'])->count(),
-            'En Equipo (DICOM)' => $appointments->where('status', 'dicom_enviado')->count(),
-            'Radiólogo' => $appointments->whereIn('status', ['en_informe', 'para_firma'])->count(),
+            'Espera/Agendado' => $appointments->whereIn('status', ['agendado', 'confirmado', 'espera', 'pre-agendado'])->count(),
+            'En Equipo (DICOM)' => $appointments->whereIn('status', ['dicom_enviado', 'en_atencion'])->count(),
+            'Radiólogo' => $appointments->whereIn('status', ['en_informe', 'para_firma', 'pendiente_radiologo'])->count(),
             'Secretaría' => $appointments->where('status', 'en_transcripcion')->count(),
             'Listos/Entregados' => $appointments->whereIn('status', ['entregable', 'entregado'])->count(),
         ];
+
+        $alerts = $this->buildOperationalAlerts($appointments, $flujo, $tatPromedio);
 
         return response()->json([
             'success' => true,
@@ -173,8 +175,80 @@ class DashboardController extends Controller
                 'charts' => [
                     'modalidades' => $modalidades,
                     'flujo' => $flujo
-                ]
+                ],
+                'alerts' => $alerts,
             ]
         ]);
+    }
+
+    private function buildOperationalAlerts($appointments, array $flujo, int $tatPromedio): array
+    {
+        $alerts = [];
+        $tatThreshold = (int) env('DASHBOARD_TAT_ALERT_MINUTES', 180);
+
+        if (($flujo['Secretaría'] ?? 0) > 15) {
+            $alerts[] = [
+                'level' => 'danger',
+                'code' => 'transcription_backlog',
+                'title' => 'Cuello de botella en transcripción',
+                'message' => "Hay {$flujo['Secretaría']} estudios en secretaría/transcripción.",
+            ];
+        }
+
+        if (($flujo['Radiólogo'] ?? 0) > 20) {
+            $alerts[] = [
+                'level' => 'warning',
+                'code' => 'radiologist_backlog',
+                'title' => 'Cola alta en radiología',
+                'message' => "Hay {$flujo['Radiólogo']} estudios pendientes de informe o firma.",
+            ];
+        }
+
+        $dicomStuck = $appointments->where('status', 'dicom_enviado')
+            ->filter(fn ($a) => $a->updated_at && $a->updated_at->lt(now()->subHours(2)))
+            ->count();
+
+        if ($dicomStuck > 0) {
+            $alerts[] = [
+                'level' => 'warning',
+                'code' => 'dicom_stuck',
+                'title' => 'Estudios en espera de imágenes',
+                'message' => "{$dicomStuck} cita(s) llevan más de 2 h en estado DICOM enviado sin avanzar.",
+            ];
+        }
+
+        if ($tatPromedio > $tatThreshold && $tatPromedio > 0) {
+            $alerts[] = [
+                'level' => 'warning',
+                'code' => 'tat_high',
+                'title' => 'TAT por encima del objetivo',
+                'message' => "Tiempo promedio de entrega: {$tatPromedio} min (objetivo: {$tatThreshold} min).",
+            ];
+        }
+
+        $tomorrow = Carbon::tomorrow();
+        $unconfirmedTomorrow = Appointment::query()
+            ->when(config('app.allowed_lab_ids') !== ['*'], function ($q) {
+                $labs = config('app.allowed_lab_ids');
+                if (empty($labs)) {
+                    $q->whereRaw('1 = 0');
+                } else {
+                    $q->whereIn('laboratory_id', $labs);
+                }
+            })
+            ->whereBetween('start_time', [$tomorrow->copy()->startOfDay(), $tomorrow->copy()->endOfDay()])
+            ->whereIn('status', ['agendado', 'pre-agendado'])
+            ->count();
+
+        if ($unconfirmedTomorrow > 0) {
+            $alerts[] = [
+                'level' => 'info',
+                'code' => 'unconfirmed_tomorrow',
+                'title' => 'Citas de mañana sin confirmar',
+                'message' => "{$unconfirmedTomorrow} cita(s) para mañana aún en estado agendado.",
+            ];
+        }
+
+        return $alerts;
     }
 }

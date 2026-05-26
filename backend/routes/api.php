@@ -25,8 +25,20 @@ use App\Http\Controllers\TemplateController;
 
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\HealthController;
+use App\Http\Controllers\ViewerConfigController;
+use App\Http\Controllers\CloudSyncController;
+use App\Http\Controllers\Hl7Controller;
+use App\Http\Controllers\FonasaController;
+use App\Http\Controllers\BillingController;
+use App\Http\Controllers\FhirController;
+use App\Http\Controllers\LabProfileController;
 
 Route::get('/health', HealthController::class);
+
+Route::post('/hl7/inbound', [Hl7Controller::class, 'inbound']);
+
+Route::get('/fhir/metadata', [FhirController::class, 'metadata']);
+Route::post('/fhir/ServiceRequest', [FhirController::class, 'serviceRequest']);
 
 Route::post('/login', [AuthController::class, 'login'])
     ->middleware('throttle:5,1')
@@ -105,7 +117,29 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::get('/payments/reports/daily', [PaymentController::class, 'getDailyReport']);
     Route::get('/payments/reports/monthly', [PaymentController::class, 'getMonthlyReport']);
     Route::get('/payments/reports/cashier', [PaymentController::class, 'getCashierReport']);
+    Route::get('/payments/reports/cash-close', [PaymentController::class, 'getCashClose']);
     Route::get('/payments/{id}/receipt', [PaymentController::class, 'generateReceipt']);
+
+    Route::get('/fonasa/appointments/{id}/preview', [FonasaController::class, 'preview']);
+    Route::get('/fonasa/appointments/{id}/bono', [FonasaController::class, 'show']);
+    Route::post('/fonasa/appointments/{id}/bono', [FonasaController::class, 'store']);
+    Route::post('/fonasa/appointments/{id}/bono/{bonoId}/validate', [FonasaController::class, 'validateBono']);
+
+    Route::get('/billing/appointments/{id}/dte', [BillingController::class, 'indexForAppointment']);
+    Route::get('/billing/appointments/{id}/dte/preview', [BillingController::class, 'preview']);
+    Route::post('/billing/appointments/{id}/dte', [BillingController::class, 'emit']);
+    Route::get('/billing/dte', [BillingController::class, 'list']);
+    Route::get('/billing/dte/{id}', [BillingController::class, 'show']);
+
+    Route::get('/fhir/Patient/{id}', [FhirController::class, 'patient']);
+    Route::get('/fhir/ServiceRequest', [FhirController::class, 'serviceRequest']);
+    Route::get('/fhir/DiagnosticReport', [FhirController::class, 'diagnosticReport']);
+    Route::get('/fhir/Appointment/{id}/bundle', [FhirController::class, 'appointmentBundle']);
+
+    Route::get('/integrations/cloud-sync', [CloudSyncController::class, 'index']);
+    Route::post('/integrations/cloud-sync/{id}/retry', [CloudSyncController::class, 'retry']);
+    Route::get('/integrations/hl7/messages', [Hl7Controller::class, 'index']);
+    Route::post('/integrations/hl7/appointments/{id}/oru', [Hl7Controller::class, 'resendOru']);
 
     Route::apiResource('services', ServiceController::class);
     Route::get('roles', [UserController::class, 'getRoles']);
@@ -116,9 +150,12 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::get('/reports/examenes', [ReportController::class, 'getExamenesMensuales']);
     Route::get('/reports/nomina-diaria', [ReportController::class, 'getNominaDiaria']);
     Route::get('/reports/nomina-mensual', [ReportController::class, 'getNominaMensual']);
+    Route::get('/reports/consolidated-matrix', [ReportController::class, 'getConsolidatedMatrix']);
 
     // MÓDULO DASHBOARD (ADMIN)
     Route::get('/dashboard/metrics', [DashboardController::class, 'getMetrics']);
+    Route::get('/viewer-config', ViewerConfigController::class);
+    Route::get('/lab-profile', LabProfileController::class);
 
     // MÓDULO ADMINISTRACIÓN: SECCIÓN DE PLANES Y CONVENIOS
     Route::get('/plans', [PlanController::class, 'index']);

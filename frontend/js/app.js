@@ -124,6 +124,12 @@ $(document).ready(async function () {
         sincronizarSidebar();
         window.addEventListener("hashchange", sincronizarSidebar);
     }
+
+    if (typeof refreshLabProfileFromApi === 'function') {
+        refreshLabProfileFromApi();
+    } else if (typeof applyLabProfileUI === 'function') {
+        applyLabProfileUI();
+    }
 });
 
 async function cargarSelectorLaboratorios() {

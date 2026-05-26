@@ -595,25 +595,4 @@ function abrirVisorDicom() {
     abrirVisorPACS(currentReportingChain.accessionNumber);
 }
 
-async function abrirVisorPACS(accessionNumber) {
-    const pacsConfig = {
-        accession_number: accessionNumber,
-        pacs_ip: "172.16.66.11",
-        pacs_port: 4242,
-        pacs_aet: "HealthTICloud"
-    };
-
-    try {
-        await fetch(`http://localhost:8181/open-dicom`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(pacsConfig)
-        });
-    } catch (error) {
-        const token = localStorage.getItem('ris_token');
-
-        const urlWeb = `https://viewer.healthticloud.cl/viewer?AccessionNumber=${accessionNumber}&token=${token}`;
-
-        window.open(urlWeb, '_blank');
-    }
-}
+/* abrirVisorPACS definido en js/core/viewer.js */
