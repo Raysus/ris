@@ -20,6 +20,7 @@
 @story('deploy-nube')
     prepare_git_nube
     git_pull_nube
+    ensure_frontend_config_nube
     composer_nube
     fix_permissions_nube
     migrate_nube
@@ -79,6 +80,19 @@
         git checkout -b "${BRANCH}"
         git push -u origin "${BRANCH}"
     fi
+@endtask
+
+@task('ensure_frontend_config_nube', ['on' => 'nube'])
+    CONFIG="{{ $app_dir }}/frontend/js/config.js"
+    if [ ! -f "${CONFIG}" ]; then
+        echo "⚠ config.js ausente; usando config.example.js"
+        cp "{{ $app_dir }}/frontend/js/config.example.js" "${CONFIG}"
+    fi
+    if ! grep -q 'API_URL' "${CONFIG}" 2>/dev/null; then
+        echo "⚠ config.js inválido; restaurando desde config.example.js"
+        cp "{{ $app_dir }}/frontend/js/config.example.js" "${CONFIG}"
+    fi
+    echo "✅ frontend/js/config.js presente."
 @endtask
 
 @task('composer_nube', ['on' => 'nube'])
