@@ -22,7 +22,7 @@ from pdf_assets import draw_flujo_clinico
 ROOT = Path(__file__).resolve().parent
 OUTPUT = ROOT / "INSTRUCTIVO_HealthTiCloud_RIS.docx"
 
-BRAND = RGBColor(46, 196, 182)
+BRAND = RGBColor(168, 148, 196)
 BRAND_DARK = RGBColor(33, 37, 41)
 MUTED = RGBColor(108, 117, 125)
 HEADER_FILL = "2EC4B6"

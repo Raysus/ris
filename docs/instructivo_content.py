@@ -75,14 +75,14 @@ def render_instructivo(
     doc.render_table(
         ["Módulo", "Para qué sirve", "Perfiles que suelen usarlo"],
         [
-            ["Agenda", "Citación, calendario, pagos y confirmación de pacientes.", "Recepcionista, Administrador"],
+            ["Agenda", "Citación, calendario, pagos y confirmación de pacientes.", "Recepción, Secretaria, Administrador"],
             ["Worklist", "Atención en sala con worklist DICOM (centros clínicos).", "Tecnólogo, Administrador"],
             ["Atención en salas", "Atención técnica y subida manual de imágenes (dental / vet).", "Tecnólogo, Administrador"],
             ["Radiólogo", "Lectura de imágenes, borrador y firma de informes.", "Médico radiólogo, Administrador"],
             ["Transcripción", "Redacción del informe a partir del audio dictado.", "Transcriptor, Administrador"],
             ["Validación", "Revisión y firma final del informe transcrito.", "Médico radiólogo, Administrador"],
-            ["Entrega/Retiro", "Entrega de resultados al paciente o autorizado.", "Recepcionista, Administrador"],
-            ["Administración", "Usuarios, catálogos, salas, reportes y configuración.", "Administrador"],
+            ["Entrega/Retiro", "Entrega de resultados al paciente o autorizado.", "Recepción, Secretaria, Administrador"],
+            ["Administración", "Usuarios, catálogos, salas, reportes y configuración.", "Administrador, Sys. Admin"],
             ["Dashboard", "Indicadores del día: citas, ingresos, flujo clínico.", "Administrador y supervisión"],
         ],
         (38, 72, 80),
@@ -131,14 +131,13 @@ def render_instructivo(
         "Solo aparecen los módulos que necesita para su trabajo diario."
     )
     doc.bullets([
-        "Si su usuario es Recepcionista, verá Agenda y Entrega/Retiro (y Dashboard si está habilitado).",
-        "Si es Tecnólogo en un centro clínico, verá Worklist; en dental o veterinario verá "
-        "Atención en salas (no Worklist).",
-        "Si es Radiólogo, verá Radiólogo y Validación.",
-        "Si es Transcriptor, verá solo Transcripción.",
-        "Si es Administrador del centro, verá todos los módulos operativos más Administración y Dashboard.",
-        "Un mismo usuario puede tener varios roles (por ejemplo recepción y tecnología); "
-        "en ese caso verá la unión de los módulos de esos roles.",
+        "Recepción o Secretaria: Agenda y Entrega/Retiro (la secretaria solo edita pacientes en sede RDOX Osorno).",
+        "Tecnólogo en centro clínico: Worklist; en dental o veterinario: Atención en salas (no Worklist).",
+        "Radiólogo: Radiólogo y Validación.",
+        "Transcriptor: solo Transcripción.",
+        "Administrador (admin): todos los módulos operativos y Administración, pero solo en sus laboratorios asignados.",
+        "Sys. Admin (sis_admin): mismos módulos con selector «Visión Global» y acceso a todas las sedes del sistema.",
+        "Un usuario puede tener varios roles en settings; el menú muestra la unión de módulos permitidos.",
     ])
     doc.h2("Qué hacer si falta un módulo")
     doc.bullets([
@@ -157,17 +156,28 @@ def render_instructivo(
     doc.render_table(
         ["Módulo en menú", "Roles con acceso"],
         [
-            ["Agenda", "recepcion, admin"],
-            ["Worklist", "tecnologo, admin (solo centros con MWL)"],
-            ["Atención en salas", "tecnologo, admin (dental / veterinario / sin MWL)"],
-            ["Radiólogo", "radiologo, admin"],
-            ["Transcripción", "transcriptor, admin"],
-            ["Validación", "radiologo, admin"],
-            ["Entrega/Retiro", "recepcion, admin"],
-            ["Administración", "admin"],
-            ["Dashboard", "admin, recepcion, tecnologo, radiologo, transcriptor"],
+            ["Agenda", "recepcion, secretaria, secretario, admin, sis_admin"],
+            ["Worklist", "tecnologo, admin, sis_admin (clínico con MWL)"],
+            ["Atención en salas", "tecnologo, admin, sis_admin (dental / vet / sin MWL)"],
+            ["Radiólogo", "radiologo, admin, sis_admin"],
+            ["Transcripción", "transcriptor, admin, sis_admin"],
+            ["Validación", "radiologo, admin, sis_admin"],
+            ["Entrega/Retiro", "recepcion, secretaria, secretario, admin, sis_admin"],
+            ["Administración", "admin, sis_admin"],
+            ["Dashboard", "admin, recepcion, tecnologo, radiologo, transcriptor, sis_admin"],
         ],
         (70, 120),
+    )
+    doc.h2("Administrador vs Sys. Admin")
+    doc.render_table(
+        ["Aspecto", "admin (centro)", "sis_admin (sistema)"],
+        [
+            ["Laboratorios visibles", "Solo asignados (matriz + sucursales)", "Todos (Visión Global o cualquier sede)"],
+            ["Crear matrices nuevas", "No", "Sí (Administración)"],
+            ["Crear usuarios secretaria", "Sí", "Sí"],
+            ["Datos en módulos", "Filtrados a sus sedes", "Todos los del sistema o sede elegida"],
+        ],
+        (52, 74, 74),
     )
 
     doc.chapter("4", "Módulo Agenda (Recepción)")
@@ -270,10 +280,22 @@ def render_instructivo(
             "Figura 7. Estudios pendientes de informe.",
             max_height=78,
         )
+    doc.h2("Visor OHIF (imágenes)")
+    doc.p(
+        "Desde Radiólogo o Validación, el botón del visor abre el OHIF en una pestaña nueva. "
+        "La URL usa el formato del visor centralizado:"
+    )
+    doc.bullets([
+        "Base: https://viewer.healthticloud.cl/viewer",
+        "Parámetro: StudyInstanceUIDs=<UID del estudio en PACS>",
+        "Ejemplo: …/viewer?StudyInstanceUIDs=1.2.620.54321.0.27187.0.0.20260526.104437",
+        "El RIS resuelve el UID consultando Orthanc/PACS a partir del accession de la cita si hace falta.",
+        "Si no hay bridge local (RadiAnt/Weasis), se usa OHIF como respaldo automático.",
+    ])
     doc.h2("Qué puede hacer aquí")
     doc.bullets([
         "Ver estudios listos para lectura (cadena de atención completa en worklist).",
-        "Abrir visor DICOM/PACS vinculado al accession number del estudio.",
+        "Abrir visor DICOM web (OHIF) o visor local si el bridge está instalado en la PC.",
         "Redactar borrador con hallazgos y conclusión.",
         "Guardar borrador y continuar más tarde.",
         "Firmar y liberar el informe (si redactó directamente en pantalla).",
@@ -342,9 +364,17 @@ def render_instructivo(
             "Figura 11. Panel de administración del centro.",
             max_height=78,
         )
+    doc.h2("Usuarios y rol Secretaria")
+    doc.steps([
+        "Administración → Usuarios → Nuevo usuario.",
+        "Complete datos personales, usuario y contraseña.",
+        "Marque el rol Secretaria (u otros roles operativos necesarios).",
+        "Asigne al menos un laboratorio/sucursal y guarde.",
+        "La secretaria verá Agenda y Entrega; la edición de fichas de pacientes solo aplica en RDOX Osorno.",
+    ])
     doc.h2("Qué puede hacer aquí")
     doc.bullets([
-        "Gestionar usuarios: crear, editar roles, asignar laboratorios.",
+        "Gestionar usuarios: crear, editar roles (incluye secretaria), asignar laboratorios.",
         "Configurar salas/equipos: modalidad, AE Title, IP DICOM.",
         "Mantener catálogo de exámenes, precios e instrucciones por correo.",
         "Administrar insumos, previsiones, planes y convenios.",
@@ -454,9 +484,9 @@ def render_instructivo(
     )
     doc.h2("Qué no cambia")
     doc.bullets([
-        "Usuarios, roles, salas, modalidades DICOM, Orthanc/PACS y visor OHIF (si está desplegado).",
+        "Usuarios, roles, salas, modalidades DICOM, Orthanc/PACS y visor OHIF (https://viewer.healthticloud.cl).",
         "Dashboard, reportes de producción, sync nube, HL7 y documentos tributarios (DTE), si su plan los incluye.",
-        "Portal del paciente y visor web suelen ser servicios aparte (subdominios del proveedor).",
+        "Portal del paciente: https://portal.healthticloud.cl (servicio aparte).",
     ])
     doc.p(
         "Documentación técnica de instalación: docs/INSTALACION.md"
@@ -465,9 +495,13 @@ def render_instructivo(
     doc.chapter("13", "Anexo técnico")
     doc.p("Información para soporte TI o regeneración de este manual.")
     doc.bullets([
+        "URL producción RIS: https://ris.healthticloud.cl — API en /api (config.js con detección automática).",
+        "Visor OHIF: VIEWER_URL + VIEWER_PATH=/viewer + VIEWER_QUERY_PARAM=StudyInstanceUIDs.",
+        "Resolución UID: GET /api/viewer-study-uid?accession=… (consulta Orthanc).",
         "Regenerar PDF: python docs/generate_instructivo.py",
         "Regenerar DOCX: python docs/generate_instructivo_docx.py",
         "Regenerar capturas: node docs/capture_screenshots.mjs (frontend en puerto 8765, API en 8000).",
         "Correo en desarrollo: MAIL_MAILER=log escribe en storage/logs/laravel.log.",
         "Perfil de laboratorio API: GET /api/lab-profile (header X-Lab-Id).",
+        "Demos operativos: php artisan db:seed --class=DemoModulesSeeder (sedes DEMO-L*, sin tocar SIRESA).",
     ])

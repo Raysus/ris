@@ -166,6 +166,8 @@ MAIL_SEND_CONFIRMATION=true
 PATIENT_PORTAL_URL=https://portal.healthticloud.cl
 
 VIEWER_URL=https://viewer.healthticloud.cl
+VIEWER_PATH=/viewer
+VIEWER_QUERY_PARAM=StudyInstanceUIDs
 PACS_BRIDGE_URL=http://localhost:8181/open-dicom
 PACS_DEFAULT_IP=...
 PACS_DEFAULT_PORT=4242

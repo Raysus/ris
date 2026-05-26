@@ -2,6 +2,11 @@
 
 let _viewerConfigCache = null;
 
+function looksLikeStudyInstanceUid(value) {
+    const s = String(value || "").trim();
+    return /^[\d.]+$/.test(s) && s.split(".").length >= 3;
+}
+
 async function getViewerConfig() {
     if (_viewerConfigCache) return _viewerConfigCache;
 
@@ -25,12 +30,50 @@ async function getViewerConfig() {
     return _viewerConfigCache;
 }
 
-function buildOhifViewerUrl(cfg, accessionNumber) {
-    const base = (cfg.viewer_url || "https://viewer.healthticloud.cl").replace(/\/$/, "");
-    const param = cfg.viewer_accession_param || "AccessionNumber";
-    const url = new URL(base);
+async function resolveStudyInstanceUid(accessionOrUid, cfg) {
+    const raw = String(accessionOrUid || "").trim();
+    if (!raw) return null;
 
-    url.searchParams.set(param, accessionNumber);
+    if (looksLikeStudyInstanceUid(raw)) {
+        return raw;
+    }
+
+    const token = localStorage.getItem("ris_token");
+    const labId = localStorage.getItem("ris_lab_id") || "";
+
+    try {
+        const response = await fetch(
+            `${API_URL}/viewer-study-uid?accession=${encodeURIComponent(raw)}`,
+            {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "X-Lab-Id": labId,
+                    Accept: "application/json",
+                },
+            }
+        );
+        const res = await response.json();
+        if (response.ok && res.success && res.data?.study_instance_uid) {
+            return res.data.study_instance_uid;
+        }
+    } catch (e) {
+        console.warn("No se pudo resolver StudyInstanceUID:", e);
+    }
+
+    return raw;
+}
+
+/**
+ * URL OHIF: https://viewer.healthticloud.cl/viewer?StudyInstanceUIDs=1.2.xxx
+ */
+function buildOhifViewerUrl(cfg, studyInstanceUid) {
+    const base = (cfg.viewer_url || "https://viewer.healthticloud.cl").replace(/\/$/, "");
+    const path = (cfg.viewer_path || "/viewer").replace(/^\/?/, "/");
+    const param = cfg.viewer_query_param || cfg.viewer_accession_param || "StudyInstanceUIDs";
+
+    const url = new URL(`${base}${path}`);
+
+    url.searchParams.set(param, studyInstanceUid);
 
     const authToken = localStorage.getItem("ris_token") || cfg.viewer_token || "";
     if (authToken) {
@@ -47,6 +90,7 @@ function buildCustomViewerUrl(cfg, accessionNumber) {
     const map = {
         "{accession}": encodeURIComponent(accessionNumber),
         "{accession_number}": encodeURIComponent(accessionNumber),
+        "{study_uid}": encodeURIComponent(accessionNumber),
         "{pacs_ip}": encodeURIComponent(cfg.pacs_ip || ""),
         "{pacs_port}": encodeURIComponent(String(cfg.pacs_port ?? "")),
         "{pacs_aet}": encodeURIComponent(cfg.pacs_aet || ""),
@@ -82,7 +126,12 @@ function tryOpenCustomViewerUrl(url) {
 
 async function abrirVisorOHIF(accessionNumber, cfg) {
     const config = cfg || (await getViewerConfig());
-    const urlWeb = buildOhifViewerUrl(config, accessionNumber);
+    const studyUid = await resolveStudyInstanceUid(accessionNumber, config);
+    if (!studyUid) {
+        showToast("No hay identificador de estudio para abrir el visor.", "warning");
+        return;
+    }
+    const urlWeb = buildOhifViewerUrl(config, studyUid);
     window.open(urlWeb, "_blank");
     if (typeof showToast === "function") {
         showToast("Visor web (OHIF) abierto en nueva pestaña.", "info");

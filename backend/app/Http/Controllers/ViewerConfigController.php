@@ -2,18 +2,21 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\OrthancStudyLookup;
 use Illuminate\Http\Request;
 
 class ViewerConfigController extends Controller
 {
-    public function __invoke(Request $request)
+    public function config(Request $request)
     {
         return response()->json([
             'success' => true,
             'data' => [
                 'viewer_type' => env('VIEWER_TYPE', 'ohif'),
                 'viewer_url' => rtrim(env('VIEWER_URL', 'https://viewer.healthticloud.cl'), '/'),
-                'viewer_accession_param' => env('VIEWER_ACCESSION_PARAM', 'AccessionNumber'),
+                'viewer_path' => env('VIEWER_PATH', '/viewer'),
+                'viewer_query_param' => env('VIEWER_QUERY_PARAM', 'StudyInstanceUIDs'),
+                'viewer_accession_param' => env('VIEWER_QUERY_PARAM', env('VIEWER_ACCESSION_PARAM', 'StudyInstanceUIDs')),
                 'viewer_token' => env('VIEWER_TOKEN', ''),
                 'patient_portal_url' => rtrim(env('PATIENT_PORTAL_URL', 'https://portal.healthticloud.cl'), '/'),
                 'pacs_bridge_url' => env('PACS_BRIDGE_URL', 'http://localhost:8181/open-dicom'),
@@ -21,9 +24,42 @@ class ViewerConfigController extends Controller
                 'pacs_port' => (int) env('PACS_DEFAULT_PORT', 4242),
                 'pacs_aet' => env('PACS_DEFAULT_AET', 'HealthTICloud'),
                 'orthanc_url' => rtrim(env('ORTHANC_URL', 'http://127.0.0.1:8042'), '/'),
-                // Plantilla opcional: osirix://?AccessionNumber={accession} o weasis://...
                 'viewer_custom_url' => env('VIEWER_CUSTOM_URL', ''),
             ],
         ]);
+    }
+
+    public function resolveStudyUid(Request $request, OrthancStudyLookup $lookup)
+    {
+        $accession = trim((string) $request->query('accession', ''));
+        if ($accession === '') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Falta accession o StudyInstanceUID.',
+            ], 422);
+        }
+
+        $uid = $lookup->studyInstanceUidForAccession($accession);
+
+        if (!$uid) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No se encontró estudio en PACS para ese accession.',
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'accession' => $accession,
+                'study_instance_uid' => $uid,
+            ],
+        ]);
+    }
+
+    /** @deprecated Use config() — kept for Route::get single action */
+    public function __invoke(Request $request)
+    {
+        return $this->config($request);
     }
 }

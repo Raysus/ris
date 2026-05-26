@@ -9,7 +9,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 ASSETS = Path(__file__).resolve().parent / "assets"
-COLOR_PRIMARY = (46, 196, 182)
+COLOR_PRIMARY = (168, 148, 196)
 COLOR_DARK = (33, 37, 41)
 COLOR_MUTED = (108, 117, 125)
 COLOR_LIGHT = (240, 248, 247)
