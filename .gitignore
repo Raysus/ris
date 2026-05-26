@@ -1,0 +1,27 @@
+# Dependencias y entornos
+node_modules/
+vendor/
+
+# Secretos y config local
+.env
+.env.*
+!.env.example
+frontend/js/config.js
+backend/.env
+backend/.env.*
+
+# IDE / SO
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
+
+# Laravel storage temporal (el código sí va en repo)
+backend/storage/logs/*.log
+backend/storage/framework/cache/data/*
+!backend/storage/**/.gitignore
+
+# Artefactos locales opcionales
+.phpunit.result.cache
+backend/.phpunit.cache

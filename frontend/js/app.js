@@ -167,6 +167,12 @@ async function cargarSelectorLaboratorios() {
                 });
             } else {
                 const labs = data.data;
+                const esAdminCentro = localStorage.getItem('ris_user_profile') === 'admin';
+                const tieneVariasSedes = labs.some(m => (m.children?.length || 0) > 0) || labs.length > 1;
+
+                if (esAdminCentro && tieneVariasSedes) {
+                    selector.append('<option value="ALL">Todas mis sucursales</option>');
+                }
 
                 if (labs.length > 0) {
                     labs.forEach(matriz => {
@@ -182,7 +188,7 @@ async function cargarSelectorLaboratorios() {
                 selector.val(currentLabId);
             } else {
                 const primerVal = selector.find('option:first').val();
-                if (primerVal) {
+                if (primerVal !== undefined && primerVal !== '') {
                     localStorage.setItem('ris_lab_id', primerVal);
                     selector.val(primerVal);
                 }
@@ -192,8 +198,11 @@ async function cargarSelectorLaboratorios() {
 
             selector.off('change').on('change', function () {
                 const val = $(this).val();
-                if (val) localStorage.setItem('ris_lab_id', val);
-                else localStorage.removeItem('ris_lab_id');
+                if (val === '' || val === null) {
+                    localStorage.removeItem('ris_lab_id');
+                } else {
+                    localStorage.setItem('ris_lab_id', val);
+                }
 
                 location.reload();
             });

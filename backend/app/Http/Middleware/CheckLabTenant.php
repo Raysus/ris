@@ -34,17 +34,7 @@ class CheckLabTenant
             }
         }
 
-        $assignedIds = $user->laboratories()->pluck('laboratories.id')->toArray();
-        $allowedIds = $assignedIds;
-
-        if ($roleName === 'admin') {
-            $matrices = Laboratory::whereIn('id', $assignedIds)->whereNull('parent_id')->pluck('id')->toArray();
-            $padres = Laboratory::whereIn('id', $assignedIds)->whereNotNull('parent_id')->pluck('parent_id')->toArray();
-            $todasLasMatrices = array_unique(array_merge($matrices, $padres));
-
-            $sucursales = Laboratory::whereIn('parent_id', $todasLasMatrices)->pluck('id')->toArray();
-            $allowedIds = array_unique(array_merge($todasLasMatrices, $sucursales));
-        }
+        $allowedIds = Laboratory::resolveAllowedLabIdsForUser($user);
 
         if (!$labId || $labId === 'ALL') {
             config(['app.current_lab_id' => null]);

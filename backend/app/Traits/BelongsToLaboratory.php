@@ -22,6 +22,7 @@ trait BelongsToLaboratory
             }
 
             $currentLabId = config('app.current_lab_id');
+            $allowedLabIds = config('app.allowed_lab_ids');
 
             if ($currentLabId) {
                 $currentLab = Laboratory::find($currentLabId);
@@ -37,6 +38,12 @@ trait BelongsToLaboratory
                 } else {
                     $builder->where('laboratory_id', $currentLabId);
                 }
+            } elseif (
+                is_array($allowedLabIds)
+                && $allowedLabIds !== ['*']
+                && count($allowedLabIds) > 0
+            ) {
+                $builder->whereIn('laboratory_id', $allowedLabIds);
             }
         });
     }

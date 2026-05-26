@@ -67,13 +67,13 @@ class AuthController extends Controller
             $isMainLab = true;
         } else {
             foreach ($user->laboratories as $lab) {
-                $laboratoriosPermitidos[] = $lab->id;
                 if ($lab->pivot->is_primary) {
                     $primaryLabId = $lab->id;
                     $isMainLab = is_null($lab->parent_id);
                     $labTypeId = $lab->laboratory_type_id;
                 }
             }
+            $laboratoriosPermitidos = Laboratory::resolveAllowedLabIdsForUser($user);
         }
 
         if ($primaryLabId) {

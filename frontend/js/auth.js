@@ -72,6 +72,7 @@ $(document).ready(function () {
                 localStorage.setItem('ris_permissions', JSON.stringify(permissions));
                 localStorage.setItem('ris_user_data', JSON.stringify(data.user));
                 localStorage.setItem('ris_all_labs', data.contexto_laboratorio.laboratorios_permitidos.includes('*') ? 'true' : 'false');
+                localStorage.setItem('ris_labs_permitidos', JSON.stringify(labsPermitidos));
 
                 if (data.contexto_laboratorio.perfil_laboratorio) {
                     localStorage.setItem('ris_lab_profile', JSON.stringify(data.contexto_laboratorio.perfil_laboratorio));

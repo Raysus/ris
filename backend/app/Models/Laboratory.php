@@ -51,4 +51,32 @@ class Laboratory extends Model
     {
         return $this->hasMany(Paciente::class);
     }
+
+    /**
+     * IDs de laboratorios que el usuario puede ver (matriz + sucursales para admin).
+     *
+     * @return list<string>|array{0: '*'}
+     */
+    public static function resolveAllowedLabIdsForUser(User $user): array
+    {
+        $user->loadMissing('tipoUsuario');
+        $roleName = $user->tipoUsuario?->name;
+
+        if ($roleName === 'sis_admin') {
+            return ['*'];
+        }
+
+        $assignedIds = $user->laboratories()->pluck('laboratories.id')->toArray();
+
+        if ($roleName === 'admin') {
+            $matrices = static::whereIn('id', $assignedIds)->whereNull('parent_id')->pluck('id')->toArray();
+            $padres = static::whereIn('id', $assignedIds)->whereNotNull('parent_id')->pluck('parent_id')->toArray();
+            $todasLasMatrices = array_unique(array_merge($matrices, $padres));
+            $sucursales = static::whereIn('parent_id', $todasLasMatrices)->pluck('id')->toArray();
+
+            return array_values(array_unique(array_merge($todasLasMatrices, $sucursales)));
+        }
+
+        return array_values(array_unique($assignedIds));
+    }
 }
