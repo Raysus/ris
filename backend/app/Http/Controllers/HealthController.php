@@ -17,10 +17,13 @@ class HealthController extends Controller
             'queue' => $this->checkQueue(),
         ];
 
-        $healthy = collect($checks)->every(fn (array $c) => $c['status'] === 'ok');
+        $dbOk = ($checks['database']['status'] ?? '') === 'ok';
+        $healthy = $dbOk && collect($checks)->every(
+            fn (array $c) => in_array($c['status'], ['ok', 'warning'], true)
+        );
 
         return response()->json([
-            'status' => $healthy ? 'ok' : 'degraded',
+            'status' => $dbOk ? ($healthy ? 'ok' : 'degraded') : 'error',
             'app' => config('app.name'),
             'environment' => app()->environment(),
             'time' => now()->toIso8601String(),
