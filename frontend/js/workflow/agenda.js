@@ -29,6 +29,16 @@ function toLocalISOString(date) {
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:00`;
 }
 
+/** Valor para input datetime-local (sin desfase UTC). */
+function formatDateTimeLocal(value) {
+    if (!value) return "";
+    const normalized = typeof value === "string" ? value.replace(" ", "T").split(".")[0] : value;
+    const d = normalized instanceof Date ? normalized : new Date(normalized);
+    if (Number.isNaN(d.getTime())) return "";
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function validarRut(rut) {
     let valor = rut.replace(/\./g, '');
     if (!/^[0-9]+[-|‐][0-9kK]{1}$/.test(valor)) return false;
@@ -262,7 +272,14 @@ function setupCalendar(el) {
         droppable: true,
         slotMinWidth: 120,
         select: function (info) {
-            abrirModalCita({ start: info.startStr, machine: info.resource ? info.resource.id : null });
+            if (!localStorage.getItem("ris_lab_id")) {
+                showToast("Seleccione un laboratorio/sede en la barra superior antes de agendar.", "warning");
+                return;
+            }
+            abrirModalCita({
+                start: formatDateTimeLocal(info.start),
+                machine: info.resource ? info.resource.id : null,
+            });
         },
         eventClick: function (info) {
             const estadosIniciales = ['pre-agendado', 'agendado', 'confirmado', 'espera'];
@@ -508,8 +525,10 @@ function abrirModalCita(data) {
         $("#formCita").prepend(alertHtml);
     }
     if (data.start) {
-        const isoStart = String(data.start).includes('T') ? data.start : data.start.replace(' ', 'T');
-        $("#selectedStart").val(isoStart.substring(0, 16));
+        const localStart = formatDateTimeLocal(data.start);
+        if (localStart) {
+            $("#selectedStart").val(localStart);
+        }
     }
 
     if (data.id) {
@@ -616,9 +635,20 @@ async function guardarCita() {
     const idOriginal = $("#appointmentId").val();
     const rut = $("#pRut").val();
     const statusSeleccionado = $("#agendaStatus").val();
+    const labId = localStorage.getItem("ris_lab_id");
+
+    if (!labId) {
+        return showToast("Seleccione un laboratorio/sede en la barra superior.", "warning");
+    }
+
     validarDocumentoAgenda();
     if (!rut || !$("#pName").val() || !$("#pLastName").val()) {
         return showToast("Faltan datos obligatorios (RUT y Apellidos)", "danger");
+    }
+
+    const startVal = $("#selectedStart").val();
+    if (!startVal) {
+        return showToast("Seleccione un bloque horario en el calendario.", "warning");
     }
 
     const todosLosEstudios = [];
@@ -666,7 +696,10 @@ async function guardarCita() {
         duracionTotalMinutos += calcularDuracionCita(machineId, cantEnSala);
     });
 
-    const citaStart = new Date($("#selectedStart").val());
+    const citaStart = new Date(startVal);
+    if (Number.isNaN(citaStart.getTime())) {
+        return showToast("El horario seleccionado no es válido.", "danger");
+    }
     const citaEnd = new Date(citaStart.getTime() + (duracionTotalMinutos * 60000));
 
     let colisionDetectada = null;
@@ -725,7 +758,6 @@ async function guardarCita() {
     btnGuardar.prop('disabled', true);
 
     const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
 
     let url = `${API_URL}/appointments`;
     let method = 'POST';
@@ -744,9 +776,19 @@ async function guardarCita() {
             body: formData
         });
 
-        if (!response.ok) throw new Error(await response.text());
+        let data = {};
+        try {
+            data = await response.json();
+        } catch (e) {
+            data = {};
+        }
 
-        const data = await response.json();
+        if (!response.ok) {
+            const msg = data.message || data.error || "No se pudo guardar la cita.";
+            showToast(msg, "danger");
+            return;
+        }
+
         closeModal("appointmentModal");
 
         showToast("Cita guardada correctamente.", "success");
@@ -1146,7 +1188,12 @@ function setupProEventListeners() {
         const labId = localStorage.getItem('ris_lab_id');
 
         try {
-            const response = await fetch(`${API_URL}/patients/search?rut=${rut}`, {
+            if (!labId) {
+                showToast("Seleccione un laboratorio/sede en la barra superior.", "warning");
+                return;
+            }
+
+            const response = await fetch(`${API_URL}/patients/search?rut=${encodeURIComponent(rut)}`, {
                 headers: {
                     'Accept': 'application/json',
                     'Authorization': `Bearer ${token}`,
@@ -1155,46 +1202,50 @@ function setupProEventListeners() {
             });
 
             const rawText = await response.text();
+            let data = null;
+            try {
+                data = rawText ? JSON.parse(rawText) : null;
+            } catch (e) {
+                console.error("Respuesta inválida al buscar paciente:", rawText);
+                showToast("Error al interpretar la respuesta del servidor.", "danger");
+                return;
+            }
 
-            if (response.ok) {
-                if (!rawText) {
-                    console.error("Laravel devolvió un código 200, pero el texto está vacío.");
-                    return;
+            if (response.ok && data?.success && data.data) {
+                const persona = data.data.persona || data.data;
+
+                $("#pName").val(persona.names || "");
+                $("#pLastName").val(persona.last_name_1 || "");
+                $("#pSecondLastName").val(persona.last_name_2 || "");
+                $("#pSex").val(persona.gender || "M");
+                $("#pEmail").val(persona.email || "");
+                $("#pPhone").val(persona.phone || "");
+
+                $("#pBirthDate").val(persona.birth_date || "").trigger("change");
+
+                if (data.data.insurance_id) {
+                    $("#pInsurance").val(data.data.insurance_id).trigger("change");
+                    setTimeout(() => {
+                        if (data.data.insurance_plan_id) {
+                            $("#pPlan").val(data.data.insurance_plan_id);
+                        }
+                    }, 250);
+                } else {
+                    $("#pInsurance, #pPlan").val("");
                 }
 
-                const data = JSON.parse(rawText);
-
-                if (data.success && data.data) {
-                    const persona = data.data.persona || data.data;
-
-                    $("#pName").val(persona.names || "");
-                    $("#pLastName").val(persona.last_name_1 || "");
-                    $("#pSecondLastName").val(persona.last_name_2 || "");
-                    $("#pSex").val(persona.gender || "M");
-                    $("#pEmail").val(persona.email || "");
-                    $("#pPhone").val(persona.phone || "");
-
-                    $("#pBirthDate").val(persona.birth_date || "").trigger("change");
-
-                    if (data.data.insurance_id) {
-                        $("#pInsurance").val(data.data.insurance_id).trigger("change");
-                        setTimeout(() => {
-                            if (data.data.insurance_plan_id) {
-                                $("#pPlan").val(data.data.insurance_plan_id);
-                            }
-                        }, 250);
-                    }
-                    if (data.data.history_count && data.data.history_count > 0) {
-                        showToast(`🔔 Este paciente tiene ${data.data.history_count} exámenes previos. Pídale que los traiga para comparativa.`, "info");
-                        $("#pName").addClass('border-info bg-info-subtle');
-                    }
-                    if (typeof showToast === 'function') showToast("✅ Paciente cargado desde la base de datos.", "success");
+                if (data.data.history_count && data.data.history_count > 0) {
+                    showToast(`🔔 Este paciente tiene ${data.data.history_count} exámenes previos. Pídale que los traiga para comparativa.`, "info");
+                    $("#pName").addClass('border-info bg-info-subtle');
                 }
-            } else if (response.status === 404) {
-                if (typeof showToast === 'function') showToast("ℹ️ Paciente nuevo. Por favor ingrese sus datos.", "info");
+                showToast("✅ Paciente encontrado. Datos cargados.", "success");
+            } else if (response.status === 404 || (data && data.success === false)) {
+                showToast("ℹ️ Paciente no registrado en esta sede. Complete sus datos para crear la ficha.", "info");
                 $("#pName, #pLastName, #pSecondLastName, #pBirthDate, #pEmail, #pPhone").val("");
                 $("#pInsurance, #pPlan").val("");
+                $("#pSex").val("M");
             } else {
+                showToast(data?.message || `Error al buscar paciente (${response.status})`, "danger");
                 console.error(`Error del Servidor (${response.status}):`, rawText);
             }
         } catch (error) {

@@ -141,7 +141,17 @@ class PatientController extends Controller
             $labId = $request->header('X-Lab-Id') ?: config('app.current_lab_id');
             $allowedLabs = config('app.allowed_lab_ids');
 
-            if (!\App\Models\Laboratory::allowsAllLabs($allowedLabs) && !in_array($labId, $allowedLabs)) {
+            if (!$labId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Seleccione un laboratorio en la barra superior.',
+                ], 400);
+            }
+
+            if (
+                !\App\Models\Laboratory::allowsAllLabs($allowedLabs)
+                && !in_array($labId, $allowedLabs, true)
+            ) {
                 return response()->json(['success' => false, 'message' => 'Acceso denegado a esta sucursal.'], 403);
             }
 

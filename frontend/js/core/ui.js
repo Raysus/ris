@@ -300,6 +300,32 @@ function updateAgendaWizardUI() {
     $("#btnGuardarCita").toggle(_agendaWizardStep === AGENDA_WIZARD_MAX);
 }
 
+/** Valida campos obligatorios marcados con una clase (ej. .req-sala). */
+function validarFormulario(selector) {
+    let ok = true;
+    $(selector).each(function () {
+        const $el = $(this);
+        const val = $el.val();
+        if (val === null || val === undefined || String(val).trim() === "") {
+            $el.addClass("is-invalid").removeClass("is-valid");
+            ok = false;
+        } else {
+            $el.removeClass("is-invalid").addClass("is-valid");
+        }
+    });
+    if (!ok) {
+        showToast("Complete los campos obligatorios marcados.", "warning");
+    }
+    return ok;
+}
+
+function limpiarFormulario(selector) {
+    $(selector).removeClass("is-valid is-invalid");
+}
+
+window.validarFormulario = validarFormulario;
+window.limpiarFormulario = limpiarFormulario;
+
 $(document).ready(function () {
     initMobileSidebar();
     $(window).on("resize", initMobileSidebar);

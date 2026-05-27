@@ -927,9 +927,7 @@ async function renderListaSalasAdmin() {
 function cargarSala(id) {
     limpiarFormulario(".req-sala");
     $("#salaId").val("");
-
-    // Limpiar campos DICOM
-    $("#salaAeTitle, #salaIp, #salaPort, #salaManufacturer, #salaModel, #salaDescription").val("");
+    $("#salaName, #salaGroup, #salaAeTitle, #salaIp, #salaPort, #salaManufacturer, #salaModel, #salaDescription").val("");
 
     if (id) {
         const sala = currentMachinesFromDB.find(s => String(s.id) === String(id));
@@ -945,12 +943,21 @@ function cargarSala(id) {
             $("#salaIp").val(sala.ip_address || "");
             $("#salaPort").val(sala.port || "");
         }
+        $("#btnEliminarSala").show();
+    } else {
+        $("#btnEliminarSala").hide();
     }
     $("#modalSala").modal('show');
 }
 
 async function guardarSala() {
     if (!validarFormulario(".req-sala")) return;
+
+    const labId = localStorage.getItem('ris_lab_id');
+    if (!labId) {
+        showToast("Seleccione un laboratorio/sede en la barra superior.", "warning");
+        return;
+    }
 
     const payload = {
         id: $("#salaId").val(),
@@ -966,11 +973,11 @@ async function guardarSala() {
     };
 
     const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
-    const btn = $("#modalSala .btn-warning");
+    const btn = $("#btnGuardarSala").length ? $("#btnGuardarSala") : $("#modalSala .btn-info.fw-bold").last();
+    const btnLabel = btn.text().trim() || "Guardar Sala";
 
     try {
-        btn.prop("disabled", true).html('<span class="spinner-border spinner-border-sm"></span>');
+        btn.prop("disabled", true).html('<span class="spinner-border spinner-border-sm"></span> Guardando...');
 
         const response = await fetch(`${API_URL}/machines`, {
             method: 'POST',
@@ -989,7 +996,7 @@ async function guardarSala() {
     } catch (e) {
         showToast("🔌 Error de red", "danger");
     } finally {
-        btn.prop("disabled", false).text("Guardar");
+        btn.prop("disabled", false).text(btnLabel);
     }
 }
 
@@ -2400,13 +2407,13 @@ async function eliminarPrevision() {
 }
 
 function nuevaSala() {
-    $("#formSala")[0].reset();
-    $("#salaId").val("");
-
-    $(".req-sala").removeClass("is-invalid");
-    $("#btnEliminarSala").hide();
-    $("#modalSala").modal('show');
+    cargarSala(null);
 }
+
+window.cargarSala = cargarSala;
+window.nuevaSala = nuevaSala;
+window.guardarSala = guardarSala;
+window.eliminarSala = eliminarSala;
 
 async function eliminarSala() {
     const id = $("#salaId").val();
