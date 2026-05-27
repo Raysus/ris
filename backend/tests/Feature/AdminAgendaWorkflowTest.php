@@ -1,0 +1,213 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Appointment;
+use App\Models\Exam;
+use App\Models\Machine;
+use App\Models\Paciente;
+use App\Models\Persona;
+use Carbon\Carbon;
+use Tests\Concerns\InteractsWithRis;
+use Tests\TestCase;
+
+/**
+ * Flujo corregido: salas (admin), búsqueda de paciente y guardado de cita con horario.
+ */
+class AdminAgendaWorkflowTest extends TestCase
+{
+    use InteractsWithRis;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->seedRis();
+        $this->loginRis();
+        $this->actingAsRis();
+    }
+
+    public function test_machines_can_be_created_and_updated(): void
+    {
+        $headers = $this->authHeaders();
+
+        $create = $this->withHeaders($headers)->postJson('/api/machines', [
+            'name' => 'Sala Test Automatizado',
+            'group' => 'RX',
+            'manufacturer' => 'TestCo',
+            'model_name' => 'Model-X',
+            'description' => 'Creada por PHPUnit',
+            'ae_title' => 'TEST_AE',
+            'ip_address' => '127.0.0.1',
+            'port' => 104,
+        ]);
+
+        $create->assertOk()
+            ->assertJsonPath('success', true);
+
+        $machineId = $create->json('machine.id');
+        $this->assertNotEmpty($machineId);
+
+        $this->assertDatabaseHas('machines', [
+            'id' => $machineId,
+            'laboratory_id' => $this->risLab->id,
+            'name' => 'Sala Test Automatizado',
+            'group' => 'RX',
+        ]);
+
+        $update = $this->withHeaders($headers)->postJson('/api/machines', [
+            'id' => $machineId,
+            'name' => 'Sala Test Actualizada',
+            'group' => 'CT',
+            'manufacturer' => 'TestCo',
+            'model_name' => 'Model-Y',
+            'description' => 'Editada por PHPUnit',
+        ]);
+
+        $update->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->assertDatabaseHas('machines', [
+            'id' => $machineId,
+            'name' => 'Sala Test Actualizada',
+            'group' => 'CT',
+        ]);
+    }
+
+    public function test_machines_index_lists_lab_equipment(): void
+    {
+        $response = $this->withHeaders($this->authHeaders())
+            ->getJson('/api/machines');
+
+        $response->assertOk()
+            ->assertJsonPath('success', true);
+
+        $names = collect($response->json('data'))->pluck('name');
+        $this->assertTrue($names->contains('Scanner GE'));
+    }
+
+    public function test_patient_search_requires_lab_header(): void
+    {
+        $this->withHeaders([
+            'Authorization' => 'Bearer ' . $this->risToken,
+            'Accept' => 'application/json',
+        ])->getJson('/api/patients/search?rut=18.194.675-K')
+            ->assertStatus(400)
+            ->assertJsonPath('message', 'Seleccione un laboratorio en la barra superior.');
+    }
+
+    public function test_patient_search_finds_seeded_persona(): void
+    {
+        Paciente::firstOrCreate(
+            [
+                'persona_id' => Persona::findByRut('18.194.675-K')->id,
+                'laboratory_id' => $this->risLab->id,
+            ],
+            [
+                'persona_id' => Persona::findByRut('18.194.675-K')->id,
+                'laboratory_id' => $this->risLab->id,
+            ]
+        );
+
+        $response = $this->withHeaders($this->authHeaders())
+            ->getJson('/api/patients/search?rut=' . urlencode('18.194.675-K'));
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.names', 'Raúl Antonio')
+            ->assertJsonPath('data.last_name_1', 'Gutiérrez');
+    }
+
+    public function test_patient_search_returns_404_for_unknown_rut(): void
+    {
+        $this->withHeaders($this->authHeaders())
+            ->getJson('/api/patients/search?rut=' . urlencode('99.999.999-9'))
+            ->assertStatus(404)
+            ->assertJsonPath('success', false);
+    }
+
+    public function test_appointment_store_saves_selected_start_time(): void
+    {
+        $machine = Machine::where('laboratory_id', $this->risLab->id)->firstOrFail();
+        $exam = Exam::where('laboratory_id', $this->risLab->id)->firstOrFail();
+
+        $slotStart = now()->addDays(21)->setTime(11, 15, 0);
+        $slotEnd = $slotStart->copy()->addMinutes(30);
+
+        $payload = [
+            'start_time' => $slotStart->format('Y-m-d\TH:i:s'),
+            'end_time' => $slotEnd->format('Y-m-d\TH:i:s'),
+            'machine_id' => $machine->id,
+            'status' => 'pre-agendado',
+            'patient' => [
+                'rut' => '12.345.678-5',
+                'names' => 'Juan',
+                'last_name_1' => 'Prueba',
+                'last_name_2' => null,
+                'gender' => 'M',
+                'birth_date' => '1990-01-01',
+                'email' => 'juan.prueba@test.local',
+                'phone' => '+56900000000',
+                'insurance_id' => null,
+                'insurance_plan_id' => null,
+            ],
+            'studies' => [
+                [
+                    'machine_id' => $machine->id,
+                    'exam_id' => $exam->id,
+                    'exam_name' => $exam->name,
+                    'sub_exam_id' => null,
+                    'sub_exam_name' => null,
+                    'fonasa_code' => $exam->fonasa_code,
+                    'quantity' => 1,
+                    'price' => (float) $exam->price,
+                ],
+            ],
+            'supplies' => [],
+            'origin' => 'Ambulatorio',
+            'priority' => 'Normal',
+            'payment_method' => 'Efectivo',
+            'payment_status' => 'Pendiente',
+        ];
+
+        $response = $this->withHeaders($this->authHeaders())
+            ->post('/api/appointments', ['data' => json_encode($payload)]);
+
+        $response->assertCreated()
+            ->assertJsonPath('success', true);
+
+        $appointmentId = $response->json('appointment.id');
+        $appointment = Appointment::findOrFail($appointmentId);
+
+        $expectedStart = Carbon::parse($payload['start_time']);
+        $this->assertTrue(
+            $appointment->start_time->equalTo($expectedStart),
+            sprintf(
+                'Horario guardado (%s) no coincide con el bloque seleccionado (%s).',
+                $appointment->start_time->toDateTimeString(),
+                $expectedStart->toDateTimeString()
+            )
+        );
+        $this->assertEquals($machine->id, $appointment->machine_id);
+        $this->assertEquals($this->risLab->id, $appointment->laboratory_id);
+    }
+
+    public function test_appointment_store_rejects_schedule_without_lab_header(): void
+    {
+        $machine = Machine::where('laboratory_id', $this->risLab->id)->firstOrFail();
+
+        $this->postJson('/api/appointments', [
+            'data' => json_encode([
+                'start_time' => now()->addDay()->toIso8601String(),
+                'end_time' => now()->addDay()->addMinutes(30)->toIso8601String(),
+                'machine_id' => $machine->id,
+                'status' => 'pre-agendado',
+                'patient' => ['rut' => '1-9', 'names' => 'X', 'last_name_1' => 'Y'],
+                'studies' => [],
+            ]),
+        ], [
+            'Accept' => 'application/json',
+            'Authorization' => 'Bearer ' . $this->risToken,
+        ])->assertStatus(400)
+            ->assertJsonPath('success', false);
+    }
+}
