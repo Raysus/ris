@@ -102,20 +102,26 @@
 
 @task('migrate_nube', ['on' => 'nube'])
     cd {{ $backend_dir }}
-    if sudo -n -u www-data php artisan migrate --force; then
+    ARTISAN="{{ $backend_dir }}/artisan"
+    if sudo -n -u www-data /usr/bin/php "${ARTISAN}" migrate --force; then
         echo "✅ migrate (www-data)."
+    elif php artisan migrate --force; then
+        echo "✅ migrate (${USER:-deploy}, ACL storage; sudo-rs puede ignorar NOPASSWD -u www-data)."
     else
-        echo "❌ migrate falló. Configure sudo sin contraseña (deploy/sudoers-ris-deploy.example)."
+        echo "❌ migrate falló. Revise deploy/sudoers-ris-deploy.example o permisos storage."
         exit 1
     fi
 @endtask
 
 @task('optimize_nube', ['on' => 'nube'])
     cd {{ $backend_dir }}
-    if sudo -n -u www-data php artisan optimize; then
-        echo "✅ Nube optimizada (rama {{ $branch_nube }})."
+    ARTISAN="{{ $backend_dir }}/artisan"
+    if sudo -n -u www-data /usr/bin/php "${ARTISAN}" optimize; then
+        echo "✅ Nube optimizada (www-data, rama {{ $branch_nube }})."
+    elif php artisan optimize; then
+        echo "✅ Nube optimizada (${USER:-deploy}, rama {{ $branch_nube }})."
     else
-        echo "❌ optimize falló. Configure sudo sin contraseña."
+        echo "❌ optimize falló. Revise permisos storage/bootstrap."
         exit 1
     fi
 @endtask
@@ -141,10 +147,13 @@
 
 @task('restart_queue_nube', ['on' => 'nube'])
     cd {{ $backend_dir }}
-    if sudo -n -u www-data php artisan queue:restart; then
-        echo "✅ Colas reiniciadas."
+    ARTISAN="{{ $backend_dir }}/artisan"
+    if sudo -n -u www-data /usr/bin/php "${ARTISAN}" queue:restart; then
+        echo "✅ Colas reiniciadas (www-data)."
+    elif php artisan queue:restart; then
+        echo "✅ Colas reiniciadas (${USER:-deploy})."
     else
-        echo "❌ queue:restart falló. Configure sudo sin contraseña."
+        echo "❌ queue:restart falló."
         exit 1
     fi
 @endtask
