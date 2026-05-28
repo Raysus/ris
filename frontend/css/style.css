@@ -997,79 +997,118 @@ body.dark,
    ========================================= */
 body.login-page,
 body.recovery-page {
-    background: linear-gradient(160deg, #f5f3f7 0%, #ebe6f0 45%, #e4eef4 100%);
+    background: linear-gradient(165deg, var(--bg-app) 0%, #e8e2ef 40%, #dce8f0 100%);
     min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
     overflow: auto;
+    padding: 1.5rem 1rem;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    color: var(--text-main);
 }
 
 .login-card,
 .card-recovery {
     border-radius: 20px;
-    box-shadow: 0 15px 35px rgba(61, 56, 72, 0.1);
-    border: none;
+    box-shadow: 0 18px 40px rgba(45, 40, 56, 0.14);
+    border: 1px solid var(--border-color);
     overflow: hidden;
-    background: #ffffff;
+    background: var(--bg-card);
     width: 100%;
-    max-width: 400px;
+    max-width: 420px;
+    margin: 0 auto;
 }
 
-.login-header {
-    background: #ffffff;
-    padding: 3rem 2rem 1rem;
+.login-header,
+.recovery-header {
+    background: var(--bg-card);
+    padding: 2.5rem 2rem 1.25rem;
     text-align: center;
+    border-top: 4px solid var(--primary);
 }
 
-.login-logo {
+.login-logo,
+.recovery-logo {
     font-size: 3rem;
-    background: var(--gradient-brand);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    color: var(--primary) !important;
     margin-bottom: 0.5rem;
     display: inline-block;
+    line-height: 1;
+}
+
+.login-title,
+.recovery-title {
+    color: var(--text-main);
+    font-size: 1.5rem;
+    letter-spacing: -0.02em;
+}
+
+.login-footer {
+    background: var(--bg-card) !important;
+    color: var(--text-muted);
+    font-size: 0.75rem;
 }
 
 body.login-page .form-control,
 body.recovery-page .form-control {
-    border-radius: 10px;
+    border-radius: 0 10px 10px 0;
     padding: 0.75rem 1rem;
     border: 1px solid var(--border-color);
-    background-color: #faf9fc;
+    background-color: #ffffff;
+    color: var(--text-main);
+}
+
+body.login-page .form-control::placeholder,
+body.recovery-page .form-control::placeholder {
+    color: #8a8494;
 }
 
 body.login-page .form-control:focus,
 body.recovery-page .form-control:focus {
     background-color: #ffffff;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 0.2rem rgba(var(--primary-rgb), 0.2);
 }
 
-body.login-page .input-group-text {
+body.login-page .input-group-text,
+body.recovery-page .input-group-text {
     border-radius: 10px 0 0 10px;
-    background-color: #faf9fc;
+    background-color: #f3f0f7;
     border: 1px solid var(--border-color);
-    color: var(--text-muted);
+    border-right: 0;
+    color: var(--primary);
+}
+
+body.login-page .form-check-input:checked,
+body.recovery-page .form-check-input:checked {
+    background-color: var(--primary);
+    border-color: var(--primary);
 }
 
 .login-btn {
     border-radius: 10px;
     padding: 0.75rem;
-    font-weight: 600;
+    font-weight: 700;
+    letter-spacing: 0.02em;
 }
 
 .text-muted-modern {
-    color: var(--text-muted);
+    color: var(--text-muted) !important;
 }
 
-body.recovery-page .card-recovery {
-    border-radius: 15px;
+body.login-page .alert-danger,
+body.recovery-page .alert-danger {
+    background-color: rgba(184, 61, 82, 0.1);
+    border-color: var(--danger);
+    color: #8b2d3c;
 }
 
-body.recovery-page .bi-shield-lock {
-    background: var(--gradient-brand);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent !important;
+body.login-page .modal-header.bg-primary,
+body.recovery-page .modal-header.bg-primary {
+    background-color: var(--primary) !important;
+}
+
+body.recovery-page .card-recovery .card-body {
+    padding-top: 0.5rem;
 }
