@@ -28,26 +28,33 @@ const RIS_MODULE_INIT = {
 
 const _loadedModules = new Set();
 
+function risAssetUrl(path) {
+    const v = window.RIS_BUILD || Date.now();
+    const sep = path.includes("?") ? "&" : "?";
+    return `${path}${sep}v=${encodeURIComponent(v)}`;
+}
+
 function loadScriptOnce(src) {
+    const versionedSrc = risAssetUrl(src);
     return new Promise((resolve, reject) => {
-        if (_loadedModules.has(src)) {
+        if (_loadedModules.has(versionedSrc)) {
             resolve();
             return;
         }
-        const existing = document.querySelector(`script[src="${src}"]`);
+        const existing = document.querySelector(`script[src="${versionedSrc}"]`);
         if (existing) {
-            _loadedModules.add(src);
+            _loadedModules.add(versionedSrc);
             resolve();
             return;
         }
         const script = document.createElement("script");
-        script.src = src;
+        script.src = versionedSrc;
         script.async = false;
         script.onload = () => {
-            _loadedModules.add(src);
+            _loadedModules.add(versionedSrc);
             resolve();
         };
-        script.onerror = () => reject(new Error(`No se pudo cargar ${src}`));
+        script.onerror = () => reject(new Error(`No se pudo cargar ${versionedSrc}`));
         document.body.appendChild(script);
     });
 }
@@ -69,7 +76,7 @@ function loadPage(page) {
 
     ensureModuleLoaded(page)
         .then(() => {
-            $("#appContent").load("pages/" + page + ".html", function (response, status) {
+            $("#appContent").load(risAssetUrl("pages/" + page + ".html"), function (response, status) {
                 if (typeof hideLoader === "function") hideLoader();
                 localStorage.setItem("ris_last_page", page);
 

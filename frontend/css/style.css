@@ -333,14 +333,42 @@ body {
     border: 1px solid rgba(107, 91, 122, 0.15);
 }
 
-.agenda-leyenda-dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
+.agenda-leyenda-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-muted, #64748b);
+    white-space: nowrap;
+}
+
+.agenda-leyenda-item::before {
+    content: '';
     display: inline-block;
-    margin-right: 0.4rem;
+    width: 14px;
+    height: 14px;
+    border-radius: 4px;
     flex-shrink: 0;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+    background-color: var(--leyenda-color, #a894c4) !important;
+    border: 1px solid rgba(58, 54, 68, 0.25);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.agenda-leyenda-item[data-estado-leyenda='pre-agendado']::before { background-color: #c4b8d4 !important; }
+.agenda-leyenda-item[data-estado-leyenda='agendado']::before { background-color: #a894c4 !important; }
+.agenda-leyenda-item[data-estado-leyenda='confirmado']::before { background-color: #9eb8cc !important; }
+.agenda-leyenda-item[data-estado-leyenda='espera']::before { background-color: #d4c4a8 !important; }
+.agenda-leyenda-item[data-estado-leyenda='anulado']::before { background-color: #d4a8b0 !important; }
+.agenda-leyenda-item[data-estado-leyenda='atendido']::before { background-color: #6b7280 !important; }
+
+.agenda-controls-bar .agenda-vista-btns .btn.active {
+    font-weight: 700;
+}
+
+.agenda-calendar .fc-header-toolbar .fc-toolbar-chunk:last-child {
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
 .agenda-calendar,

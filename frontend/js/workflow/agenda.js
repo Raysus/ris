@@ -13,9 +13,35 @@ const AGENDA_ESTADO_COLORES = {
     'agendado': '#a894c4',
     'confirmado': '#9eb8cc',
     'espera': '#d4c4a8',
-    'anulado': '#d4a8b0'
+    'anulado': '#d4a8b0',
+    'atendido': '#6b7280',
 };
 const AGENDA_ESTADO_TEXTO = '#3a3644';
+
+function pintarLeyendaEstadosAgenda() {
+    document.querySelectorAll('[data-estado-leyenda]').forEach((el) => {
+        const key = el.getAttribute('data-estado-leyenda');
+        const color = AGENDA_ESTADO_COLORES[key] || '#a894c4';
+        el.style.setProperty('--leyenda-color', color);
+    });
+}
+
+function actualizarBotonesVistaAgenda(activeView) {
+    const view = activeView || calendar?.view?.type || 'resourceTimelineDay';
+    document.querySelectorAll('[data-agenda-view]').forEach((btn) => {
+        const match = btn.getAttribute('data-agenda-view') === view;
+        btn.classList.toggle('active', match);
+        btn.classList.toggle('btn-primary', match);
+        btn.classList.toggle('btn-outline-primary', !match);
+    });
+}
+
+function cambiarVistaAgenda(viewType) {
+    if (!calendar) return;
+    calendar.changeView(viewType);
+    actualizarBotonesVistaAgenda(viewType);
+}
+window.cambiarVistaAgenda = cambiarVistaAgenda;
 
 function calcularDuracionCita(machineId, cantidadExamenes) {
     const sala = (window.RIS.resources || []).find(r => r.id === machineId);
@@ -234,6 +260,8 @@ async function initAgenda() {
     }
 
     setupCalendar(calendarEl);
+    pintarLeyendaEstadosAgenda();
+    actualizarBotonesVistaAgenda(calendar?.view?.type);
     await cargarAgendaDesdeServidor();
 
     if (!window._agendaListenersBound) {
@@ -387,13 +415,13 @@ function setupCalendar(el) {
         headerToolbar: {
             left: 'prev,next today',
             center: 'title',
-            right: 'resourceTimelineDay,resourceTimelineWeek,resourceTimelineMonth'
+            right: '',
         },
         buttonText: {
             today: 'Hoy',
-            resourceTimelineDay: 'Día',
-            resourceTimelineWeek: 'Semana',
-            resourceTimelineMonth: 'Mes',
+        },
+        datesSet: function (info) {
+            actualizarBotonesVistaAgenda(info.view.type);
         },
         views: {
             resourceTimelineWeek: {
