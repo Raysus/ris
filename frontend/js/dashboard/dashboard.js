@@ -21,18 +21,23 @@ function initDashboard() {
 }
 
 async function actualizarMetricas() {
-    const token = localStorage.getItem("ris_token");
-    const labId = localStorage.getItem("ris_lab_id") || "";
     const fechaSel = $("#filtroFechaDash").length
         ? $("#filtroFechaDash").val()
         : new Date().toISOString().split("T")[0];
 
     $("#dashError").addClass("d-none");
 
+    if (typeof risRequireConcreteLabId === 'function' && !risRequireConcreteLabId(false)) {
+        $("#kpiPacientes, #kpiExamenes, #kpiIngresos, #kpiTat").text("—");
+        return;
+    }
+
+    const headers = typeof risBuildAuthHeaders === 'function'
+        ? risBuildAuthHeaders()
+        : { Authorization: `Bearer ${localStorage.getItem('ris_token')}`, Accept: 'application/json' };
+
     try {
-        const response = await fetch(`${API_URL}/dashboard/metrics?date=${fechaSel}`, {
-            headers: { Authorization: `Bearer ${token}`, "X-Lab-Id": labId, Accept: "application/json" },
-        });
+        const response = await fetch(`${API_URL}/dashboard/metrics?date=${fechaSel}`, { headers });
         const res = await response.json();
 
         if (!response.ok || !res.success) {

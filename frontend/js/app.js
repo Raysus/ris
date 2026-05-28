@@ -58,6 +58,15 @@ $(document).ready(async function () {
 
     await cargarSelectorLaboratorios();
 
+    if (typeof refreshLabProfileFromApi === 'function') {
+        await refreshLabProfileFromApi();
+    } else if (typeof applyLabProfileUI === 'function') {
+        applyLabProfileUI();
+    }
+    if (typeof applyOperationalModuleNav === 'function') {
+        applyOperationalModuleNav();
+    }
+
     const esTecnologo = userRoles.includes('tecnologo') && !esClinicAdmin;
     const paginaOperativaTm = typeof getOperationalTechnicianPage === 'function'
         ? getOperationalTechnicianPage()
@@ -128,6 +137,11 @@ $(document).ready(async function () {
         localStorage.removeItem("ris_permissions");
         localStorage.removeItem("ris_lab_name");
         localStorage.removeItem("ris_user_data");
+        localStorage.removeItem("ris_lab_profile");
+        localStorage.removeItem("ris_lab_type_code");
+        localStorage.removeItem("ris_labs_permitidos");
+        localStorage.removeItem("ris_all_labs");
+        localStorage.removeItem("ris_last_page");
         window.location.href = "index.html";
     });
 
@@ -136,16 +150,7 @@ $(document).ready(async function () {
         window.addEventListener("hashchange", sincronizarSidebar);
     }
 
-    if (typeof refreshLabProfileFromApi === 'function') {
-        refreshLabProfileFromApi().then(() => {
-            if (typeof applyOperationalModuleNav === 'function') applyOperationalModuleNav();
-            risEnsureCurrentPageVisible();
-        });
-    } else {
-        if (typeof applyLabProfileUI === 'function') applyLabProfileUI();
-        if (typeof applyOperationalModuleNav === 'function') applyOperationalModuleNav();
-        risEnsureCurrentPageVisible();
-    }
+    risEnsureCurrentPageVisible();
 });
 
 function risResolveVisiblePage(preferred) {
@@ -258,11 +263,14 @@ async function cargarSelectorLaboratorios() {
                     selector.val('');
                     localStorage.removeItem('ris_lab_id');
                 }
-            } else if (currentLabId) {
+            } else if (typeof risIsConcreteLabId === 'function' && risIsConcreteLabId(currentLabId)) {
                 selector.val(currentLabId);
             } else {
-                const primerVal = selector.find('option:first').val();
-                if (primerVal !== undefined && primerVal !== '') {
+                const primerVal = selector.find('option').filter(function () {
+                    const v = $(this).val();
+                    return typeof risIsConcreteLabId === 'function' ? risIsConcreteLabId(v) : (v && v !== 'ALL' && v !== '');
+                }).first().val();
+                if (primerVal) {
                     localStorage.setItem('ris_lab_id', primerVal);
                     selector.val(primerVal);
                 }
@@ -274,6 +282,8 @@ async function cargarSelectorLaboratorios() {
                 const val = $(this).val();
                 if (val === '' || val === null) {
                     localStorage.removeItem('ris_lab_id');
+                } else if (val === 'ALL') {
+                    localStorage.setItem('ris_lab_id', 'ALL');
                 } else {
                     localStorage.setItem('ris_lab_id', val);
                 }

@@ -27,11 +27,10 @@ function initTranscription() {
 }
 
 async function cargarAjustesVisuales() {
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
+    if (typeof risRequireConcreteLabId === 'function' && !risRequireConcreteLabId(false)) return;
     try {
         const response = await fetch(`${API_URL}/settings`, {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders() : {}
         });
         const data = await response.json();
 
@@ -43,11 +42,13 @@ async function cargarAjustesVisuales() {
 }
 
 async function cargarListaTranscripcion() {
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
+    if (typeof risRequireConcreteLabId === 'function' && !risRequireConcreteLabId(false)) {
+        $("#transcriptionStudies").html('<div class="alert alert-warning m-3">Seleccione una sede específica.</div>');
+        return;
+    }
     try {
         const response = await fetch(`${API_URL}/transcription/appointments`, {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders() : {}
         });
         const result = await response.json();
 
@@ -271,9 +272,6 @@ function iniciarAutoguardadoTrans() {
         const textActual = $("#textoTranscripcion").val();
 
         try {
-            const token = localStorage.getItem('ris_token');
-            const labId = localStorage.getItem('ris_lab_id');
-
             const payload = {
                 reports: [{
                     id: currentTransStudy.study_id,
@@ -285,7 +283,7 @@ function iniciarAutoguardadoTrans() {
 
             const response = await fetch(`${API_URL}/transcription/appointments/${currentTranscriptionChain.id}/draft`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+                headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders({ 'Content-Type': 'application/json' }) : {},
                 body: JSON.stringify(payload)
             });
 
@@ -307,8 +305,6 @@ $(document).on("input", "#textoTranscripcion", function () {
 async function enviarAValidacion() {
     if (!currentTranscriptionChain) return;
 
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
     const btn = $("#btnEnviarValidacion");
 
     // Construcción exacta del payload: 
@@ -325,11 +321,7 @@ async function enviarAValidacion() {
 
         const response = await fetch(`${API_URL}/transcription/appointments/${currentTranscriptionChain.id}/validate`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-                'X-Lab-Id': labId
-            },
+            headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders({ 'Content-Type': 'application/json' }) : {},
             body: JSON.stringify(payload)
         });
 
@@ -358,8 +350,6 @@ async function devolverAudioAlMedico() {
     );
     if (!motivo) return;
 
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
     const btn = $("#btnDevolverAudio");
 
     try {
@@ -367,7 +357,7 @@ async function devolverAudioAlMedico() {
 
         const response = await fetch(`${API_URL}/transcription/appointments/${currentTranscriptionChain.id}/return`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders({ 'Content-Type': 'application/json' }) : {},
             body: JSON.stringify({ reason: motivo })
         });
 
@@ -415,11 +405,9 @@ function limpiarPantallaTranscripcion() {
 
 // === PLANTILLAS DE TRANSCRIPCIÓN ===
 async function cargarPlantillasTranscripcion() {
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
     try {
         const response = await fetch(`${API_URL}/templates`, {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders() : {}
         });
         const data = await response.json();
         if (response.ok && data.success) {

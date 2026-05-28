@@ -20,11 +20,10 @@ function initValidation() {
 }
 
 async function cargarAjustesVisualesValidacion() {
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
+    if (typeof risRequireConcreteLabId === 'function' && !risRequireConcreteLabId(false)) return;
     try {
         const response = await fetch(`${API_URL}/settings`, {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders() : {}
         });
         const data = await response.json();
 
@@ -36,13 +35,15 @@ async function cargarAjustesVisualesValidacion() {
 }
 
 async function cargarListaValidacion() {
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
     const lista = $("#validationStudies");
+    if (typeof risRequireConcreteLabId === 'function' && !risRequireConcreteLabId(false)) {
+        lista.html('<div class="alert alert-warning m-3">Seleccione una sede específica.</div>');
+        return;
+    }
 
     try {
         const response = await fetch(`${API_URL}/radiologist/validations`, {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders() : {}
         });
         const data = await response.json();
 
@@ -144,8 +145,6 @@ async function firmarInforme() {
 
     if (!(await showConfirm("¿Firmar digitalmente TODOS los informes de esta cita? El paciente podrá descargarlos inmediatamente.", { title: "Firmar informes", confirmText: "Firmar" }))) return;
 
-        const token = localStorage.getItem('ris_token');
-        const labId = localStorage.getItem('ris_lab_id');
         const btn = $("#btnAprobar");
 
         try {
@@ -158,7 +157,7 @@ async function firmarInforme() {
 
             const response = await fetch(`${API_URL}/radiologist/appointments/${currentValidationChain.id}/sign`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+                headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders({ 'Content-Type': 'application/json' }) : {},
                 body: JSON.stringify({
                     reports: paqueteInformes,
                     dictation_method: 'transcripcion_validada'
@@ -188,8 +187,6 @@ async function rechazarInforme() {
     );
     if (!motivo) return;
 
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
     const btn = $("#btnRechazar");
 
     try {
@@ -197,7 +194,7 @@ async function rechazarInforme() {
 
         const response = await fetch(`${API_URL}/radiologist/appointments/${currentValidationChain.id}/reject-transcription`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders({ 'Content-Type': 'application/json' }) : {},
             body: JSON.stringify({ reason: motivo })
         });
 

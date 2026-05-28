@@ -22,9 +22,11 @@ let isSplitScreen = false;
 let radiologistRefreshInterval = null;
 
 function initRadiologist() {
-    const userRole = localStorage.getItem('ris_role'); 
-    
-    if (userRole === 'admin' || userRole === 'sis_admin') {
+    const profile = (localStorage.getItem('ris_user_profile') || '').toLowerCase();
+    const esAdminFiltro = profile === 'admin' || profile === 'sis_admin'
+        || (typeof risIsClinicAdmin === 'function' && risIsClinicAdmin());
+
+    if (esAdminFiltro) {
         $("#filtroAdminContainer").removeClass("d-none");
     }
 
@@ -41,11 +43,9 @@ function initRadiologist() {
 }
 
 async function cargarPlantillasRadiologo() {
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
     try {
         const response = await fetch(`${API_URL}/templates`, {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders() : {}
         });
         const data = await response.json();
         if (response.ok && data.success) {
@@ -93,10 +93,6 @@ async function ejecutarAutoguardado() {
     const textoActual = $("#textoInforme").val();
     if (textoActual === lastSavedText) return; // No hay cambios, no hacer request
 
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
-
-    // Mostramos el icono
     $("#autoSaveIndicator").html('<span class="spinner-border spinner-border-sm text-primary"></span>').fadeIn();
 
     try {
@@ -107,7 +103,7 @@ async function ejecutarAutoguardado() {
 
         const response = await fetch(`${API_URL}/radiologist/appointments/${currentReportingChain.id}/draft`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders({ 'Content-Type': 'application/json' }) : {},
             body: JSON.stringify({ reports: paqueteInformes })
         });
 
@@ -162,12 +158,9 @@ async function cargarHistorialSplit() {
     const contenedor = $("#contenedorHistorialSplit");
     contenedor.html('<div class="text-center p-4"><span class="spinner-border text-primary"></span> Buscando informes...</div>');
 
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
-
     try {
         const response = await fetch(`${API_URL}/patients/${p.rut}/history`, {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders() : {}
         });
         const data = await response.json();
 
@@ -198,17 +191,15 @@ async function cargarHistorialSplit() {
 }
 
 async function cargarEstudiosRadiologo() {
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
-    
     const viewMode = $("#filtroRadiologoActivo").val() || 'ME';
+    if (typeof risRequireConcreteLabId === 'function' && !risRequireConcreteLabId(false)) {
+        $("#radiologistStudies").html('<div class="alert alert-warning m-3">Seleccione una sede específica.</div>');
+        return;
+    }
 
     try {
         const response = await fetch(`${API_URL}/radiologist/studies?view=${viewMode}`, {
-            headers: { 
-                'Authorization': `Bearer ${token}`, 
-                'X-Lab-Id': labId 
-            }
+            headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders() : {}
         });
         
         const data = await response.json();
@@ -310,7 +301,7 @@ function renderRadiologistStudies() {
 }
 
 function abrirInforme(citaId) {
-    const app = currentRadiologistData.find(x => x.id == id);
+    const app = currentRadiologistData.find(x => String(x.id) === String(citaId));
     if (!app) return;
 
     currentReportingChain = app;
@@ -377,8 +368,6 @@ async function firmarDirecto() {
 
     if (!(await showConfirm("¿Firmar digitalmente TODOS los informes de esta cita? El paciente podrá descargarlos inmediatamente.", { title: "Firmar informes", confirmText: "Firmar" }))) return;
 
-        const token = localStorage.getItem('ris_token');
-        const labId = localStorage.getItem('ris_lab_id');
         const btn = $("#btnFirmarDirecto");
 
         try {
@@ -391,7 +380,7 @@ async function firmarDirecto() {
 
             const response = await fetch(`${API_URL}/radiologist/appointments/${currentReportingChain.id}/sign`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+                headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders({ 'Content-Type': 'application/json' }) : {},
                 body: JSON.stringify({
                     reports: paqueteInformes,
                     dictation_method: currentDictationMethod
@@ -421,8 +410,6 @@ async function devolverATecnologo() {
     );
     if (!motivo) return;
 
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
     const btn = $("#btnDevolver");
 
     try {
@@ -430,7 +417,7 @@ async function devolverATecnologo() {
 
         const response = await fetch(`${API_URL}/radiologist/appointments/${currentReportingChain.id}/return`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
+            headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders({ 'Content-Type': 'application/json' }) : {},
             body: JSON.stringify({ reason: motivo })
         });
 

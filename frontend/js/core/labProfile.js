@@ -18,6 +18,64 @@ const RIS_DEFAULT_PROFILE = {
     referring_label: 'Médico derivante',
 };
 
+/** UUID de sede concreta (no visión global ni "Todas mis sucursales"). */
+function risIsConcreteLabId(labId) {
+    if (labId === null || labId === undefined) return false;
+    const v = String(labId).trim();
+    return v !== '' && v !== 'ALL';
+}
+
+/** Headers Authorization + X-Lab-Id solo si hay sede concreta. */
+function risBuildAuthHeaders(extra = {}) {
+    const headers = {
+        Accept: 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('ris_token') || ''}`,
+        ...extra,
+    };
+    const labId = typeof risRequireConcreteLabId === 'function'
+        ? risRequireConcreteLabId(false)
+        : localStorage.getItem('ris_lab_id');
+    if (labId && labId !== 'ALL') {
+        headers['X-Lab-Id'] = labId;
+    }
+    return headers;
+}
+
+/**
+ * Bloquea carga de módulo si no hay sede concreta (p. ej. "Todas mis sucursales").
+ * Sysadmin sin sede puede usar visión global en admin.
+ */
+function risGuardConcreteLabForModule(page) {
+    if (typeof risIsSysAdmin === 'function' && risIsSysAdmin() && !risIsConcreteLabId(localStorage.getItem('ris_lab_id'))) {
+        if (page === 'admin') {
+            return true;
+        }
+    }
+    if (typeof risRequireConcreteLabId === 'function') {
+        return !!risRequireConcreteLabId();
+    }
+    const labId = localStorage.getItem('ris_lab_id');
+    if (!labId || labId === 'ALL') {
+        if (typeof showToast === 'function') {
+            showToast('Seleccione una sede específica en la barra superior.', 'warning');
+        }
+        return false;
+    }
+    return true;
+}
+
+/** Devuelve ris_lab_id válido o null y opcionalmente muestra aviso. */
+function risRequireConcreteLabId(showWarning = true) {
+    const labId = localStorage.getItem('ris_lab_id');
+    if (risIsConcreteLabId(labId)) {
+        return labId;
+    }
+    if (showWarning && typeof showToast === 'function') {
+        showToast('Seleccione una sede específica en la barra superior (no "Todas mis sucursales").', 'warning');
+    }
+    return null;
+}
+
 function getLabProfile() {
     if (window.RIS_LAB_PROFILE) {
         return { ...RIS_DEFAULT_PROFILE, ...window.RIS_LAB_PROFILE };
@@ -55,8 +113,15 @@ function applyLabProfileUI(root = document) {
     scope.querySelectorAll('[data-ris-label="patient"]').forEach(el => {
         el.textContent = p.patient_label;
     });
+    const lblDoc = byId('lblDoc');
+    if (lblDoc && !lblDoc.dataset.risLabelPrefix) {
+        lblDoc.dataset.risLabelPrefix = 'N° de ';
+        lblDoc.dataset.risLabelSuffix = ' *';
+    }
     scope.querySelectorAll('[data-ris-label="patient-id"]').forEach(el => {
-        el.textContent = p.patient_id_label;
+        const prefix = el.dataset.risLabelPrefix || '';
+        const suffix = el.dataset.risLabelSuffix || '';
+        el.textContent = `${prefix}${p.patient_id_label}${suffix}`;
     });
     scope.querySelectorAll('[data-ris-label="service-code"]').forEach(el => {
         el.textContent = p.service_code_label;
@@ -99,7 +164,7 @@ function applyLabProfileUI(root = document) {
 async function refreshLabProfileFromApi() {
     const token = localStorage.getItem('ris_token');
     const labId = localStorage.getItem('ris_lab_id');
-    if (!token || !labId) {
+    if (!token || !risIsConcreteLabId(labId)) {
         return getLabProfile();
     }
 
@@ -163,15 +228,19 @@ function risHasGlobalAccess() {
     return risIsSysAdmin();
 }
 
-/** Muestra Worklist y Atención para admins; operativos ven solo uno según perfil del lab. */
+/** Muestra Worklist y Atención para admins; en dental/vet solo Atención en salas. */
 function applyOperationalModuleNav() {
+    const manual = getLabProfile().uses_dicom_worklist === false;
+
     if (risIsClinicAdmin()) {
-        document.querySelectorAll('#sidebar nav a[data-page="worklist"], #sidebar nav a[data-page="atencion"]').forEach((el) => {
+        document.querySelectorAll('#sidebar nav a[data-page="worklist"]').forEach((el) => {
+            el.classList.toggle('d-none', manual);
+        });
+        document.querySelectorAll('#sidebar nav a[data-page="atencion"]').forEach((el) => {
             el.classList.remove('d-none');
         });
         return;
     }
-    const manual = getLabProfile().uses_dicom_worklist === false;
     document.querySelectorAll('#sidebar nav a[data-page="worklist"]').forEach((el) => {
         el.classList.toggle('d-none', manual);
     });
@@ -189,3 +258,7 @@ window.risIsSysAdmin = risIsSysAdmin;
 window.risIsClinicAdmin = risIsClinicAdmin;
 window.risHasGlobalAccess = risHasGlobalAccess;
 window.applyOperationalModuleNav = applyOperationalModuleNav;
+window.risIsConcreteLabId = risIsConcreteLabId;
+window.risRequireConcreteLabId = risRequireConcreteLabId;
+window.risBuildAuthHeaders = risBuildAuthHeaders;
+window.risGuardConcreteLabForModule = risGuardConcreteLabForModule;

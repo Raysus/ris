@@ -64,7 +64,7 @@
             <div class="modal-body p-4">
 
                 <ul class="nav nav-pills agenda-wizard-nav mb-4 justify-content-center gap-2 flex-wrap" role="tablist" aria-label="Pasos de la cita">
-                    <li class="nav-item"><button type="button" class="nav-link active" data-step="1" onclick="goAgendaWizardStep(1)">1. Paciente</button></li>
+                    <li class="nav-item"><button type="button" class="nav-link active" data-step="1" onclick="goAgendaWizardStep(1)">1. <span data-ris-label="patient">Paciente</span></button></li>
                     <li class="nav-item"><button type="button" class="nav-link" data-step="2" onclick="goAgendaWizardStep(2)">2. Cita</button></li>
                     <li class="nav-item"><button type="button" class="nav-link" data-step="3" onclick="goAgendaWizardStep(3)">3. Exámenes</button></li>
                     <li class="nav-item"><button type="button" class="nav-link" data-step="4" onclick="goAgendaWizardStep(4)">4. Pago</button></li>
@@ -89,7 +89,7 @@
                                     </select>
                                 </div>
                                 <div class="col-md-7">
-                                    <label class="form-label fw-bold small text-muted" for="pRut" id="lblDoc">N° de RUT *</label>
+                                    <label class="form-label fw-bold small text-muted" for="pRut" id="lblDoc" data-ris-label="patient-id">N° de RUT *</label>
                                     <input type="text" class="form-control form-control-sm" id="pRut"
                                         placeholder="12.345.678-9">
                                 </div>

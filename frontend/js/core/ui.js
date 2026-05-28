@@ -268,8 +268,13 @@ function prevAgendaWizardStep() {
 
 function validateAgendaWizardStep(step) {
     if (step === 1) {
+        const docLabel = (typeof getLabProfile === 'function' ? getLabProfile().patient_id_label : 'RUT');
+        const pLabel = (typeof getLabProfile === 'function' ? getLabProfile().patient_label : 'Paciente');
         if (!$("#pRut").val()?.trim() || !$("#pName").val()?.trim() || !$("#pLastName").val()?.trim()) {
-            showToast("Complete RUT, nombres y apellido del paciente.", "warning");
+            showToast(`Complete ${docLabel}, nombres y apellido del ${pLabel.toLowerCase()}.`, "warning");
+            return false;
+        }
+        if (typeof validarDocumentoAgenda === 'function' && !validarDocumentoAgenda()) {
             return false;
         }
     }

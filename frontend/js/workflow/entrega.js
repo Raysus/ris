@@ -13,11 +13,10 @@ function initEntrega() {
 }
 
 async function cargarAjustesVisualesEntrega() {
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
+    if (typeof risRequireConcreteLabId === 'function' && !risRequireConcreteLabId(false)) return;
     try {
         const response = await fetch(`${API_URL}/settings`, {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders() : {}
         });
         const data = await response.json();
 
@@ -28,13 +27,15 @@ async function cargarAjustesVisualesEntrega() {
 }
 
 async function cargarListaEntrega() {
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
     const tbody = $("#tablaEntrega tbody");
+    if (typeof risRequireConcreteLabId === 'function' && !risRequireConcreteLabId(false)) {
+        tbody.html('<tr><td colspan="6" class="text-center text-warning p-5">Seleccione una sede específica.</td></tr>');
+        return;
+    }
 
     try {
         const response = await fetch(`${API_URL}/delivery/studies`, {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders() : {}
         });
         const data = await response.json();
 
@@ -152,17 +153,12 @@ async function procesarEntrega() {
 }
 
 async function ejecutarLlamadaEntrega(id, action, bodyData = {}) {
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
-
     try {
         const response = await fetch(`${API_URL}/delivery/appointments/${id}/${action}`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-                'X-Lab-Id': labId
-            },
+            headers: typeof risBuildAuthHeaders === 'function'
+                ? risBuildAuthHeaders({ 'Content-Type': 'application/json' })
+                : {},
             body: JSON.stringify(bodyData)
         });
 
@@ -311,13 +307,10 @@ async function enviarResultadosPorEmail(id) {
 
     if (!(await showConfirm(`¿Desea enviar los informes médicos al correo registrado del paciente ${item.patient.name} ${item.patient.lastName}?`, { title: "Enviar por correo", confirmText: "Enviar" }))) return;
 
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
-
     try {
         const response = await fetch(`${API_URL}/delivery/appointments/${id}/email`, {
             method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders() : {}
         });
         const data = await response.json();
 
@@ -333,12 +326,10 @@ async function enviarResultadosPorEmail(id) {
 }
 
 async function registrarImpresionEnLog(id) {
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
     try {
         await fetch(`${API_URL}/delivery/appointments/${id}/log-print`, {
             method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+            headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders() : {}
         });
     } catch (e) { }
 }

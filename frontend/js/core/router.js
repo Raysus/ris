@@ -83,8 +83,21 @@ function loadPage(page) {
                     return;
                 }
 
+                if (typeof applyLabProfileUI === 'function') {
+                    applyLabProfileUI(document.getElementById('appContent') || document);
+                }
+
                 const initFn = RIS_MODULE_INIT[page];
                 if (initFn && typeof window[initFn] === "function") {
+                    if (typeof risGuardConcreteLabForModule === 'function' && !risGuardConcreteLabForModule(page)) {
+                        $("#appContent").prepend(
+                            `<div class="alert alert-warning m-4 fw-bold" role="alert">
+                                <i class="bi bi-building me-2"></i>
+                                Seleccione una sede específica en el selector superior para usar este módulo.
+                            </div>`
+                        );
+                        return;
+                    }
                     Promise.resolve(window[initFn]()).catch((err) => {
                         console.error(`Error en ${initFn}:`, err);
                         showToast(`Error al iniciar ${page}: ${err.message}`, 'danger');

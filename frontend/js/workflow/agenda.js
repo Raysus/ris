@@ -272,8 +272,7 @@ function setupCalendar(el) {
         droppable: true,
         slotMinWidth: 120,
         select: function (info) {
-            if (!localStorage.getItem("ris_lab_id")) {
-                showToast("Seleccione un laboratorio/sede en la barra superior antes de agendar.", "warning");
+            if (typeof risRequireConcreteLabId === 'function' ? !risRequireConcreteLabId() : !localStorage.getItem("ris_lab_id")) {
                 return;
             }
             abrirModalCita({
@@ -635,15 +634,20 @@ async function guardarCita() {
     const idOriginal = $("#appointmentId").val();
     const rut = $("#pRut").val();
     const statusSeleccionado = $("#agendaStatus").val();
-    const labId = localStorage.getItem("ris_lab_id");
+    const labId = typeof risRequireConcreteLabId === 'function'
+        ? risRequireConcreteLabId()
+        : localStorage.getItem("ris_lab_id");
 
     if (!labId) {
-        return showToast("Seleccione un laboratorio/sede en la barra superior.", "warning");
+        return;
     }
 
-    validarDocumentoAgenda();
+    if (!validarDocumentoAgenda()) {
+        return showToast("Documento del paciente inválido o incompleto.", "danger");
+    }
     if (!rut || !$("#pName").val() || !$("#pLastName").val()) {
-        return showToast("Faltan datos obligatorios (RUT y Apellidos)", "danger");
+        const pLabel = (typeof getLabProfile === 'function' ? getLabProfile().patient_label : 'Paciente');
+        return showToast(`Faltan datos obligatorios (${pLabel}).`, "danger");
     }
 
     const startVal = $("#selectedStart").val();
@@ -1188,8 +1192,11 @@ function setupProEventListeners() {
         const labId = localStorage.getItem('ris_lab_id');
 
         try {
-            if (!labId) {
-                showToast("Seleccione un laboratorio/sede en la barra superior.", "warning");
+            const labIdBusqueda = typeof risRequireConcreteLabId === 'function'
+                ? risRequireConcreteLabId(false)
+                : labId;
+            if (!labIdBusqueda) {
+                showToast("Seleccione una sede específica en la barra superior.", "warning");
                 return;
             }
 
@@ -1197,7 +1204,7 @@ function setupProEventListeners() {
                 headers: {
                     'Accept': 'application/json',
                     'Authorization': `Bearer ${token}`,
-                    'X-Lab-Id': labId
+                    'X-Lab-Id': labIdBusqueda
                 }
             });
 

@@ -24,6 +24,14 @@ const pesosPrioridad = {
  * @param {{ pageId?: string, forceManualUpload?: boolean, forceWorklistOnly?: boolean }} config
  */
 function initAtencionTecnicaModule(config = {}) {
+    const profile = typeof getLabProfile === 'function' ? getLabProfile() : { uses_dicom_worklist: true };
+    if (config.forceWorklistOnly && profile.uses_dicom_worklist === false) {
+        if (typeof loadPage === 'function') {
+            loadPage('atencion');
+            return Promise.resolve();
+        }
+    }
+
     ATENCION_MODULO = {
         pageId: config.pageId || 'worklist',
         forceManualUpload: !!config.forceManualUpload,
@@ -59,12 +67,11 @@ function initAtencionTecnicaModule(config = {}) {
 window.initAtencionTecnicaModule = initAtencionTecnicaModule;
 
 async function cargarMaquinasFiltro() {
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
+    if (typeof risRequireConcreteLabId === 'function' && !risRequireConcreteLabId(false)) return;
     const select = $("#filterMachine");
     try {
         const response = await fetch(`${API_URL}/machines`, {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
+            headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders() : {}
         });
         const data = await response.json();
         select.find('option:not(:first)').remove();
@@ -79,11 +86,10 @@ async function cargarMaquinasFiltro() {
 }
 
 async function cargarInsumosBodega() {
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
+    if (typeof risRequireConcreteLabId === 'function' && !risRequireConcreteLabId(false)) return;
     try {
         const response = await fetch(`${API_URL}/supplies`, {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
+            headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders() : {}
         });
         const data = await response.json();
 
@@ -102,13 +108,21 @@ async function cargarInsumosBodega() {
 }
 
 async function cargarWorklistDesdeServidor() {
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
     const tbody = $("#worklistTable tbody");
+    const labId = typeof risRequireConcreteLabId === 'function'
+        ? risRequireConcreteLabId(false)
+        : localStorage.getItem('ris_lab_id');
+
+    if (!labId) {
+        tbody.html('<tr><td colspan="7" class="text-center text-warning p-4">Seleccione una sede específica en la barra superior.</td></tr>');
+        return;
+    }
 
     try {
         const response = await fetch(`${API_URL}/worklist`, {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
+            headers: typeof risBuildAuthHeaders === 'function'
+                ? risBuildAuthHeaders()
+                : { Authorization: `Bearer ${localStorage.getItem('ris_token')}`, 'X-Lab-Id': labId, Accept: 'application/json' }
         });
         const data = await response.json();
 
@@ -346,8 +360,6 @@ async function subirDicomManual() {
         return showToast('Seleccione un archivo .dcm o .zip.', 'warning');
     }
 
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
     const btn = $("#btnDicomUpload");
     const citas = Array.from(currentAtencionChain.citasIds);
 
@@ -363,11 +375,7 @@ async function subirDicomManual() {
 
         const response = await fetch(`${API_URL}/appointments/${primeraCita}/upload-dicom`, {
             method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'X-Lab-Id': labId,
-                'Accept': 'application/json',
-            },
+            headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders() : {},
             body: form,
         });
 
@@ -382,12 +390,9 @@ async function subirDicomManual() {
         for (const citaId of restoCitas) {
             const linkRes = await fetch(`${API_URL}/appointments/${citaId}/mark-dicom-received`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                    'X-Lab-Id': labId,
-                    'Accept': 'application/json',
-                },
+                headers: typeof risBuildAuthHeaders === 'function'
+                    ? risBuildAuthHeaders({ 'Content-Type': 'application/json' })
+                    : {},
                 body: JSON.stringify({ accession: ultimoAccession }),
             });
             if (linkRes.ok) exitos++;
@@ -413,8 +418,6 @@ async function subirDicomManual() {
 async function enviarADicom() {
     if (!currentAtencionChain) return;
 
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
     const btn = $("#btnDicom");
 
     const citasInvolucradas = Array.from(currentAtencionChain.citasIds);
@@ -430,11 +433,9 @@ async function enviarADicom() {
             try {
                 const response = await fetch(`${API_URL}/appointments/${citaId}/dicom`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`,
-                        'X-Lab-Id': labId
-                    }
+                    headers: typeof risBuildAuthHeaders === 'function'
+                        ? risBuildAuthHeaders({ 'Content-Type': 'application/json' })
+                        : {}
                 });
 
                 if (response.ok) {
@@ -562,8 +563,6 @@ async function finalizarAtencion() {
     const btn = $("#btnFinalizar");
     btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Finalizando...');
 
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
     const citasInvolucradas = Array.from(currentAtencionChain.citasIds);
 
     try {
@@ -576,12 +575,9 @@ async function finalizarAtencion() {
         for (const citaId of citasInvolucradas) {
             const response = await fetch(`${API_URL}/appointments/${citaId}/complete-worklist`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                    'X-Lab-Id': labId
-                },
+                headers: typeof risBuildAuthHeaders === 'function'
+                    ? risBuildAuthHeaders({ 'Content-Type': 'application/json' })
+                    : {},
                 body: JSON.stringify(payload)
             });
 
@@ -629,8 +625,6 @@ async function devolverAAgenda() {
     if (motivo === null) return;
     if (motivo.trim() === "") return showToast("⚠️ Debe ingresar un motivo.", "warning");
 
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
     const btn = $("#modalAtencion .btn-outline-danger");
 
     const citasInvolucradas = currentAtencionChain.citasIds
@@ -643,12 +637,9 @@ async function devolverAAgenda() {
         for (const citaId of citasInvolucradas) {
             const response = await fetch(`${API_URL}/appointments/${citaId}/status`, {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                    'X-Lab-Id': labId
-                },
+                headers: typeof risBuildAuthHeaders === 'function'
+                    ? risBuildAuthHeaders({ 'Content-Type': 'application/json' })
+                    : {},
                 body: JSON.stringify({
                     status: 'agendado',
                     needs_review: true,

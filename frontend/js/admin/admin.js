@@ -104,12 +104,20 @@ let currentConsolidadoData = null;
 
 let currentCierreCajaData = null;
 
-function adminAuthHeaders() {
-    return {
-        'Authorization': `Bearer ${localStorage.getItem('ris_token')}`,
-        'Accept': 'application/json',
-        'X-Lab-Id': localStorage.getItem('ris_lab_id'),
+function adminAuthHeaders(extra = {}) {
+    if (typeof risBuildAuthHeaders === 'function') {
+        return risBuildAuthHeaders(extra);
+    }
+    const headers = {
+        Authorization: `Bearer ${localStorage.getItem('ris_token')}`,
+        Accept: 'application/json',
+        ...extra,
     };
+    const labId = localStorage.getItem('ris_lab_id');
+    if (labId && labId !== 'ALL') {
+        headers['X-Lab-Id'] = labId;
+    }
+    return headers;
 }
 
 async function cargarCierreCaja() {
@@ -953,9 +961,10 @@ function cargarSala(id) {
 async function guardarSala() {
     if (!validarFormulario(".req-sala")) return;
 
-    const labId = localStorage.getItem('ris_lab_id');
+    const labId = typeof risRequireConcreteLabId === 'function'
+        ? risRequireConcreteLabId()
+        : localStorage.getItem('ris_lab_id');
     if (!labId) {
-        showToast("Seleccione un laboratorio/sede en la barra superior.", "warning");
         return;
     }
 
