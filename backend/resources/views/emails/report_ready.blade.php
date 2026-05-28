@@ -8,7 +8,7 @@
 @php
     $p = $appointment->patient?->persona;
 @endphp
-<h2 style="color: #a894c4;">Resultados disponibles</h2>
+<h2 style="color: #5b4a82;">Resultados disponibles</h2>
 <p>Hola {{ trim(($p->names ?? '') . ' ' . ($p->last_name_1 ?? '')) }},</p>
 <p>Sus resultados de imagenología en <strong>{{ $appointment->laboratory?->name ?? 'nuestro centro' }}</strong> ya están listos.</p>
 @if($portalUrl)

@@ -18,9 +18,22 @@ server {
         try_files $uri $uri/ /index.html;
     }
 
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff2?)$ {
+    location ~* \.(js|css)$ {
+        expires 1h;
+        add_header Cache-Control "public, must-revalidate";
+    }
+
+    location ~* \.(png|jpg|jpeg|gif|ico|svg|woff2?)$ {
         expires 7d;
         add_header Cache-Control "public, immutable";
+    }
+
+    location = /index.html {
+        add_header Cache-Control "no-cache, must-revalidate";
+    }
+
+    location = /layout.html {
+        add_header Cache-Control "no-cache, must-revalidate";
     }
 }
 

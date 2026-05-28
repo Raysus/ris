@@ -10,7 +10,7 @@
     $fecha = $appointment->start_time?->timezone(config('app.timezone'))->format('d/m/Y');
     $hora = $appointment->start_time?->timezone(config('app.timezone'))->format('H:i');
 @endphp
-<h2 style="color: #a894c4;">Cita confirmada</h2>
+<h2 style="color: #5b4a82;">Cita confirmada</h2>
 <p>Hola {{ trim(($p->names ?? '') . ' ' . ($p->last_name_1 ?? '')) }},</p>
 <p>Su cita en <strong>{{ $appointment->laboratory?->name ?? 'nuestro centro' }}</strong> quedó registrada:</p>
 <ul>
