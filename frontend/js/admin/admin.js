@@ -2596,6 +2596,78 @@ function nuevaPlantilla() {
     $("#modalPlantilla").modal('show');
 }
 
+async function procesarImportacionPlantillaWord(inputEl) {
+    const input = inputEl || document.getElementById('inputImportPlantillaWord');
+    if (!input?.files?.length) {
+        return;
+    }
+
+    const file = input.files[0];
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (!['docx', 'doc'].includes(ext)) {
+        showToast('Seleccione un archivo Word (.docx).', 'warning');
+        input.value = '';
+        return;
+    }
+
+    if (typeof risRequireConcreteLabId === 'function' && !risRequireConcreteLabId()) {
+        input.value = '';
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const headers = typeof adminAuthHeaders === 'function'
+        ? adminAuthHeaders()
+        : { Authorization: `Bearer ${localStorage.getItem('ris_token')}`, Accept: 'application/json' };
+
+    try {
+        showToast('Leyendo documento Word…', 'info');
+        const response = await fetch(`${API_URL}/templates/import-word`, {
+            method: 'POST',
+            headers,
+            body: formData,
+        });
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+            throw new Error(data.message || 'No se pudo importar el archivo.');
+        }
+
+        const imported = data.data || {};
+        const modalEl = document.getElementById('modalPlantilla');
+        if (modalEl && !modalEl.classList.contains('show')) {
+            $("#tplId").val("");
+            $("#btnEliminarPlantilla").hide();
+            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        }
+        if (imported.title) {
+            $("#tplTitulo").val(imported.title);
+        }
+        if (imported.group_code) {
+            $("#tplGrupo").val(imported.group_code);
+        }
+        if (imported.content) {
+            $("#tplContenido").val(imported.content);
+        }
+        $(".req-tpl").removeClass('is-invalid');
+        showToast('Contenido importado. Revise título y modalidad antes de guardar.', 'success');
+    } catch (e) {
+        showToast(e.message || 'Error al importar Word.', 'danger');
+    } finally {
+        input.value = '';
+        const other = input.id === 'inputImportPlantillaWord'
+            ? document.getElementById('inputImportPlantillaWordModal')
+            : document.getElementById('inputImportPlantillaWord');
+        if (other) {
+            other.value = '';
+        }
+    }
+}
+
+window.procesarImportacionPlantillaWord = procesarImportacionPlantillaWord;
+
 function cargarPlantilla(id) {
     const tpl = currentPlantillasFromDB.find(t => t.id === id);
     if (!tpl) return;

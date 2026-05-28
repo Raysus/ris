@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\WordTemplateImportService;
 use Illuminate\Http\Request;
 use App\Models\ReportTemplate;
 
@@ -81,6 +82,39 @@ class TemplateController extends Controller
         $template->save();
         \App\Jobs\SyncEntityToCloud::dispatch('App\Models\ReportTemplate', 'updated', $template->toArray());
         return response()->json(['success' => true, 'data' => $template]);
+    }
+
+    public function importFromWord(Request $request, WordTemplateImportService $wordImport)
+    {
+        $request->validate([
+            'file' => 'required|file|max:10240|mimes:docx,doc',
+        ]);
+
+        $file = $request->file('file');
+
+        try {
+            $content = $wordImport->extractPlainText($file);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'No se pudo procesar el archivo Word.',
+            ], 422);
+        }
+
+        $meta = $wordImport->suggestMetadataFromFilename($file->getClientOriginalName());
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'title' => $meta['title'],
+                'group_code' => $meta['group_code'],
+                'content' => $content,
+            ],
+        ]);
     }
 
     public function destroy(Request $request, $id)

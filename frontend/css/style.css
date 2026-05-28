@@ -320,10 +320,67 @@ body {
 /* =========================================
    FULLCALENDAR (Agenda) CORREGIDO
    ========================================= */
+.agenda-page .agenda-ayuda-panel {
+    background: linear-gradient(135deg, #faf9fc 0%, #f4f6f9 100%);
+}
+
+.agenda-ayuda-list li {
+    margin-bottom: 0.35rem;
+}
+
+.agenda-horario-badge {
+    background: #fff;
+    border: 1px solid rgba(107, 91, 122, 0.15);
+}
+
+.agenda-leyenda-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 0.4rem;
+    flex-shrink: 0;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.agenda-calendar,
 #calendar {
     min-height: 520px;
-    height: calc(100vh - 200px);
+    height: calc(100vh - 280px);
     font-family: 'Inter', 'Segoe UI', sans-serif;
+}
+
+/* Etiquetas de hora cada hora; grilla interna cada 15 min */
+.agenda-calendar .fc-timeline-slot-label,
+#calendar .fc-timeline-slot-label {
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: #475569;
+}
+
+.agenda-calendar .fc-timeline-slot-minor,
+#calendar .fc-timeline-slot-minor {
+    border-left-color: #e8e4ed !important;
+}
+
+.agenda-calendar .fc-timeline-slot-major,
+#calendar .fc-timeline-slot-major {
+    border-left-color: #c4b8d4 !important;
+}
+
+.agenda-calendar .fc-timeline-now-indicator-arrow,
+#calendar .fc-timeline-now-indicator-arrow {
+    border-color: #dc3545;
+}
+
+/* Vista mes: columnas por día, eventos más compactos */
+.fc-resourceTimelineMonth-view .fc-event-main,
+.fc-resourceTimelineMonth-view .fc-event {
+    font-size: 0.7rem !important;
+}
+
+.fc-resourceTimelineMonth-view .fc-timeline-slot {
+    min-width: 28px;
 }
 
 .fc-event {

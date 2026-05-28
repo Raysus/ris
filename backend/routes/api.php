@@ -173,5 +173,6 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     // MÓDULO ADMINISTRACIÓN: SECCIÓN DE PLANTILLAS DE INFORMES
     Route::get('/templates', [TemplateController::class, 'index']);
     Route::post('/templates', [TemplateController::class, 'store']);
+    Route::post('/templates/import-word', [TemplateController::class, 'importFromWord']);
     Route::delete('/templates/{id}', [TemplateController::class, 'destroy']);
 });

@@ -39,6 +39,140 @@ function formatDateTimeLocal(value) {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+function getAgendaScheduleConfig() {
+    const defaults = { horaInicio: '08:00:00', horaFin: '20:00:00', intervalo: '00:15:00' };
+    return { ...defaults, ...(window.RIS?.config || {}) };
+}
+
+function intervaloAMinutos(intervalo) {
+    const partes = String(intervalo || '00:15:00').split(':');
+    return (parseInt(partes[0], 10) || 0) * 60 + (parseInt(partes[1], 10) || 15);
+}
+
+function formatearHoraLegible(timeStr) {
+    if (!timeStr) return '';
+    const p = String(timeStr).split(':');
+    return `${p[0] || '00'}:${p[1] || '00'}`;
+}
+
+function redondearDatetimeAlIntervalo(value, intervalo) {
+    const mins = intervaloAMinutos(intervalo);
+    const d = value instanceof Date ? new Date(value) : new Date(value);
+    if (Number.isNaN(d.getTime()) || mins <= 0) return d;
+    const total = d.getHours() * 60 + d.getMinutes();
+    const redondeado = Math.round(total / mins) * mins;
+    d.setHours(Math.floor(redondeado / 60), redondeado % 60, 0, 0);
+    return d;
+}
+
+function aplicarConfigAgendaHorario(schedule) {
+    window.RIS = window.RIS || {};
+    window.RIS.config = { ...(window.RIS.config || {}), ...schedule };
+    actualizarPanelAyudaAgenda();
+    if (!calendar) return;
+    const slotDur = normalizarDuracionFC(schedule.intervalo);
+    calendar.setOption('slotMinTime', schedule.horaInicio || '08:00:00');
+    calendar.setOption('slotMaxTime', schedule.horaFin || '20:00:00');
+    calendar.setOption('slotDuration', slotDur);
+    calendar.setOption('slotLabelInterval', '01:00:00');
+}
+
+function actualizarPanelAyudaAgenda() {
+    const cfg = getAgendaScheduleConfig();
+    const mins = intervaloAMinutos(cfg.intervalo);
+    const inicio = formatearHoraLegible(cfg.horaInicio);
+    const fin = formatearHoraLegible(cfg.horaFin);
+
+    $('#agendaIntervaloTexto').text(`${mins} minutos`);
+    $('#agendaHorarioLab').text(`${inicio} – ${fin}`);
+    $('#agendaGrillaDetalle').text(`bloques de ${mins} min · marcas cada hora`);
+    $('.agenda-intervalo-inline').text(String(mins));
+
+    const manual = document.getElementById('manualStartTime');
+    const manualEnd = document.getElementById('manualEndTime');
+    if (manual) manual.step = mins * 60;
+    if (manualEnd) manualEnd.step = mins * 60;
+}
+
+function sincronizarHorariosCitaModal(startValue, endValue) {
+    const cfg = getAgendaScheduleConfig();
+    let start = startValue ? redondearDatetimeAlIntervalo(startValue, cfg.intervalo) : null;
+    const startLocal = start ? formatDateTimeLocal(start) : '';
+    if (startLocal) {
+        $('#selectedStart').val(startLocal);
+        $('#manualStartTime').val(startLocal);
+    }
+    if (endValue) {
+        const endLocal = formatDateTimeLocal(redondearDatetimeAlIntervalo(endValue, cfg.intervalo));
+        if (endLocal) $('#manualEndTime').val(endLocal);
+    } else if (start) {
+        actualizarTerminoEstimadoDesdeExamenes();
+    }
+    actualizarResumenBloquesCita();
+}
+
+function actualizarResumenBloquesCita() {
+    const cfg = getAgendaScheduleConfig();
+    const mins = intervaloAMinutos(cfg.intervalo);
+    const startVal = $('#manualStartTime').val() || $('#selectedStart').val();
+    const endVal = $('#manualEndTime').val();
+    const $resumen = $('#agendaCitaBloquesResumen');
+    const $ayuda = $('#agendaCitaHorarioAyuda');
+
+    if (!startVal) {
+        $ayuda.text('Seleccione un bloque libre en el calendario (vista Día/Semana) o ingrese fecha y hora abajo.');
+        $resumen.text(`Cada bloque del calendario = ${mins} minutos.`);
+        return;
+    }
+
+    const inicio = new Date(startVal);
+    if (Number.isNaN(inicio.getTime())) return;
+
+    const inicioFmt = inicio.toLocaleString('es-CL', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    $ayuda.html(`<strong>Inicio:</strong> ${inicioFmt}`);
+
+    if (endVal) {
+        const fin = new Date(endVal);
+        if (!Number.isNaN(fin.getTime())) {
+            const diffMin = Math.max(mins, Math.round((fin - inicio) / 60000));
+            const bloques = Math.max(1, Math.ceil(diffMin / mins));
+            const finFmt = fin.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+            $resumen.text(`Término estimado ${finFmt} · ~${bloques} bloque(s) de ${mins} min (${diffMin} min total).`);
+            return;
+        }
+    }
+    $resumen.text(`Duración según exámenes · bloques de ${mins} min en el calendario.`);
+}
+
+function actualizarTerminoEstimadoDesdeExamenes() {
+    const startVal = $('#manualStartTime').val() || $('#selectedStart').val();
+    if (!startVal) return;
+
+    const salas = new Set();
+    let totalMin = 0;
+    $('.study-entry').each(function () {
+        const machine = $(this).find('.eMachine').val();
+        if (!machine) return;
+        salas.add(machine);
+        const qty = parseInt($(this).find('.eQty').val(), 10) || 1;
+        totalMin += calcularDuracionCita(machine, qty);
+    });
+    if (totalMin < intervaloAMinutos(getAgendaScheduleConfig().intervalo)) {
+        totalMin = intervaloAMinutos(getAgendaScheduleConfig().intervalo);
+    }
+    const fin = new Date(new Date(startVal).getTime() + totalMin * 60000);
+    $('#manualEndTime').val(formatDateTimeLocal(fin));
+    actualizarResumenBloquesCita();
+}
+
+function formatearRangoHoraEvento(start, end) {
+    if (!start) return '';
+    const opts = { hour: '2-digit', minute: '2-digit', hour12: false };
+    const a = start.toLocaleTimeString('es-CL', opts);
+    if (!end) return a;
+    return `${a} – ${end.toLocaleTimeString('es-CL', opts)}`;
+}
+
 function validarRut(rut) {
     let valor = rut.replace(/\./g, '');
     if (!/^[0-9]+[-|‐][0-9kK]{1}$/.test(valor)) return false;
@@ -136,6 +270,12 @@ async function cargarCatalogosDesdeBD() {
             if (catalogosAgenda.lab_profile && typeof setLabProfile === 'function') {
                 setLabProfile(catalogosAgenda.lab_profile);
                 if (typeof applyOperationalModuleNav === 'function') applyOperationalModuleNav();
+            }
+
+            if (catalogosAgenda.schedule) {
+                aplicarConfigAgendaHorario(catalogosAgenda.schedule);
+            } else {
+                actualizarPanelAyudaAgenda();
             }
 
             sincronizarRecursosCalendario();
@@ -247,21 +387,43 @@ function setupCalendar(el) {
         headerToolbar: {
             left: 'prev,next today',
             center: 'title',
-            right: 'resourceTimelineDay,resourceTimelineWeek'
+            right: 'resourceTimelineDay,resourceTimelineWeek,resourceTimelineMonth'
+        },
+        buttonText: {
+            today: 'Hoy',
+            resourceTimelineDay: 'Día',
+            resourceTimelineWeek: 'Semana',
+            resourceTimelineMonth: 'Mes',
         },
         views: {
             resourceTimelineWeek: {
                 type: 'resourceTimeline',
                 duration: { weeks: 1 },
-                slotDuration: slotDur
-            }
+                slotDuration: slotDur,
+            },
+            resourceTimelineMonth: {
+                type: 'resourceTimeline',
+                duration: { months: 1 },
+                slotDuration: { days: 1 },
+                slotMinWidth: 32,
+                slotLabelFormat: [
+                    { weekday: 'short', day: 'numeric', omitCommas: true },
+                ],
+            },
         },
-        resourceAreaWidth: '15%',
-        resourceAreaHeaderContent: 'Salas',
+        resourceAreaWidth: '18%',
+        resourceAreaHeaderContent: 'Salas / equipos',
         allDaySlot: false,
+        nowIndicator: true,
         slotMinTime: configRIS.horaInicio || '08:00:00',
         slotMaxTime: configRIS.horaFin || '20:00:00',
         slotDuration: slotDur,
+        slotLabelInterval: '01:00:00',
+        slotLabelFormat: {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+        },
         eventOverlap: false,
         selectOverlap: false,
         resources: recursosData,
@@ -275,8 +437,14 @@ function setupCalendar(el) {
             if (typeof risRequireConcreteLabId === 'function' ? !risRequireConcreteLabId() : !localStorage.getItem("ris_lab_id")) {
                 return;
             }
+            let startSel = info.start;
+            if ((info.view.type || '').includes('Month') && startSel) {
+                const horaLab = (configRIS.horaInicio || '08:00:00').split(':');
+                startSel = new Date(startSel);
+                startSel.setHours(parseInt(horaLab[0], 10) || 8, parseInt(horaLab[1], 10) || 0, 0, 0);
+            }
             abrirModalCita({
-                start: formatDateTimeLocal(info.start),
+                start: formatDateTimeLocal(redondearDatetimeAlIntervalo(startSel, configRIS.intervalo)),
                 machine: info.resource ? info.resource.id : null,
             });
         },
@@ -333,6 +501,7 @@ function setupCalendar(el) {
             const props = arg.event.extendedProps;
             const patient = props.patient;
             const needsReview = props.needsReview;
+            const isMonthView = (arg.view.type || '').includes('Month');
 
             const estadosIniciales = ['pre-agendado', 'agendado', 'confirmado', 'espera'];
             const isLocked = !estadosIniciales.includes(props.status);
@@ -340,7 +509,16 @@ function setupCalendar(el) {
 
             const bgColor = arg.event.backgroundColor || '#9eb8cc';
 
+            if (isMonthView) {
+                const alert = needsReview ? '<span class="badge bg-danger rounded-pill" style="font-size:9px">!</span> ' : '';
+                return {
+                    html: `<div class="px-1 py-0 text-white text-truncate fw-bold" style="font-size:0.65rem;background:${bgColor};border-radius:3px;">${alert}${lockIcon}${arg.event.title}</div>`,
+                };
+            }
+
             if (!patient) return { html: `<div class="p-1" style="background-color:${bgColor}; color:white; border-radius:3px;">${lockIcon}${arg.event.title}</div>` };
+
+            const rangoHora = formatearRangoHoraEvento(arg.event.start, arg.event.end);
 
             const alertIcon = needsReview
                 ? `<span class="blink-icon me-2 shadow-sm" title="Devuelto por Tecnólogo - Revisar" 
@@ -359,7 +537,10 @@ function setupCalendar(el) {
                         ${alertIcon} ${lockIcon} <span class="text-truncate">${arg.event.title}</span>
                     </div>
                     
-                    <div class="text-truncate opacity-100 fw-bold mt-1" style="font-size: 0.75rem;">
+                    <div class="text-truncate opacity-100 fw-bold" style="font-size: 0.7rem; opacity: 0.95;">
+                        <i class="bi bi-clock me-1"></i>${rangoHora}
+                    </div>
+                    <div class="text-truncate opacity-100 mt-1" style="font-size: 0.72rem;">
                         <i class="bi bi-person-vcard me-1"></i>${patient.rut || ''}
                     </div>
                 </div>`
@@ -524,10 +705,9 @@ function abrirModalCita(data) {
         $("#formCita").prepend(alertHtml);
     }
     if (data.start) {
-        const localStart = formatDateTimeLocal(data.start);
-        if (localStart) {
-            $("#selectedStart").val(localStart);
-        }
+        sincronizarHorariosCitaModal(data.start, data.end || null);
+    } else {
+        actualizarResumenBloquesCita();
     }
 
     if (data.id) {
@@ -604,6 +784,10 @@ function abrirModalCita(data) {
         window.paymentManager.cargarPreviewFonasa(appointmentId);
     }
 
+    if (!data.id) {
+        actualizarTerminoEstimadoDesdeExamenes();
+    }
+
     initAgendaWizard();
     openModal("appointmentModal");
 }
@@ -650,10 +834,11 @@ async function guardarCita() {
         return showToast(`Faltan datos obligatorios (${pLabel}).`, "danger");
     }
 
-    const startVal = $("#selectedStart").val();
+    const startVal = $("#manualStartTime").val() || $("#selectedStart").val();
     if (!startVal) {
-        return showToast("Seleccione un bloque horario en el calendario.", "warning");
+        return showToast("Seleccione un bloque en el calendario o ingrese la hora de inicio.", "warning");
     }
+    $("#selectedStart").val(startVal);
 
     const todosLosEstudios = [];
     const salasInvolucradas = new Set();
@@ -1103,6 +1288,13 @@ function configurarInsumosAgenda() {
 }
 
 function setupProEventListeners() {
+    $(document).on('change', '#manualStartTime', function () {
+        const v = $(this).val();
+        if (v) $('#selectedStart').val(v);
+        actualizarTerminoEstimadoDesdeExamenes();
+    });
+    $(document).on('change', '#manualEndTime', actualizarResumenBloquesCita);
+
     $("#agendaStatus").on("change", function () {
         colorSelectorEstado();
         actualizarCtaAtencionSalas();
@@ -1322,22 +1514,44 @@ function setupProEventListeners() {
             }
         }
         calculateTotal();
+        actualizarTerminoEstimadoDesdeExamenes();
     });
 }
 
 function buscarDisponibilidad() {
-    const machine = $(".eMachine").val();
+    const machine = $(".eMachine").val() || $('.eMachine').first().val();
     if (!machine) return showToast("Seleccione una sala de examen primero", "warning");
 
-    // Algoritmo simplificado: Setea la hora a "ahora" más 30 minutos
-    let now = new Date();
-    now.setMinutes(now.getMinutes() + 30);
-    now.setSeconds(0);
-    $("#manualStartTime").val(toLocalISOString(now).substring(0, 16));
+    const cfg = getAgendaScheduleConfig();
+    const intervaloMin = intervaloAMinutos(cfg.intervalo);
+    let candidato = redondearDatetimeAlIntervalo(new Date(), cfg.intervalo);
+    candidato.setMinutes(candidato.getMinutes() + intervaloMin);
 
-    let end = new Date(now.getTime() + 15 * 60000); // +15 mins
-    $("#manualEndTime").val(toLocalISOString(end).substring(0, 16));
-    showToast("Disponibilidad sugerida ingresada en los controles de hora.", "success");
+    const duracion = calcularDuracionCita(machine, 1) || intervaloMin;
+    const finBusqueda = new Date(candidato.getTime() + 8 * 60 * 60000);
+    let libre = null;
+
+    while (candidato < finBusqueda) {
+        const finCita = new Date(candidato.getTime() + duracion * 60000);
+        const conflicto = (window.RIS.agenda || []).some((a) => {
+            if (!a.resourceIds?.includes(String(machine))) return false;
+            const aStart = new Date(a.start).getTime();
+            const aEnd = new Date(a.end).getTime();
+            return candidato.getTime() < aEnd && finCita.getTime() > aStart;
+        });
+        if (!conflicto) {
+            libre = new Date(candidato);
+            break;
+        }
+        candidato = new Date(candidato.getTime() + intervaloMin * 60000);
+    }
+
+    if (!libre) {
+        return showToast('No se encontró hueco libre en las próximas horas para esa sala.', 'warning');
+    }
+
+    sincronizarHorariosCitaModal(libre, new Date(libre.getTime() + duracion * 60000));
+    showToast(`Hora sugerida: ${libre.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}`, 'success');
 }
 
 function subirDocumentoAgenda(tipo) {

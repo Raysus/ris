@@ -9,6 +9,7 @@ use App\Models\Exam;
 use App\Models\Supply;
 use App\Models\SupplyPack;
 use App\Models\Machine;
+use App\Models\Laboratory;
 use Illuminate\Http\Request;
 use App\Services\KeycloakService;
 use App\Services\LaboratoryProfileService;
@@ -68,6 +69,18 @@ class AgendaCatalogController extends Controller
 
         $labProfile = config('app.lab_profile') ?: LaboratoryProfileService::resolve();
 
+        $labId = config('app.current_lab_id');
+        $lab = $labId ? Laboratory::find($labId) : null;
+        $scheduleDefaults = [
+            'horaInicio' => '08:00:00',
+            'horaFin' => '20:00:00',
+            'intervalo' => '00:15:00',
+        ];
+        $schedule = array_merge(
+            $scheduleDefaults,
+            is_array($lab?->settings) ? $lab->settings : []
+        );
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -79,6 +92,11 @@ class AgendaCatalogController extends Controller
                 'supply_packs' => $supplyPacksQuery->get(),
                 'machines' => $machinesQuery->get(),
                 'lab_profile' => $labProfile,
+                'schedule' => [
+                    'horaInicio' => $schedule['horaInicio'] ?? $scheduleDefaults['horaInicio'],
+                    'horaFin' => $schedule['horaFin'] ?? $scheduleDefaults['horaFin'],
+                    'intervalo' => $schedule['intervalo'] ?? $scheduleDefaults['intervalo'],
+                ],
             ],
         ]);
     }

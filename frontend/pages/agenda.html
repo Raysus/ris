@@ -1,51 +1,77 @@
-<div class="container-fluid p-2">
-    <div class="row mb-3 align-items-center">
-        <div class="col-md-4">
-            <h4 class="mb-0 text-primary fw-bold"><i class="bi bi-calendar-week me-2"></i>Agenda Central</h4>
+<div class="container-fluid p-2 agenda-page">
+    <div class="row mb-3 align-items-center g-2">
+        <div class="col-lg-4">
+            <h4 class="mb-0 text-primary fw-bold"><i class="bi bi-calendar3 me-2"></i>Agenda Central</h4>
+            <p class="text-muted small mb-0 mt-1">Recepción y agendamiento por sala</p>
         </div>
-        <div class="col-md-4 offset-md-4">
+        <div class="col-lg-8">
             <label for="searchAgenda" class="visually-hidden">Buscar paciente en agenda</label>
             <div class="input-group shadow-sm">
                 <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted" aria-hidden="true"></i></span>
                 <input type="search" id="searchAgenda" class="form-control border-start-0"
-                    placeholder="Buscar paciente por RUT o Apellido..." aria-label="Buscar paciente por RUT o apellido">
+                    placeholder="Buscar paciente por RUT o apellido..." aria-label="Buscar paciente por RUT o apellido">
             </div>
         </div>
     </div>
-    <div
-        class="d-flex flex-wrap gap-4 mb-3 p-2 px-4 bg-white rounded-pill shadow-sm border justify-content-center align-items-center">
-        <div class="d-flex align-items-center" title="Reserva tentativa, faltan datos">
-            <span class="rounded-circle d-inline-block me-2 shadow-sm"
-                style="width: 12px; height: 12px; background-color: #c4b8d4;"></span>
-            <span class="small fw-bold text-muted">Pre-agendado</span>
-        </div>
-        <div class="d-flex align-items-center" title="Cita formalizada">
-            <span class="rounded-circle d-inline-block me-2 shadow-sm"
-                style="width: 12px; height: 12px; background-color: #a894c4;"></span>
-            <span class="small fw-bold text-muted">Agendado</span>
-        </div>
-        <div class="d-flex align-items-center" title="Paciente confirmó que asistirá">
-            <span class="rounded-circle d-inline-block me-2 shadow-sm"
-                style="width: 12px; height: 12px; background-color: #9eb8cc;"></span>
-            <span class="small fw-bold text-muted">Confirmado</span>
-        </div>
-        <div class="d-flex align-items-center" title="Paciente en la clínica esperando ser llamado">
-            <span class="rounded-circle d-inline-block me-2 shadow-sm"
-                style="width: 12px; height: 12px; background-color: #d4c4a8;"></span>
-            <span class="small fw-bold text-muted">En Espera / Recepcionado</span>
-        </div>
-        <div class="d-flex align-items-center" title="Cita cancelada o paciente no asiste">
-            <span class="rounded-circle d-inline-block me-2 shadow-sm"
-                style="width: 12px; height: 12px; background-color: #d4a8b0;"></span>
-            <span class="small fw-bold text-muted">Anulado / No Asiste</span>
-        </div>
-        <div class="d-flex align-items-center" title="Cita atendida, paciente ya fue llamado">
-            <span class="rounded-circle d-inline-block me-2 shadow-sm"
-                style="width: 12px; height: 12px; background-color: grey"></span>
-            <small class="text-muted fw-bold"><i class="bi bi-lock-fill"></i> Atendido</small>
+
+    <div id="agendaAyudaPanel" class="agenda-ayuda-panel card border-0 shadow-sm mb-3">
+        <div class="card-body py-3 px-4">
+            <div class="row g-3 align-items-start">
+                <div class="col-lg-7">
+                    <div class="d-flex align-items-start gap-2">
+                        <i class="bi bi-info-circle-fill text-primary fs-5 mt-1" aria-hidden="true"></i>
+                        <div>
+                            <h6 class="fw-bold mb-2 text-dark">Cómo leer el calendario</h6>
+                            <ul class="small text-muted mb-0 ps-3 agenda-ayuda-list">
+                                <li>Cada <strong>bloque vertical</strong> en vista Día/Semana equivale a <strong id="agendaIntervaloTexto">15 minutos</strong>.</li>
+                                <li>Las <strong>etiquetas de hora</strong> (08:00, 09:00…) marcan el inicio de cada hora; entre medias hay bloques de 15 min sin número.</li>
+                                <li><strong>Clic en un espacio libre</strong> → nueva cita. <strong>Clic en una cita</strong> → editar (si no está bloqueada).</li>
+                                <li>Vista <strong>Mes</strong>: un bloque por día y sala (sin detalle horario).</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-5">
+                    <div class="agenda-horario-badge rounded-3 p-3 h-100">
+                        <div class="small text-muted text-uppercase fw-bold mb-1">Horario de atención</div>
+                        <div class="fs-5 fw-bold text-primary" id="agendaHorarioLab">08:00 – 20:00</div>
+                        <div class="small text-muted mt-2">
+                            <i class="bi bi-grid-3x3-gap me-1"></i>
+                            Grilla: <span id="agendaGrillaDetalle">bloques de 15 min</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="agenda-leyenda-estados d-flex flex-wrap gap-3 gap-md-4 mt-3 pt-3 border-top">
+                <div class="d-flex align-items-center" title="Reserva tentativa">
+                    <span class="agenda-leyenda-dot" style="background-color: #c4b8d4;"></span>
+                    <span class="small fw-semibold text-muted">Pre-agendado</span>
+                </div>
+                <div class="d-flex align-items-center" title="Cita formalizada">
+                    <span class="agenda-leyenda-dot" style="background-color: #a894c4;"></span>
+                    <span class="small fw-semibold text-muted">Agendado</span>
+                </div>
+                <div class="d-flex align-items-center" title="Paciente confirmó asistencia">
+                    <span class="agenda-leyenda-dot" style="background-color: #9eb8cc;"></span>
+                    <span class="small fw-semibold text-muted">Confirmado</span>
+                </div>
+                <div class="d-flex align-items-center" title="En sala de espera">
+                    <span class="agenda-leyenda-dot" style="background-color: #d4c4a8;"></span>
+                    <span class="small fw-semibold text-muted">En espera</span>
+                </div>
+                <div class="d-flex align-items-center" title="Cancelada">
+                    <span class="agenda-leyenda-dot" style="background-color: #d4a8b0;"></span>
+                    <span class="small fw-semibold text-muted">Anulado</span>
+                </div>
+                <div class="d-flex align-items-center" title="En flujo clínico">
+                    <span class="agenda-leyenda-dot" style="background-color: #6b7280;"></span>
+                    <span class="small fw-semibold text-muted"><i class="bi bi-lock-fill me-1"></i>Atendido</span>
+                </div>
+            </div>
         </div>
     </div>
-    <div id="calendar" class="shadow-sm border rounded bg-white"></div>
+
+    <div id="calendar" class="agenda-calendar shadow-sm border rounded bg-white"></div>
 </div>
 
 <div class="modal fade" id="appointmentModal" tabindex="-1" data-bs-backdrop="static" aria-labelledby="modalTitle" aria-hidden="true">
@@ -65,7 +91,7 @@
 
                 <ul class="nav nav-pills agenda-wizard-nav mb-4 justify-content-center gap-2 flex-wrap" role="tablist" aria-label="Pasos de la cita">
                     <li class="nav-item"><button type="button" class="nav-link active" data-step="1" onclick="goAgendaWizardStep(1)">1. <span data-ris-label="patient">Paciente</span></button></li>
-                    <li class="nav-item"><button type="button" class="nav-link" data-step="2" onclick="goAgendaWizardStep(2)">2. Cita</button></li>
+                    <li class="nav-item"><button type="button" class="nav-link" data-step="2" onclick="goAgendaWizardStep(2)">2. Cita y horario</button></li>
                     <li class="nav-item"><button type="button" class="nav-link" data-step="3" onclick="goAgendaWizardStep(3)">3. Exámenes</button></li>
                     <li class="nav-item"><button type="button" class="nav-link" data-step="4" onclick="goAgendaWizardStep(4)">4. Pago</button></li>
                 </ul>
@@ -155,7 +181,18 @@
 
                 <div class="agenda-wizard-step d-none" data-step="2">
 
+                <div class="alert alert-light border shadow-sm py-2 px-3 mb-3 d-flex align-items-start gap-2">
+                    <i class="bi bi-clock-history text-primary mt-1"></i>
+                    <div class="small mb-0">
+                        <span id="agendaCitaHorarioAyuda">Seleccione horario en el calendario o ajústelo aquí.</span>
+                        <span class="d-block text-muted mt-1" id="agendaCitaBloquesResumen"></span>
+                    </div>
+                </div>
+
                 <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
+                        <h6 class="fw-bold text-primary mb-0"><i class="bi bi-calendar-event me-2"></i>2. Datos de la cita</h6>
+                    </div>
                     <div class="card-body bg-light rounded">
                         <div class="row g-3 align-items-end">
                             <div class="col-md-2">
@@ -205,20 +242,26 @@
                             </div>
                         </div>
                         <div class="row g-3 align-items-end mt-2">
-                            <div class="col-md-3">
-                                <label class="form-label small fw-bold text-muted mb-1">Hora Inicio</label>
-                                <input type="datetime-local" id="manualStartTime"
-                                    class="form-control form-control-sm border-primary fw-bold">
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold text-muted mb-1" for="manualStartTime">
+                                    Inicio de la cita
+                                </label>
+                                <input type="datetime-local" id="manualStartTime" step="900"
+                                    class="form-control form-control-sm border-primary fw-bold"
+                                    aria-describedby="manualStartHelp">
+                                <div id="manualStartHelp" class="form-text">Bloques de <span class="agenda-intervalo-inline">15</span> min (desde calendario o manual)</div>
                             </div>
-                            <div class="col-md-3">
-                                <label class="form-label small fw-bold text-muted mb-1">Hora Término</label>
-                                <input type="datetime-local" id="manualEndTime"
-                                    class="form-control form-control-sm border-secondary">
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold text-muted mb-1" for="manualEndTime">Término estimado</label>
+                                <input type="datetime-local" id="manualEndTime" step="900"
+                                    class="form-control form-control-sm border-secondary"
+                                    aria-describedby="manualEndHelp">
+                                <div id="manualEndHelp" class="form-text">Se actualiza según los exámenes</div>
                             </div>
-                            <div class="col-md-6 text-end">
-                                <button type="button" class="btn btn-sm btn-outline-info shadow-sm"
+                            <div class="col-md-4 text-md-end">
+                                <button type="button" class="btn btn-sm btn-outline-info shadow-sm w-100 w-md-auto"
                                     onclick="buscarDisponibilidad()">
-                                    <i class="bi bi-search me-1"></i> Sugerir Próxima Hora Libre
+                                    <i class="bi bi-search me-1"></i> Sugerir próxima hora
                                 </button>
                             </div>
                         </div>
