@@ -362,13 +362,57 @@ body {
 .agenda-leyenda-item[data-estado-leyenda='anulado']::before { background-color: #d4a8b0 !important; }
 .agenda-leyenda-item[data-estado-leyenda='atendido']::before { background-color: #6b7280 !important; }
 
-.agenda-controls-bar .agenda-vista-btns .btn.active {
-    font-weight: 700;
+/* UI interna: leyenda + toolbar dentro de #calendar.fc */
+#calendar.fc {
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
 }
 
-.agenda-calendar .fc-header-toolbar .fc-toolbar-chunk:last-child {
+#calendar.fc .agenda-fc-leyenda {
+    flex: 0 0 auto;
+    width: 100%;
+    padding: 0.65rem 0.85rem;
+    border-bottom: 1px solid #e8e4ed;
+    background: linear-gradient(180deg, #faf9fc 0%, #fff 100%);
+}
+
+#calendar.fc .fc-header-toolbar {
+    flex: 0 0 auto;
+    width: 100%;
+    flex-wrap: wrap !important;
+    align-items: center;
+    row-gap: 0.4rem;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0 !important;
+}
+
+#calendar.fc .fc-toolbar-chunk {
+    display: flex;
     flex-wrap: wrap;
-    justify-content: flex-end;
+    align-items: center;
+    gap: 0.2rem;
+}
+
+#calendar.fc .fc-header-toolbar .fc-toolbar-chunk:last-child {
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+#calendar.fc .fc-header-toolbar .fc-button-group {
+    display: inline-flex !important;
+    flex-wrap: nowrap !important;
+    visibility: visible !important;
+}
+
+#calendar.fc .fc-header-toolbar .fc-button-group .fc-button {
+    display: inline-block !important;
+    min-width: 3.25rem;
+}
+
+#calendar.fc .fc-view-harness {
+    flex: 1 1 auto;
+    min-height: 0;
 }
 
 .agenda-calendar,
@@ -402,11 +446,14 @@ body {
 }
 
 /* Vista mes: columnas por día, eventos más compactos */
+.fc-agendaMes-view .fc-event-main,
+.fc-agendaMes-view .fc-event,
 .fc-resourceTimelineMonth-view .fc-event-main,
 .fc-resourceTimelineMonth-view .fc-event {
     font-size: 0.7rem !important;
 }
 
+.fc-agendaMes-view .fc-timeline-slot,
 .fc-resourceTimelineMonth-view .fc-timeline-slot {
     min-width: 28px;
 }

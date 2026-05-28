@@ -18,30 +18,51 @@ const AGENDA_ESTADO_COLORES = {
 };
 const AGENDA_ESTADO_TEXTO = '#3a3644';
 
-function pintarLeyendaEstadosAgenda() {
-    document.querySelectorAll('[data-estado-leyenda]').forEach((el) => {
+const AGENDA_LEYENDA_ITEMS = [
+    ['pre-agendado', 'Pre-agendado', 'Reserva tentativa'],
+    ['agendado', 'Agendado', 'Cita formalizada'],
+    ['confirmado', 'Confirmado', 'Paciente confirmó asistencia'],
+    ['espera', 'En espera', 'En sala de espera'],
+    ['anulado', 'Anulado', 'Cancelada'],
+    ['atendido', '<i class="bi bi-lock-fill me-1" aria-hidden="true"></i>Atendido', 'En flujo clínico'],
+];
+
+function htmlLeyendaEstadosCalendario() {
+    const items = AGENDA_LEYENDA_ITEMS.map(([key, label, title]) =>
+        `<span class="agenda-leyenda-item" data-estado-leyenda="${key}" title="${title}">${label}</span>`
+    ).join('');
+    return `<div class="agenda-leyenda-estados d-flex flex-wrap gap-3 gap-md-4" aria-label="Leyenda de estados de cita">${items}</div>`;
+}
+
+function pintarLeyendaEstadosAgenda(root) {
+    const scope = root || document.getElementById('calendar');
+    if (!scope) return;
+    scope.querySelectorAll('[data-estado-leyenda]').forEach((el) => {
         const key = el.getAttribute('data-estado-leyenda');
         const color = AGENDA_ESTADO_COLORES[key] || '#a894c4';
         el.style.setProperty('--leyenda-color', color);
     });
 }
 
-function actualizarBotonesVistaAgenda(activeView) {
-    const view = activeView || calendar?.view?.type || 'resourceTimelineDay';
-    document.querySelectorAll('[data-agenda-view]').forEach((btn) => {
-        const match = btn.getAttribute('data-agenda-view') === view;
-        btn.classList.toggle('active', match);
-        btn.classList.toggle('btn-primary', match);
-        btn.classList.toggle('btn-outline-primary', !match);
-    });
-}
+/** Leyenda + toolbar dentro del contenedor #calendar (elemento .fc) */
+function montarUiInternaCalendario() {
+    const root = document.getElementById('calendar');
+    if (!root || !root.classList.contains('fc')) return;
 
-function cambiarVistaAgenda(viewType) {
-    if (!calendar) return;
-    calendar.changeView(viewType);
-    actualizarBotonesVistaAgenda(viewType);
+    let leyenda = root.querySelector('.agenda-fc-leyenda');
+    if (!leyenda) {
+        leyenda = document.createElement('div');
+        leyenda.className = 'agenda-fc-leyenda';
+        leyenda.innerHTML = htmlLeyendaEstadosCalendario();
+        const toolbar = root.querySelector('.fc-header-toolbar');
+        if (toolbar) {
+            root.insertBefore(leyenda, toolbar);
+        } else {
+            root.prepend(leyenda);
+        }
+    }
+    pintarLeyendaEstadosAgenda(root);
 }
-window.cambiarVistaAgenda = cambiarVistaAgenda;
 
 function calcularDuracionCita(machineId, cantidadExamenes) {
     const sala = (window.RIS.resources || []).find(r => r.id === machineId);
@@ -260,8 +281,6 @@ async function initAgenda() {
     }
 
     setupCalendar(calendarEl);
-    pintarLeyendaEstadosAgenda();
-    actualizarBotonesVistaAgenda(calendar?.view?.type);
     await cargarAgendaDesdeServidor();
 
     if (!window._agendaListenersBound) {
@@ -415,13 +434,16 @@ function setupCalendar(el) {
         headerToolbar: {
             left: 'prev,next today',
             center: 'title',
-            right: '',
+            right: 'resourceTimelineDay,resourceTimelineWeek,agendaMes',
         },
         buttonText: {
             today: 'Hoy',
+            resourceTimelineDay: 'Día',
+            resourceTimelineWeek: 'Semana',
+            agendaMes: 'Mes',
         },
-        datesSet: function (info) {
-            actualizarBotonesVistaAgenda(info.view.type);
+        datesSet: function () {
+            montarUiInternaCalendario();
         },
         views: {
             resourceTimelineWeek: {
@@ -429,7 +451,7 @@ function setupCalendar(el) {
                 duration: { weeks: 1 },
                 slotDuration: slotDur,
             },
-            resourceTimelineMonth: {
+            agendaMes: {
                 type: 'resourceTimeline',
                 duration: { months: 1 },
                 slotDuration: { days: 1 },
@@ -466,7 +488,7 @@ function setupCalendar(el) {
                 return;
             }
             let startSel = info.start;
-            if ((info.view.type || '').includes('Month') && startSel) {
+            if (((info.view.type || '').includes('Month') || info.view.type === 'agendaMes') && startSel) {
                 const horaLab = (configRIS.horaInicio || '08:00:00').split(':');
                 startSel = new Date(startSel);
                 startSel.setHours(parseInt(horaLab[0], 10) || 8, parseInt(horaLab[1], 10) || 0, 0, 0);
@@ -529,7 +551,7 @@ function setupCalendar(el) {
             const props = arg.event.extendedProps;
             const patient = props.patient;
             const needsReview = props.needsReview;
-            const isMonthView = (arg.view.type || '').includes('Month');
+            const isMonthView = (arg.view.type || '').includes('Month') || arg.view.type === 'agendaMes';
 
             const estadosIniciales = ['pre-agendado', 'agendado', 'confirmado', 'espera'];
             const isLocked = !estadosIniciales.includes(props.status);
@@ -577,6 +599,7 @@ function setupCalendar(el) {
     });
 
     calendar.render();
+    montarUiInternaCalendario();
     sincronizarRecursosCalendario();
     } catch (err) {
         console.error('Error inicializando FullCalendar:', err);

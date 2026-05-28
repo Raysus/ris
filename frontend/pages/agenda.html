@@ -42,24 +42,7 @@
                     </div>
                 </div>
             </div>
-            <div class="agenda-leyenda-estados d-flex flex-wrap gap-3 gap-md-4 mt-3 pt-3 border-top" aria-label="Leyenda de estados de cita">
-                <span class="agenda-leyenda-item" data-estado-leyenda="pre-agendado" title="Reserva tentativa">Pre-agendado</span>
-                <span class="agenda-leyenda-item" data-estado-leyenda="agendado" title="Cita formalizada">Agendado</span>
-                <span class="agenda-leyenda-item" data-estado-leyenda="confirmado" title="Paciente confirmó asistencia">Confirmado</span>
-                <span class="agenda-leyenda-item" data-estado-leyenda="espera" title="En sala de espera">En espera</span>
-                <span class="agenda-leyenda-item" data-estado-leyenda="anulado" title="Cancelada">Anulado</span>
-                <span class="agenda-leyenda-item" data-estado-leyenda="atendido" title="En flujo clínico"><i class="bi bi-lock-fill me-1" aria-hidden="true"></i>Atendido</span>
-            </div>
         </div>
-    </div>
-
-    <div class="agenda-controls-bar d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2 px-1">
-        <div class="btn-group agenda-vista-btns shadow-sm" role="group" aria-label="Vista del calendario">
-            <button type="button" class="btn btn-sm btn-outline-primary active" data-agenda-view="resourceTimelineDay" onclick="cambiarVistaAgenda('resourceTimelineDay')">Día</button>
-            <button type="button" class="btn btn-sm btn-outline-primary" data-agenda-view="resourceTimelineWeek" onclick="cambiarVistaAgenda('resourceTimelineWeek')">Semana</button>
-            <button type="button" class="btn btn-sm btn-outline-primary" data-agenda-view="resourceTimelineMonth" onclick="cambiarVistaAgenda('resourceTimelineMonth')">Mes</button>
-        </div>
-        <p class="small text-muted mb-0 d-none d-md-block">Use <strong>Mes</strong> para ver todo el mes por sala (un bloque por día).</p>
     </div>
 
     <div id="calendar" class="agenda-calendar shadow-sm border rounded bg-white"></div>
