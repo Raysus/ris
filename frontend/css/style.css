@@ -1,32 +1,39 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-/* HealthTiCloud — paleta pastel (logo: teal, lavanda, blush, cielo) */
+/* HealthTiCloud — paleta accesible (mayor contraste, misma identidad lavanda/teal) */
 :root {
-    --htc-teal: #8eb5a8;
-    --htc-teal-deep: #6f9a8c;
-    --htc-lavender: #b8a9c8;
-    --htc-lavender-deep: #a894c4;
-    --htc-lavender-hover: #9482ab;
-    --htc-blush: #e0b8c8;
-    --htc-sky: #a8c5d8;
-    --htc-plum: #3d3848;
+    --htc-teal: #5a9a88;
+    --htc-teal-deep: #3d7565;
+    --htc-lavender: #8a7aa8;
+    --htc-lavender-deep: #5b4a82;
+    --htc-lavender-hover: #4a3d6e;
+    --htc-blush: #b86a82;
+    --htc-sky: #3d7a9e;
+    --htc-plum: #2d2838;
 
     --primary: var(--htc-lavender-deep);
     --primary-hover: var(--htc-lavender-hover);
-    --primary-rgb: 168, 148, 196;
-    --secondary: #8a8794;
-    --success: #8eb5a8;
-    --danger: #d4a0a8;
-    --warning: #d9c4a8;
+    --primary-rgb: 91, 74, 130;
+    --secondary: #5a5368;
+    --success: #2d7a5e;
+    --danger: #b83d52;
+    --warning: #a67c2a;
     --info: var(--htc-sky);
 
-    --bg-app: #f5f3f7;
+    --agenda-pre: #7a6a9a;
+    --agenda-agendado: #5b4a82;
+    --agenda-confirmado: #2d6a8f;
+    --agenda-espera: #9a6f1f;
+    --agenda-anulado: #b83d52;
+    --agenda-atendido: #4a4556;
+
+    --bg-app: #f0edf4;
     --bg-sidebar: var(--htc-plum);
     --bg-card: #ffffff;
-    --border-color: #e6e2eb;
+    --border-color: #d4cedc;
 
-    --text-main: #3a3644;
-    --text-muted: #7a7585;
+    --text-main: #1c1824;
+    --text-muted: #524c5c;
     --text-on-dark: #f5f3f8;
 
     --sidebar-width: 260px;
@@ -70,8 +77,8 @@ body {
 }
 
 .bg-primary-subtle {
-    background-color: rgba(var(--primary-rgb), 0.14) !important;
-    color: var(--htc-teal-deep) !important;
+    background-color: rgba(var(--primary-rgb), 0.12) !important;
+    color: var(--primary) !important;
 }
 
 .badge.bg-primary {
@@ -339,7 +346,7 @@ body {
     gap: 0.45rem;
     font-size: 0.8125rem;
     font-weight: 600;
-    color: var(--text-muted, #64748b);
+    color: var(--text-main);
     white-space: nowrap;
 }
 
@@ -350,17 +357,17 @@ body {
     height: 14px;
     border-radius: 4px;
     flex-shrink: 0;
-    background-color: var(--leyenda-color, #a894c4) !important;
-    border: 1px solid rgba(58, 54, 68, 0.25);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+    background-color: var(--leyenda-color, var(--agenda-agendado)) !important;
+    border: 1px solid rgba(28, 24, 36, 0.35);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
-.agenda-leyenda-item[data-estado-leyenda='pre-agendado']::before { background-color: #c4b8d4 !important; }
-.agenda-leyenda-item[data-estado-leyenda='agendado']::before { background-color: #a894c4 !important; }
-.agenda-leyenda-item[data-estado-leyenda='confirmado']::before { background-color: #9eb8cc !important; }
-.agenda-leyenda-item[data-estado-leyenda='espera']::before { background-color: #d4c4a8 !important; }
-.agenda-leyenda-item[data-estado-leyenda='anulado']::before { background-color: #d4a8b0 !important; }
-.agenda-leyenda-item[data-estado-leyenda='atendido']::before { background-color: #6b7280 !important; }
+.agenda-leyenda-item[data-estado-leyenda='pre-agendado']::before { background-color: var(--agenda-pre) !important; }
+.agenda-leyenda-item[data-estado-leyenda='agendado']::before { background-color: var(--agenda-agendado) !important; }
+.agenda-leyenda-item[data-estado-leyenda='confirmado']::before { background-color: var(--agenda-confirmado) !important; }
+.agenda-leyenda-item[data-estado-leyenda='espera']::before { background-color: var(--agenda-espera) !important; }
+.agenda-leyenda-item[data-estado-leyenda='anulado']::before { background-color: var(--agenda-anulado) !important; }
+.agenda-leyenda-item[data-estado-leyenda='atendido']::before { background-color: var(--agenda-atendido) !important; }
 
 /* UI interna: leyenda + toolbar dentro de #calendar.fc */
 #calendar.fc {
@@ -380,10 +387,12 @@ body {
 #calendar.fc .fc-header-toolbar {
     flex: 0 0 auto;
     width: 100%;
-    flex-wrap: wrap !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, auto) minmax(0, 1fr) minmax(0, auto);
+    column-gap: 1.5rem;
+    row-gap: 0.65rem;
     align-items: center;
-    row-gap: 0.4rem;
-    padding: 0.5rem 0.75rem;
+    padding: 0.65rem 1rem;
     margin-bottom: 0 !important;
 }
 
@@ -391,12 +400,30 @@ body {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.2rem;
+    gap: 0.4rem;
 }
 
-#calendar.fc .fc-header-toolbar .fc-toolbar-chunk:last-child {
-    margin-left: auto;
-    flex-shrink: 0;
+#calendar.fc .fc-header-toolbar .fc-toolbar-chunk:nth-child(1) {
+    grid-column: 1;
+    justify-content: flex-start;
+}
+
+#calendar.fc .fc-header-toolbar .fc-toolbar-chunk:nth-child(2) {
+    grid-column: 2;
+    justify-content: center;
+    padding: 0 1rem;
+    min-width: 0;
+}
+
+#calendar.fc .fc-header-toolbar .fc-toolbar-chunk:nth-child(3) {
+    grid-column: 3;
+    justify-content: flex-end;
+}
+
+#calendar.fc .fc-header-toolbar .fc-toolbar-title {
+    margin: 0 !important;
+    padding: 0 0.25rem;
+    white-space: nowrap;
 }
 
 #calendar.fc .fc-header-toolbar .fc-button-group {
@@ -427,7 +454,7 @@ body {
 #calendar .fc-timeline-slot-label {
     font-weight: 700;
     font-size: 0.8rem;
-    color: #475569;
+    color: var(--text-main) !important;
 }
 
 .agenda-calendar .fc-timeline-slot-minor,
@@ -437,7 +464,7 @@ body {
 
 .agenda-calendar .fc-timeline-slot-major,
 #calendar .fc-timeline-slot-major {
-    border-left-color: #c4b8d4 !important;
+    border-left-color: var(--htc-lavender) !important;
 }
 
 .agenda-calendar .fc-timeline-now-indicator-arrow,
@@ -479,10 +506,11 @@ body {
 }
 
 .fc .fc-toolbar-title {
-    font-size: 1.5rem !important;
+    font-size: 1.35rem !important;
     font-weight: 700;
-    color: var(--text-main);
+    color: var(--text-main) !important;
     text-transform: capitalize;
+    letter-spacing: 0.01em;
 }
 
 .fc .fc-button-primary {
@@ -698,9 +726,15 @@ body {
 body.dark,
 [data-bs-theme="dark"] body,
 [data-bs-theme="dark"] .bg-app {
-    --primary: #c4b8d4;
-    --primary-hover: #b8a9c8;
-    --primary-rgb: 196, 184, 212;
+    --primary: #9d8fc4;
+    --primary-hover: #8a7ab0;
+    --primary-rgb: 157, 143, 196;
+    --agenda-pre: #9a8ab8;
+    --agenda-agendado: #7a6a9e;
+    --agenda-confirmado: #4a8aad;
+    --agenda-espera: #c4923a;
+    --agenda-anulado: #d45a6e;
+    --agenda-atendido: #6b6578;
     --bg-app: #1e1c24;
     --bg-card: #2a2732;
     --text-main: #ece8f0;
@@ -915,6 +949,20 @@ body.dark,
     .agenda-wizard-nav {
         flex-wrap: wrap;
         gap: 0.25rem;
+    }
+
+    #calendar.fc .fc-header-toolbar {
+        grid-template-columns: 1fr;
+        row-gap: 0.75rem;
+        column-gap: 0;
+    }
+
+    #calendar.fc .fc-header-toolbar .fc-toolbar-chunk:nth-child(1),
+    #calendar.fc .fc-header-toolbar .fc-toolbar-chunk:nth-child(2),
+    #calendar.fc .fc-header-toolbar .fc-toolbar-chunk:nth-child(3) {
+        grid-column: 1;
+        justify-content: center;
+        padding: 0;
     }
 
     .fc .fc-toolbar {
