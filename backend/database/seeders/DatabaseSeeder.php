@@ -324,21 +324,21 @@ class DatabaseSeeder extends Seeder
         $machines = [
             [1, 1, 'LUNAR', 'DEXA', '192.168.1.55', 'QrRisSCP', true],
             [3, 1, 'LORAD - M3', 'MAMO', '192.168.1.55', 'QrRisSCP', false],
-            [4, 1, 'Philips IU22', 'ECO', '192.168.1.55', 'QrRisSCP', true],
+            [4, 1, 'Philips IU22', 'US', '192.168.1.55', 'QrRisSCP', true],
             [5, 1, 'BENNET - MOVIPLAN800', 'RX', '192.168.1.55', 'QrRisSCP', true],
-            [7, 1, 'Philips Affiniti 70', 'ECO', '192.168.1.55', 'QrRisSCP', true],
+            [7, 1, 'Philips Affiniti 70', 'US', '192.168.1.55', 'QrRisSCP', true],
             [8, 1, 'Scanner GE', 'CT', '192.168.1.55', 'QrRisSCP', true],
             [9, 1, 'LORAD - M4', 'MAMO', '192.168.1.55', 'QrRisSCP', true],
-            [10, 1, 'TOSHIBA - APLIO 500', 'ECO', '192.168.1.55', 'QrRisSCP', false],
+            [10, 1, 'TOSHIBA - APLIO 500', 'US', '192.168.1.55', 'QrRisSCP', false],
             [236, 1, 'Siemens', 'RX', '192.168.1.55', 'QrRisSCP', true],
             [237, 4, 'RX Sucursal Sur (Demo)', 'RX', '192.168.1.56', 'QrRisSCP', true],
-            [238, 4, 'Ecógrafo Sucursal (Demo)', 'ECO', '192.168.1.57', 'QrRisSCP', true],
+            [238, 4, 'Ecógrafo Sucursal (Demo)', 'US', '192.168.1.57', 'QrRisSCP', true],
             // Salas — Dental Demo
             [301, 9, 'CBCT Planmeca (Demo)', 'CT', '192.168.2.10', 'DENTAL_CBCT', true],
             [302, 9, 'Sensor Intraoral (Demo)', 'IO', '192.168.2.11', 'DENTAL_IO', true],
             // Salas — Veterinaria Demo
             [401, 11, 'RX Veterinaria (Demo)', 'RX', '192.168.3.10', 'VET_RX', true],
-            [402, 11, 'Ecógrafo Veterinario (Demo)', 'US', '192.168.3.11', 'VET_US', true],
+            [402, 11, 'Ecógrafo Veterinario (Demo)', 'US', '192.168.3.11', 'VET_ECO', true],
         ];
         foreach ($machines as $m) {
             DB::table('machines')->insert([
@@ -366,8 +366,8 @@ class DatabaseSeeder extends Seeder
             [12, 1, 'RX', 'Proyección complementaria', '0401014', 0.00, 15],
             [13, 1, 'RX', 'Pielografía de eliminación', '0401027', 0.00, 90],
             [16, 1, 'RX', 'Agujeros ópticos', '0401030', 0.00, 15],
-            [46, 1, 'ECO', 'Ecotomografía abdominal', '0404003', 48000.00, 20],
-            [57, 1, 'ECO', 'Ecotomografía vascular periférica Bilateral', '0404118', 85000.00, 60],
+            [46, 1, 'US', 'Ecotomografía abdominal', '0404003', 48000.00, 20],
+            [57, 1, 'US', 'Ecotomografía vascular periférica Bilateral', '0404118', 85000.00, 60],
             [5, 1, 'RX', 'Tórax simple (2 proyecciones)', '0401070', 28000.00, 15],
             [18, 1, 'RX', 'Cráneo F y L', '0401032', 28000.00, 15],
             [6, 1, 'MAMO', 'Mamografía bilateral (4 proyecciones)', '0401010', 45000.00, 30],
@@ -390,7 +390,7 @@ class DatabaseSeeder extends Seeder
             [504, 12, 'US', 'Ecografía urgencia (sucursal)', 'V-ECO-02', 55000.00, 25],
             // Prestaciones — Sucursal Sur (demo clínico)
             [601, 4, 'RX', 'Tórax simple (sucursal demo)', '0401070', 28000.00, 15],
-            [602, 4, 'ECO', 'Ecotomografía abdominal (sucursal demo)', '0404003', 48000.00, 20],
+            [602, 4, 'US', 'Ecotomografía abdominal (sucursal demo)', '0404003', 48000.00, 20],
         ];
         foreach ($exams as $e) {
             DB::table('exams')->insert([

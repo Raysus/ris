@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use App\Services\DicomImportService;
+use App\Support\ModalityCode;
 use App\Support\OrthancUrl;
 use App\Services\LaboratoryProfileService;
 
@@ -113,7 +114,7 @@ class WorklistController extends Controller
                             "ScheduledProcedureStepStartDate" => \Carbon\Carbon::parse($appointment->start_time)->format('Ymd'),
                             "ScheduledProcedureStepStartTime" => \Carbon\Carbon::parse($appointment->start_time)->format('His'),
                             "ScheduledProcedureStepID" => (string) $appointment->id,
-                            "Modality" => $appointment->machine->group ?? 'US'
+                            "Modality" => ModalityCode::forDicomWorklist($appointment->machine->group ?? 'US')
                         ]
                     ]
                 ]

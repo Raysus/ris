@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Machine;
+use App\Support\ModalityCode;
 use Illuminate\Http\Request;
 
 class MachineController extends Controller
@@ -75,7 +76,7 @@ class MachineController extends Controller
             $machine = $this->getSecureMachineQuery()->findOrFail($validated['id']);
             $machine->update([
                 'name' => $validated['name'],
-                'group' => strtoupper($validated['group']),
+                'group' => $group,
                 'manufacturer' => $validated['manufacturer'] ?? null,
                 'model_name' => $validated['model_name'] ?? null,
                 'description' => $validated['description'] ?? null,
@@ -94,7 +95,7 @@ class MachineController extends Controller
             $machine = Machine::create([
                 'laboratory_id' => $labId,
                 'name' => $validated['name'],
-                'group' => strtoupper($validated['group']),
+                'group' => $group,
                 'manufacturer' => $validated['manufacturer'] ?? null,
                 'model_name' => $validated['model_name'] ?? null,
                 'description' => $validated['description'] ?? null,
