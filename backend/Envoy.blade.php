@@ -1,11 +1,16 @@
-@servers([
-    'nube'        => 'userit@100.104.4.114',
+{{--
+    Servidores de despliegue (NO poner comentarios dentro del array @servers:
+    Envoy lo compila en una sola linea y romperia el PHP).
 
-    {{-- Laboratorios: cada uno con su PROPIA IP Tailscale. --}}
-    {{-- El destino se elige con --lab=<alias> al desplegar. Agregue uno por lab: --}}
+    - nube: servidor central, rama "nube".
+    - labs: cada laboratorio con su IP Tailscale; se elige con --lab=[alias].
+      Para agregar uno, anada una linea al array, por ejemplo:
+        'lab_osorno' => 'admin@100.104.4.30',
+        'lab_temuco' => 'admin@100.104.4.40',
+--}}
+@servers([
+    'nube' => 'userit@100.104.4.114',
     'lab_lautaro' => 'admin@100.104.4.20',
-    // 'lab_osorno'  => 'admin@100.104.4.30',
-    // 'lab_temuco'  => 'admin@100.104.4.40',
 ])
 
 @setup
