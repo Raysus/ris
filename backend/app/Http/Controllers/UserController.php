@@ -116,9 +116,19 @@ class UserController extends Controller
                 $keycloakRole = 'medico_solicitante';
             }
 
-            // Sincronización con Keycloak incluyendo el rol mapeado
-            if (config('app.env') !== 'local' && $request->filled('password')) {
-                $this->keycloakService->updateUser($user->username, $request->password, $user->email, $keycloakRole);
+            // Sincronización con Keycloak (rol, credenciales y EMAIL).
+            // Antes se enviaba $user->email (inexistente en el modelo User): el correo
+            // nunca llegaba a Keycloak. El email vive en Persona, así que usamos $email.
+            // Se sincroniza al cambiar la contraseña O el email, y nunca rompe el guardado local.
+            if (config('app.env') !== 'local' && $this->shouldSyncKeycloak()
+                && ($request->filled('password') || filled($email))) {
+                try {
+                    $this->keycloakService->updateUser($user->username, $request->password, $email, $keycloakRole);
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning(
+                        'Sync de usuario/email a Keycloak falló: ' . $e->getMessage()
+                    );
+                }
             }
             // === FIN AJUSTE KEYCLOAK ===
 
