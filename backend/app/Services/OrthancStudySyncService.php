@@ -11,7 +11,7 @@ class OrthancStudySyncService
 {
     public function syncPendingAppointments(): int
     {
-        $orthancBase = rtrim(env('ORTHANC_URL', 'http://127.0.0.1:8042'), '/');
+        $orthancBase = \App\Support\OrthancUrl::base();
         $updated = 0;
 
         $appointments = Appointment::query()

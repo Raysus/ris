@@ -23,7 +23,7 @@ class ViewerConfigController extends Controller
                 'pacs_ip' => env('PACS_DEFAULT_IP', '172.16.66.11'),
                 'pacs_port' => (int) env('PACS_DEFAULT_PORT', 4242),
                 'pacs_aet' => env('PACS_DEFAULT_AET', 'HealthTICloud'),
-                'orthanc_url' => rtrim(env('ORTHANC_URL', 'http://127.0.0.1:8042'), '/'),
+                'orthanc_url' => \App\Support\OrthancUrl::base(),
                 'viewer_custom_url' => env('VIEWER_CUSTOM_URL', ''),
             ],
         ]);

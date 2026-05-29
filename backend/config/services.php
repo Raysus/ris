@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'orthanc' => [
+        'url' => env('ORTHANC_URL'),
+        'host' => env('ORTHANC_HOST'),
+        'port' => env('ORTHANC_PORT', 4242),
+        'aet' => env('ORTHANC_AET', 'HEALTHTICLOUD'),
+    ],
+
 ];
