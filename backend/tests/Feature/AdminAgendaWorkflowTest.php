@@ -52,6 +52,10 @@ class AdminAgendaWorkflowTest extends TestCase
             'laboratory_id' => $this->risLab->id,
             'name' => 'Sala Test Automatizado',
             'group' => 'RX',
+            // Regresión: estos campos DICOM se descartaban por faltar en $fillable.
+            'ae_title' => 'TEST_AE',
+            'ip_address' => '127.0.0.1',
+            'port' => '104',
         ]);
 
         $update = $this->withHeaders($headers)->postJson('/api/machines', [
