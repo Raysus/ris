@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\ModalityCode;
 use App\Services\WordTemplateImportService;
 use Illuminate\Http\Request;
 use App\Models\ReportTemplate;
@@ -76,7 +77,7 @@ class TemplateController extends Controller
             }
         }
 
-        $template->group_code = $validated['group_code'];
+        $template->group_code = ModalityCode::normalizeGroup($validated['group_code']);
         $template->title = $validated['title'];
         $template->content = $validated['content'];
         $template->save();
