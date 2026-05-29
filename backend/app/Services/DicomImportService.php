@@ -11,7 +11,7 @@ class DicomImportService
 {
     public function orthancBaseUrl(): string
     {
-        return rtrim(env('ORTHANC_URL', 'http://127.0.0.1:8042'), '/');
+        return \App\Support\OrthancUrl::base();
     }
 
     /**
