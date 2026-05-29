@@ -2,6 +2,11 @@
 
 Guía para técnicos. Un solo documento: servidor + PCs de usuario.
 
+> **¿Despliegue en un laboratorio (Windows + Docker, paso a paso y sin tecnicismos)?**
+> Use la guía única **[GUIA_INSTALACION_LABORATORIO.md](GUIA_INSTALACION_LABORATORIO.md)**
+> (instaladores, Tailscale, token de GitHub, instalación con Docker y actualizaciones).
+> Esta guía general cubre el resto de escenarios (desarrollo local y producción en nube).
+
 | Qué | Dónde corre |
 |-----|-------------|
 | API (Laravel) | Servidor |

@@ -1,5 +1,34 @@
 {
-  "ExtraMainDicomTags" : {
-    "Study" : [ "ModalitiesInStudy" ]
+  "Name": "HealthTICloud",
+  "DicomAet": "HEALTHTICLOUD",
+  "DicomCheckCalledAet": false,
+  "DicomServerEnabled": true,
+  "DicomPort": 4242,
+  "HttpPort": 8042,
+
+  "//": "Acceso desde otras PCs de la LAN. AuthenticationEnabled=false es aceptable SOLO en red interna aislada.",
+  "RemoteAccessAllowed": true,
+  "AuthenticationEnabled": false,
+  "RegisteredUsers": {},
+
+  "//cors": "Cabeceras CORS para que el visor OHIF (otro puerto) pueda leer DICOMweb.",
+  "HttpHeaders": {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Origin, Accept, Content-Type, Authorization, Content-Range"
+  },
+
+  "DicomWeb": {
+    "Enable": true,
+    "Root": "/dicom-web/",
+    "EnableWado": true,
+    "WadoRoot": "/wado",
+    "Ssl": false,
+    "StudiesMetadata": "Full",
+    "SeriesMetadata": "Full"
+  },
+
+  "ExtraMainDicomTags": {
+    "Study": ["ModalitiesInStudy"]
   }
 }
