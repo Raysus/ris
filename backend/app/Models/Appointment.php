@@ -32,6 +32,7 @@ class Appointment extends Model
         'tipo_bono',
         'entidad_pagadora',
         'accession_number',
+        'study_instance_uid',
         'reminder_sent_at',
         'images_received_at',
     ];

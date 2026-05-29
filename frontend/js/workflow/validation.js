@@ -251,12 +251,16 @@ function generarVistaPrevia() {
 
 async function abrirVisorPACSValidacion() {
     if (!currentValidationChain) return;
-    await abrirVisorPACS(currentValidationChain.accessionNumber);
+    await abrirVisorPACS(currentValidationChain.accessionNumber, {
+        chain: currentValidationChain,
+    });
 }
 
 async function abrirVisorSoloOHIFValidacion() {
     if (!currentValidationChain) return;
-    await abrirVisorSoloOHIF(currentValidationChain.accessionNumber);
+    await abrirVisorSoloOHIF(currentValidationChain.accessionNumber, {
+        chain: currentValidationChain,
+    });
 }
 
 function habilitarEdicionValidacion() {
