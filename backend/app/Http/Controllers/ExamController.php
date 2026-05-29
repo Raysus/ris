@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Exam;
+use App\Support\ModalityCode;
 use App\Models\ExamInstruction;
 use Illuminate\Http\Request;
 
@@ -51,7 +52,7 @@ class ExamController extends Controller
             ['id' => $validated['id'] ?? null],
             [
                 'laboratory_id' => $labId,
-                'group_code' => strtoupper($validated['group_code']),
+                'group_code' => ModalityCode::normalizeGroup($validated['group_code']),
                 'name' => $validated['name'],
                 'sub_exams' => $validated['sub_exams'] ?? [],
                 'fonasa_code' => $validated['fonasa_code'] ?? null,
@@ -130,7 +131,7 @@ class ExamController extends Controller
                         'name' => trim($data[1])
                     ],
                     [
-                        'group_code' => trim($data[0]),
+                        'group_code' => ModalityCode::normalizeGroup(trim($data[0])),
                         'fonasa_code' => trim($data[2]),
                         'price' => floatval(trim($data[3])) ?: 0,
                         'sub_exams' => []
