@@ -16,6 +16,11 @@ class Machine extends Model
         'model_name',
         'description',
         'event_color',
-        'is_active'
+        'is_active',
+        // Datos DICOM del equipo. Sin estos, la asignación masiva los descartaba
+        // en silencio y AE Title / IP / Puerto nunca se guardaban.
+        'ae_title',
+        'ip_address',
+        'port',
     ];
 }
