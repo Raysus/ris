@@ -14,3 +14,5 @@ if not exist "config.json" (
 
 echo Iniciando bridge en http://127.0.0.1:8181
 node server.js
+rem Propaga el codigo de salida de node para que la Tarea Programada lo reinicie si cae.
+exit /b %errorlevel%
