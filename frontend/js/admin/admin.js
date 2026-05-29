@@ -1307,7 +1307,7 @@ async function renderCatalogoAdmin() {
                     if (grupo === 'RX') badgeColor = 'bg-primary';
                     if (grupo === 'CT') badgeColor = 'bg-info text-dark';
                     if (grupo === 'MRI') badgeColor = 'bg-danger';
-                    if (grupo === 'ECO') badgeColor = 'bg-success';
+                    if (grupo === 'US') badgeColor = 'bg-success';
 
                     const instr = exData.instruction;
                     const hasInstr = instr && instr.body && instr.is_active;
@@ -2510,7 +2510,7 @@ function descargarPlantillaExamenes() {
     csv += "RX;Radiografía de Tórax AP y Lateral;0401001;15000\n";
     csv += "CT;Tomografía Computarizada de Cerebro sin contraste;0402005;85000\n";
     csv += "MRI;Resonancia Magnética de Columna Lumbar;0403010;150000\n";
-    csv += "ECO;Ecografía Abdominal Completa;0404002;35000\n";
+    csv += "US;Ecografía Abdominal Completa;0404002;35000\n";
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
@@ -2563,7 +2563,7 @@ async function renderListaPlantillasAdmin() {
                 if (tpl.group_code === 'RX') badgeColor = 'bg-primary';
                 if (tpl.group_code === 'CT') badgeColor = 'bg-info text-dark';
                 if (tpl.group_code === 'MRI') badgeColor = 'bg-danger';
-                if (tpl.group_code === 'ECO') badgeColor = 'bg-success';
+                if (tpl.group_code === 'US') badgeColor = 'bg-success';
 
                 const alcance = tpl.laboratory_id
                     ? '<span class="badge bg-light text-dark border">Local</span>'

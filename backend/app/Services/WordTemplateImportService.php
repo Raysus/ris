@@ -127,8 +127,9 @@ class WordTemplateImportService
         $title = trim(pathinfo($filename, PATHINFO_FILENAME));
         $groupCode = 'RX';
 
-        if (preg_match('/^\[(RX|CT|MRI|ECO|MAMO)\]\s*/i', $title, $match)) {
-            $groupCode = strtoupper($match[1]);
+        if (preg_match('/^\[(RX|CT|MRI|MR|US|ECO|MAMO)\]\s*/i', $title, $match)) {
+            $raw = strtoupper($match[1]);
+            $groupCode = $raw === 'MR' ? 'MRI' : \App\Support\ModalityCode::normalizeGroup($raw);
             $title = trim((string) preg_replace('/^\[[^\]]+\]\s*/i', '', $title));
         }
 
