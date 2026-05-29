@@ -238,8 +238,37 @@ No necesitan instalar nada: solo abren el navegador y entran a `http://<direcci�
 servidor>` (la del paso 7).
 
 **Solo** si una computadora tiene **escáner** de documentos, hay que instalar el
-"puente" del escáner. Pida al responsable de sistemas la guía técnica del bridge
-(`tools/ris-local-bridge`).
+"puente" del escáner (carpeta `tools/ris-local-bridge`). Este "puente" es un pequeño
+programa que conecta el escáner con el RIS. Requiere tener instalados **Node.js** y
+**NAPS2** (paso 1).
+
+### Dejar el escáner automático al encender la PC
+
+Para que el puente arranque **solo**, oculto y se reinicie si se cae, ejecute **una sola
+vez** en esa computadora (PowerShell, dentro de la carpeta `tools\ris-local-bridge`):
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned -Force
+.\install-windows-startup.ps1
+```
+
+Esto crea una tarea de Windows que inicia el puente **al iniciar sesión** en esa PC, sin
+ventana negra visible, y lo vuelve a levantar automáticamente si por algún motivo se cae.
+
+> ¿Por qué "al iniciar sesión" y no "al prender"? El escáner necesita que haya un usuario
+> con la sesión abierta para funcionar. Por eso el puente arranca apenas se inicia sesión.
+
+**Para que quede 100% automático al prender el equipo** (sin que nadie escriba la
+contraseña), active además el **inicio de sesión automático** de Windows en esa PC:
+
+1. Presione `Windows + R`, escriba `netplwiz` y presione Enter.
+2. Seleccione el usuario y **desmarque** "Los usuarios deben escribir su nombre y
+   contraseña…".
+3. Acepte e ingrese la contraseña de ese usuario cuando se la pida.
+
+Así, al encender la PC: entra sola a la sesión → el puente arranca oculto → el escáner
+queda listo. Para comprobar que funciona, abra en el navegador de esa PC
+`http://127.0.0.1:8181/health` (debe responder `success`).
 
 ---
 
