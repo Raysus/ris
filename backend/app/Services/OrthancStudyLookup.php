@@ -29,23 +29,18 @@ class OrthancStudyLookup
         $orthancBase = $this->orthancBaseUrl();
 
         try {
-            $response = Http::timeout(10)->post("{$orthancBase}/tools/find", [
-                'Level' => 'Study',
-                'Query' => [
-                    'AccessionNumber' => $accessionNumber,
-                ],
-            ]);
+            $studyId = $this->findStudyIdWithInstances($orthancBase, $accessionNumber);
+            if ($studyId === null) {
+                $wildcard = '*' . $accessionNumber . '*';
+                if ($wildcard !== $accessionNumber) {
+                    $studyId = $this->findStudyIdWithInstances($orthancBase, $wildcard);
+                }
+            }
 
-            if (!$response->successful()) {
+            if ($studyId === null) {
                 return null;
             }
 
-            $studyIds = $response->json();
-            if (!is_array($studyIds) || $studyIds === []) {
-                return null;
-            }
-
-            $studyId = (string) $studyIds[0];
             $studyResponse = Http::timeout(10)->get("{$orthancBase}/studies/{$studyId}");
 
             if (!$studyResponse->successful()) {
@@ -59,6 +54,7 @@ class OrthancStudyLookup
         } catch (\Throwable $e) {
             Log::warning('No se pudo resolver StudyInstanceUID en Orthanc', [
                 'accession' => $accessionNumber,
+                'orthanc' => $orthancBase,
                 'error' => $e->getMessage(),
             ]);
 
@@ -71,5 +67,46 @@ class OrthancStudyLookup
         $value = trim($value);
 
         return (bool) preg_match('/^[\d.]+$/', $value) && substr_count($value, '.') >= 2;
+    }
+
+    private function findStudyIdWithInstances(string $orthancBase, string $accessionQuery): ?string
+    {
+        $response = Http::timeout(10)->post("{$orthancBase}/tools/find", [
+            'Level' => 'Study',
+            'Query' => [
+                'AccessionNumber' => $accessionQuery,
+            ],
+        ]);
+
+        if (!$response->successful()) {
+            Log::debug('Orthanc find por accession falló', [
+                'accession' => $accessionQuery,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            return null;
+        }
+
+        $studyIds = $response->json();
+        if (!is_array($studyIds) || $studyIds === []) {
+            return null;
+        }
+
+        $bestId = null;
+        $bestCount = -1;
+
+        foreach ($studyIds as $studyId) {
+            $studyId = (string) $studyId;
+            $instances = Http::timeout(5)->get("{$orthancBase}/studies/{$studyId}/instances");
+            $count = $instances->successful() ? count($instances->json() ?? []) : 0;
+
+            if ($count > $bestCount) {
+                $bestCount = $count;
+                $bestId = $studyId;
+            }
+        }
+
+        return $bestId;
     }
 }

@@ -56,11 +56,24 @@ async function resolveStudyInstanceUid(accessionOrUid, cfg) {
         if (response.ok && res.success && res.data?.study_instance_uid) {
             return res.data.study_instance_uid;
         }
+
+        const msg =
+            res.message ||
+            "No se encontró el estudio en PACS para ese número de acceso.";
+        if (typeof showToast === "function") {
+            showToast(msg, "warning");
+        }
     } catch (e) {
         console.warn("No se pudo resolver StudyInstanceUID:", e);
+        if (typeof showToast === "function") {
+            showToast(
+                "No se pudo consultar el PACS para abrir el visor. Revise la conexión.",
+                "danger"
+            );
+        }
     }
 
-    return raw;
+    return null;
 }
 
 /**

@@ -16,7 +16,7 @@ class ViewerConfigController extends Controller
                 'viewer_url' => rtrim(env('VIEWER_URL', 'https://viewer.healthticloud.cl'), '/'),
                 'viewer_path' => env('VIEWER_PATH', '/viewer'),
                 'viewer_query_param' => env('VIEWER_QUERY_PARAM', 'StudyInstanceUIDs'),
-                'viewer_accession_param' => env('VIEWER_QUERY_PARAM', env('VIEWER_ACCESSION_PARAM', 'StudyInstanceUIDs')),
+                'viewer_accession_param' => env('VIEWER_ACCESSION_PARAM', ''),
                 'viewer_token' => env('VIEWER_TOKEN', ''),
                 'patient_portal_url' => rtrim(env('PATIENT_PORTAL_URL', 'https://portal.healthticloud.cl'), '/'),
                 'pacs_bridge_url' => env('PACS_BRIDGE_URL', 'http://localhost:8181/open-dicom'),
@@ -44,7 +44,8 @@ class ViewerConfigController extends Controller
         if (!$uid) {
             return response()->json([
                 'success' => false,
-                'message' => 'No se encontró estudio en PACS para ese accession.',
+                'message' => 'No hay imágenes en PACS con ese número de acceso. '
+                    . 'Confirme que el equipo ya envió el estudio y que el Accession Number coincide con el de la worklist.',
             ], 404);
         }
 
