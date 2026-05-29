@@ -428,6 +428,7 @@ async function enviarADicom() {
         let ultimoAccession = null;
         let exitos = 0;
         let fallidos = 0;
+        let ultimoError = '';
 
         for (const citaId of citasInvolucradas) {
             try {
@@ -443,10 +444,18 @@ async function enviarADicom() {
                     ultimoAccession = data.accession || data.accession_number;
                     exitos++;
                 } else {
-                    console.error(`Error en Cita ID ${citaId}:`, await response.text());
+                    const raw = await response.text();
+                    let msg = raw;
+                    try {
+                        const parsed = JSON.parse(raw);
+                        msg = parsed.message || raw;
+                    } catch (_) { /* texto plano */ }
+                    ultimoError = msg;
+                    console.error(`Error en Cita ID ${citaId}:`, msg);
                     fallidos++;
                 }
             } catch (err) {
+                ultimoError = err.message || 'Error de red';
                 fallidos++;
             }
         }
@@ -458,7 +467,10 @@ async function enviarADicom() {
             setDicomUI(true, ultimoAccession);
             showToast(`⚠️ Sincronización incompleta: ${exitos} OK, ${fallidos} errores.`, "warning");
         } else {
-            showToast("❌ Error crítico: No se pudo comunicar con el servidor DICOM.", "danger");
+            const detalle = ultimoError
+                ? (ultimoError.length > 180 ? ultimoError.slice(0, 180) + '…' : ultimoError)
+                : 'No se pudo comunicar con Orthanc (PACS).';
+            showToast(`❌ ${detalle}`, "danger");
         }
 
         await cargarWorklistDesdeServidor();
