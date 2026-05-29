@@ -1,11 +1,24 @@
+{{--
+    Servidores de despliegue (NO poner comentarios dentro del array @servers:
+    Envoy lo compila en una sola linea y romperia el PHP).
+
+    - nube: servidor central, rama "nube".
+    - labs: cada laboratorio con su IP Tailscale; se elige con --lab=[alias].
+      Para agregar uno, anada una linea al array, por ejemplo:
+        'lab_osorno' => 'admin@100.104.4.30',
+        'lab_temuco' => 'admin@100.104.4.40',
+--}}
 @servers([
-    'nube'            => 'userit@100.104.4.114',
-    'clinica_lautaro' => 'admin@100.104.4.114',
+    'nube' => 'userit@100.104.4.114',
+    'lab_lautaro' => 'admin@100.104.4.20',
 ])
 
 @setup
     $app_dir = '/var/www/ris.healthticloud.cl';
     $backend_dir = $app_dir . '/backend';
+
+    // Stack Docker de los laboratorios (LAN)
+    $compose = 'docker compose -f docker-compose.lan.yml';
 
     // Rama desplegada en el servidor central (nube)
     $branch_nube = 'nube';
@@ -15,6 +28,9 @@
 
     // Rama base desde la que se crean ramas que aún no existen en origin
     $branch_fallback = 'main';
+
+    // Lab destino (alias de @servers). Uso: envoy run deploy-lab --lab=lab_lautaro
+    $lab = isset($lab) ? $lab : 'lab_lautaro';
 @endsetup
 
 @story('deploy-nube')
@@ -29,12 +45,10 @@
     restart_queue_nube
 @endstory
 
-@story('deploy-clinica')
-    git_pull_clinica
-    composer_clinica
-    migrate_clinica
-    optimize_clinica
-    restart_worklist
+{{-- Despliegue a un laboratorio: envoy run deploy-lab --lab=lab_lautaro --}}
+@story('deploy-lab')
+    git_pull_lab
+    rebuild_lab
 @endstory
 
 {{-- --- TAREAS PARA LA NUBE (PostgreSQL + PHP nativos, sin Docker) --- --}}
@@ -158,10 +172,18 @@
     fi
 @endtask
 
-{{-- --- TAREAS PARA LABORATORIO / CLÍNICA (Docker / Sail) --- --}}
+{{-- --- TAREAS PARA LABORATORIOS (Docker Desktop, stack docker-compose.lan.yml) --- --}}
+{{--                                                                                 --}}
+{{-- Requisitos en el servidor del lab (una sola vez):                              --}}
+{{--   • Tailscale activo (este PC llega por SSH vía su IP Tailscale).              --}}
+{{--   • SSH con shell bash (Linux, o WSL/Git-Bash en Windows).                     --}}
+{{--   • Token de GitHub guardado para git (repo privado):                          --}}
+{{--       git config --global credential.helper store                              --}}
+{{--       git clone https://<TOKEN>@github.com/Raysus/ris.git {{ $app_dir }}        --}}
+{{--     (tras el primer clone, los pull usan el token guardado sin volver a pedirlo)--}}
 
-@task('git_pull_clinica', ['on' => 'clinica_lautaro'])
-    echo "🏥 Actualizando código en Laboratorio (rama {{ $branch_laboratorio }})..."
+@task('git_pull_lab', ['on' => $lab])
+    echo "🏥 Lab {{ $lab }}: actualizando código (rama {{ $branch_laboratorio }}, solo lectura)..."
     cd {{ $app_dir }}
 
     BRANCH="{{ $branch_laboratorio }}"
@@ -173,40 +195,31 @@
         echo "✓ Rama origin/${BRANCH} encontrada."
         git checkout "${BRANCH}" 2>/dev/null || git checkout -b "${BRANCH}" "origin/${BRANCH}"
         git reset --hard "origin/${BRANCH}"
-        git pull origin "${BRANCH}"
-    elif git rev-parse --verify "${BRANCH}" >/dev/null 2>&1; then
-        echo "✓ Rama local ${BRANCH} encontrada."
-        git checkout "${BRANCH}"
-        git reset --hard HEAD
-        git pull origin "${BRANCH}" || git push -u origin "${BRANCH}"
     else
-        echo "⚠ Rama ${BRANCH} no existe. Creando desde origin/${FALLBACK}..."
+        echo "⚠ origin/${BRANCH} no existe; desplegando ${FALLBACK} (solo lectura)."
+        echo "  Cree y empuje la rama ${BRANCH} desde su equipo, no desde el servidor."
         git checkout "${FALLBACK}" 2>/dev/null || git checkout -b "${FALLBACK}" "origin/${FALLBACK}"
         git reset --hard "origin/${FALLBACK}"
-        git pull origin "${FALLBACK}"
-        git checkout -b "${BRANCH}"
-        git push -u origin "${BRANCH}"
     fi
 @endtask
 
-@task('composer_clinica', ['on' => 'clinica_lautaro'])
-    cd {{ $app_dir }}
-    ./vendor/bin/sail composer install --no-interaction --quiet --optimize-autoloader
-@endtask
+@task('rebuild_lab', ['on' => $lab])
+    echo "🐳 Lab {{ $lab }}: reconstruyendo y levantando contenedores..."
+    cd {{ $backend_dir }}
 
-@task('migrate_clinica', ['on' => 'clinica_lautaro'])
-    cd {{ $app_dir }}
-    ./vendor/bin/sail artisan migrate --force
-@endtask
+    {{ $compose }} up -d --build
 
-@task('optimize_clinica', ['on' => 'clinica_lautaro'])
-    cd {{ $app_dir }}
-    ./vendor/bin/sail artisan optimize
-@endtask
+    echo "🗃️  Aplicando migraciones..."
+    {{ $compose }} exec -T api php artisan migrate --force
 
-@task('restart_worklist', ['on' => 'clinica_lautaro'])
-    echo "⚙️ Reiniciando colas para asegurar generación de Worklist..."
-    cd {{ $app_dir }}
-    ./vendor/bin/sail artisan queue:restart
-    echo "✅ Laboratorio actualizado (rama {{ $branch_laboratorio }})."
+    echo "⚙️  Optimizando..."
+    {{ $compose }} exec -T api php artisan optimize
+
+    echo "🔁 Reiniciando colas..."
+    {{ $compose }} restart queue scheduler
+
+    echo "🧹 Limpiando imágenes Docker antiguas..."
+    docker image prune -f >/dev/null 2>&1 || true
+
+    echo "✅ Lab {{ $lab }} actualizado (rama {{ $branch_laboratorio }})."
 @endtask
