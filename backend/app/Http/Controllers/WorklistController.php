@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use App\Services\DicomImportService;
+use App\Support\OrthancUrl;
 use App\Services\LaboratoryProfileService;
 
 class WorklistController extends Controller
@@ -95,8 +96,8 @@ class WorklistController extends Controller
         $accessionNumber = 'ACC-' . date('Ymd') . '-' . substr($appointment->id, 0, 5);
 
         try {
-            // 🔥 CORRECCIÓN 1: El endpoint correcto para crear es /worklists/create
-            $orthancUrl = env('ORTHANC_URL', 'http://127.0.0.1:8042') . '/worklists/create';
+            $orthancBase = OrthancUrl::base();
+            $orthancUrl = $orthancBase . '/worklists/create';
 
             $stationAeTitle = $appointment->machine->ae_title ?? "SALA_" . $appointment->machine_id;
 
@@ -118,11 +119,16 @@ class WorklistController extends Controller
                 ]
             ];
 
-            // Enviamos el POST a Orthanc
-            $response = Http::post($orthancUrl, $dicomWorklistData);
+            $response = Http::timeout(20)
+                ->acceptJson()
+                ->asJson()
+                ->post($orthancUrl, $dicomWorklistData);
 
             if (!$response->successful()) {
-                throw new \Exception("Orthanc Worklist falló: " . $response->status() . " - " . $response->body());
+                throw new \Exception(
+                    'Orthanc Worklist falló (' . $response->status() . ') en ' . $orthancBase . ': '
+                    . $response->body()
+                );
             }
 
             $appointment->status = 'dicom_enviado';
@@ -134,6 +140,13 @@ class WorklistController extends Controller
 
             return response()->json(['success' => true, 'accession' => $accessionNumber]);
 
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No se pudo conectar con Orthanc en '
+                    . OrthancUrl::base()
+                    . '. Revise ORTHANC_URL en el .env del servidor (ej. https://pacs.healthticloud.cl).',
+            ], 503);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
