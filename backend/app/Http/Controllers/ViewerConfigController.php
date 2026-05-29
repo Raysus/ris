@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Appointment;
 use App\Services\OrthancStudyLookup;
 use Illuminate\Http\Request;
 
@@ -39,14 +40,27 @@ class ViewerConfigController extends Controller
             ], 422);
         }
 
-        $uid = $lookup->studyInstanceUidForAccession($accession);
+        $appointment = null;
+        $appointmentId = trim((string) $request->query('appointment_id', ''));
+        if ($appointmentId !== '') {
+            $appointment = Appointment::query()
+                ->with('patient.persona')
+                ->find($appointmentId);
+        }
+
+        $uid = $lookup->studyInstanceUidForAccession($accession, $appointment);
 
         if (!$uid) {
             return response()->json([
                 'success' => false,
                 'message' => 'No hay imágenes en PACS con ese número de acceso. '
-                    . 'Confirme que el equipo ya envió el estudio y que el Accession Number coincide con el de la worklist.',
+                    . 'Confirme que el equipo ya envió el estudio. Si el accession del equipo difiere del RIS, '
+                    . 'revise el estudio por RUT del paciente en el PACS.',
             ], 404);
+        }
+
+        if ($appointment) {
+            $lookup->persistStudyInstanceUid($appointment, $uid);
         }
 
         return response()->json([

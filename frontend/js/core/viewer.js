@@ -30,9 +30,20 @@ async function getViewerConfig() {
     return _viewerConfigCache;
 }
 
-async function resolveStudyInstanceUid(accessionOrUid, cfg) {
+/**
+ * Resuelve StudyInstanceUID en PACS antes de abrir OHIF (visor en otro servidor).
+ * @param {string} accessionOrUid
+ * @param {object} [cfg]
+ * @param {{ studyInstanceUid?: string, appointmentId?: string }} [options]
+ */
+async function resolveStudyInstanceUid(accessionOrUid, cfg, options = {}) {
     const raw = String(accessionOrUid || "").trim();
     if (!raw) return null;
+
+    const presetUid = String(options.studyInstanceUid || "").trim();
+    if (presetUid && looksLikeStudyInstanceUid(presetUid)) {
+        return presetUid;
+    }
 
     if (looksLikeStudyInstanceUid(raw)) {
         return raw;
@@ -41,17 +52,23 @@ async function resolveStudyInstanceUid(accessionOrUid, cfg) {
     const token = localStorage.getItem("ris_token");
     const labId = localStorage.getItem("ris_lab_id") || "";
 
+    let query = `accession=${encodeURIComponent(raw)}`;
+    if (options.appointmentId) {
+        query += `&appointment_id=${encodeURIComponent(options.appointmentId)}`;
+    }
+
     try {
-        const response = await fetch(
-            `${API_URL}/viewer-study-uid?accession=${encodeURIComponent(raw)}`,
-            {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    "X-Lab-Id": labId,
-                    Accept: "application/json",
-                },
-            }
-        );
+        if (typeof showToast === "function") {
+            showToast("Buscando estudio en PACS…", "info");
+        }
+
+        const response = await fetch(`${API_URL}/viewer-study-uid?${query}`, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                "X-Lab-Id": labId,
+                Accept: "application/json",
+            },
+        });
         const res = await response.json();
         if (response.ok && res.success && res.data?.study_instance_uid) {
             return res.data.study_instance_uid;
@@ -76,19 +93,29 @@ async function resolveStudyInstanceUid(accessionOrUid, cfg) {
     return null;
 }
 
+function viewerOpenOptions(accessionNumber, extra = {}) {
+    const chain = extra.chain || null;
+    return {
+        studyInstanceUid: extra.studyInstanceUid || chain?.studyInstanceUid || null,
+        appointmentId: extra.appointmentId || chain?.id || null,
+    };
+}
+
 /**
- * URL OHIF: https://viewer.healthticloud.cl/viewer?StudyInstanceUIDs=1.2.xxx
+ * URL OHIF (servidor externo): solo StudyInstanceUID, p. ej.
+ * https://viewer.healthticloud.cl/viewer?StudyInstanceUIDs=3.1.7&token=...
  */
 function buildOhifViewerUrl(cfg, studyInstanceUid) {
     const base = (cfg.viewer_url || "https://viewer.healthticloud.cl").replace(/\/$/, "");
     const path = (cfg.viewer_path || "/viewer").replace(/^\/?/, "/");
-    const param = cfg.viewer_query_param || cfg.viewer_accession_param || "StudyInstanceUIDs";
+    const param = cfg.viewer_query_param || "StudyInstanceUIDs";
 
     const url = new URL(`${base}${path}`);
 
     url.searchParams.set(param, studyInstanceUid);
 
-    const authToken = localStorage.getItem("ris_token") || cfg.viewer_token || "";
+    const authToken =
+        (cfg.viewer_token || "").trim() || localStorage.getItem("ris_token") || "";
     if (authToken) {
         url.searchParams.set("token", authToken);
     }
@@ -96,14 +123,16 @@ function buildOhifViewerUrl(cfg, studyInstanceUid) {
     return url.toString();
 }
 
-function buildCustomViewerUrl(cfg, accessionNumber) {
+function buildCustomViewerUrl(cfg, accessionNumber, studyInstanceUid) {
     const tpl = (cfg.viewer_custom_url || "").trim();
     if (!tpl) return null;
+
+    const uid = studyInstanceUid || accessionNumber;
 
     const map = {
         "{accession}": encodeURIComponent(accessionNumber),
         "{accession_number}": encodeURIComponent(accessionNumber),
-        "{study_uid}": encodeURIComponent(accessionNumber),
+        "{study_uid}": encodeURIComponent(uid),
         "{pacs_ip}": encodeURIComponent(cfg.pacs_ip || ""),
         "{pacs_port}": encodeURIComponent(String(cfg.pacs_port ?? "")),
         "{pacs_aet}": encodeURIComponent(cfg.pacs_aet || ""),
@@ -137,35 +166,42 @@ function tryOpenCustomViewerUrl(url) {
     }
 }
 
-async function abrirVisorOHIF(accessionNumber, cfg) {
+async function abrirVisorOHIF(accessionNumber, cfg, extra = {}) {
     const config = cfg || (await getViewerConfig());
-    const studyUid = await resolveStudyInstanceUid(accessionNumber, config);
+    const opts = viewerOpenOptions(accessionNumber, extra);
+    const studyUid = await resolveStudyInstanceUid(accessionNumber, config, opts);
     if (!studyUid) {
-        showToast("No hay identificador de estudio para abrir el visor.", "warning");
+        if (typeof showToast === "function") {
+            showToast(
+                "No hay StudyInstanceUID para abrir OHIF. El estudio debe existir en PACS.",
+                "warning"
+            );
+        }
         return;
     }
     const urlWeb = buildOhifViewerUrl(config, studyUid);
     window.open(urlWeb, "_blank");
     if (typeof showToast === "function") {
-        showToast("Visor web (OHIF) abierto en nueva pestaña.", "info");
+        showToast("Visor OHIF abierto con StudyInstanceUID.", "info");
     }
 }
 
-async function abrirVisorSoloOHIF(accessionNumber) {
+async function abrirVisorSoloOHIF(accessionNumber, extra = {}) {
     if (!accessionNumber) {
         showToast("No hay número de acceso para abrir el visor.", "warning");
         return;
     }
-    await abrirVisorOHIF(accessionNumber);
+    await abrirVisorOHIF(accessionNumber, null, extra);
 }
 
-async function abrirVisorPACS(accessionNumber) {
+async function abrirVisorPACS(accessionNumber, extra = {}) {
     if (!accessionNumber) {
         showToast("No hay número de acceso para abrir el visor.", "warning");
         return;
     }
 
     const cfg = await getViewerConfig();
+    const opts = viewerOpenOptions(accessionNumber, extra);
     const pacsConfig = {
         accession_number: accessionNumber,
         pacs_ip: cfg.pacs_ip,
@@ -201,7 +237,12 @@ async function abrirVisorPACS(accessionNumber) {
 
     if (bridgeOk) return;
 
-    const customUrl = buildCustomViewerUrl(cfg, accessionNumber);
+    const studyUid =
+        opts.studyInstanceUid && looksLikeStudyInstanceUid(opts.studyInstanceUid)
+            ? opts.studyInstanceUid
+            : await resolveStudyInstanceUid(accessionNumber, cfg, opts);
+
+    const customUrl = buildCustomViewerUrl(cfg, accessionNumber, studyUid);
     if (customUrl && tryOpenCustomViewerUrl(customUrl)) {
         if (typeof showToast === "function") {
             showToast("Enlace al visor (URL custom) enviado. Si no abre, use OHIF.", "info");
@@ -209,7 +250,7 @@ async function abrirVisorPACS(accessionNumber) {
         return;
     }
 
-    await abrirVisorOHIF(accessionNumber, cfg);
+    await abrirVisorOHIF(accessionNumber, cfg, { ...extra, studyInstanceUid: studyUid });
 }
 
 window.abrirVisorPACS = abrirVisorPACS;

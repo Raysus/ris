@@ -579,12 +579,16 @@ function activarDragon() {
 
 function abrirVisorDicom() {
     if (!currentReportingChain) return;
-    abrirVisorPACS(currentReportingChain.accessionNumber);
+    abrirVisorPACS(currentReportingChain.accessionNumber, {
+        chain: currentReportingChain,
+    });
 }
 
 function abrirVisorDicomSoloOhif() {
     if (!currentReportingChain) return;
-    abrirVisorSoloOHIF(currentReportingChain.accessionNumber);
+    abrirVisorSoloOHIF(currentReportingChain.accessionNumber, {
+        chain: currentReportingChain,
+    });
 }
 
 /* abrirVisorPACS / abrirVisorSoloOHIF en js/core/viewer.js */

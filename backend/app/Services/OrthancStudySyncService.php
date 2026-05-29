@@ -9,6 +9,10 @@ use Illuminate\Support\Facades\Log;
 
 class OrthancStudySyncService
 {
+    public function __construct(
+        private readonly OrthancStudyLookup $studyLookup,
+    ) {}
+
     public function syncPendingAppointments(): int
     {
         $orthancBase = \App\Support\OrthancUrl::base();
@@ -23,6 +27,14 @@ class OrthancStudySyncService
         foreach ($appointments as $appointment) {
             if (!$this->hasInstancesForAccession($orthancBase, $appointment->accession_number)) {
                 continue;
+            }
+
+            $uid = $this->studyLookup->studyInstanceUidForAccession(
+                $appointment->accession_number,
+                $appointment
+            );
+            if ($uid) {
+                $this->studyLookup->persistStudyInstanceUid($appointment, $uid);
             }
 
             $appointment->status = 'en_atencion';

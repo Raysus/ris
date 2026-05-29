@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use App\Services\DicomImportService;
+use App\Services\OrthancStudyLookup;
 use App\Support\ModalityCode;
 use App\Support\OrthancUrl;
 use App\Services\LaboratoryProfileService;
@@ -211,6 +212,12 @@ class WorklistController extends Controller
             $appointment->status = 'dicom_enviado';
             $appointment->images_received_at = now();
             $appointment->save();
+
+            $lookup = app(OrthancStudyLookup::class);
+            $studyUid = $lookup->studyInstanceUidForAccession($result['accession'], $appointment);
+            if ($studyUid) {
+                $lookup->persistStudyInstanceUid($appointment, $studyUid);
+            }
 
             DB::table('appointment_logs')->insert([
                 'id' => (string) Str::orderedUuid(),
