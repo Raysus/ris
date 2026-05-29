@@ -7,6 +7,12 @@ let currentInsumos = [];
 let catalogosAgenda = {};
 window.currentInsumosTotal = 0;
 
+/** Placeholder de selects (ej. value="-") → null para UUIDs en la API. */
+function risNullableUuid(value) {
+    if (value == null || value === '' || value === '-') return null;
+    return value;
+}
+
 /** Colores de estado (alineados con --agenda-* en style.css) */
 const AGENDA_ESTADO_COLORES = {
     'pre-agendado': '#7a6a9a',
@@ -926,8 +932,8 @@ async function guardarCita() {
         birth_date: $("#pBirthDate").val(),
         email: $("#pEmail").val(),
         phone: $("#pPhone").val(),
-        insurance_id: $("#pInsurance").val() || null,
-        insurance_plan_id: $("#pPlan").val() || null
+        insurance_id: risNullableUuid($("#pInsurance").val()),
+        insurance_plan_id: risNullableUuid($("#pPlan").val())
     };
 
     let duracionTotalMinutos = 0;
@@ -973,8 +979,8 @@ async function guardarCita() {
         patient: snapshotPaciente,
         studies: todosLosEstudios,
         supplies: (currentInsumos || []).map(ins => ({ id: ins.id, quantity: ins.quantity || 1, price: ins.price })),
-        referring_doctor_id: $("#mTratante").val() || null,
-        destination_doctor_id: $("#mDestinado").val() || null,
+        referring_doctor_id: risNullableUuid($("#mTratante").val()),
+        destination_doctor_id: risNullableUuid($("#mDestinado").val()),
         priority: $("#mPriority").val(),
         origin: $("#mProcedencia").val(),
         tipo_bono: $("#pTipoBono").val(),

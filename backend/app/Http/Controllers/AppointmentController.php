@@ -131,15 +131,15 @@ class AppointmentController extends Controller
                     'start_time' => $start,
                     'end_time' => $end,
                     'status' => strtolower($data['status']),
-                    'referring_doctor_id' => $data['referring_doctor_id'] ?? null,
-                    'destination_doctor_id' => $data['destination_doctor_id'] ?? null,
+                    'referring_doctor_id' => $this->nullableUuid($data['referring_doctor_id'] ?? null),
+                    'destination_doctor_id' => $this->nullableUuid($data['destination_doctor_id'] ?? null),
                     'payment_method' => $data['payment_method'] ?? null,
                     'payment_status' => $data['payment_status'] ?? 'Pendiente',
                     'transaction_code' => $data['transaction_code'] ?? null,
                     'tipo_bono' => $data['tipo_bono'] ?? null,
                     'entidad_pagadora' => $data['entidad_pagadora'] ?? null,
-                    'insurance_id' => $patientData['insurance_id'] ?? null,
-                    'insurance_plan_id' => $patientData['insurance_plan_id'] ?? null,
+                    'insurance_id' => $this->nullableUuid($patientData['insurance_id'] ?? null),
+                    'insurance_plan_id' => $this->nullableUuid($patientData['insurance_plan_id'] ?? null),
                     'priority' => $data['priority'] ?? 'Normal',
                     'origin' => $data['origin'] ?? 'Ambulatorio',
                     'medical_order_path' => $ordenPath,
@@ -244,8 +244,8 @@ class AppointmentController extends Controller
                 'start_time' => \Carbon\Carbon::parse($data['start_time']),
                 'end_time' => \Carbon\Carbon::parse($data['end_time']),
                 'status' => strtolower($data['status']),
-                'referring_doctor_id' => $data['referring_doctor_id'] ?? null,
-                'destination_doctor_id' => $data['destination_doctor_id'] ?? null,
+                'referring_doctor_id' => $this->nullableUuid($data['referring_doctor_id'] ?? null),
+                'destination_doctor_id' => $this->nullableUuid($data['destination_doctor_id'] ?? null),
                 'priority' => $data['priority'] ?? 'Normal',
                 'origin' => $data['origin'] ?? 'Ambulatorio',
                 'payment_method' => $data['payment_method'] ?? null,
@@ -253,8 +253,8 @@ class AppointmentController extends Controller
                 'payment_status' => $data['payment_status'] ?? $appointment->payment_status,
                 'tipo_bono' => $data['tipo_bono'] ?? $appointment->tipo_bono,
                 'entidad_pagadora' => $data['entidad_pagadora'] ?? $appointment->entidad_pagadora,
-                'insurance_id' => $patientData['insurance_id'] ?? $appointment->insurance_id,
-                'insurance_plan_id' => $patientData['insurance_plan_id'] ?? $appointment->insurance_plan_id,
+                'insurance_id' => $this->nullableUuid($patientData['insurance_id'] ?? null) ?? $appointment->insurance_id,
+                'insurance_plan_id' => $this->nullableUuid($patientData['insurance_plan_id'] ?? null) ?? $appointment->insurance_plan_id,
                 'medical_order_path' => $ordenPath,
                 'survey_path' => $encuestaPath,
             ]);
@@ -409,5 +409,15 @@ class AppointmentController extends Controller
         \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
 
         return response()->json(['success' => true]);
+    }
+
+    /** Convierte placeholders ("-", vacío) en null para columnas UUID. */
+    private function nullableUuid(mixed $value): ?string
+    {
+        if ($value === null || $value === '' || $value === '-') {
+            return null;
+        }
+
+        return (string) $value;
     }
 }
