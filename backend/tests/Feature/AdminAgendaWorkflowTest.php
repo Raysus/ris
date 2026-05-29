@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Appointment;
 use App\Models\Exam;
+use App\Models\Insurance;
 use App\Models\Machine;
 use App\Models\Paciente;
 use App\Models\Persona;
@@ -193,6 +194,53 @@ class AdminAgendaWorkflowTest extends TestCase
         );
         $this->assertEquals($machine->id, $appointment->machine_id);
         $this->assertEquals($this->risLab->id, $appointment->laboratory_id);
+    }
+
+    public function test_appointment_store_treats_dash_insurance_plan_as_null(): void
+    {
+        $machine = Machine::where('laboratory_id', $this->risLab->id)->firstOrFail();
+        $exam = Exam::where('laboratory_id', $this->risLab->id)->firstOrFail();
+        $insurance = Insurance::where('laboratory_id', $this->risLab->id)->firstOrFail();
+
+        $slotStart = now()->addDays(22)->setTime(9, 0, 0);
+        $slotEnd = $slotStart->copy()->addMinutes(15);
+
+        $payload = [
+            'start_time' => $slotStart->format('Y-m-d\TH:i:s'),
+            'end_time' => $slotEnd->format('Y-m-d\TH:i:s'),
+            'machine_id' => $machine->id,
+            'status' => 'confirmado',
+            'patient' => [
+                'rut' => '16.894.365-7',
+                'names' => 'Plan',
+                'last_name_1' => 'Dash',
+                'insurance_id' => $insurance->id,
+                'insurance_plan_id' => '-',
+            ],
+            'studies' => [
+                [
+                    'machine_id' => $machine->id,
+                    'exam_id' => $exam->id,
+                    'exam_name' => $exam->name,
+                    'quantity' => 1,
+                    'price' => (float) $exam->price,
+                ],
+            ],
+            'supplies' => [],
+            'origin' => 'Ambulatorio',
+            'priority' => 'Normal',
+            'payment_method' => 'Efectivo',
+            'payment_status' => 'Pagado',
+        ];
+
+        $response = $this->withHeaders($this->authHeaders())
+            ->post('/api/appointments', ['data' => json_encode($payload)]);
+
+        $response->assertCreated()->assertJsonPath('success', true);
+
+        $appointment = Appointment::findOrFail($response->json('appointment.id'));
+        $this->assertSame($insurance->id, $appointment->insurance_id);
+        $this->assertNull($appointment->insurance_plan_id);
     }
 
     public function test_appointment_store_rejects_schedule_without_lab_header(): void
