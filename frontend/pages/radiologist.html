@@ -103,10 +103,19 @@
                                     <h6 class="fw-bold mb-1 text-danger"><i class="bi bi-mic-fill me-1"></i>Audio a
                                         Transcripción</h6>
                                     <small class="text-muted mb-2">Grabe para la secretaría (Máx 10 min).</small>
+                                    <div class="alert alert-info py-2 px-2 mb-2 text-start" style="font-size: 0.7rem;">
+                                        <b>LFH3200:</b> la extensión Philips de Chrome <u>no</u> enlaza el RIS. Cierre
+                                        <b>SpeechControl</b> (bandeja Windows) antes de «Conectar». Si las luces no
+                                        parpadean al conectar, el micrófono sigue en modo teclado u otra app lo bloquea.
+                                    </div>
                                     <div class="d-flex flex-wrap align-items-center justify-content-center gap-2 mb-2">
                                         <button type="button" id="btnConnectSpeechMike"
                                             class="btn btn-sm btn-outline-primary fw-bold">
                                             Conectar SpeechMike
+                                        </button>
+                                        <button type="button" id="btnTestSpeechMikeLed"
+                                            class="btn btn-sm btn-outline-secondary" title="Solo si ya conectó por HID">
+                                            Probar LED
                                         </button>
                                         <button type="button" class="btn btn-link btn-sm p-0 text-secondary"
                                             style="font-size: 0.72rem;" id="btnSpeechMikeDebug">
@@ -114,8 +123,9 @@
                                         </button>
                                     </div>
                                     <p id="speechMikeHidStatus" class="small text-warning mb-2 px-1" style="font-size: 0.72rem;">
-                                        <b>Chrome/Edge</b> en la PC con USB. <b>LFH3200:</b> «Conectar SpeechMike» → elegir dispositivo Philips (página 65440).
-                                        Si no responde: SpeechControl → perfil Chrome → <b>Num+</b> grabar, <b>F4</b> detener. «Probar teclas» muestra qué llega al navegador.
+                                        <b>Chrome/Edge</b> en la PC con USB. «Conectar» → elija <b>SpeechMike</b> (página
+                                        <b>65440</b>, no «teclado»). Cierre SpeechControl. «Probar LED» debe encender la luz roja/verde.
+                                        Alternativa: SpeechControl abierto → perfil Chrome → <b>Num+</b> / <b>F4</b>.
                                     </p>
 
                                     <div class="d-flex justify-content-center align-items-center gap-2">

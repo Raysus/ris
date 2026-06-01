@@ -209,6 +209,79 @@ async function trySetSpeechMikeRecordingLed(active) {
     }
 }
 
+/** Parpadeo al conectar: si no enciende LED, SpeechControl u otra app tiene el HID. */
+async function pulseSpeechMikeTestLed(device) {
+    if (!device || typeof device.setSimpleLedState !== "function") {
+        return false;
+    }
+    const SL = DictationSupport.SimpleLedState;
+    try {
+        await device.setSimpleLedState(SL.RECORD_STANDBY_OVERWRITE);
+        await new Promise((r) => setTimeout(r, 700));
+        await device.setSimpleLedState(SL.RECORD_OVERWRITE);
+        await new Promise((r) => setTimeout(r, 700));
+        await device.setSimpleLedState(SL.OFF);
+        return true;
+    } catch (err) {
+        console.warn("pulseSpeechMikeTestLed:", err);
+        return false;
+    }
+}
+
+async function testSpeechMikeLed() {
+    const devices = _dictationDeviceManager?.getDevices?.() || [];
+    if (!devices.length) {
+        if (typeof showToast === "function") {
+            showToast(
+                "Primero «Conectar SpeechMike». Cierre SpeechControl en la bandeja de Windows e intente de nuevo.",
+                "warning",
+                10000
+            );
+        }
+        return false;
+    }
+
+    let anyOk = false;
+    for (const device of devices) {
+        if (await pulseSpeechMikeTestLed(device)) {
+            anyOk = true;
+        }
+    }
+
+    if (typeof showToast === "function") {
+        showToast(
+            anyOk
+                ? "¿Vio parpadear el LED del micrófono? Si no, cierre SpeechControl y reconecte (modo evento/HID)."
+                : "No se pudo controlar el LED. Cierre SpeechControl y en el selector elija SpeechMike (página 65440).",
+            anyOk ? "success" : "danger",
+            10000
+        );
+    }
+    return anyOk;
+}
+
+function isSpeechMikeIiiLegacy(device) {
+    if (!device || typeof device.getDeviceType !== "function") {
+        return false;
+    }
+    const dt = device.getDeviceType();
+    const DT = DictationSupport.DeviceType;
+    return [
+        DT.SPEECHMIKE_LFH_3200,
+        DT.SPEECHMIKE_LFH_3210,
+        DT.SPEECHMIKE_LFH_3220,
+        DT.SPEECHMIKE_LFH_3300,
+        DT.SPEECHMIKE_LFH_3310,
+    ].includes(dt);
+}
+
+function speechMikePhilipsConflictHint() {
+    return (
+        "Cierre SpeechControl y la extensión Philips no sustituye «Conectar» en el RIS. " +
+        "Si otra app Philips usa el micrófono, las luces y los botones no responderán en Chrome."
+    );
+}
+
 function executeSpeechMikeRecordingAction(action) {
     if (!action) {
         return;
@@ -330,12 +403,44 @@ async function listPhilipsHidDevices() {
     return all.filter((d) => d.vendorId === 0x0911 || d.vendorId === 0x0554);
 }
 
+/** Pide acceso USB amplio (vendor Philips) por si el SDK no listó el dispositivo correcto. */
+async function requestPhilipsVendorHidAccess() {
+    if (!navigator.hid?.requestDevice) {
+        return [];
+    }
+    try {
+        return await navigator.hid.requestDevice({
+            filters: [{ vendorId: 0x0911 }],
+        });
+    } catch (err) {
+        console.warn("requestPhilipsVendorHidAccess:", err);
+        return [];
+    }
+}
+
+function describeHidCollection(d) {
+    return (
+        d.collections
+            ?.map((c) => `${c.usagePage || "?"}/${c.usage || "?"}`)
+            .join(", ") || "sin colecciones"
+    );
+}
+
+function hasDictationHidCollection(hidDevice) {
+    const USAGE_PAGE_DICTATION = 65440;
+    return (
+        hidDevice.collections?.some((c) => c.usagePage === USAGE_PAGE_DICTATION && c.usage === 1) ||
+        false
+    );
+}
+
 async function diagnoseSpeechMike() {
     const lines = [];
+    let permitted = [];
     if (!navigator.hid) {
         lines.push("WebHID no disponible (use Chrome o Edge).");
     } else {
-        const permitted = await listPhilipsHidDevices();
+        permitted = await listPhilipsHidDevices();
         lines.push(`HID permitidos (Philips/Nuance): ${permitted.length}`);
         permitted.forEach((d, i) => {
             const cols =
@@ -349,6 +454,11 @@ async function diagnoseSpeechMike() {
 
     const sdkDevices = _dictationDeviceManager?.getDevices?.() || [];
     lines.push(`SDK dictation_support: ${sdkDevices.length} dispositivo(s)`);
+    if (permitted.length > 0 && sdkDevices.length === 0) {
+        lines.push(
+            "  AVISO: hay permiso USB pero el SDK no abrió el HID de dictado. En el selector elija SpeechMike con página 65440, no «teclado»."
+        );
+    }
     for (const device of sdkDevices) {
         const label = speechMikeDeviceLabel(device);
         let modeText = "?";
@@ -366,7 +476,14 @@ async function diagnoseSpeechMike() {
             modeText = "error";
         }
         lines.push(`  · ${label} — ${modeText}`);
+        if (isSpeechMikeIiiLegacy(device)) {
+            lines.push(
+                "  LFH3200/3300: soporte web limitado; si falla HID use SpeechControl (Num+/F4) con esta ventana enfocada."
+            );
+        }
     }
+
+    lines.push(speechMikePhilipsConflictHint());
 
     const msg = lines.join("\n");
     console.info("[SpeechMike diagnóstico]\n" + msg);
@@ -385,7 +502,32 @@ async function connectSpeechMikeDevice() {
     }
 
     try {
+        if (typeof showToast === "function") {
+            showToast(
+                "Cierre SpeechControl (icono en bandeja) antes de elegir el dispositivo. La extensión Philips no conecta el RIS.",
+                "info",
+                8000
+            );
+        }
+
         let devices = await _dictationDeviceManager.requestDevice();
+        if (!devices.length) {
+            const picked = await requestPhilipsVendorHidAccess();
+            if (picked.length) {
+                console.info(
+                    "[SpeechMike] Interfaces USB elegidas:",
+                    picked.map((d) => ({
+                        name: d.productName,
+                        pid: d.productId,
+                        dictationHid: hasDictationHidCollection(d),
+                        cols: describeHidCollection(d),
+                    }))
+                );
+            }
+            await new Promise((r) => setTimeout(r, 400));
+            devices = _dictationDeviceManager.getDevices();
+        }
+
         if (!devices.length) {
             const permitted = await listPhilipsHidDevices();
             if (permitted.length) {
@@ -397,15 +539,16 @@ async function connectSpeechMikeDevice() {
             await diagnoseSpeechMike();
             if (typeof showToast === "function") {
                 showToast(
-                    "No hay SpeechMike HID activo. En SpeechControl: perfil para Chrome con Num+ (grabar) y F4 (detener), o modo evento + Conectar.",
+                    "Sin control HID. Cierre SpeechControl, reconecte USB y en la lista elija «SpeechMike» (65440). O use SpeechControl: Num+ / F4.",
                     "warning",
-                    12000
+                    14000
                 );
             }
             return;
         }
 
         const hints = [];
+        let ledOk = false;
         for (const device of devices) {
             const { mode, eventMode } = await configureSpeechMikeForWeb(device);
             const label = speechMikeDeviceLabel(device);
@@ -416,11 +559,21 @@ async function connectSpeechMikeDevice() {
             if (eventMode === DictationSupport.EventMode.KEYBOARD) {
                 if (typeof showToast === "function") {
                     showToast(
-                        "Micrófono en modo TECLADO: asigne en SpeechControl Num+ para grabar y F4 para detener en esta ventana de Chrome.",
+                        "Modo TECLADO: el RIS no puede encender luces ni leer botones HID. En SpeechControl asigne Num+ y F4 para Chrome, o cambie a modo evento en el micrófono.",
                         "warning",
-                        12000
+                        14000
                     );
                 }
+            } else if (await pulseSpeechMikeTestLed(device)) {
+                ledOk = true;
+            }
+
+            if (isSpeechMikeIiiLegacy(device) && typeof showToast === "function") {
+                showToast(
+                    "LFH3200: modelo antiguo; si el LED no parpadeó, use SpeechControl (Num+/F4) con Chrome enfocado.",
+                    "info",
+                    9000
+                );
             }
         }
 
@@ -428,7 +581,10 @@ async function connectSpeechMikeDevice() {
         updateSpeechMikeConnectUi();
         onSpeechMikeHidConnected();
         if (typeof showToast === "function" && hints.length) {
-            showToast(hints.join(" · "), "success", 8000);
+            const ledMsg = ledOk
+                ? " LED de prueba enviado."
+                : " No se controló el LED — cierre SpeechControl.";
+            showToast(hints.join(" · ") + ledMsg, ledOk ? "success" : "warning", 10000);
         }
         await diagnoseSpeechMike();
     } catch (err) {
@@ -458,6 +614,12 @@ function setupSpeechMikeUiBindings() {
     $("#btnSpeechMikeDebug").off("dblclick.risSpeechMike").on("dblclick.risSpeechMike", function () {
         if (typeof diagnoseSpeechMike === "function") {
             diagnoseSpeechMike();
+        }
+    });
+
+    $("#btnTestSpeechMikeLed").off("click.risSpeechMike").on("click.risSpeechMike", function () {
+        if (typeof testSpeechMikeLed === "function") {
+            testSpeechMikeLed();
         }
     });
 }
@@ -527,3 +689,4 @@ async function initSpeechMikeDictation() {
 window.connectSpeechMikeDevice = connectSpeechMikeDevice;
 window.initSpeechMikeDictation = initSpeechMikeDictation;
 window.diagnoseSpeechMike = diagnoseSpeechMike;
+window.testSpeechMikeLed = testSpeechMikeLed;
