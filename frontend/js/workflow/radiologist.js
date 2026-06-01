@@ -172,6 +172,7 @@ function initRadiologist() {
     setupAudioEvents();
     setupSpeechMikeShortcuts();
     setupSpeechMikeKeymapUi();
+    $("#btnDragon").off("click.risDragon").on("click.risDragon", activarDragon);
     $("#btnSpeechMikeDebug").off("click.risSpeechMike").on("click.risSpeechMike", toggleSpeechMikeDebug);
     syncSpeechMikeDebugButtonUi();
     if (typeof initSpeechMikeDictation === "function") {
@@ -500,7 +501,7 @@ function abrirInforme(citaId) {
 }
 
 function cargarEstudioEnEditor(studyId) {
-    currentDictationMethod = 'teclado';
+    currentDictationMethod = "teclado";
     currentRadioStudy = currentReportingChain.studies.find(s => String(s.study_id) === String(studyId));
 
     $(".study-tab-btn").removeClass("bg-primary text-white").addClass("btn-outline-primary");
@@ -509,13 +510,23 @@ function cargarEstudioEnEditor(studyId) {
     $("#textoInforme").val(currentRadioStudy.reportText || "").prop("disabled", false);
     lastSavedText = currentRadioStudy.reportText || ""; // Resetear comparador de autoguardado
 
-    $("#btnPlantilla, #btnDevolver, #btnGrabarAudio, #btnFirmarDirecto, #btnHistorialPaciente, #btnAdenda").prop("disabled", false);
+    $("#btnPlantilla, #btnDevolver, #btnGrabarAudio, #btnFirmarDirecto, #btnHistorialPaciente, #btnAdenda, #btnDragon")
+        .prop("disabled", false);
 
     audioBlob = null;
     $("#audioPreview").addClass("d-none").attr("src", "");
     $("#btnRecord").removeClass("d-none").prop("disabled", false).html('<i class="bi bi-mic me-1"></i> GRABAR AUDIO');
     $("#btnStop").addClass("d-none");
     $("#recordingPulse").addClass("d-none");
+
+    $("#btnDragon")
+        .removeClass("btn-success")
+        .addClass("btn-outline-success")
+        .html('<i class="bi bi-cursor-text me-1"></i> ACTIVAR DRAGON');
+    if (dragonSyncInterval) {
+        clearInterval(dragonSyncInterval);
+        dragonSyncInterval = null;
+    }
 }
 
 async function firmarDirecto() {
@@ -1121,23 +1132,42 @@ $(document).ready(function () {
 });
 
 function activarDragon() {
-    if (!currentRadioStudy) return;
-    currentDictationMethod = 'dragon';
+    if (!currentRadioStudy) {
+        if (typeof showToast === "function") {
+            showToast("Seleccione un paciente y un examen en la bandeja izquierda primero.", "warning");
+        }
+        return;
+    }
+
+    currentDictationMethod = "dragon";
 
     const txt = $("#textoInforme");
     txt.prop("disabled", false).focus();
     txt.addClass("border border-success border-2 shadow").removeClass("border-0");
 
+    $("#btnDragon")
+        .removeClass("btn-outline-success")
+        .addClass("btn-success")
+        .html('<i class="bi bi-check-circle me-1"></i> DRAGON ACTIVO');
+
     if (isRecordingActive()) {
         stopAudioRecording();
     }
 
-    if (typeof showToast === 'function') showToast("🟢 Dragon Medical activo. Sincronización continua en proceso.", "success");
+    if (typeof showToast === "function") {
+        showToast(
+            "Dragon: haga clic en el cuadro del informe, encienda el micrófono de Dragon (o botón Record del SpeechMike si SpeechControl está configurado para Dragon). El texto aparecerá aquí.",
+            "success",
+            12000
+        );
+    }
 
-    if (dragonSyncInterval) clearInterval(dragonSyncInterval);
+    if (dragonSyncInterval) {
+        clearInterval(dragonSyncInterval);
+    }
 
     dragonSyncInterval = setInterval(() => {
-        if (currentDictationMethod === 'dragon' && currentRadioStudy) {
+        if (currentDictationMethod === "dragon" && currentRadioStudy) {
             const dragonText = txt.val();
             if (currentRadioStudy.reportText !== dragonText) {
                 currentRadioStudy.reportText = dragonText;
@@ -1165,3 +1195,4 @@ function abrirVisorDicomSoloOhif() {
 /* abrirVisorPACS / abrirVisorSoloOHIF en js/core/viewer.js */
 
 window.toggleSpeechMikeDebug = toggleSpeechMikeDebug;
+window.activarDragon = activarDragon;

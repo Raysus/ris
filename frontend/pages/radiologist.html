@@ -89,9 +89,14 @@
                                     class="bg-white p-3 rounded border shadow-sm h-100 d-flex flex-column justify-content-center text-center">
                                     <h6 class="fw-bold mb-1 text-success"><i class="bi bi-soundwave me-1"></i>Dictado
                                         Directo (Dragon)</h6>
-                                    <small class="text-muted mb-2">Dicte el informe directamente en pantalla.</small>
-                                    <button id="btnDragon" class="btn btn-sm btn-outline-success fw-bold w-100"
-                                        onclick="activarDragon()" disabled>
+                                    <small class="text-muted mb-2 d-block text-start" style="font-size: 0.72rem;">
+                                        Requiere <b>Dragon Medical / DMO</b> instalado en la PC (no va en el servidor).
+                                        Tras elegir un examen: <b>ACTIVAR DRAGON</b> → clic en el informe → dictar.
+                                        El <b>SpeechMike</b> controla el micrófono de Dragon vía <b>SpeechControl</b>
+                                        (botón Record = encender dictado Dragon), no el audio de transcripción.
+                                    </small>
+                                    <button type="button" id="btnDragon" class="btn btn-sm btn-outline-success fw-bold w-100"
+                                        disabled>
                                         <i class="bi bi-cursor-text me-1"></i> ACTIVAR DRAGON
                                     </button>
                                 </div>
