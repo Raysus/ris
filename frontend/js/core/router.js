@@ -7,7 +7,6 @@ const RIS_MODULE_SCRIPTS = {
     worklist: ["js/workflow/atencionTecnica.js", "js/workflow/worklist.js"],
     atencion: ["js/workflow/atencionTecnica.js", "js/workflow/atencion.js"],
     radiologist: [
-        "js/lib/dictation_support.js",
         "js/workflow/speechmike-dictation.js",
         "js/workflow/radiologist.js",
     ],
@@ -67,7 +66,12 @@ async function ensureModuleLoaded(page) {
     const spec = RIS_MODULE_SCRIPTS[page];
     const scripts = Array.isArray(spec) ? spec : (spec ? [spec] : []);
     for (const src of scripts) {
-        await loadScriptOnce(src);
+        try {
+            await loadScriptOnce(src);
+        } catch (err) {
+            console.error(`[RIS] No se pudo cargar ${src}:`, err);
+            throw err;
+        }
     }
     if (page === "agenda") await loadScriptOnce("js/workflow/payments.js");
 }

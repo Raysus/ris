@@ -565,25 +565,42 @@ async function diagnoseSpeechMike() {
 /**
  * Clic en «Conectar»: abre el selector de Chrome en el mismo turno (sin await previo).
  */
+function speechMikeFlashStatus(message, isError) {
+    const $status = $("#speechMikeHidStatus");
+    if ($status.length) {
+        $status
+            .removeClass("text-success text-warning text-danger")
+            .addClass(isError ? "text-danger" : "text-primary")
+            .text(message);
+    }
+}
+
+function risNotifySpeechMike(message, tipo = "info", durationMs = 6000) {
+    speechMikeFlashStatus(message, tipo === "danger");
+    if (typeof showToast === "function") {
+        showToast(message, tipo, durationMs);
+    } else {
+        console.info("[SpeechMike]", message);
+    }
+}
+
 function connectSpeechMikeDeviceFromUserClick() {
+    console.info("[RIS] Conectar SpeechMike — clic recibido");
+
     const pre = speechMikeHidPrerequisites();
     if (!pre.ok) {
-        if (typeof showToast === "function") {
-            showToast(pre.message, "danger", 12000);
-        }
+        risNotifySpeechMike(pre.message, "danger", 12000);
         return;
     }
 
     const $btn = $("#btnConnectSpeechMike");
     $btn.prop("disabled", true);
 
-    if (typeof showToast === "function") {
-        showToast(
-            "Abriendo selector USB de Chrome… Elija «SpeechMike» / Philips (marque todas las líneas). Si no aparece ventana, revise chrome://settings/content/hid",
-            "info",
-            6000
-        );
-    }
+    risNotifySpeechMike(
+        "Abriendo selector USB de Chrome… Elija «SpeechMike» / Philips (marque todas las líneas). Si no aparece ventana, revise chrome://settings/content/hid",
+        "info",
+        8000
+    );
 
     openPhilipsHidChooserFromClick()
         .then((picked) => finishSpeechMikeConnectAfterPicker(picked))
@@ -794,8 +811,40 @@ async function initSpeechMikeDictation() {
     }
 }
 
+function setupSpeechMikeConnectDelegation() {
+    if (window._risSpeechMikeConnectDelegated) {
+        return;
+    }
+    window._risSpeechMikeConnectDelegated = true;
+
+    document.addEventListener(
+        "click",
+        function (e) {
+            const btn = e.target && e.target.closest ? e.target.closest("#btnConnectSpeechMike") : null;
+            if (!btn) {
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof connectSpeechMikeDeviceFromUserClick === "function") {
+                connectSpeechMikeDeviceFromUserClick();
+                return;
+            }
+            risNotifySpeechMike(
+                "Módulo SpeechMike no cargado. Pulse Ctrl+F5 o vuelva a entrar en Radiólogo.",
+                "warning",
+                10000
+            );
+        },
+        true
+    );
+}
+
+setupSpeechMikeConnectDelegation();
+
 window.connectSpeechMikeDevice = connectSpeechMikeDeviceFromUserClick;
 window.connectSpeechMikeDeviceFromUserClick = connectSpeechMikeDeviceFromUserClick;
 window.initSpeechMikeDictation = initSpeechMikeDictation;
+window.setupSpeechMikeUiBindings = setupSpeechMikeUiBindings;
 window.diagnoseSpeechMike = diagnoseSpeechMike;
 window.testSpeechMikeLed = testSpeechMikeLed;

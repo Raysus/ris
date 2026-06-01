@@ -175,8 +175,17 @@ function initRadiologist() {
     $("#btnDragon").off("click.risDragon").on("click.risDragon", activarDragon);
     $("#btnSpeechMikeDebug").off("click.risSpeechMike").on("click.risSpeechMike", toggleSpeechMikeDebug);
     syncSpeechMikeDebugButtonUi();
+    if (typeof setupSpeechMikeUiBindings === "function") {
+        setupSpeechMikeUiBindings();
+    }
     if (typeof initSpeechMikeDictation === "function") {
         initSpeechMikeDictation();
+    } else if (typeof showToast === "function") {
+        showToast(
+            "SpeechMike: script no cargado. Ctrl+F5. Si persiste, revise la consola (F12).",
+            "warning",
+            10000
+        );
     }
 
     if (radiologistRefreshInterval) clearInterval(radiologistRefreshInterval);
