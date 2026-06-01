@@ -236,7 +236,20 @@ async function connectSpeechMikeDevice() {
     }
 }
 
+function setupSpeechMikeUiBindings() {
+    $("#btnConnectSpeechMike").off("click.risSpeechMike").on("click.risSpeechMike", function () {
+        if (typeof connectSpeechMikeDevice === "function") {
+            connectSpeechMikeDevice();
+            return;
+        }
+        if (typeof showToast === "function") {
+            showToast("Controlador SpeechMike no cargado. Recargue Radiólogo (Ctrl+F5).", "warning");
+        }
+    });
+}
+
 async function initSpeechMikeDictation() {
+    setupSpeechMikeUiBindings();
     updateSpeechMikeConnectUi();
 
     if (!navigator.hid) {
@@ -288,3 +301,6 @@ async function initSpeechMikeDictation() {
         }
     }
 }
+
+window.connectSpeechMikeDevice = connectSpeechMikeDevice;
+window.initSpeechMikeDictation = initSpeechMikeDictation;

@@ -38,6 +38,7 @@ function initRadiologist() {
     cargarEstudiosRadiologo();
     setupAudioEvents();
     setupSpeechMikeShortcuts();
+    $("#btnSpeechMikeDebug").off("click.risSpeechMike").on("click.risSpeechMike", toggleSpeechMikeDebug);
     syncSpeechMikeDebugButtonUi();
     if (typeof initSpeechMikeDictation === "function") {
         initSpeechMikeDictation();
@@ -976,3 +977,5 @@ function abrirVisorDicomSoloOhif() {
 }
 
 /* abrirVisorPACS / abrirVisorSoloOHIF en js/core/viewer.js */
+
+window.toggleSpeechMikeDebug = toggleSpeechMikeDebug;
