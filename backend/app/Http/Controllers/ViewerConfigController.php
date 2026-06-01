@@ -30,7 +30,7 @@ class ViewerConfigController extends Controller
         ]);
     }
 
-    public function resolveStudyUid(Request $request, OrthancStudyLookup $lookup)
+    public function resolveStudy(Request $request, OrthancStudyLookup $lookup)
     {
         $accession = trim((string) $request->query('accession', ''));
         if ($accession === '') {
@@ -40,34 +40,51 @@ class ViewerConfigController extends Controller
             ], 422);
         }
 
-        $appointment = null;
-        $appointmentId = trim((string) $request->query('appointment_id', ''));
-        if ($appointmentId !== '') {
-            $appointment = Appointment::query()
-                ->with('patient.persona')
-                ->find($appointmentId);
-        }
+        $appointment = $this->resolveAppointment($request);
 
-        $uid = $lookup->studyInstanceUidForAccession($accession, $appointment);
+        $study = $lookup->resolveStudyByAccession(
+            $accession,
+            $appointment,
+            $request->bearerToken()
+        );
 
-        if (!$uid) {
+        if ($study === null || empty($study['study_instance_uid'])) {
             return response()->json([
                 'success' => false,
-                'message' => 'No hay imágenes en PACS con ese número de acceso. '
-                    . 'Confirme que el equipo ya envió el estudio. Si el accession del equipo difiere del RIS, '
-                    . 'revise el estudio por RUT del paciente en el PACS.',
+                'message' => 'No hay estudio en PACS para ese accession. '
+                    . 'Verifique que el equipo ya envió las imágenes y que el Accession Number coincide.',
+                'orthanc_url' => \App\Support\OrthancUrl::base(),
             ], 404);
         }
 
         if ($appointment) {
-            $lookup->persistStudyInstanceUid($appointment, $uid);
+            $lookup->persistStudyInstanceUid($appointment, (string) $study['study_instance_uid']);
         }
 
         return response()->json([
             'success' => true,
+            'data' => $study,
+        ]);
+    }
+
+    /** @deprecated Alias — usar /viewer-study */
+    public function resolveStudyUid(Request $request, OrthancStudyLookup $lookup)
+    {
+        $response = $this->resolveStudy($request, $lookup);
+        if ($response->getStatusCode() !== 200) {
+            return $response;
+        }
+
+        $payload = $response->getData(true);
+        $study = $payload['data'] ?? [];
+
+        return response()->json([
+            'success' => true,
             'data' => [
-                'accession' => $accession,
-                'study_instance_uid' => $uid,
+                'accession' => $study['accession_requested'] ?? $request->query('accession'),
+                'study_instance_uid' => $study['study_instance_uid'] ?? null,
+                'orthanc_study_id' => $study['orthanc_study_id'] ?? null,
+                'pacs' => $study,
             ],
         ]);
     }
@@ -76,5 +93,17 @@ class ViewerConfigController extends Controller
     public function __invoke(Request $request)
     {
         return $this->config($request);
+    }
+
+    private function resolveAppointment(Request $request): ?Appointment
+    {
+        $appointmentId = trim((string) $request->query('appointment_id', ''));
+        if ($appointmentId === '') {
+            return null;
+        }
+
+        return Appointment::query()
+            ->with('patient.persona')
+            ->find($appointmentId);
     }
 }

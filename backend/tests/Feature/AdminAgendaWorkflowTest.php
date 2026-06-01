@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\Appointment;
 use App\Models\Exam;
 use App\Models\Insurance;
+use App\Models\InsurancePlan;
+use App\Models\Laboratory;
 use App\Models\Machine;
 use App\Models\Paciente;
 use App\Models\Persona;
@@ -102,24 +104,33 @@ class AdminAgendaWorkflowTest extends TestCase
 
     public function test_patient_search_finds_seeded_persona(): void
     {
-        Paciente::firstOrCreate(
-            [
-                'persona_id' => Persona::findByRut('18.194.675-K')->id,
-                'laboratory_id' => $this->risLab->id,
-            ],
-            [
-                'persona_id' => Persona::findByRut('18.194.675-K')->id,
-                'laboratory_id' => $this->risLab->id,
-            ]
-        );
-
         $response = $this->withHeaders($this->authHeaders())
             ->getJson('/api/patients/search?rut=' . urlencode('18.194.675-K'));
 
         $response->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.names', 'Raúl Antonio')
-            ->assertJsonPath('data.last_name_1', 'Gutiérrez');
+            ->assertJsonPath('data.persona.names', 'Raúl Antonio')
+            ->assertJsonPath('data.persona.last_name_1', 'Gutiérrez')
+            ->assertJsonPath('data.names', 'Raúl Antonio');
+    }
+
+    public function test_patient_search_reads_persona_without_local_patients_row(): void
+    {
+        $persona = Persona::upsertByRut('22.222.222-2', [
+            'names' => 'Solo',
+            'last_name_1' => 'Persona',
+            'gender' => 'F',
+            'email' => 'solo.persona@test.example',
+        ]);
+
+        Paciente::where('persona_id', $persona->id)->delete();
+
+        $this->withHeaders($this->authHeaders())
+            ->getJson('/api/patients/search?rut=' . urlencode('22.222.222-2'))
+            ->assertOk()
+            ->assertJsonPath('data.persona.names', 'Solo')
+            ->assertJsonPath('data.has_ficha_in_lab', false)
+            ->assertJsonPath('data.patient_id', null);
     }
 
     public function test_patient_search_returns_404_for_unknown_rut(): void
@@ -128,6 +139,67 @@ class AdminAgendaWorkflowTest extends TestCase
             ->getJson('/api/patients/search?rut=' . urlencode('99.999.999-9'))
             ->assertStatus(404)
             ->assertJsonPath('success', false);
+    }
+
+    public function test_patient_search_loads_prior_appointment_without_local_patient_row(): void
+    {
+        $persona = Persona::findByRut('18.194.675-K');
+        $this->assertNotNull($persona);
+
+        $patientHome = Paciente::firstOrCreate(
+            [
+                'persona_id' => $persona->id,
+                'laboratory_id' => $this->risLab->id,
+            ],
+            [
+                'persona_id' => $persona->id,
+                'laboratory_id' => $this->risLab->id,
+            ]
+        );
+
+        $insurance = Insurance::query()->where('is_active', true)->firstOrFail();
+        $plan = InsurancePlan::query()->where('insurance_id', $insurance->id)->firstOrFail();
+        $machine = Machine::where('laboratory_id', $this->risLab->id)->firstOrFail();
+
+        Appointment::create([
+            'laboratory_id' => $this->risLab->id,
+            'patient_id' => $patientHome->id,
+            'machine_id' => $machine->id,
+            'start_time' => now()->subDay(),
+            'end_time' => now()->subDay()->addMinutes(30),
+            'status' => 'agendado',
+            'insurance_id' => $insurance->id,
+            'insurance_plan_id' => $plan->id,
+        ]);
+
+        $otherLab = Laboratory::create([
+            'laboratory_type_id' => $this->risLab->laboratory_type_id,
+            'name' => 'Sede B QA Agenda',
+            'address' => 'Test',
+            'phone' => '000',
+            'is_active' => true,
+        ]);
+
+        Paciente::where('persona_id', $persona->id)
+            ->where('laboratory_id', $otherLab->id)
+            ->delete();
+
+        $headers = array_merge($this->authHeaders(), ['X-Lab-Id' => $otherLab->id]);
+
+        $response = $this->withHeaders($headers)
+            ->getJson('/api/patients/search?rut=' . urlencode('18.194.675-K'));
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.persona.names', 'Raúl Antonio')
+            ->assertJsonPath('data.insurance_id', $insurance->id)
+            ->assertJsonPath('data.insurance_plan_id', $plan->id)
+            ->assertJsonPath('data.has_ficha_in_lab', false);
+
+        $this->assertDatabaseMissing('patients', [
+            'persona_id' => $persona->id,
+            'laboratory_id' => $otherLab->id,
+        ]);
     }
 
     public function test_appointment_store_saves_selected_start_time(): void

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Appointment;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -14,36 +15,97 @@ class OrthancStudyLookup
     }
 
     /**
-     * Obtiene el StudyInstanceUID DICOM asociado a un accession number en Orthanc/PACS.
+     * Resuelve estudio en Orthanc por Accession Number y devuelve metadatos para el visor OHIF.
+     *
+     * @return array<string, mixed>|null
      */
-    public function studyInstanceUidForAccession(string $accessionNumber, ?Appointment $appointment = null): ?string
-    {
+    public function resolveStudyByAccession(
+        string $accessionNumber,
+        ?Appointment $appointment = null,
+        ?string $bearerToken = null
+    ): ?array {
         $accessionNumber = trim($accessionNumber);
         if ($accessionNumber === '') {
             return null;
         }
 
-        if ($this->looksLikeStudyInstanceUid($accessionNumber)) {
-            return $accessionNumber;
+        if ($appointment?->study_instance_uid && $this->looksLikeStudyInstanceUid($appointment->study_instance_uid)) {
+            $enriched = $this->enrichFromOrthancStudyId(
+                $this->orthancBaseUrl(),
+                null,
+                $appointment->study_instance_uid,
+                $accessionNumber,
+                $bearerToken
+            );
+            if ($enriched !== null) {
+                return $enriched;
+            }
         }
 
-        if ($appointment?->study_instance_uid) {
-            return $appointment->study_instance_uid;
+        if ($this->looksLikeStudyInstanceUid($accessionNumber)) {
+            return $this->enrichFromOrthancStudyId(
+                $this->orthancBaseUrl(),
+                null,
+                $accessionNumber,
+                $accessionNumber,
+                $bearerToken
+            );
         }
 
         $orthancBase = $this->orthancBaseUrl();
+        $http = $this->httpClient($bearerToken);
 
         try {
-            $uid = $this->studyInstanceUidViaRestFind($orthancBase, $accessionNumber)
-                ?? $this->studyInstanceUidViaDicomWeb($orthancBase, $accessionNumber);
+            $orthancStudyId = null;
+            $studyInstanceUid = null;
 
-            if ($uid === null && $appointment !== null) {
-                $uid = $this->studyInstanceUidViaPatientContext($orthancBase, $appointment, $accessionNumber);
+            foreach ($this->accessionSearchTerms($accessionNumber) as $term) {
+                $orthancStudyId = $this->findStudyIdWithInstances($orthancBase, $term, $http);
+                if ($orthancStudyId !== null) {
+                    break;
+                }
             }
 
-            return $uid;
+            if ($orthancStudyId !== null) {
+                $studyInstanceUid = $this->studyInstanceUidFromOrthancStudyId($orthancBase, $orthancStudyId, $http);
+            }
+
+            if ($studyInstanceUid === null) {
+                foreach ($this->accessionSearchTerms($accessionNumber) as $term) {
+                    $studyInstanceUid = $this->studyInstanceUidViaDicomWeb($orthancBase, $term, $http);
+                    if ($studyInstanceUid !== null) {
+                        $orthancStudyId = $this->findStudyIdWithInstances($orthancBase, $term, $http);
+                        break;
+                    }
+                }
+            }
+
+            if ($studyInstanceUid === null && $appointment !== null) {
+                $studyInstanceUid = $this->studyInstanceUidViaPatientContext(
+                    $orthancBase,
+                    $appointment,
+                    $accessionNumber,
+                    $http
+                );
+                if ($studyInstanceUid !== null) {
+                    $orthancStudyId = $this->findStudyIdWithInstances($orthancBase, $accessionNumber, $http)
+                        ?? $this->findStudyIdWithInstances($orthancBase, '*' . $accessionNumber . '*', $http);
+                }
+            }
+
+            if ($studyInstanceUid === null || !$this->looksLikeStudyInstanceUid($studyInstanceUid)) {
+                return null;
+            }
+
+            return $this->enrichFromOrthancStudyId(
+                $orthancBase,
+                $orthancStudyId,
+                $studyInstanceUid,
+                $accessionNumber,
+                $bearerToken
+            );
         } catch (\Throwable $e) {
-            Log::warning('No se pudo resolver StudyInstanceUID en Orthanc', [
+            Log::warning('No se pudo resolver estudio en Orthanc', [
                 'accession' => $accessionNumber,
                 'orthanc' => $orthancBase,
                 'appointment_id' => $appointment?->id,
@@ -52,6 +114,16 @@ class OrthancStudyLookup
 
             return null;
         }
+    }
+
+    public function studyInstanceUidForAccession(
+        string $accessionNumber,
+        ?Appointment $appointment = null,
+        ?string $bearerToken = null
+    ): ?string {
+        $resolved = $this->resolveStudyByAccession($accessionNumber, $appointment, $bearerToken);
+
+        return is_array($resolved) ? ($resolved['study_instance_uid'] ?? null) : null;
     }
 
     public function persistStudyInstanceUid(Appointment $appointment, string $studyInstanceUid): void
@@ -69,53 +141,131 @@ class OrthancStudyLookup
     {
         $value = trim($value);
 
+        if ($value === '' || $this->looksLikeAccessionNumber($value)) {
+            return false;
+        }
+
         return (bool) preg_match('/^[\d.]+$/', $value) && substr_count($value, '.') >= 2;
     }
 
-    private function studyInstanceUidViaRestFind(string $orthancBase, string $accessionNumber): ?string
+    public function looksLikeAccessionNumber(string $value): bool
     {
-        foreach ([$accessionNumber, '*' . $accessionNumber . '*'] as $queryAccession) {
-            $studyId = $this->findStudyIdWithInstances($orthancBase, $queryAccession);
-            if ($studyId === null) {
-                continue;
-            }
+        $value = trim($value);
 
-            $uid = $this->studyInstanceUidFromOrthancStudyId($orthancBase, $studyId);
-            if ($uid !== null) {
-                return $uid;
+        return (bool) preg_match('/^ACC-/i', $value) || (preg_match('/[A-Za-z]/', $value) && !$this->looksLikeStudyInstanceUid($value));
+    }
+
+    private function httpClient(?string $bearerToken = null): PendingRequest
+    {
+        $client = Http::timeout(15)->acceptJson();
+
+        $token = trim((string) ($bearerToken ?: config('services.orthanc.http_bearer', '')));
+        if ($token !== '') {
+            $client = $client->withToken($token);
+        }
+
+        return $client;
+    }
+
+    /** @return list<string> */
+    private function accessionSearchTerms(string $accessionNumber): array
+    {
+        $terms = [$accessionNumber];
+        $wildcard = '*' . $accessionNumber . '*';
+        if ($wildcard !== $accessionNumber) {
+            $terms[] = $wildcard;
+        }
+
+        return $terms;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function enrichFromOrthancStudyId(
+        string $orthancBase,
+        ?string $orthancStudyId,
+        string $studyInstanceUid,
+        string $requestedAccession,
+        ?string $bearerToken
+    ): ?array {
+        $http = $this->httpClient($bearerToken);
+
+        if ($orthancStudyId === null) {
+            foreach ($this->accessionSearchTerms($requestedAccession) as $term) {
+                $orthancStudyId = $this->findStudyIdWithInstances($orthancBase, $term, $http);
+                if ($orthancStudyId !== null) {
+                    break;
+                }
             }
         }
 
-        return null;
+        $tags = [];
+        $series = [];
+        $patientTags = [];
+        $instanceCount = 0;
+
+        if ($orthancStudyId !== null) {
+            $studyResponse = $http->get("{$orthancBase}/studies/{$orthancStudyId}");
+            if ($studyResponse->successful()) {
+                $body = $studyResponse->json();
+                $tags = $body['MainDicomTags'] ?? [];
+                $series = $body['Series'] ?? [];
+                $patientTags = $body['PatientMainDicomTags'] ?? [];
+                $instances = $http->get("{$orthancBase}/studies/{$orthancStudyId}/instances");
+                $instanceCount = $instances->successful() ? count($instances->json() ?? []) : 0;
+                $uidFromTags = $tags['StudyInstanceUID'] ?? null;
+                if (is_string($uidFromTags) && $uidFromTags !== '') {
+                    $studyInstanceUid = $uidFromTags;
+                }
+            }
+        }
+
+        if (!$this->looksLikeStudyInstanceUid($studyInstanceUid)) {
+            return null;
+        }
+
+        return [
+            'study_instance_uid' => $studyInstanceUid,
+            'orthanc_study_id' => $orthancStudyId,
+            'accession_number' => $tags['AccessionNumber'] ?? $requestedAccession,
+            'accession_requested' => $requestedAccession,
+            'patient_id' => $tags['PatientID'] ?? ($patientTags['PatientID'] ?? null),
+            'patient_name' => $tags['PatientName'] ?? ($patientTags['PatientName'] ?? null),
+            'study_date' => $tags['StudyDate'] ?? null,
+            'study_time' => $tags['StudyTime'] ?? null,
+            'study_description' => $tags['StudyDescription'] ?? null,
+            'modalities_in_study' => $tags['ModalitiesInStudy'] ?? null,
+            'series_count' => is_array($series) ? count($series) : 0,
+            'instance_count' => $instanceCount,
+            'pacs_has_images' => $instanceCount > 0,
+        ];
     }
 
-    private function studyInstanceUidViaDicomWeb(string $orthancBase, string $accessionNumber): ?string
+    private function studyInstanceUidViaDicomWeb(string $orthancBase, string $accessionNumber, PendingRequest $http): ?string
     {
         $root = rtrim($orthancBase, '/') . '/dicom-web/studies';
 
-        foreach ([$accessionNumber, '*' . $accessionNumber . '*'] as $queryAccession) {
-            $response = Http::timeout(12)
-                ->acceptJson()
-                ->get($root, [
-                    'AccessionNumber' => $queryAccession,
-                    'includefield' => '0020000D',
-                    'limit' => 5,
-                ]);
+        $response = $http->get($root, [
+            'AccessionNumber' => $accessionNumber,
+            'includefield' => '0020000D',
+            'includefield' => '00080050',
+            'limit' => 10,
+        ]);
 
-            if (!$response->successful()) {
-                continue;
-            }
+        if (!$response->successful()) {
+            return null;
+        }
 
-            $studies = $response->json();
-            if (!is_array($studies) || $studies === []) {
-                continue;
-            }
+        $studies = $response->json();
+        if (!is_array($studies) || $studies === []) {
+            return null;
+        }
 
-            foreach ($studies as $study) {
-                $uid = $this->dicomTagValue($study, '0020000D');
-                if ($uid !== null) {
-                    return $uid;
-                }
+        foreach ($studies as $study) {
+            $uid = $this->dicomTagValue($study, '0020000D');
+            if ($uid !== null) {
+                return $uid;
             }
         }
 
@@ -125,7 +275,8 @@ class OrthancStudyLookup
     private function studyInstanceUidViaPatientContext(
         string $orthancBase,
         Appointment $appointment,
-        string $accessionNumber
+        string $accessionNumber,
+        PendingRequest $http
     ): ?string {
         $appointment->loadMissing('patient.persona');
         $rut = $appointment->patient?->persona?->rut ?? '';
@@ -136,12 +287,10 @@ class OrthancStudyLookup
         }
 
         $root = rtrim($orthancBase, '/') . '/dicom-web/studies';
-        $response = Http::timeout(12)
-            ->acceptJson()
-            ->get($root, [
-                'PatientID' => $patientId,
-                'limit' => 25,
-            ]);
+        $response = $http->get($root, [
+            'PatientID' => $patientId,
+            'limit' => 25,
+        ]);
 
         if (!$response->successful()) {
             return null;
@@ -164,16 +313,15 @@ class OrthancStudyLookup
             }
         }
 
-        if (count($studies) === 1) {
-            return $this->dicomTagValue($studies[0], '0020000D');
-        }
-
         return null;
     }
 
-    private function studyInstanceUidFromOrthancStudyId(string $orthancBase, string $studyId): ?string
-    {
-        $studyResponse = Http::timeout(10)->get("{$orthancBase}/studies/{$studyId}");
+    private function studyInstanceUidFromOrthancStudyId(
+        string $orthancBase,
+        string $studyId,
+        PendingRequest $http
+    ): ?string {
+        $studyResponse = $http->get("{$orthancBase}/studies/{$studyId}");
 
         if (!$studyResponse->successful()) {
             return null;
@@ -185,9 +333,12 @@ class OrthancStudyLookup
         return is_string($uid) && $uid !== '' ? $uid : null;
     }
 
-    private function findStudyIdWithInstances(string $orthancBase, string $accessionQuery): ?string
-    {
-        $response = Http::timeout(10)->post("{$orthancBase}/tools/find", [
+    private function findStudyIdWithInstances(
+        string $orthancBase,
+        string $accessionQuery,
+        PendingRequest $http
+    ): ?string {
+        $response = $http->post("{$orthancBase}/tools/find", [
             'Level' => 'Study',
             'Query' => [
                 'AccessionNumber' => $accessionQuery,
@@ -195,7 +346,7 @@ class OrthancStudyLookup
         ]);
 
         if (!$response->successful()) {
-            Log::debug('Orthanc find por accession falló', [
+            Log::debug('Orthanc /tools/find por accession falló', [
                 'accession' => $accessionQuery,
                 'status' => $response->status(),
                 'body' => $response->body(),
@@ -214,7 +365,7 @@ class OrthancStudyLookup
 
         foreach ($studyIds as $studyId) {
             $studyId = (string) $studyId;
-            $instances = Http::timeout(5)->get("{$orthancBase}/studies/{$studyId}/instances");
+            $instances = $http->get("{$orthancBase}/studies/{$studyId}/instances");
             $count = $instances->successful() ? count($instances->json() ?? []) : 0;
 
             if ($count > $bestCount) {

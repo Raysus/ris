@@ -91,6 +91,20 @@ function abrirValidacion(citaId) {
     currentValidationChain = currentValidationData.find(c => String(c.id) === String(citaId));
     if (!currentValidationChain) return;
 
+    if (
+        currentValidationChain.accessionNumber &&
+        typeof prefetchPacsStudy === "function"
+    ) {
+        prefetchPacsStudy(
+            currentValidationChain.accessionNumber,
+            currentValidationChain.id
+        ).then((pacs) => {
+            if (pacs && currentValidationChain?.id === citaId) {
+                applyPacsStudyToChain(currentValidationChain, pacs);
+            }
+        });
+    }
+
     renderValidationStudies();
 
     $("#placeholderValidacion").addClass("d-none");

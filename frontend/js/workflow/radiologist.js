@@ -212,12 +212,22 @@ async function cargarEstudiosRadiologo() {
     }
 }
 
+function prefetchPacsStudyForAppointment(app) {
+    if (!app?.accessionNumber || typeof prefetchPacsStudy !== "function") return;
+    prefetchPacsStudy(app.accessionNumber, app.id).then((pacs) => {
+        if (pacs && currentReportingChain?.id === app.id) {
+            applyPacsStudyToChain(currentReportingChain, pacs);
+        }
+    });
+}
+
 function abrirRadiologo(id) {
     const app = currentRadiologistData.find(x => String(x.id) === String(id));
     if (!app) return;
 
     currentReportingChain = app;
     renderRadiologistStudies();
+    prefetchPacsStudyForAppointment(app);
 
     const retornoAlerta = (app.needsReview && app.returnReason !== '') ? `
         <div class="alert alert-warning py-2 px-3 mb-3 small shadow-sm d-flex align-items-center gap-2 border-warning border-2">
@@ -306,6 +316,7 @@ function abrirInforme(citaId) {
 
     currentReportingChain = app;
     renderRadiologistStudies();
+    prefetchPacsStudyForAppointment(app);
 
     const retornoAlerta = (app.needsReview && app.returnReason !== '') ? `
         <div class="alert alert-warning py-2 px-3 mb-3 small shadow-sm d-flex align-items-center gap-2 border-warning border-2">

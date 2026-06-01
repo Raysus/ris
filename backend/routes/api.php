@@ -157,6 +157,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     // MÓDULO DASHBOARD (ADMIN)
     Route::get('/dashboard/metrics', [DashboardController::class, 'getMetrics']);
     Route::get('/viewer-config', [ViewerConfigController::class, 'config']);
+    Route::get('/viewer-study', [ViewerConfigController::class, 'resolveStudy']);
     Route::get('/viewer-study-uid', [ViewerConfigController::class, 'resolveStudyUid']);
     Route::get('/lab-profile', LabProfileController::class);
 
