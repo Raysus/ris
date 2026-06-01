@@ -60,7 +60,11 @@ async function prefetchPacsStudy(accessionNumber, appointmentId = null) {
             return res.data;
         }
     } catch (e) {
-        console.warn("prefetchPacsStudy:", e);
+        console.warn(
+            "prefetchPacsStudy:",
+            e,
+            "— Si ve CORS en consola, suele ser la API caída o sin cabeceras; no afecta SpeechMike."
+        );
     }
 
     return null;
