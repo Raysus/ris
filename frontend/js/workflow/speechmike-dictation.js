@@ -3,9 +3,39 @@
    https://github.com/GoogleChromeLabs/dictation_support
    ========================================= */
 
+const DICTATION_SUPPORT_CDN =
+    "https://unpkg.com/dictation_support@1.0.5/dist/index.js";
+
 let _dictationDeviceManager = null;
 let _speechMikeLastButtonMask = 0;
 let _speechMikeHidReady = false;
+let _dictationSupportLoadPromise = null;
+
+function loadDictationSupportSdk() {
+    if (typeof DictationSupport !== "undefined") {
+        return Promise.resolve();
+    }
+    if (_dictationSupportLoadPromise) {
+        return _dictationSupportLoadPromise;
+    }
+
+    _dictationSupportLoadPromise = new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = DICTATION_SUPPORT_CDN;
+        script.async = true;
+        script.onload = () => {
+            if (typeof DictationSupport !== "undefined") {
+                resolve();
+            } else {
+                reject(new Error("dictation_support no expuso DictationSupport"));
+            }
+        };
+        script.onerror = () => reject(new Error("No se pudo cargar dictation_support"));
+        document.head.appendChild(script);
+    });
+
+    return _dictationSupportLoadPromise;
+}
 
 function speechMikeDictationSupported() {
     return typeof navigator !== "undefined" && !!navigator.hid && typeof DictationSupport !== "undefined";
@@ -213,8 +243,11 @@ async function initSpeechMikeDictation() {
         return;
     }
 
-    if (typeof DictationSupport === "undefined") {
-        console.warn("dictation_support no cargado");
+    try {
+        await loadDictationSupportSdk();
+    } catch (err) {
+        console.error(err);
+        $("#speechMikeHidStatus").text("No se pudo cargar el controlador del micrófono (red/CDN).");
         return;
     }
 

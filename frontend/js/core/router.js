@@ -6,11 +6,7 @@ const RIS_MODULE_SCRIPTS = {
     agenda: "js/workflow/agenda.js",
     worklist: ["js/workflow/atencionTecnica.js", "js/workflow/worklist.js"],
     atencion: ["js/workflow/atencionTecnica.js", "js/workflow/atencion.js"],
-    radiologist: [
-        "js/vendor/dictation_support.js",
-        "js/workflow/speechmike-dictation.js",
-        "js/workflow/radiologist.js",
-    ],
+    radiologist: ["js/workflow/speechmike-dictation.js", "js/workflow/radiologist.js"],
     transcription: "js/workflow/transcription.js",
     validation: "js/workflow/validation.js",
     entrega: "js/workflow/entrega.js",
