@@ -20,6 +20,8 @@ let recordingSeconds = 0;
 const MAX_RECORDING_SECONDS = 600;
 let isSplitScreen = false;
 let radiologistRefreshInterval = null;
+let recordingMediaStream = null;
+let _speechMikeShortcutsBound = false;
 
 function initRadiologist() {
     const profile = (localStorage.getItem('ris_user_profile') || '').toLowerCase();
@@ -33,6 +35,7 @@ function initRadiologist() {
     cargarPlantillasRadiologo();
     cargarEstudiosRadiologo();
     setupAudioEvents();
+    setupSpeechMikeShortcuts();
 
     if (radiologistRefreshInterval) clearInterval(radiologistRefreshInterval);
 
@@ -487,55 +490,222 @@ async function enviarATranscripcion() {
         }
 }
 
-// === 5. LÍMITE DE AUDIO (MEDIA RECORDER) ===
+// === 5. AUDIO (MEDIA RECORDER) + SPEECHMIKE / PEDAL ===
+
+function canControlAudioRecording() {
+    return !!currentRadioStudy && !$("#btnRecord").prop("disabled");
+}
+
+function isRecordingActive() {
+    return !!mediaRecorder && mediaRecorder.state === "recording";
+}
+
+function updateRecordingUi(isRecording) {
+    if (isRecording) {
+        $("#btnRecord").addClass("d-none");
+        $("#btnStop").removeClass("d-none");
+        $("#recordingPulse").removeClass("d-none");
+        $("#audioPreview").addClass("d-none");
+    } else {
+        $("#btnStop").addClass("d-none");
+        $("#btnRecord").removeClass("d-none");
+        $("#recordingPulse").addClass("d-none");
+        if (audioBlob) {
+            $("#audioPreview").removeClass("d-none");
+        }
+    }
+}
+
+function releaseRecordingStream() {
+    if (recordingMediaStream) {
+        recordingMediaStream.getTracks().forEach((track) => track.stop());
+        recordingMediaStream = null;
+    }
+}
+
+async function startAudioRecording() {
+    if (!canControlAudioRecording()) {
+        if (typeof showToast === "function") {
+            showToast("Seleccione un examen antes de grabar audio.", "warning");
+        }
+        return false;
+    }
+
+    if (isRecordingActive()) {
+        return true;
+    }
+
+    try {
+        releaseRecordingStream();
+        recordingMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(recordingMediaStream);
+        audioChunks = [];
+        recordingSeconds = 0;
+
+        mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+
+        mediaRecorder.onstop = () => {
+            clearInterval(recordingInterval);
+            audioBlob = new Blob(audioChunks, { type: "audio/webm" });
+            $("#audioPreview")
+                .removeClass("d-none")
+                .attr("src", URL.createObjectURL(audioBlob));
+            releaseRecordingStream();
+            updateRecordingUi(false);
+            $("#btnRecord").html('<i class="bi bi-mic me-1"></i> REGRABAR (Sobrescribe)');
+        };
+
+        mediaRecorder.start();
+        updateRecordingUi(true);
+        $("#audioTimer").text("00:00");
+
+        recordingInterval = setInterval(() => {
+            recordingSeconds++;
+            const min = String(Math.floor(recordingSeconds / 60)).padStart(2, "0");
+            const sec = String(recordingSeconds % 60).padStart(2, "0");
+            $("#audioTimer").text(`${min}:${sec}`);
+
+            if (recordingSeconds >= MAX_RECORDING_SECONDS) {
+                stopAudioRecording();
+                if (typeof showToast === "function") {
+                    showToast(
+                        "Límite máximo de 10 minutos alcanzado. Grabación detenida.",
+                        "warning"
+                    );
+                }
+            }
+        }, 1000);
+
+        return true;
+    } catch (err) {
+        console.error("startAudioRecording:", err);
+        releaseRecordingStream();
+        if (typeof showToast === "function") {
+            showToast("Error al acceder al micrófono.", "danger");
+        }
+        return false;
+    }
+}
+
+function stopAudioRecording() {
+    if (!isRecordingActive()) {
+        updateRecordingUi(false);
+        return false;
+    }
+
+    mediaRecorder.stop();
+    return true;
+}
+
+function toggleAudioRecording() {
+    if (isRecordingActive()) {
+        return stopAudioRecording();
+    }
+    return startAudioRecording();
+}
+
+/**
+ * Philips SpeechMike y pedaleras suelen emular teclas (modo teclado / SpeechControl).
+ * location === 3 → teclado numérico (NumpadAdd = botón Record/Stop por defecto).
+ */
+function getSpeechMikeRecordingAction(event) {
+    const key = event.key || "";
+    const code = event.code || "";
+
+    const stopKeys = new Set([
+        "F4",
+        "F10",
+        "Escape",
+        "End",
+        "Pause",
+        "Insert",
+        "Delete",
+    ]);
+    const startKeys = new Set(["F2", "F3", "F7"]);
+    const toggleKeys = new Set(["F8", "F9"]);
+
+    if (code === "MediaStop" || stopKeys.has(key)) {
+        return "stop";
+    }
+
+    if (code === "NumpadEnter" && isRecordingActive()) {
+        return "stop";
+    }
+
+    if (code === "NumpadAdd" || (key === "+" && event.location === 3)) {
+        return "toggle";
+    }
+
+    if (toggleKeys.has(key) || code === "MediaRecord" || code === "MediaPause") {
+        return "toggle";
+    }
+
+    if (startKeys.has(key)) {
+        return isRecordingActive() ? "stop" : "start";
+    }
+
+    if (key === " " && event.ctrlKey && isRecordingActive()) {
+        return "stop";
+    }
+
+    return null;
+}
+
+function handleSpeechMikeRecordingShortcut(event) {
+    if (!canControlAudioRecording()) {
+        return;
+    }
+
+    const action = getSpeechMikeRecordingAction(event);
+    if (!action) {
+        return;
+    }
+
+    if (event.repeat && (action === "toggle" || action === "start")) {
+        return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (action === "stop") {
+        stopAudioRecording();
+        return;
+    }
+    if (action === "start") {
+        startAudioRecording();
+        return;
+    }
+    if (action === "toggle") {
+        toggleAudioRecording();
+    }
+}
+
+function setupSpeechMikeShortcuts() {
+    if (_speechMikeShortcutsBound) {
+        return;
+    }
+    _speechMikeShortcutsBound = true;
+
+    window.addEventListener("keydown", handleSpeechMikeRecordingShortcut, true);
+}
+
 function setupAudioEvents() {
     $("#btnRecord").click(async function () {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
-            audioChunks = [];
-            recordingSeconds = 0;
-
-            mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-
-            mediaRecorder.onstop = () => {
-                clearInterval(recordingInterval);
-                audioBlob = new Blob(audioChunks, { type: "audio/webm" });
-                $("#audioPreview").removeClass("d-none").attr("src", URL.createObjectURL(audioBlob));
-                stream.getTracks().forEach(track => track.stop());
-            };
-
-            mediaRecorder.start();
-            $(this).addClass("d-none");
-            $("#btnStop").removeClass("d-none");
-            $("#recordingPulse").removeClass("d-none");
-
-            $("#audioTimer").text("00:00");
-            recordingInterval = setInterval(() => {
-                recordingSeconds++;
-                let min = String(Math.floor(recordingSeconds / 60)).padStart(2, '0');
-                let sec = String(recordingSeconds % 60).padStart(2, '0');
-                $("#audioTimer").text(`${min}:${sec}`);
-
-                // CORTADOR AUTOMÁTICO A LOS 10 MINUTOS
-                if (recordingSeconds >= MAX_RECORDING_SECONDS) {
-                    $("#btnStop").click();
-                    showToast("Límite máximo de 10 minutos alcanzado. Grabación detenida.", "warning");
-                }
-            }, 1000);
-
-        } catch (err) { showToast("Error al acceder al micrófono.", "danger"); }
+        await startAudioRecording();
     });
 
     $("#btnStop").click(function () {
-        if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
-        $(this).addClass("d-none");
-        $("#btnRecord").removeClass("d-none").html('<i class="bi bi-mic me-1"></i> REGRABAR (Sobrescribe)');
-        $("#recordingPulse").addClass("d-none");
+        stopAudioRecording();
     });
 }
 
 function limpiarPantallaRadiologo() {
+    if (isRecordingActive()) {
+        stopAudioRecording();
+    }
+    releaseRecordingStream();
+
     currentReportingChain = null;
     currentRadioStudy = null;
     if (autoSaveInterval) clearInterval(autoSaveInterval);
@@ -568,8 +738,8 @@ function activarDragon() {
     txt.prop("disabled", false).focus();
     txt.addClass("border border-success border-2 shadow").removeClass("border-0");
 
-    if (mediaRecorder && mediaRecorder.state !== "inactive") {
-        $("#btnStop").click();
+    if (isRecordingActive()) {
+        stopAudioRecording();
     }
 
     if (typeof showToast === 'function') showToast("🟢 Dragon Medical activo. Sincronización continua en proceso.", "success");
