@@ -287,6 +287,19 @@ function executeSpeechMikeRecordingAction(action) {
         return;
     }
 
+    if (
+        typeof currentDictationMethod !== "undefined"
+        && currentDictationMethod === "browser_stt"
+        && typeof toggleBrowserDictation === "function"
+    ) {
+        if (action === "stop" && typeof stopBrowserDictation === "function") {
+            stopBrowserDictation();
+        } else if (["toggle", "start", "pause"].includes(action)) {
+            toggleBrowserDictation();
+        }
+        return;
+    }
+
     if (!canHandleSpeechMikeHotkey() && !isRecordingSessionActive()) {
         if (typeof showToast === "function") {
             showToast("Seleccione un examen antes de grabar audio.", "warning");

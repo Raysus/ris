@@ -7,6 +7,7 @@ const RIS_MODULE_SCRIPTS = {
     worklist: ["js/workflow/atencionTecnica.js", "js/workflow/worklist.js"],
     atencion: ["js/workflow/atencionTecnica.js", "js/workflow/atencion.js"],
     radiologist: [
+        "js/workflow/browser-dictation.js",
         "js/workflow/speechmike-dictation.js",
         "js/workflow/radiologist.js",
     ],

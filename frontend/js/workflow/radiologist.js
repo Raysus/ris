@@ -172,6 +172,9 @@ function initRadiologist() {
     setupAudioEvents();
     setupSpeechMikeShortcuts();
     setupSpeechMikeKeymapUi();
+    if (typeof setupBrowserDictationUi === "function") {
+        setupBrowserDictationUi();
+    }
     $("#btnDragon").off("click.risDragon").on("click.risDragon", activarDragon);
     $("#btnSpeechMikeDebug").off("click.risSpeechMike").on("click.risSpeechMike", toggleSpeechMikeDebug);
     syncSpeechMikeDebugButtonUi();
@@ -519,7 +522,7 @@ function cargarEstudioEnEditor(studyId) {
     $("#textoInforme").val(currentRadioStudy.reportText || "").prop("disabled", false);
     lastSavedText = currentRadioStudy.reportText || ""; // Resetear comparador de autoguardado
 
-    $("#btnPlantilla, #btnDevolver, #btnGrabarAudio, #btnFirmarDirecto, #btnHistorialPaciente, #btnAdenda, #btnDragon")
+    $("#btnPlantilla, #btnDevolver, #btnGrabarAudio, #btnFirmarDirecto, #btnHistorialPaciente, #btnAdenda, #btnDragon, #btnBrowserDictation")
         .prop("disabled", false);
 
     audioBlob = null;
@@ -535,6 +538,9 @@ function cargarEstudioEnEditor(studyId) {
     if (dragonSyncInterval) {
         clearInterval(dragonSyncInterval);
         dragonSyncInterval = null;
+    }
+    if (typeof stopBrowserDictation === "function") {
+        stopBrowserDictation(true);
     }
 }
 
@@ -755,6 +761,10 @@ async function startAudioRecording() {
 
     if (isRecordingActive()) {
         return true;
+    }
+
+    if (typeof stopBrowserDictation === "function") {
+        stopBrowserDictation(true);
     }
 
     try {
@@ -1046,6 +1056,23 @@ function handleSpeechMikeRecordingShortcut(event) {
     const action = getSpeechMikeRecordingAction(event);
     maybeDebugSpeechMikeKey(event, action);
 
+    if (
+        currentDictationMethod === "browser_stt"
+        && action
+        && typeof toggleBrowserDictation === "function"
+    ) {
+        if (!isDuplicateSpeechMikeEvent(event)) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            if (action === "stop" || action === "pause") {
+                stopBrowserDictation();
+            } else if (action === "toggle" || action === "start") {
+                toggleBrowserDictation();
+            }
+        }
+        return;
+    }
+
     if (!canHandleSpeechMikeHotkey()) {
         if (action && typeof showToast === "function") {
             showToast("Seleccione un examen antes de grabar audio.", "warning");
@@ -1111,6 +1138,9 @@ function setupAudioEvents() {
 }
 
 function limpiarPantallaRadiologo() {
+    if (typeof stopBrowserDictation === "function") {
+        stopBrowserDictation(true);
+    }
     if (isRecordingSessionActive()) {
         stopAudioRecording();
     }
@@ -1146,6 +1176,10 @@ function activarDragon() {
             showToast("Seleccione un paciente y un examen en la bandeja izquierda primero.", "warning");
         }
         return;
+    }
+
+    if (typeof stopBrowserDictation === "function") {
+        stopBrowserDictation(true);
     }
 
     currentDictationMethod = "dragon";
