@@ -22,6 +22,8 @@ let isSplitScreen = false;
 let radiologistRefreshInterval = null;
 let recordingMediaStream = null;
 let _speechMikeShortcutsBound = false;
+let _speechMikeLastKeyAt = 0;
+let _speechMikeLastKeySig = "";
 
 function initRadiologist() {
     const profile = (localStorage.getItem('ris_user_profile') || '').toLowerCase();
@@ -500,12 +502,49 @@ function isRecordingActive() {
     return !!mediaRecorder && mediaRecorder.state === "recording";
 }
 
-function updateRecordingUi(isRecording) {
-    if (isRecording) {
+function isRecordingPaused() {
+    return !!mediaRecorder && mediaRecorder.state === "paused";
+}
+
+function isRecordingSessionActive() {
+    return isRecordingActive() || isRecordingPaused();
+}
+
+function mediaRecorderSupportsPause() {
+    return typeof MediaRecorder !== "undefined"
+        && typeof MediaRecorder.prototype.pause === "function";
+}
+
+function canHandleSpeechMikeHotkey() {
+    if (isRecordingSessionActive()) {
+        return true;
+    }
+    return canControlAudioRecording();
+}
+
+function updateRecordingUi(mode) {
+    const recording = mode === true || mode === "recording";
+    const paused = mode === "paused";
+
+    if (recording || paused) {
         $("#btnRecord").addClass("d-none");
         $("#btnStop").removeClass("d-none");
         $("#recordingPulse").removeClass("d-none");
         $("#audioPreview").addClass("d-none");
+
+        if (paused) {
+            $("#recordingPulse").html(
+                '<span class="text-warning fw-bold small"><i class="bi bi-pause-circle me-1"></i> Pausado <span id="audioTimer">'
+                + ($("#audioTimer").text() || "00:00")
+                + "</span></span>"
+            );
+        } else {
+            $("#recordingPulse").html(
+                '<span class="spinner-grow spinner-grow-sm me-1 text-danger"></span> Grabando <span id="audioTimer">'
+                + ($("#audioTimer").text() || "00:00")
+                + "</span>"
+            );
+        }
     } else {
         $("#btnStop").addClass("d-none");
         $("#btnRecord").removeClass("d-none");
@@ -514,6 +553,26 @@ function updateRecordingUi(isRecording) {
             $("#audioPreview").removeClass("d-none");
         }
     }
+}
+
+function startRecordingTimer() {
+    clearInterval(recordingInterval);
+    recordingInterval = setInterval(() => {
+        recordingSeconds++;
+        const min = String(Math.floor(recordingSeconds / 60)).padStart(2, "0");
+        const sec = String(recordingSeconds % 60).padStart(2, "0");
+        $("#audioTimer").text(`${min}:${sec}`);
+
+        if (recordingSeconds >= MAX_RECORDING_SECONDS) {
+            stopAudioRecording();
+            if (typeof showToast === "function") {
+                showToast(
+                    "Límite máximo de 10 minutos alcanzado. Grabación detenida.",
+                    "warning"
+                );
+            }
+        }
+    }, 1000);
 }
 
 function releaseRecordingStream() {
@@ -529,6 +588,10 @@ async function startAudioRecording() {
             showToast("Seleccione un examen antes de grabar audio.", "warning");
         }
         return false;
+    }
+
+    if (isRecordingPaused()) {
+        return resumeAudioRecording();
     }
 
     if (isRecordingActive()) {
@@ -556,25 +619,9 @@ async function startAudioRecording() {
         };
 
         mediaRecorder.start();
-        updateRecordingUi(true);
+        updateRecordingUi("recording");
         $("#audioTimer").text("00:00");
-
-        recordingInterval = setInterval(() => {
-            recordingSeconds++;
-            const min = String(Math.floor(recordingSeconds / 60)).padStart(2, "0");
-            const sec = String(recordingSeconds % 60).padStart(2, "0");
-            $("#audioTimer").text(`${min}:${sec}`);
-
-            if (recordingSeconds >= MAX_RECORDING_SECONDS) {
-                stopAudioRecording();
-                if (typeof showToast === "function") {
-                    showToast(
-                        "Límite máximo de 10 minutos alcanzado. Grabación detenida.",
-                        "warning"
-                    );
-                }
-            }
-        }, 1000);
+        startRecordingTimer();
 
         return true;
     } catch (err) {
@@ -588,7 +635,12 @@ async function startAudioRecording() {
 }
 
 function stopAudioRecording() {
-    if (!isRecordingActive()) {
+    if (!mediaRecorder || mediaRecorder.state === "inactive") {
+        updateRecordingUi(false);
+        return false;
+    }
+
+    if (!isRecordingSessionActive()) {
         updateRecordingUi(false);
         return false;
     }
@@ -597,87 +649,197 @@ function stopAudioRecording() {
     return true;
 }
 
+function pauseAudioRecording() {
+    if (!isRecordingActive() || !mediaRecorderSupportsPause()) {
+        return false;
+    }
+
+    mediaRecorder.pause();
+    clearInterval(recordingInterval);
+    updateRecordingUi("paused");
+    return true;
+}
+
+function resumeAudioRecording() {
+    if (!isRecordingPaused()) {
+        return false;
+    }
+
+    mediaRecorder.resume();
+    updateRecordingUi("recording");
+    startRecordingTimer();
+    return true;
+}
+
 function toggleAudioRecording() {
     if (isRecordingActive()) {
         return stopAudioRecording();
+    }
+    if (isRecordingPaused()) {
+        return resumeAudioRecording();
+    }
+    return startAudioRecording();
+}
+
+function toggleAudioRecordingPause() {
+    if (isRecordingActive()) {
+        if (mediaRecorderSupportsPause()) {
+            return pauseAudioRecording();
+        }
+        return stopAudioRecording();
+    }
+    if (isRecordingPaused()) {
+        return resumeAudioRecording();
     }
     return startAudioRecording();
 }
 
 /**
- * Philips SpeechMike y pedaleras suelen emular teclas (modo teclado / SpeechControl).
- * location === 3 → teclado numérico (NumpadAdd = botón Record/Stop por defecto).
+ * Philips SpeechMike / pedaleras en modo teclado (SpeechControl → Keyboard mode).
+ * Usamos event.code (más fiable que event.key) y keyup+keydown.
  */
 function getSpeechMikeRecordingAction(event) {
     const key = event.key || "";
     const code = event.code || "";
+    const loc = event.location;
+    const session = isRecordingSessionActive();
 
-    const stopKeys = new Set([
-        "F4",
-        "F10",
-        "Escape",
-        "End",
-        "Pause",
-        "Insert",
-        "Delete",
+    const matches = (codes, keys) => codes.has(code) || keys.has(key);
+
+    const stopCodes = new Set([
+        "F4", "F10", "Escape", "End", "Delete", "MediaStop",
+        "NumpadEnter", "Enter",
     ]);
-    const startKeys = new Set(["F2", "F3", "F7"]);
-    const toggleKeys = new Set(["F8", "F9"]);
+    const stopKeys = new Set(["F4", "F10", "Escape", "End", "Delete"]);
 
-    if (code === "MediaStop" || stopKeys.has(key)) {
+    const pauseCodes = new Set([
+        "MediaPlayPause", "MediaPause", "Pause", "F7", "Space",
+    ]);
+    const pauseKeys = new Set(["F7"]);
+
+    const toggleCodes = new Set([
+        "NumpadAdd", "MediaRecord", "F8", "F9", "F11", "F12", "Insert", "Home",
+    ]);
+    const toggleKeys = new Set(["F8", "F9", "F11", "F12", "Insert"]);
+
+    const startCodes = new Set(["F2", "F3", "NumpadMultiply"]);
+    const startKeys = new Set(["F2", "F3"]);
+
+    if (matches(stopCodes, stopKeys) && session) {
         return "stop";
     }
 
-    if (code === "NumpadEnter" && isRecordingActive()) {
+    if (code === "NumpadEnter" && session) {
         return "stop";
     }
 
-    if (code === "NumpadAdd" || (key === "+" && event.location === 3)) {
+    if (matches(pauseCodes, pauseKeys)) {
+        if (!session) {
+            return null;
+        }
+        return isRecordingPaused() ? "resume" : "pause";
+    }
+
+    if (
+        code === "NumpadAdd"
+        || (key === "+" && loc === 3)
+        || (key === "=" && loc === 3)
+        || matches(toggleCodes, toggleKeys)
+    ) {
         return "toggle";
     }
 
-    if (toggleKeys.has(key) || code === "MediaRecord" || code === "MediaPause") {
-        return "toggle";
+    if (matches(startCodes, startKeys)) {
+        return session ? "stop" : "start";
     }
 
-    if (startKeys.has(key)) {
-        return isRecordingActive() ? "stop" : "start";
-    }
-
-    if (key === " " && event.ctrlKey && isRecordingActive()) {
+    if (key === " " && event.ctrlKey && session) {
         return "stop";
     }
 
     return null;
 }
 
+function isDuplicateSpeechMikeEvent(event) {
+    const sig = `${event.code || ""}:${event.key || ""}:${event.location}`;
+    const now = Date.now();
+    if (sig === _speechMikeLastKeySig && now - _speechMikeLastKeyAt < 280) {
+        return true;
+    }
+    _speechMikeLastKeySig = sig;
+    _speechMikeLastKeyAt = now;
+    return false;
+}
+
+function maybeDebugSpeechMikeKey(event, action) {
+    if (localStorage.getItem("ris_debug_speechmike") !== "1") {
+        return;
+    }
+    console.info("[SpeechMike]", {
+        type: event.type,
+        key: event.key,
+        code: event.code,
+        location: event.location,
+        action,
+    });
+    if (typeof showToast === "function") {
+        showToast(
+            `SM: ${event.code || event.key} → ${action || "(sin mapeo)"}`,
+            action ? "info" : "secondary"
+        );
+    }
+}
+
 function handleSpeechMikeRecordingShortcut(event) {
-    if (!canControlAudioRecording()) {
+    if (event.type !== "keydown" && event.type !== "keyup") {
+        return;
+    }
+
+    if (!canHandleSpeechMikeHotkey()) {
+        const action = getSpeechMikeRecordingAction(event);
+        maybeDebugSpeechMikeKey(event, action);
+        if (action && typeof showToast === "function") {
+            showToast("Seleccione un examen antes de grabar audio.", "warning");
+        }
         return;
     }
 
     const action = getSpeechMikeRecordingAction(event);
+    maybeDebugSpeechMikeKey(event, action);
+
     if (!action) {
         return;
     }
 
-    if (event.repeat && (action === "toggle" || action === "start")) {
+    if (isDuplicateSpeechMikeEvent(event)) {
+        return;
+    }
+
+    if (event.repeat && ["toggle", "start", "pause", "resume"].includes(action)) {
         return;
     }
 
     event.preventDefault();
-    event.stopPropagation();
+    event.stopImmediatePropagation();
 
-    if (action === "stop") {
-        stopAudioRecording();
-        return;
-    }
-    if (action === "start") {
-        startAudioRecording();
-        return;
-    }
-    if (action === "toggle") {
-        toggleAudioRecording();
+    switch (action) {
+        case "stop":
+            stopAudioRecording();
+            break;
+        case "start":
+            startAudioRecording();
+            break;
+        case "toggle":
+            toggleAudioRecording();
+            break;
+        case "pause":
+            toggleAudioRecordingPause();
+            break;
+        case "resume":
+            resumeAudioRecording();
+            break;
+        default:
+            break;
     }
 }
 
@@ -687,7 +849,9 @@ function setupSpeechMikeShortcuts() {
     }
     _speechMikeShortcutsBound = true;
 
-    window.addEventListener("keydown", handleSpeechMikeRecordingShortcut, true);
+    const opts = { capture: true };
+    window.addEventListener("keydown", handleSpeechMikeRecordingShortcut, opts);
+    window.addEventListener("keyup", handleSpeechMikeRecordingShortcut, opts);
 }
 
 function setupAudioEvents() {
@@ -701,7 +865,7 @@ function setupAudioEvents() {
 }
 
 function limpiarPantallaRadiologo() {
-    if (isRecordingActive()) {
+    if (isRecordingSessionActive()) {
         stopAudioRecording();
     }
     releaseRecordingStream();
