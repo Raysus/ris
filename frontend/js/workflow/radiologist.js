@@ -38,6 +38,7 @@ function initRadiologist() {
     cargarEstudiosRadiologo();
     setupAudioEvents();
     setupSpeechMikeShortcuts();
+    syncSpeechMikeDebugButtonUi();
 
     if (radiologistRefreshInterval) clearInterval(radiologistRefreshInterval);
 
@@ -769,6 +770,35 @@ function isDuplicateSpeechMikeEvent(event) {
     _speechMikeLastKeySig = sig;
     _speechMikeLastKeyAt = now;
     return false;
+}
+
+function toggleSpeechMikeDebug() {
+    const on = localStorage.getItem("ris_debug_speechmike") === "1";
+    if (on) {
+        localStorage.removeItem("ris_debug_speechmike");
+        $("#btnSpeechMikeDebug").removeClass("text-primary fw-bold").addClass("text-secondary");
+        if (typeof showToast === "function") {
+            showToast("Modo prueba SpeechMike desactivado.", "secondary");
+        }
+    } else {
+        localStorage.setItem("ris_debug_speechmike", "1");
+        $("#btnSpeechMikeDebug").addClass("text-primary fw-bold").removeClass("text-secondary");
+        if (typeof showToast === "function") {
+            showToast(
+                "Modo prueba activo: pulse un botón del SpeechMike y verá el nombre de la tecla aquí.",
+                "info"
+            );
+        }
+    }
+}
+
+function syncSpeechMikeDebugButtonUi() {
+    const on = localStorage.getItem("ris_debug_speechmike") === "1";
+    const $btn = $("#btnSpeechMikeDebug");
+    if (!$btn.length) {
+        return;
+    }
+    $btn.toggleClass("text-primary fw-bold", on).toggleClass("text-secondary", !on);
 }
 
 function maybeDebugSpeechMikeKey(event, action) {

@@ -104,11 +104,14 @@
                                         Transcripción</h6>
                                     <small class="text-muted mb-2">Grabe para la secretaría (Máx 10 min).</small>
                                     <small class="text-muted d-block mb-2" style="font-size: 0.72rem;">
-                                        SpeechMike (modo teclado en SpeechControl): <b>Num +</b>/<b>F8</b>/<b>F11</b> grabar/detener ·
-                                        <b>F4</b>/<b>F10</b>/<b>Esc</b> detener · <b>F7</b>/<b>Espacio</b> pausar/reanudar ·
-                                        <span class="text-secondary">Depurar teclas: consola</span>
-                                        <code class="user-select-all">localStorage.setItem('ris_debug_speechmike','1')</code>
+                                        SpeechMike (modo <b>teclado</b> en SpeechControl): <b>Num +</b>/<b>F8</b>/<b>F11</b> grabar/detener ·
+                                        <b>F4</b>/<b>F10</b>/<b>Esc</b> detener · <b>F7</b>/<b>Espacio</b> pausar
                                     </small>
+                                    <button type="button" class="btn btn-link btn-sm p-0 mb-2 text-secondary"
+                                        style="font-size: 0.72rem;" onclick="toggleSpeechMikeDebug()"
+                                        id="btnSpeechMikeDebug">
+                                        Probar teclas del micrófono (ver qué botón envía)
+                                    </button>
 
                                     <div class="d-flex justify-content-center align-items-center gap-2">
                                         <div id="recordingPulse" class="d-none text-danger fw-bold small">
