@@ -41,6 +41,48 @@ function speechMikeDictationSupported() {
     return typeof navigator !== "undefined" && !!navigator.hid && typeof DictationSupport !== "undefined";
 }
 
+/** LFH3200/3300 (SpeechMike III): sin modo navegador F3; usan HID/evento vía WebHID. */
+function speechMikeSupportsBrowserMode(device) {
+    if (!device || typeof device.getDeviceType !== "function") {
+        return false;
+    }
+    const dt = device.getDeviceType();
+    const DT = DictationSupport.DeviceType;
+    const withBrowser = [
+        DT.SPEECHMIKE_LFH_3500,
+        DT.SPEECHMIKE_LFH_3510,
+        DT.SPEECHMIKE_LFH_3520,
+        DT.SPEECHMIKE_LFH_3600,
+        DT.SPEECHMIKE_LFH_3610,
+        DT.SPEECHMIKE_SMP_3700,
+        DT.SPEECHMIKE_SMP_3710,
+        DT.SPEECHMIKE_SMP_3720,
+        DT.SPEECHMIKE_SMP_3800,
+        DT.SPEECHMIKE_SMP_3810,
+        DT.SPEECHMIKE_SMP_4000,
+        DT.SPEECHMIKE_SMP_4010,
+    ];
+    return withBrowser.includes(dt);
+}
+
+function speechMikeDeviceLabel(device) {
+    if (!device || typeof device.getDeviceType !== "function") {
+        return "SpeechMike";
+    }
+    const dt = device.getDeviceType();
+    const DT = DictationSupport.DeviceType;
+    const labels = {
+        [DT.SPEECHMIKE_LFH_3200]: "SpeechMike III Pro (LFH3200)",
+        [DT.SPEECHMIKE_LFH_3210]: "SpeechMike III (LFH3210)",
+        [DT.SPEECHMIKE_LFH_3220]: "SpeechMike III (LFH3220)",
+        [DT.SPEECHMIKE_LFH_3300]: "SpeechMike III (LFH3300)",
+        [DT.SPEECHMIKE_LFH_3310]: "SpeechMike III (LFH3310)",
+        [DT.SPEECHMIKE_LFH_3500]: "SpeechMike Premium (LFH3500)",
+        [DT.SPEECHMIKE_LFH_3600]: "SpeechMike Premium (LFH3600)",
+    };
+    return labels[dt] || `SpeechMike (tipo ${dt})`;
+}
+
 function updateSpeechMikeConnectUi() {
     const $status = $("#speechMikeHidStatus");
     const $btn = $("#btnConnectSpeechMike");
@@ -61,28 +103,47 @@ function updateSpeechMikeConnectUi() {
 
     const devices = _dictationDeviceManager?.getDevices?.() || [];
     if (devices.length > 0) {
+        const first = devices[0];
+        const name = speechMikeDeviceLabel(first);
+        const modeHint = speechMikeSupportsBrowserMode(first)
+            ? "Modo navegador (F3) opcional."
+            : "LFH3200/3300: deje modo evento (HID), no pulse F3.";
         $status
             .removeClass("text-warning text-danger")
             .addClass("text-success")
-            .text(`Conectado (${devices.length} dispositivo). Botones listos.`);
+            .text(`Conectado: ${name}. ${modeHint}`);
         $btn.text("Cambiar dispositivo");
     } else {
         $status
             .removeClass("text-success text-danger")
             .addClass("text-warning")
-            .text("Pulse «Conectar SpeechMike» y elija el micrófono (modo navegador F3 recomendado).");
+            .text(
+                "Pulse «Conectar SpeechMike». LFH3200: modo evento + SpeechControl; Premium Touch: F3 navegador."
+            );
         $btn.text("Conectar SpeechMike");
     }
 }
 
-async function trySetSpeechMikeBrowserMode(device) {
+async function configureSpeechMikeForWeb(device) {
     if (!device || typeof device.setEventMode !== "function") {
-        return;
+        return "hid";
     }
+
     try {
-        await device.setEventMode(DictationSupport.EventMode.BROWSER);
+        if (speechMikeSupportsBrowserMode(device)) {
+            await device.setEventMode(DictationSupport.EventMode.BROWSER);
+            return "browser";
+        }
+        const current = typeof device.getEventMode === "function"
+            ? await device.getEventMode()
+            : DictationSupport.EventMode.HID;
+        if (current !== DictationSupport.EventMode.HID) {
+            await device.setEventMode(DictationSupport.EventMode.HID);
+        }
+        return "hid";
     } catch (err) {
-        console.warn("SpeechMike setEventMode(BROWSER):", err);
+        console.warn("SpeechMike configureSpeechMikeForWeb:", err);
+        return "hid";
     }
 }
 
@@ -218,13 +279,23 @@ async function connectSpeechMikeDevice() {
             return;
         }
 
+        const hints = [];
         for (const device of devices) {
-            await trySetSpeechMikeBrowserMode(device);
+            const mode = await configureSpeechMikeForWeb(device);
+            const label = speechMikeDeviceLabel(device);
+            hints.push(
+                mode === "browser"
+                    ? `${label} (modo navegador)`
+                    : `${label} (modo HID — normal en LFH3200)`
+            );
         }
 
         localStorage.setItem("ris_speechmike_hid_connected", "1");
         updateSpeechMikeConnectUi();
         onSpeechMikeHidConnected();
+        if (typeof showToast === "function" && hints.length) {
+            showToast(hints.join(" · "), "success");
+        }
     } catch (err) {
         console.error("connectSpeechMikeDevice:", err);
         if (typeof showToast === "function") {
@@ -273,7 +344,7 @@ async function initSpeechMikeDictation() {
         _dictationDeviceManager = new DictationSupport.DictationDeviceManager();
         _dictationDeviceManager.addButtonEventListener(handleSpeechMikeHidButton);
         _dictationDeviceManager.addDeviceConnectedEventListener(async (device) => {
-            await trySetSpeechMikeBrowserMode(device);
+            await configureSpeechMikeForWeb(device);
             onSpeechMikeHidConnected();
         });
         _dictationDeviceManager.addDeviceDisconnectedEventListener(onSpeechMikeHidDisconnected);
@@ -284,7 +355,7 @@ async function initSpeechMikeDictation() {
         const existing = _dictationDeviceManager.getDevices();
         if (existing.length > 0) {
             for (const device of existing) {
-                await trySetSpeechMikeBrowserMode(device);
+                await configureSpeechMikeForWeb(device);
             }
             updateSpeechMikeConnectUi();
         } else if (localStorage.getItem("ris_speechmike_hid_connected") === "1") {
