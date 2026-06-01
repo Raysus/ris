@@ -24,6 +24,139 @@ let recordingMediaStream = null;
 let _speechMikeShortcutsBound = false;
 let _speechMikeLastKeyAt = 0;
 let _speechMikeLastKeySig = "";
+let _speechMikeKeyCaptureSlot = null;
+
+const SPEECHMIKE_KEYMAP_STORAGE = "ris_speechmike_keymap_v1";
+
+const SPEECHMIKE_KEYMAP_PRESETS = {
+    philips: { record: "NumpadAdd", stop: "F4", pause: "F7" },
+    f8: { record: "F8", stop: "F4", pause: "F7" },
+    insert: { record: "Insert", stop: "F10", pause: "F7" },
+};
+
+function getDefaultSpeechMikeKeymap() {
+    return { ...SPEECHMIKE_KEYMAP_PRESETS.philips };
+}
+
+function loadSpeechMikeKeymap() {
+    try {
+        const raw = localStorage.getItem(SPEECHMIKE_KEYMAP_STORAGE);
+        if (!raw) {
+            return getDefaultSpeechMikeKeymap();
+        }
+        const parsed = JSON.parse(raw);
+        return {
+            record: parsed.record || "NumpadAdd",
+            stop: parsed.stop || "F4",
+            pause: parsed.pause || "F7",
+        };
+    } catch (e) {
+        return getDefaultSpeechMikeKeymap();
+    }
+}
+
+function saveSpeechMikeKeymap(map) {
+    localStorage.setItem(SPEECHMIKE_KEYMAP_STORAGE, JSON.stringify(map));
+    refreshSpeechMikeKeymapUi();
+}
+
+function refreshSpeechMikeKeymapUi() {
+    const map = loadSpeechMikeKeymap();
+    $("#smKeyDisplayRecord").text(map.record || "—");
+    $("#smKeyDisplayStop").text(map.stop || "—");
+    $("#smKeyDisplayPause").text(map.pause || "—");
+}
+
+function eventMatchesSpeechMikeCode(event, code) {
+    if (!code || !event) {
+        return false;
+    }
+    if (event.code === code) {
+        return true;
+    }
+    if (code === "NumpadAdd" && event.code === "NumpadAdd") {
+        return true;
+    }
+    if (code === "NumpadAdd" && event.key === "+" && event.location === 3) {
+        return true;
+    }
+    return false;
+}
+
+function getSpeechMikeActionFromCustomKeymap(event) {
+    const map = loadSpeechMikeKeymap();
+    const session = isRecordingSessionActive();
+    const code = event.code || "";
+
+    if (map.stop && eventMatchesSpeechMikeCode(event, map.stop) && session) {
+        return "stop";
+    }
+
+    if (map.pause && eventMatchesSpeechMikeCode(event, map.pause)) {
+        if (!session) {
+            return null;
+        }
+        return isRecordingPaused() ? "resume" : "pause";
+    }
+
+    if (map.record && eventMatchesSpeechMikeCode(event, map.record)) {
+        return session ? "stop" : "start";
+    }
+
+    return null;
+}
+
+function startSpeechMikeKeyCapture(slot) {
+    _speechMikeKeyCaptureSlot = slot;
+    const labels = { record: "Grabar / detener", stop: "Detener", pause: "Pausa" };
+    const $hint = $("#smKeyCaptureHint");
+    $hint
+        .removeClass("d-none")
+        .text(`Pulse ahora el botón del SpeechMike para «${labels[slot] || slot}»…`);
+    if (typeof showToast === "function") {
+        showToast(
+            `Capturando tecla para «${labels[slot]}». Pulse el botón del micrófono (con SpeechControl activo).`,
+            "info",
+            8000
+        );
+    }
+    const panel = document.getElementById("speechMikeKeymapPanel");
+    if (panel && !panel.classList.contains("show")) {
+        panel.classList.add("show");
+    }
+}
+
+function cancelSpeechMikeKeyCapture() {
+    _speechMikeKeyCaptureSlot = null;
+    $("#smKeyCaptureHint").addClass("d-none").text("");
+}
+
+function setupSpeechMikeKeymapUi() {
+    refreshSpeechMikeKeymapUi();
+
+    $("#speechMikeKeymapPanel")
+        .off("click.risSmPreset")
+        .on("click.risSmPreset", "[data-sm-preset]", function () {
+            const id = $(this).data("sm-preset");
+            const preset = SPEECHMIKE_KEYMAP_PRESETS[id];
+            if (!preset) {
+                return;
+            }
+            saveSpeechMikeKeymap({ ...preset });
+            if (typeof showToast === "function") {
+                showToast(
+                    "Perfil aplicado. En SpeechControl use las mismas teclas (Num+, F4, F7).",
+                    "success"
+                );
+            }
+        });
+
+    $("#speechMikeKeymapPanel")
+        .off("click.risSmCapture")
+        .on("click.risSmCapture", "[data-sm-capture]", function () {
+            startSpeechMikeKeyCapture($(this).data("sm-capture"));
+        });
+}
 
 function initRadiologist() {
     const profile = (localStorage.getItem('ris_user_profile') || '').toLowerCase();
@@ -38,6 +171,7 @@ function initRadiologist() {
     cargarEstudiosRadiologo();
     setupAudioEvents();
     setupSpeechMikeShortcuts();
+    setupSpeechMikeKeymapUi();
     $("#btnSpeechMikeDebug").off("click.risSpeechMike").on("click.risSpeechMike", toggleSpeechMikeDebug);
     syncSpeechMikeDebugButtonUi();
     if (typeof initSpeechMikeDictation === "function") {
@@ -714,6 +848,11 @@ function getSpeechMikeRecordingAction(event) {
         return null;
     }
 
+    const customAction = getSpeechMikeActionFromCustomKeymap(event);
+    if (customAction) {
+        return customAction;
+    }
+
     const key = event.key || "";
     const code = event.code || "";
     const loc = event.location;
@@ -844,8 +983,9 @@ function maybeDebugSpeechMikeKey(event, action) {
     });
     if (typeof showToast === "function") {
         const label = event.code || event.key || "?";
+        const map = loadSpeechMikeKeymap();
         showToast(
-            `SM: ${label} → ${action || "(sin mapeo — configure Num+/F4 en SpeechControl)"}`,
+            `SM: ${label} → ${action || `(sin mapeo — use Configurar teclas; guardado: ${map.record}/${map.stop})`}`,
             action ? "info" : "secondary"
         );
     }
@@ -863,6 +1003,22 @@ function handleSpeechMikeRecordingShortcut(event) {
     if (event.type !== "keydown") {
         if (localStorage.getItem("ris_debug_speechmike") === "1") {
             maybeDebugSpeechMikeKey(event, null);
+        }
+        return;
+    }
+
+    if (_speechMikeKeyCaptureSlot && event.code) {
+        if (["Control", "Alt", "Shift", "Meta", "Tab"].includes(event.key)) {
+            return;
+        }
+        const map = loadSpeechMikeKeymap();
+        map[_speechMikeKeyCaptureSlot] = event.code;
+        saveSpeechMikeKeymap(map);
+        cancelSpeechMikeKeyCapture();
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (typeof showToast === "function") {
+            showToast(`Tecla guardada: ${event.code}`, "success");
         }
         return;
     }
