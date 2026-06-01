@@ -577,6 +577,14 @@ function connectSpeechMikeDeviceFromUserClick() {
     const $btn = $("#btnConnectSpeechMike");
     $btn.prop("disabled", true);
 
+    if (typeof showToast === "function") {
+        showToast(
+            "Abriendo selector USB de Chrome… Elija «SpeechMike» / Philips (marque todas las líneas). Si no aparece ventana, revise chrome://settings/content/hid",
+            "info",
+            6000
+        );
+    }
+
     openPhilipsHidChooserFromClick()
         .then((picked) => finishSpeechMikeConnectAfterPicker(picked))
         .catch((err) => handleSpeechMikePickerError(err))
