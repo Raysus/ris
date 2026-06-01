@@ -125,7 +125,7 @@ function dibujarGraficoEstados(datos) {
             labels: Object.keys(datos),
             datasets: [{
                 data: Object.values(datos),
-                backgroundColor: ["#9a6f1f", "#2d6a8f", "#b83d52", "#7a6a9a", "#5b4a82"],
+                backgroundColor: ["#b8860b", "#2d5080", "#c41e3a", "#9a6fa8", "#7d2181"],
                 borderWidth: 2,
                 borderColor: "#ffffff",
             }],
@@ -157,7 +157,7 @@ function dibujarGraficoModalidades(datos) {
             datasets: [{
                 label: "Exámenes",
                 data: valoresActivos.length ? valoresActivos : [0],
-                backgroundColor: ["#5b4a82", "#7a6a9a", "#2d6a8f", "#b86a82", "#9a6f1f"],
+                backgroundColor: ["#7d2181", "#9a6fa8", "#2d5080", "#ba0c7f", "#b8860b"],
                 borderRadius: 4,
                 barPercentage: 0.6,
             }],

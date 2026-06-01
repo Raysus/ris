@@ -1,48 +1,50 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-/* HealthTiCloud — paleta accesible (mayor contraste, misma identidad lavanda/teal) */
+/* HealthTICloud — paleta marca (Adobe XD / manual de marca) */
 :root {
-    --htc-teal: #5a9a88;
-    --htc-teal-deep: #3d7565;
-    --htc-lavender: #8a7aa8;
-    --htc-lavender-deep: #5b4a82;
-    --htc-lavender-hover: #4a3d6e;
-    --htc-blush: #b86a82;
-    --htc-sky: #3d7a9e;
-    --htc-plum: #2d2838;
+    --htc-purple: #7d2181;
+    --htc-purple-hover: #651a68;
+    --htc-purple-light: #9a4a9e;
+    --htc-navy: #101860;
+    --htc-navy-light: #1a2878;
+    --htc-magenta: #ba0c7f;
+    --htc-violet: #4a148c;
+    --htc-teal: #2d6a9e;
+    --htc-teal-deep: #1e4d72;
 
-    --primary: var(--htc-lavender-deep);
-    --primary-hover: var(--htc-lavender-hover);
-    --primary-rgb: 91, 74, 130;
-    --secondary: #5a5368;
+    --primary: var(--htc-purple);
+    --primary-hover: var(--htc-purple-hover);
+    --primary-rgb: 125, 33, 129;
+    --secondary: #4a5568;
     --success: #2d7a5e;
-    --danger: #b83d52;
-    --warning: #a67c2a;
-    --info: var(--htc-sky);
+    --danger: #c41e3a;
+    --warning: #b8860b;
+    --info: var(--htc-teal);
 
-    --agenda-pre: #7a6a9a;
-    --agenda-agendado: #5b4a82;
-    --agenda-confirmado: #2d6a8f;
-    --agenda-espera: #9a6f1f;
-    --agenda-anulado: #b83d52;
-    --agenda-atendido: #4a4556;
+    --agenda-pre: #9a6fa8;
+    --agenda-agendado: #7d2181;
+    --agenda-confirmado: #2d5080;
+    --agenda-espera: #b8860b;
+    --agenda-anulado: #c41e3a;
+    --agenda-atendido: #4a5568;
 
-    --bg-app: #f0edf4;
-    --bg-sidebar: var(--htc-plum);
+    --bg-app: #f4f2f8;
+    --bg-sidebar: var(--htc-navy);
     --bg-card: #ffffff;
-    --border-color: #d4cedc;
+    --border-color: #d8d4e4;
 
-    --text-main: #1c1824;
-    --text-muted: #524c5c;
+    --text-main: #101860;
+    --text-muted: #4a5568;
     --text-on-dark: #f5f3f8;
 
     --sidebar-width: 260px;
     --sidebar-collapsed: 80px;
     --radius: 12px;
-    --shadow: 0 4px 14px -2px rgba(61, 56, 72, 0.08), 0 2px 6px -2px rgba(61, 56, 72, 0.05);
+    --shadow: 0 4px 14px -2px rgba(16, 24, 96, 0.08), 0 2px 6px -2px rgba(16, 24, 96, 0.05);
     --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 
-    --gradient-brand: linear-gradient(135deg, var(--htc-blush) 0%, var(--htc-lavender) 55%, var(--htc-sky) 100%);
+    --gradient-cloud: linear-gradient(90deg, var(--htc-magenta) 0%, var(--htc-purple) 48%, var(--htc-violet) 100%);
+    --gradient-brand: linear-gradient(135deg, var(--htc-magenta) 0%, var(--htc-purple) 50%, var(--htc-navy) 100%);
 }
 
 /* =========================================
@@ -128,22 +130,44 @@ body {
 }
 
 .sidebar .logo {
-    font-size: 1.35rem;
-    font-weight: 800;
-    letter-spacing: -0.025em;
-    margin-bottom: 2.5rem;
-    padding-left: 0.75rem;
-    background: var(--gradient-brand);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    margin-bottom: 2rem;
+    padding: 0 0.35rem 0 0.5rem;
+}
+
+.brand-link {
+    display: block;
+    text-decoration: none;
+    line-height: 0;
+}
+
+.brand-logo {
+    width: 100%;
+    max-width: 210px;
+    height: auto;
+    display: block;
+    object-fit: contain;
+}
+
+.brand-logo--icon {
+    display: none;
+    width: 40px;
+    height: 40px;
+    margin: 0 auto;
+}
+
+.sidebar.collapsed .brand-logo--full {
+    display: none;
+}
+
+.sidebar.collapsed .brand-logo--icon {
+    display: block;
 }
 
 .sidebar nav a {
     display: flex;
     align-items: center;
     padding: 0.875rem 1rem;
-    color: #b8b0c4;
+    color: #b8c4e8;
     text-decoration: none;
     border-radius: var(--radius);
     margin-bottom: 0.5rem;
@@ -170,8 +194,8 @@ body {
 }
 
 .sidebar.collapsed .logo {
-    font-size: 1rem;
-    padding-left: 0.2rem;
+    padding: 0;
+    text-align: center;
 }
 
 .sidebar.collapsed nav a span {
@@ -464,7 +488,7 @@ body {
 
 .agenda-calendar .fc-timeline-slot-major,
 #calendar .fc-timeline-slot-major {
-    border-left-color: var(--htc-lavender) !important;
+    border-left-color: var(--htc-purple-light) !important;
 }
 
 .agenda-calendar .fc-timeline-now-indicator-arrow,
@@ -543,7 +567,7 @@ body {
 
 .study-card:hover {
     background-color: #f3f0f5;
-    border-left-color: var(--htc-lavender);
+    border-left-color: var(--htc-purple);
     transform: translateX(2px);
 }
 
@@ -711,7 +735,7 @@ body {
 #globalLoader {
     position: fixed;
     inset: 0;
-    background: rgba(61, 56, 72, 0.72);
+    background: rgba(16, 24, 96, 0.72);
     backdrop-filter: blur(4px);
     display: none;
     align-items: center;
@@ -726,21 +750,21 @@ body {
 body.dark,
 [data-bs-theme="dark"] body,
 [data-bs-theme="dark"] .bg-app {
-    --primary: #9d8fc4;
-    --primary-hover: #8a7ab0;
-    --primary-rgb: 157, 143, 196;
-    --agenda-pre: #9a8ab8;
-    --agenda-agendado: #7a6a9e;
-    --agenda-confirmado: #4a8aad;
-    --agenda-espera: #c4923a;
-    --agenda-anulado: #d45a6e;
-    --agenda-atendido: #6b6578;
-    --bg-app: #1e1c24;
-    --bg-card: #2a2732;
-    --text-main: #ece8f0;
-    --text-muted: #a39dad;
-    --border-color: #3f3b48;
-    --bg-sidebar: #16141c;
+    --primary: #b86ac0;
+    --primary-hover: #9a4a9e;
+    --primary-rgb: 184, 106, 192;
+    --agenda-pre: #b89ac8;
+    --agenda-agendado: #9a4a9e;
+    --agenda-confirmado: #4a7aad;
+    --agenda-espera: #d4a84a;
+    --agenda-anulado: #e05a6e;
+    --agenda-atendido: #6b7280;
+    --bg-app: #0c1028;
+    --bg-card: #161d42;
+    --text-main: #ece8f4;
+    --text-muted: #a8b0d0;
+    --border-color: #2a3468;
+    --bg-sidebar: #080c20;
     background-color: var(--bg-app) !important;
 }
 
@@ -997,7 +1021,7 @@ body.dark,
    ========================================= */
 body.login-page,
 body.recovery-page {
-    background: linear-gradient(165deg, var(--bg-app) 0%, #e8e2ef 40%, #dce8f0 100%);
+    background: linear-gradient(165deg, #f8f5fb 0%, #ede8f4 35%, #e4eaf6 70%, #dce4f8 100%);
     min-height: 100vh;
     display: flex;
     align-items: center;
@@ -1023,25 +1047,39 @@ body.recovery-page {
 .login-header,
 .recovery-header {
     background: var(--bg-card);
-    padding: 2.5rem 2rem 1.25rem;
+    padding: 2rem 2rem 1.25rem;
     text-align: center;
-    border-top: 4px solid var(--primary);
+    position: relative;
 }
 
-.login-logo,
-.recovery-logo {
-    font-size: 3rem;
-    color: var(--primary) !important;
-    margin-bottom: 0.5rem;
-    display: inline-block;
-    line-height: 1;
+.login-header::before,
+.recovery-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--gradient-cloud);
+    border-radius: 20px 20px 0 0;
 }
 
-.login-title,
-.recovery-title {
-    color: var(--text-main);
-    font-size: 1.5rem;
-    letter-spacing: -0.02em;
+.login-brand-img,
+.recovery-brand-img {
+    width: min(100%, 280px);
+    height: auto;
+    display: block;
+    margin: 0 auto 0.75rem;
+    object-fit: contain;
+}
+
+.login-subtitle,
+.recovery-subtitle {
+    color: var(--htc-navy);
+    font-size: 0.875rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    margin: 0;
 }
 
 .login-footer {

@@ -13,14 +13,14 @@ function risNullableUuid(value) {
     return value;
 }
 
-/** Colores de estado (alineados con --agenda-* en style.css) */
+/** Colores de estado (alineados con --agenda-* en style.css / marca HealthTICloud) */
 const AGENDA_ESTADO_COLORES = {
-    'pre-agendado': '#7a6a9a',
-    'agendado': '#5b4a82',
-    'confirmado': '#2d6a8f',
-    'espera': '#9a6f1f',
-    'anulado': '#b83d52',
-    'atendido': '#4a4556',
+    'pre-agendado': '#9a6fa8',
+    'agendado': '#7d2181',
+    'confirmado': '#2d5080',
+    'espera': '#b8860b',
+    'anulado': '#c41e3a',
+    'atendido': '#4a5568',
 };
 const AGENDA_ESTADO_TEXTO = '#ffffff';
 
@@ -45,7 +45,7 @@ function pintarLeyendaEstadosAgenda(root) {
     if (!scope) return;
     scope.querySelectorAll('[data-estado-leyenda]').forEach((el) => {
         const key = el.getAttribute('data-estado-leyenda');
-        const color = AGENDA_ESTADO_COLORES[key] || '#5b4a82';
+        const color = AGENDA_ESTADO_COLORES[key] || '#7d2181';
         el.style.setProperty('--leyenda-color', color);
     });
 }
@@ -621,7 +621,7 @@ function setupCalendar(el) {
             const isLocked = !estadosIniciales.includes(props.status);
             const lockIcon = isLocked ? '<i class="bi bi-lock-fill text-white me-1"></i>' : '';
 
-            const bgColor = arg.event.backgroundColor || '#5b4a82';
+            const bgColor = arg.event.backgroundColor || '#7d2181';
 
             if (isMonthView) {
                 const alert = needsReview ? '<span class="badge bg-danger rounded-pill" style="font-size:9px">!</span> ' : '';
@@ -1184,7 +1184,7 @@ async function eliminarCita() {
 
 function getHexColorEstado(status) {
     const key = status ? String(status).trim().toLowerCase() : '';
-    return AGENDA_ESTADO_COLORES[key] || '#9a95a5';
+    return AGENDA_ESTADO_COLORES[key] || '#7d2181';
 }
 
 function colorSelectorEstado() {
