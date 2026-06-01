@@ -542,6 +542,9 @@ function cargarEstudioEnEditor(studyId) {
     if (typeof stopBrowserDictation === "function") {
         stopBrowserDictation(true);
     }
+    if (typeof refreshBrowserDictationButtonState === "function") {
+        refreshBrowserDictationButtonState();
+    }
 }
 
 async function firmarDirecto() {
@@ -750,7 +753,7 @@ function releaseRecordingStream() {
 async function startAudioRecording() {
     if (!canControlAudioRecording()) {
         if (typeof showToast === "function") {
-            showToast("Seleccione un examen antes de grabar audio.", "warning");
+            showToast("Seleccione un examen en la bandeja antes de dictar.", "warning");
         }
         return false;
     }
@@ -1057,25 +1060,20 @@ function handleSpeechMikeRecordingShortcut(event) {
     maybeDebugSpeechMikeKey(event, action);
 
     if (
-        currentDictationMethod === "browser_stt"
-        && action
-        && typeof toggleBrowserDictation === "function"
+        action
+        && typeof handleSpeechMikeBrowserDictationAction === "function"
+        && handleSpeechMikeBrowserDictationAction(action)
     ) {
         if (!isDuplicateSpeechMikeEvent(event)) {
             event.preventDefault();
             event.stopImmediatePropagation();
-            if (action === "stop" || action === "pause") {
-                stopBrowserDictation();
-            } else if (action === "toggle" || action === "start") {
-                toggleBrowserDictation();
-            }
         }
         return;
     }
 
     if (!canHandleSpeechMikeHotkey()) {
         if (action && typeof showToast === "function") {
-            showToast("Seleccione un examen antes de grabar audio.", "warning");
+            showToast("Seleccione un examen en la bandeja antes de dictar.", "warning");
         }
         return;
     }
@@ -1097,13 +1095,25 @@ function handleSpeechMikeRecordingShortcut(event) {
 
     switch (action) {
         case "stop":
-            stopAudioRecording();
+            if (typeof isBrowserDictationActive === "function" && isBrowserDictationActive()) {
+                stopBrowserDictation();
+            } else {
+                stopAudioRecording();
+            }
             break;
         case "start":
-            startAudioRecording();
+            if (typeof isBrowserDictationSupported === "function" && isBrowserDictationSupported()) {
+                toggleBrowserDictation();
+            } else {
+                startAudioRecording();
+            }
             break;
         case "toggle":
-            toggleAudioRecording();
+            if (typeof isBrowserDictationSupported === "function" && isBrowserDictationSupported()) {
+                toggleBrowserDictation();
+            } else {
+                toggleAudioRecording();
+            }
             break;
         case "pause":
             toggleAudioRecordingPause();

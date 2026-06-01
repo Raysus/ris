@@ -287,22 +287,15 @@ function executeSpeechMikeRecordingAction(action) {
         return;
     }
 
-    if (
-        typeof currentDictationMethod !== "undefined"
-        && currentDictationMethod === "browser_stt"
-        && typeof toggleBrowserDictation === "function"
-    ) {
-        if (action === "stop" && typeof stopBrowserDictation === "function") {
-            stopBrowserDictation();
-        } else if (["toggle", "start", "pause"].includes(action)) {
-            toggleBrowserDictation();
+    if (typeof handleSpeechMikeBrowserDictationAction === "function") {
+        if (handleSpeechMikeBrowserDictationAction(action)) {
+            return;
         }
-        return;
     }
 
     if (!canHandleSpeechMikeHotkey() && !isRecordingSessionActive()) {
         if (typeof showToast === "function") {
-            showToast("Seleccione un examen antes de grabar audio.", "warning");
+            showToast("Seleccione un examen en la bandeja antes de dictar.", "warning");
         }
         return;
     }

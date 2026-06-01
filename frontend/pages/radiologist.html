@@ -87,12 +87,8 @@
                             <div class="col-md-6">
                                 <div
                                     class="bg-white p-3 rounded border border-primary shadow-sm mb-2 d-flex flex-column text-center">
-                                    <h6 class="fw-bold mb-1 text-primary"><i class="bi bi-mic-fill me-1"></i>Dictado por
+                                    <h6 class="fw-bold mb-2 text-primary"><i class="bi bi-mic-fill me-1"></i>Dictado por
                                         voz (navegador)</h6>
-                                    <small class="text-muted mb-2 text-start" style="font-size: 0.72rem;">
-                                        <b>Gratuito</b> — Web Speech API en Chrome/Edge. Escriba el informe hablando.
-                                        Compatible con micrófono USB o SpeechMike (teclas Num+/F4 si configuró teclas).
-                                    </small>
                                     <div class="d-flex gap-2 mb-2 align-items-center">
                                         <label class="small text-muted mb-0" for="selDictationLang">Idioma</label>
                                         <select id="selDictationLang" class="form-select form-select-sm"
@@ -130,69 +126,15 @@
                                     <h6 class="fw-bold mb-1 text-danger"><i class="bi bi-mic-fill me-1"></i>Audio a
                                         Transcripción</h6>
                                     <small class="text-muted mb-2">Grabe para la secretaría (Máx 10 min).</small>
-                                    <div class="alert alert-info py-2 px-2 mb-2 text-start" style="font-size: 0.7rem;">
-                                        <b>LFH3200 (modo teclado):</b> configure las mismas teclas en
-                                        <b>SpeechControl</b> y en «Configurar teclas» (p. ej. Num+ grabar, F4 detener).
-                                        Active «Probar teclas», pulse un botón del micrófono: debe verse el nombre de la tecla.
-                                    </div>
                                     <div class="d-flex flex-wrap align-items-center justify-content-center gap-2 mb-2">
                                         <button type="button" id="btnConnectSpeechMike"
                                             class="btn btn-sm btn-outline-primary fw-bold">
                                             Conectar SpeechMike
                                         </button>
-                                        <button type="button" id="btnTestSpeechMikeLed"
-                                            class="btn btn-sm btn-outline-secondary" title="Solo si ya conectó por HID">
-                                            Probar LED
-                                        </button>
                                         <button type="button" class="btn btn-link btn-sm p-0 text-secondary"
                                             style="font-size: 0.72rem;" id="btnSpeechMikeDebug">
                                             Probar teclas
                                         </button>
-                                        <button type="button" class="btn btn-link btn-sm p-0 text-primary fw-bold"
-                                            style="font-size: 0.72rem;" id="btnSpeechMikeKeymap"
-                                            data-bs-toggle="collapse" data-bs-target="#speechMikeKeymapPanel"
-                                            aria-expanded="false">
-                                            Configurar teclas
-                                        </button>
-                                    </div>
-                                    <div class="collapse text-start mb-2" id="speechMikeKeymapPanel">
-                                        <div class="border rounded p-2 bg-light" style="font-size: 0.72rem;">
-                                            <p class="mb-2 text-muted mb-1">
-                                                <b>LFH3200:</b> en <b>SpeechControl</b> (Windows) asigne botones a teclas y
-                                                aquí pulse «Capturar» con el mismo botón, o use un perfil rápido.
-                                            </p>
-                                            <div class="d-flex flex-wrap gap-1 mb-2">
-                                                <button type="button" class="btn btn-xs btn-outline-secondary btn-sm"
-                                                    data-sm-preset="philips">Num+ / F4 / F7</button>
-                                                <button type="button" class="btn btn-xs btn-outline-secondary btn-sm"
-                                                    data-sm-preset="f8">F8 / F4 / F7</button>
-                                                <button type="button" class="btn btn-xs btn-outline-secondary btn-sm"
-                                                    data-sm-preset="insert">Insert / F10 / F7</button>
-                                            </div>
-                                            <table class="table table-sm table-borderless mb-2 small">
-                                                <tbody>
-                                                    <tr>
-                                                        <td class="text-nowrap">Grabar / detener</td>
-                                                        <td><code id="smKeyDisplayRecord">NumpadAdd</code></td>
-                                                        <td><button type="button" class="btn btn-sm btn-outline-primary py-0"
-                                                                data-sm-capture="record">Capturar</button></td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td>Detener</td>
-                                                        <td><code id="smKeyDisplayStop">F4</code></td>
-                                                        <td><button type="button" class="btn btn-sm btn-outline-primary py-0"
-                                                                data-sm-capture="stop">Capturar</button></td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td>Pausa</td>
-                                                        <td><code id="smKeyDisplayPause">F7</code></td>
-                                                        <td><button type="button" class="btn btn-sm btn-outline-primary py-0"
-                                                                data-sm-capture="pause">Capturar</button></td>
-                                                    </tr>
-                                                </tbody>
-                                            </table>
-                                            <p id="smKeyCaptureHint" class="small text-primary mb-0 d-none"></p>
-                                        </div>
                                     </div>
                                     <p id="speechMikeHidStatus" class="small text-warning mb-2 px-1" style="font-size: 0.72rem;">
                                         Al pulsar <b>Conectar</b>: ventana de Chrome con dispositivos Philips (o un aviso si ya
