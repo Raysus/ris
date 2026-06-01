@@ -1047,9 +1047,16 @@ body.recovery-page {
 .login-header,
 .recovery-header {
     background: var(--bg-card);
-    padding: 2rem 2rem 1.25rem;
+    padding: 0 0 1.25rem;
     text-align: center;
     position: relative;
+}
+
+.login-brand-panel,
+.recovery-brand-panel {
+    background: #101860;
+    padding: 1.5rem 1.75rem 1.25rem;
+    margin: 0 0 1rem;
 }
 
 .login-header::before,
@@ -1066,15 +1073,16 @@ body.recovery-page {
 
 .login-brand-img,
 .recovery-brand-img {
-    width: min(100%, 280px);
+    width: min(100%, 300px);
     height: auto;
     display: block;
-    margin: 0 auto 0.75rem;
+    margin: 0 auto;
     object-fit: contain;
 }
 
 .login-subtitle,
 .recovery-subtitle {
+    padding: 0 1.75rem;
     color: var(--htc-navy);
     font-size: 0.875rem;
     font-weight: 600;
