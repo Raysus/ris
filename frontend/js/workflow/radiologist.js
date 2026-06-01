@@ -710,6 +710,10 @@ function toggleAudioRecordingPause() {
  * Usamos event.code (más fiable que event.key) y keyup+keydown.
  */
 function getSpeechMikeRecordingAction(event) {
+    if (event.type !== "keydown") {
+        return null;
+    }
+
     const key = event.key || "";
     const code = event.code || "";
     const loc = event.location;
@@ -718,22 +722,23 @@ function getSpeechMikeRecordingAction(event) {
     const matches = (codes, keys) => codes.has(code) || keys.has(key);
 
     const stopCodes = new Set([
-        "F4", "F10", "Escape", "End", "Delete", "MediaStop",
-        "NumpadEnter", "Enter",
+        "F4", "F5", "F6", "F10", "Escape", "End", "Delete", "MediaStop",
+        "NumpadEnter", "Enter", "Backspace",
     ]);
-    const stopKeys = new Set(["F4", "F10", "Escape", "End", "Delete"]);
+    const stopKeys = new Set(["F4", "F5", "F6", "F10", "Escape", "End", "Delete"]);
 
     const pauseCodes = new Set([
         "MediaPlayPause", "MediaPause", "Pause", "F7", "Space",
     ]);
-    const pauseKeys = new Set(["F7"]);
+    const pauseKeys = new Set(["F7", " "]);
 
     const toggleCodes = new Set([
         "NumpadAdd", "MediaRecord", "F8", "F9", "F11", "F12", "Insert", "Home",
+        "NumpadMultiply", "F1",
     ]);
-    const toggleKeys = new Set(["F8", "F9", "F11", "F12", "Insert"]);
+    const toggleKeys = new Set(["F8", "F9", "F11", "F12", "Insert", "F1"]);
 
-    const startCodes = new Set(["F2", "F3", "NumpadMultiply"]);
+    const startCodes = new Set(["F2", "F3", "NumpadDecimal"]);
     const startKeys = new Set(["F2", "F3"]);
 
     if (matches(stopCodes, stopKeys) && session) {
@@ -744,9 +749,23 @@ function getSpeechMikeRecordingAction(event) {
         return "stop";
     }
 
+    if (key === "g" || key === "G") {
+        return session ? "stop" : "start";
+    }
+
+    if (key === "e" || key === "E") {
+        if (!session) {
+            return "start";
+        }
+        return isRecordingPaused() ? "resume" : "pause";
+    }
+
     if (matches(pauseCodes, pauseKeys)) {
         if (!session) {
             return null;
+        }
+        if (code === "Space" && !event.ctrlKey && !event.altKey) {
+            return isRecordingPaused() ? "resume" : "pause";
         }
         return isRecordingPaused() ? "resume" : "pause";
     }
@@ -772,7 +791,7 @@ function getSpeechMikeRecordingAction(event) {
 }
 
 function isDuplicateSpeechMikeEvent(event) {
-    const sig = `${event.code || ""}:${event.key || ""}:${event.location}`;
+    const sig = `${event.type}:${event.code || ""}:${event.key || ""}:${event.location}`;
     const now = Date.now();
     if (sig === _speechMikeLastKeySig && now - _speechMikeLastKeyAt < 280) {
         return true;
@@ -795,8 +814,9 @@ function toggleSpeechMikeDebug() {
         $("#btnSpeechMikeDebug").addClass("text-primary fw-bold").removeClass("text-secondary");
         if (typeof showToast === "function") {
             showToast(
-                "Modo prueba activo: pulse un botón del SpeechMike y verá el nombre de la tecla aquí.",
-                "info"
+                "Modo prueba: pulse botones del micrófono. Si no aparece nada, use Conectar SpeechMike o asigne Num+/F4 en SpeechControl. Doble clic en este enlace = diagnóstico HID.",
+                "info",
+                10000
             );
         }
     }
@@ -823,29 +843,39 @@ function maybeDebugSpeechMikeKey(event, action) {
         action,
     });
     if (typeof showToast === "function") {
+        const label = event.code || event.key || "?";
         showToast(
-            `SM: ${event.code || event.key} → ${action || "(sin mapeo)"}`,
+            `SM: ${label} → ${action || "(sin mapeo — configure Num+/F4 en SpeechControl)"}`,
             action ? "info" : "secondary"
         );
     }
 }
 
+function isRadiologistSpeechMikePageActive() {
+    return $("#btnConnectSpeechMike").length > 0;
+}
+
 function handleSpeechMikeRecordingShortcut(event) {
-    if (event.type !== "keydown" && event.type !== "keyup") {
+    if (!isRadiologistSpeechMikePageActive()) {
         return;
     }
 
-    if (!canHandleSpeechMikeHotkey()) {
-        const action = getSpeechMikeRecordingAction(event);
-        maybeDebugSpeechMikeKey(event, action);
-        if (action && typeof showToast === "function") {
-            showToast("Seleccione un examen antes de grabar audio.", "warning");
+    if (event.type !== "keydown") {
+        if (localStorage.getItem("ris_debug_speechmike") === "1") {
+            maybeDebugSpeechMikeKey(event, null);
         }
         return;
     }
 
     const action = getSpeechMikeRecordingAction(event);
     maybeDebugSpeechMikeKey(event, action);
+
+    if (!canHandleSpeechMikeHotkey()) {
+        if (action && typeof showToast === "function") {
+            showToast("Seleccione un examen antes de grabar audio.", "warning");
+        }
+        return;
+    }
 
     if (!action) {
         return;
@@ -891,7 +921,7 @@ function setupSpeechMikeShortcuts() {
 
     const opts = { capture: true };
     window.addEventListener("keydown", handleSpeechMikeRecordingShortcut, opts);
-    window.addEventListener("keyup", handleSpeechMikeRecordingShortcut, opts);
+    document.addEventListener("keydown", handleSpeechMikeRecordingShortcut, opts);
 }
 
 function setupAudioEvents() {

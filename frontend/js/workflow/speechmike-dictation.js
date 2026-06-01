@@ -19,26 +19,61 @@ function loadDictationSupportSdk() {
         return _dictationSupportLoadPromise;
     }
 
-    _dictationSupportLoadPromise = new Promise((resolve, reject) => {
-        const script = document.createElement("script");
-        script.src = DICTATION_SUPPORT_CDN;
-        script.async = true;
-        script.onload = () => {
-            if (typeof DictationSupport !== "undefined") {
-                resolve();
-            } else {
-                reject(new Error("dictation_support no expuso DictationSupport"));
-            }
-        };
-        script.onerror = () => reject(new Error("No se pudo cargar dictation_support"));
-        document.head.appendChild(script);
-    });
+    const localSrc = "js/lib/dictation_support.js";
+    const tryLocal = () =>
+        new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = typeof risAssetUrl === "function" ? risAssetUrl(localSrc) : localSrc;
+            script.async = true;
+            script.onload = () => {
+                if (typeof DictationSupport !== "undefined") {
+                    resolve();
+                } else {
+                    reject(new Error("dictation_support local no expuso DictationSupport"));
+                }
+            };
+            script.onerror = () => reject(new Error("No se pudo cargar dictation_support local"));
+            document.head.appendChild(script);
+        });
 
+    const tryCdn = () =>
+        new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = DICTATION_SUPPORT_CDN;
+            script.async = true;
+            script.onload = () => {
+                if (typeof DictationSupport !== "undefined") {
+                    resolve();
+                } else {
+                    reject(new Error("dictation_support CDN no expuso DictationSupport"));
+                }
+            };
+            script.onerror = () => reject(new Error("No se pudo cargar dictation_support (CDN)"));
+            document.head.appendChild(script);
+        });
+
+    _dictationSupportLoadPromise = tryLocal().catch(() => tryCdn());
     return _dictationSupportLoadPromise;
 }
 
 function speechMikeDictationSupported() {
     return typeof navigator !== "undefined" && !!navigator.hid && typeof DictationSupport !== "undefined";
+}
+
+function speechMikeEventModeLabel(mode) {
+    const EM = DictationSupport?.EventMode;
+    if (!EM) {
+        return String(mode);
+    }
+    const map = {
+        [EM.HID]: "HID (evento)",
+        [EM.KEYBOARD]: "TECLADO",
+        [EM.BROWSER]: "NAVEGADOR",
+        [EM.WINDOWS_SR]: "Windows SR",
+        [EM.DRAGON_FOR_MAC]: "Dragon Mac",
+        [EM.DRAGON_FOR_WINDOWS]: "Dragon Windows",
+    };
+    return map[mode] || `modo ${mode}`;
 }
 
 /** LFH3200/3300 (SpeechMike III): sin modo navegador F3; usan HID/evento vía WebHID. */
@@ -83,7 +118,7 @@ function speechMikeDeviceLabel(device) {
     return labels[dt] || `SpeechMike (tipo ${dt})`;
 }
 
-function updateSpeechMikeConnectUi() {
+function updateSpeechMikeConnectUi(extraStatus) {
     const $status = $("#speechMikeHidStatus");
     const $btn = $("#btnConnectSpeechMike");
     if (!$status.length) {
@@ -107,18 +142,20 @@ function updateSpeechMikeConnectUi() {
         const name = speechMikeDeviceLabel(first);
         const modeHint = speechMikeSupportsBrowserMode(first)
             ? "Modo navegador (F3) opcional."
-            : "LFH3200/3300: deje modo evento (HID), no pulse F3.";
+            : "LFH3200: botones g/e vía HID; si no responden, use «Probar teclas».";
+        const suffix = extraStatus ? ` ${extraStatus}` : "";
         $status
             .removeClass("text-warning text-danger")
             .addClass("text-success")
-            .text(`Conectado: ${name}. ${modeHint}`);
+            .text(`Conectado: ${name}. ${modeHint}${suffix}`);
         $btn.text("Cambiar dispositivo");
     } else {
         $status
             .removeClass("text-success text-danger")
             .addClass("text-warning")
             .text(
-                "Pulse «Conectar SpeechMike». LFH3200: modo evento + SpeechControl; Premium Touch: F3 navegador."
+                extraStatus ||
+                    "Pulse «Conectar SpeechMike». Si no aparece en la lista, use SpeechControl en modo teclado con Num+ / F4."
             );
         $btn.text("Conectar SpeechMike");
     }
@@ -126,24 +163,32 @@ function updateSpeechMikeConnectUi() {
 
 async function configureSpeechMikeForWeb(device) {
     if (!device || typeof device.setEventMode !== "function") {
-        return "hid";
+        return { mode: "hid", eventMode: null };
     }
 
     try {
         if (speechMikeSupportsBrowserMode(device)) {
             await device.setEventMode(DictationSupport.EventMode.BROWSER);
-            return "browser";
+            return { mode: "browser", eventMode: DictationSupport.EventMode.BROWSER };
         }
-        const current = typeof device.getEventMode === "function"
-            ? await device.getEventMode()
-            : DictationSupport.EventMode.HID;
-        if (current !== DictationSupport.EventMode.HID) {
+
+        let current =
+            typeof device.getEventMode === "function"
+                ? await device.getEventMode()
+                : DictationSupport.EventMode.HID;
+
+        if (current === DictationSupport.EventMode.KEYBOARD) {
             await device.setEventMode(DictationSupport.EventMode.HID);
+            current = DictationSupport.EventMode.HID;
+        } else if (current !== DictationSupport.EventMode.HID) {
+            await device.setEventMode(DictationSupport.EventMode.HID);
+            current = DictationSupport.EventMode.HID;
         }
-        return "hid";
+
+        return { mode: "hid", eventMode: current };
     } catch (err) {
         console.warn("SpeechMike configureSpeechMikeForWeb:", err);
-        return "hid";
+        return { mode: "hid", eventMode: null };
     }
 }
 
@@ -205,47 +250,62 @@ function executeSpeechMikeRecordingAction(action) {
     }
 }
 
+function speechMikeMaskToNames(bitMask) {
+    const BE = DictationSupport.ButtonEvent;
+    const names = [];
+    Object.keys(BE).forEach((k) => {
+        const v = BE[k];
+        if (typeof v === "number" && v > 0 && (bitMask & v)) {
+            names.push(k);
+        }
+    });
+    return names;
+}
+
 function handleSpeechMikeHidButton(device, bitMask) {
     const BE = DictationSupport.ButtonEvent;
     const newlyPressed = bitMask & ~_speechMikeLastButtonMask;
     _speechMikeLastButtonMask = bitMask;
 
     if (localStorage.getItem("ris_debug_speechmike") === "1") {
-        const names = [];
-        Object.keys(BE).forEach((k) => {
-            const v = BE[k];
-            if (typeof v === "number" && v > 0 && (newlyPressed & v)) {
-                names.push(k);
-            }
-        });
+        const names = speechMikeMaskToNames(newlyPressed || bitMask);
         if (names.length && typeof showToast === "function") {
-            showToast(`SpeechMike: ${names.join(", ")}`, "info");
+            showToast(`SpeechMike HID: ${names.join(", ")}`, "info");
         }
-        console.info("[SpeechMike HID]", { bitMask, newlyPressed, names });
+        console.info("[SpeechMike HID]", {
+            bitMask,
+            newlyPressed,
+            names: speechMikeMaskToNames(bitMask),
+        });
     }
 
     if (!newlyPressed) {
         return;
     }
 
-    if (newlyPressed & BE.STOP) {
+    const stopBits =
+        BE.STOP | BE.SCAN_END | BE.SCAN_SUCCESS | BE.EOL_PRIO | BE.COMMAND;
+    const recordBits = BE.RECORD | BE.INSTR | BE.INS_OVR | BE.F4_D;
+    const playBits = BE.PLAY | BE.FORWARD | BE.REWIND;
+
+    if (newlyPressed & stopBits) {
         executeSpeechMikeRecordingAction("stop");
         return;
     }
 
-    if (newlyPressed & BE.RECORD) {
+    if (newlyPressed & recordBits) {
         executeSpeechMikeRecordingAction(isRecordingSessionActive() ? "stop" : "start");
         return;
     }
 
-    if (newlyPressed & BE.PLAY) {
+    if (newlyPressed & playBits) {
         executeSpeechMikeRecordingAction(
             isRecordingPaused() ? "resume" : isRecordingActive() ? "pause" : "start"
         );
         return;
     }
 
-    if (newlyPressed & (BE.F1_A | BE.F2_B | BE.F3_C | BE.F4_D)) {
+    if (newlyPressed & (BE.F1_A | BE.F2_B | BE.F3_C)) {
         executeSpeechMikeRecordingAction("toggle");
     }
 }
@@ -253,13 +313,67 @@ function handleSpeechMikeHidButton(device, bitMask) {
 function onSpeechMikeHidConnected() {
     updateSpeechMikeConnectUi();
     if (typeof showToast === "function") {
-        showToast("SpeechMike listo. Use el botón de grabar del micrófono.", "success");
+        showToast("SpeechMike listo. Pulse «Probar teclas» si los botones no responden.", "success");
     }
 }
 
 function onSpeechMikeHidDisconnected() {
     _speechMikeLastButtonMask = 0;
     updateSpeechMikeConnectUi();
+}
+
+async function listPhilipsHidDevices() {
+    if (!navigator.hid?.getDevices) {
+        return [];
+    }
+    const all = await navigator.hid.getDevices();
+    return all.filter((d) => d.vendorId === 0x0911 || d.vendorId === 0x0554);
+}
+
+async function diagnoseSpeechMike() {
+    const lines = [];
+    if (!navigator.hid) {
+        lines.push("WebHID no disponible (use Chrome o Edge).");
+    } else {
+        const permitted = await listPhilipsHidDevices();
+        lines.push(`HID permitidos (Philips/Nuance): ${permitted.length}`);
+        permitted.forEach((d, i) => {
+            const cols =
+                d.collections?.map((c) => `page ${c.usagePage} usage ${c.usage}`).join("; ") ||
+                "sin colecciones";
+            lines.push(
+                `  ${i + 1}. ${d.productName || "dispositivo"} pid=${d.productId} opened=${d.opened} (${cols})`
+            );
+        });
+    }
+
+    const sdkDevices = _dictationDeviceManager?.getDevices?.() || [];
+    lines.push(`SDK dictation_support: ${sdkDevices.length} dispositivo(s)`);
+    for (const device of sdkDevices) {
+        const label = speechMikeDeviceLabel(device);
+        let modeText = "?";
+        try {
+            if (typeof device.getEventMode === "function") {
+                const m = await device.getEventMode();
+                modeText = speechMikeEventModeLabel(m);
+                if (m === DictationSupport.EventMode.KEYBOARD) {
+                    lines.push(
+                        "  AVISO: modo TECLADO — el navegador no recibe botones HID. En SpeechControl asigne Num+ y F4 a Chrome."
+                    );
+                }
+            }
+        } catch (e) {
+            modeText = "error";
+        }
+        lines.push(`  · ${label} — ${modeText}`);
+    }
+
+    const msg = lines.join("\n");
+    console.info("[SpeechMike diagnóstico]\n" + msg);
+    if (typeof showToast === "function") {
+        showToast(lines.slice(0, 3).join(" · "), sdkDevices.length ? "info" : "warning", 9000);
+    }
+    return msg;
 }
 
 async function connectSpeechMikeDevice() {
@@ -271,37 +385,60 @@ async function connectSpeechMikeDevice() {
     }
 
     try {
-        const devices = await _dictationDeviceManager.requestDevice();
+        let devices = await _dictationDeviceManager.requestDevice();
         if (!devices.length) {
+            const permitted = await listPhilipsHidDevices();
+            if (permitted.length) {
+                devices = _dictationDeviceManager.getDevices();
+            }
+        }
+
+        if (!devices.length) {
+            await diagnoseSpeechMike();
             if (typeof showToast === "function") {
-                showToast("No se seleccionó ningún dispositivo.", "warning");
+                showToast(
+                    "No hay SpeechMike HID activo. En SpeechControl: perfil para Chrome con Num+ (grabar) y F4 (detener), o modo evento + Conectar.",
+                    "warning",
+                    12000
+                );
             }
             return;
         }
 
         const hints = [];
         for (const device of devices) {
-            const mode = await configureSpeechMikeForWeb(device);
+            const { mode, eventMode } = await configureSpeechMikeForWeb(device);
             const label = speechMikeDeviceLabel(device);
-            hints.push(
-                mode === "browser"
-                    ? `${label} (modo navegador)`
-                    : `${label} (modo HID — normal en LFH3200)`
-            );
+            const modeLabel =
+                eventMode != null ? speechMikeEventModeLabel(eventMode) : mode;
+            hints.push(`${label} (${modeLabel})`);
+
+            if (eventMode === DictationSupport.EventMode.KEYBOARD) {
+                if (typeof showToast === "function") {
+                    showToast(
+                        "Micrófono en modo TECLADO: asigne en SpeechControl Num+ para grabar y F4 para detener en esta ventana de Chrome.",
+                        "warning",
+                        12000
+                    );
+                }
+            }
         }
 
         localStorage.setItem("ris_speechmike_hid_connected", "1");
         updateSpeechMikeConnectUi();
         onSpeechMikeHidConnected();
         if (typeof showToast === "function" && hints.length) {
-            showToast(hints.join(" · "), "success");
+            showToast(hints.join(" · "), "success", 8000);
         }
+        await diagnoseSpeechMike();
     } catch (err) {
         console.error("connectSpeechMikeDevice:", err);
+        await diagnoseSpeechMike();
         if (typeof showToast === "function") {
             showToast(
-                "No se pudo conectar. Use Chrome/Edge, modo navegador (F3) en el micrófono y permita el acceso HID.",
-                "danger"
+                "No se pudo conectar. Chrome/Edge, cable USB directo (no RDP), y en el selector elija «SpeechMike» con página de uso 65440.",
+                "danger",
+                10000
             );
         }
     }
@@ -315,6 +452,12 @@ function setupSpeechMikeUiBindings() {
         }
         if (typeof showToast === "function") {
             showToast("Controlador SpeechMike no cargado. Recargue Radiólogo (Ctrl+F5).", "warning");
+        }
+    });
+
+    $("#btnSpeechMikeDebug").off("dblclick.risSpeechMike").on("dblclick.risSpeechMike", function () {
+        if (typeof diagnoseSpeechMike === "function") {
+            diagnoseSpeechMike();
         }
     });
 }
@@ -331,12 +474,20 @@ async function initSpeechMikeDictation() {
         await loadDictationSupportSdk();
     } catch (err) {
         console.error(err);
-        $("#speechMikeHidStatus").text("No se pudo cargar el controlador del micrófono (red/CDN).");
+        $("#speechMikeHidStatus").text(
+            "No se pudo cargar el controlador del micrófono. Revise que exista js/lib/dictation_support.js."
+        );
         return;
     }
 
     if (_speechMikeHidReady) {
         updateSpeechMikeConnectUi();
+        const existing = _dictationDeviceManager?.getDevices?.() || [];
+        if (existing.length) {
+            for (const device of existing) {
+                await configureSpeechMikeForWeb(device);
+            }
+        }
         return;
     }
 
@@ -360,7 +511,7 @@ async function initSpeechMikeDictation() {
             updateSpeechMikeConnectUi();
         } else if (localStorage.getItem("ris_speechmike_hid_connected") === "1") {
             $("#speechMikeHidStatus").text(
-                "Permiso guardado: pulse «Conectar SpeechMike» si el micrófono no responde."
+                "Permiso guardado: pulse «Conectar SpeechMike». Doble clic en «Probar teclas» = diagnóstico."
             );
         }
 
@@ -375,3 +526,4 @@ async function initSpeechMikeDictation() {
 
 window.connectSpeechMikeDevice = connectSpeechMikeDevice;
 window.initSpeechMikeDictation = initSpeechMikeDictation;
+window.diagnoseSpeechMike = diagnoseSpeechMike;
