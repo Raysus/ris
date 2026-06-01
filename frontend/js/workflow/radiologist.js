@@ -39,6 +39,9 @@ function initRadiologist() {
     setupAudioEvents();
     setupSpeechMikeShortcuts();
     syncSpeechMikeDebugButtonUi();
+    if (typeof initSpeechMikeDictation === "function") {
+        initSpeechMikeDictation();
+    }
 
     if (radiologistRefreshInterval) clearInterval(radiologistRefreshInterval);
 
@@ -617,12 +620,18 @@ async function startAudioRecording() {
             releaseRecordingStream();
             updateRecordingUi(false);
             $("#btnRecord").html('<i class="bi bi-mic me-1"></i> REGRABAR (Sobrescribe)');
+            if (typeof trySetSpeechMikeRecordingLed === "function") {
+                trySetSpeechMikeRecordingLed(false);
+            }
         };
 
         mediaRecorder.start();
         updateRecordingUi("recording");
         $("#audioTimer").text("00:00");
         startRecordingTimer();
+        if (typeof trySetSpeechMikeRecordingLed === "function") {
+            trySetSpeechMikeRecordingLed(true);
+        }
 
         return true;
     } catch (err) {
