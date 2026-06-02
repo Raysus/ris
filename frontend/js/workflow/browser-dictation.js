@@ -1,6 +1,5 @@
 /* =========================================
    Dictado por voz en el navegador (Web Speech API)
-   Usa el micrófono por defecto de Windows (SpeechMike USB o integrado).
    ========================================= */
 
 let _browserRecognition = null;
@@ -8,14 +7,30 @@ let _browserDictationActive = false;
 let _browserDictationStopping = false;
 let _browserDictationBaseText = "";
 let _browserDictationSessionFinal = "";
-let _browserDictationStream = null;
+let _browserDictationClickBusy = false;
 
 function getSpeechRecognitionConstructor() {
     return window.SpeechRecognition || window.webkitSpeechRecognition || null;
 }
 
 function isBrowserDictationSupported() {
+    if (!window.isSecureContext) {
+        return false;
+    }
     return !!getSpeechRecognitionConstructor() && !!navigator.mediaDevices?.getUserMedia;
+}
+
+function getBrowserDictationBlockReason() {
+    if (!window.isSecureContext) {
+        return "Abra el RIS con https:// (no http ni IP sin certificado).";
+    }
+    if (!getSpeechRecognitionConstructor()) {
+        return "Use Chrome o Microsoft Edge en esta PC.";
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+        return "El navegador no permite acceso al micrófono.";
+    }
+    return null;
 }
 
 function isBrowserDictationActive() {
@@ -30,10 +45,24 @@ function setBrowserDictationLang(lang) {
     localStorage.setItem("ris_dictation_lang", lang || "es-CL");
 }
 
-function releaseBrowserDictationMic() {
-    if (_browserDictationStream) {
-        _browserDictationStream.getTracks().forEach((t) => t.stop());
-        _browserDictationStream = null;
+function setBrowserDictationStatusMessage(text, isError) {
+    const $status = $("#browserDictationStatus");
+    if (!$status.length) {
+        return;
+    }
+    $status.removeClass("text-muted text-danger text-warning fw-bold");
+    if (isError) {
+        $status.addClass("text-danger fw-bold");
+    } else {
+        $status.addClass("text-muted");
+    }
+    $status.text(text);
+}
+
+function notifyBrowserDictation(msg, tipo) {
+    setBrowserDictationStatusMessage(msg, tipo === "danger" || tipo === "warning");
+    if (typeof showToast === "function") {
+        showToast(msg, tipo || "info");
     }
 }
 
@@ -49,22 +78,22 @@ function updateBrowserDictationUi(active, hint) {
             .removeClass("btn-outline-primary")
             .addClass("btn-primary")
             .html('<i class="bi bi-mic-mute-fill me-1"></i> DETENER DICTADO');
-        $status
-            .removeClass("text-muted text-danger")
-            .addClass("text-danger fw-bold")
-            .html(
-                hint ||
-                    '<i class="bi bi-record-circle me-1"></i> Escuchando… hable al micrófono (SpeechMike o PC)'
-            );
+        if ($status.length) {
+            $status
+                .removeClass("text-muted")
+                .addClass("text-danger fw-bold")
+                .html(hint || '<i class="bi bi-record-circle me-1"></i> Escuchando… hable al micrófono');
+        }
     } else {
         $btn
             .removeClass("btn-primary")
             .addClass("btn-outline-primary")
             .html('<i class="bi bi-mic-fill me-1"></i> INICIAR DICTADO VOZ');
-        $status
-            .removeClass("text-danger fw-bold")
-            .addClass("text-muted")
-            .text(hint || "Listo — use el mismo micrófono que en Windows");
+        if (hint) {
+            setBrowserDictationStatusMessage(hint, false);
+        } else {
+            refreshBrowserDictationButtonState();
+        }
     }
 }
 
@@ -92,6 +121,7 @@ function renderBrowserDictationText(interimPiece) {
 function stopBrowserDictation(silent) {
     _browserDictationStopping = true;
     _browserDictationActive = false;
+    _browserDictationClickBusy = false;
 
     if (typeof currentDictationMethod !== "undefined" && currentDictationMethod === "browser_stt") {
         currentDictationMethod = "teclado";
@@ -100,6 +130,7 @@ function stopBrowserDictation(silent) {
     if (_browserRecognition) {
         try {
             _browserRecognition.onend = null;
+            _browserRecognition.onerror = null;
             _browserRecognition.stop();
         } catch (e) {
             console.warn("stopBrowserDictation:", e);
@@ -107,21 +138,20 @@ function stopBrowserDictation(silent) {
         _browserRecognition = null;
     }
 
-    releaseBrowserDictationMic();
     updateBrowserDictationUi(false);
 
     const txt = $("#textoInforme");
     txt.removeClass("border-primary border-2 shadow");
 
-    if (!silent && typeof showToast === "function") {
-        showToast("Dictado por voz detenido.", "secondary");
+    if (!silent) {
+        notifyBrowserDictation("Dictado por voz detenido.", "secondary");
     }
 
     _browserDictationStopping = false;
 }
 
-async function warmUpMicrophoneForDictation() {
-    releaseBrowserDictationMic();
+/** Solo pide permiso; libera el micrófono antes de SpeechRecognition (evita bloqueo en Chrome). */
+async function ensureMicrophonePermissionForDictation() {
     const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
             echoCancellation: true,
@@ -129,29 +159,101 @@ async function warmUpMicrophoneForDictation() {
             autoGainControl: true,
         },
     });
-    _browserDictationStream = stream;
 
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const inputs = devices.filter((d) => d.kind === "audioinput");
-    const defaultInput = inputs.find((d) => d.deviceId === "default") || inputs[0];
-    const label = defaultInput?.label || "micrófono del sistema";
+    let label = "micrófono del sistema";
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const inputs = devices.filter((d) => d.kind === "audioinput");
+        const defaultInput = inputs.find((d) => d.deviceId === "default") || inputs[0];
+        if (defaultInput?.label) {
+            label = defaultInput.label;
+        }
+    } catch (e) {
+        console.warn("enumerateDevices:", e);
+    }
 
-    return { label, count: inputs.length };
+    stream.getTracks().forEach((t) => t.stop());
+    await new Promise((r) => setTimeout(r, 150));
+
+    return { label };
+}
+
+function beginRecognitionSession(Ctor, micLabel) {
+    const recognition = new Ctor();
+    recognition.lang = getBrowserDictationLang();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+        _browserDictationActive = true;
+        _browserDictationStopping = false;
+        _browserDictationClickBusy = false;
+        if (typeof currentDictationMethod !== "undefined") {
+            currentDictationMethod = "browser_stt";
+        }
+        updateBrowserDictationUi(true, `<i class="bi bi-record-circle me-1"></i> Escuchando (${micLabel})`);
+        notifyBrowserDictation(`Dictado activo (${micLabel}). Hable al micrófono.`, "success");
+    };
+
+    recognition.onresult = (event) => {
+        let interim = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+            const piece = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+                _browserDictationSessionFinal += piece;
+                if (!/\s$/.test(_browserDictationSessionFinal)) {
+                    _browserDictationSessionFinal += " ";
+                }
+            } else {
+                interim += piece;
+            }
+        }
+        renderBrowserDictationText(interim);
+    };
+
+    recognition.onerror = (event) => {
+        console.warn("browser dictation error:", event.error);
+        const messages = {
+            "not-allowed": "Micrófono bloqueado. Chrome → candado → Micrófono → Permitir.",
+            "no-speech": "No se detectó voz. Hable más cerca del micrófono.",
+            network: "Sin conexión al motor de voz (necesita Internet).",
+            aborted: "Dictado interrumpido.",
+            "audio-capture": "No hay micrófono. Revise Windows → Sonido → Entrada.",
+            "service-not-allowed": "Dictado bloqueado por política del navegador.",
+        };
+        if (event.error !== "no-speech" && event.error !== "aborted") {
+            notifyBrowserDictation(messages[event.error] || `Error: ${event.error}`, "warning");
+            stopBrowserDictation(true);
+        }
+    };
+
+    recognition.onend = () => {
+        if (_browserDictationActive && !_browserDictationStopping) {
+            try {
+                recognition.start();
+            } catch (e) {
+                console.warn("recognition restart:", e);
+                stopBrowserDictation(true);
+            }
+        } else if (!_browserDictationActive) {
+            updateBrowserDictationUi(false);
+        }
+    };
+
+    recognition.start();
+    _browserRecognition = recognition;
 }
 
 async function startBrowserDictation() {
-    if (typeof currentRadioStudy === "undefined" || !currentRadioStudy) {
-        if (typeof showToast === "function") {
-            showToast("Seleccione un examen en la bandeja izquierda antes de dictar.", "warning");
-        }
+    const block = getBrowserDictationBlockReason();
+    if (block) {
+        notifyBrowserDictation(block, "danger");
         return false;
     }
 
-    const Ctor = getSpeechRecognitionConstructor();
-    if (!Ctor) {
-        if (typeof showToast === "function") {
-            showToast("Use Chrome o Edge en esta PC (dictado por voz no disponible).", "danger", 10000);
-        }
+    if (typeof currentRadioStudy === "undefined" || !currentRadioStudy) {
+        notifyBrowserDictation("Seleccione un examen en la bandeja izquierda.", "warning");
         return false;
     }
 
@@ -176,121 +278,65 @@ async function startBrowserDictation() {
     }
     _browserDictationSessionFinal = "";
 
-    updateBrowserDictationUi(false, '<i class="bi bi-hourglass me-1"></i> Preparando micrófono…');
+    setBrowserDictationStatusMessage("Preparando micrófono…", false);
 
-    let micInfo = { label: "micrófono", count: 0 };
+    let micInfo = { label: "micrófono" };
     try {
-        micInfo = await warmUpMicrophoneForDictation();
+        micInfo = await ensureMicrophonePermissionForDictation();
     } catch (err) {
-        console.error("warmUpMicrophoneForDictation:", err);
-        updateBrowserDictationUi(false);
-        if (typeof showToast === "function") {
-            showToast(
-                "No se pudo usar el micrófono. En Chrome: icono candado → Micrófono → Permitir. Elija SpeechMike en Windows si aplica.",
-                "danger",
-                12000
-            );
-        }
+        console.error("ensureMicrophonePermissionForDictation:", err);
+        _browserDictationClickBusy = false;
+        notifyBrowserDictation(
+            "No se pudo usar el micrófono. Permita el acceso en Chrome (candado en la barra).",
+            "danger"
+        );
         return false;
     }
 
-    const recognition = new Ctor();
-    recognition.lang = getBrowserDictationLang();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.maxAlternatives = 1;
-
-    recognition.onstart = () => {
-        _browserDictationActive = true;
-        _browserDictationStopping = false;
-        if (typeof currentDictationMethod !== "undefined") {
-            currentDictationMethod = "browser_stt";
-        }
-        updateBrowserDictationUi(
-            true,
-            `<i class="bi bi-record-circle me-1"></i> Escuchando (${micInfo.label})`
-        );
-    };
-
-    recognition.onresult = (event) => {
-        let interim = "";
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-            const piece = event.results[i][0].transcript;
-            if (event.results[i].isFinal) {
-                _browserDictationSessionFinal += piece;
-                if (!/\s$/.test(_browserDictationSessionFinal)) {
-                    _browserDictationSessionFinal += " ";
-                }
-            } else {
-                interim += piece;
-            }
-        }
-        renderBrowserDictationText(interim);
-    };
-
-    recognition.onerror = (event) => {
-        console.warn("browser dictation error:", event.error);
-        const messages = {
-            "not-allowed":
-                "Micrófono bloqueado. Permita el acceso en Chrome (candado en la barra de direcciones).",
-            "no-speech": "No se oyó voz. Acerque el SpeechMike o hable más fuerte.",
-            network:
-                "Dictado requiere Internet (el navegador envía audio al motor de voz). Compruebe la red.",
-            aborted: "Dictado interrumpido.",
-            "audio-capture": "No hay micrófono disponible. Conecte el SpeechMike o revise Windows → Sonido.",
-            "service-not-allowed": "Dictado bloqueado por política del navegador o la organización.",
-        };
-        if (typeof showToast === "function") {
-            showToast(messages[event.error] || `Error de dictado: ${event.error}`, "warning", 10000);
-        }
-        stopBrowserDictation(true);
-    };
-
-    recognition.onend = () => {
-        if (_browserDictationActive && !_browserDictationStopping) {
-            try {
-                recognition.start();
-            } catch (e) {
-                console.warn("recognition restart:", e);
-                stopBrowserDictation(true);
-            }
-        } else {
-            updateBrowserDictationUi(false);
-        }
-    };
-
+    const Ctor = getSpeechRecognitionConstructor();
     try {
-        recognition.start();
-        _browserRecognition = recognition;
-        if (typeof showToast === "function") {
-            showToast(
-                `Dictado activo (${micInfo.label}). Hable con claridad; el texto va al informe. Mismo botón del SpeechMike o F4 para detener.`,
-                "success",
-                10000
-            );
-        }
+        beginRecognitionSession(Ctor, micInfo.label);
         return true;
     } catch (err) {
         console.error("startBrowserDictation:", err);
-        releaseBrowserDictationMic();
-        updateBrowserDictationUi(false);
-        if (typeof showToast === "function") {
-            showToast("No se pudo iniciar el dictado. Cierre otras apps que usen el micrófono e intente de nuevo.", "danger");
-        }
+        _browserDictationClickBusy = false;
+        notifyBrowserDictation(
+            "No se pudo iniciar el dictado. Cierre otras apps que usen el micrófono e intente de nuevo.",
+            "danger"
+        );
         return false;
+    }
+}
+
+async function onBrowserDictationButtonClick() {
+    if (_browserDictationClickBusy) {
+        return;
+    }
+
+    if (_browserDictationActive) {
+        stopBrowserDictation();
+        return;
+    }
+
+    _browserDictationClickBusy = true;
+    setBrowserDictationStatusMessage("Iniciando dictado…", false);
+
+    try {
+        await startBrowserDictation();
+    } catch (err) {
+        console.error("onBrowserDictationButtonClick:", err);
+        notifyBrowserDictation(`Error al dictar: ${err.message || err}`, "danger");
+    } finally {
+        if (!_browserDictationActive) {
+            _browserDictationClickBusy = false;
+        }
     }
 }
 
 function toggleBrowserDictation() {
-    if (_browserDictationActive) {
-        stopBrowserDictation();
-        return false;
-    }
-    startBrowserDictation();
-    return true;
+    onBrowserDictationButtonClick();
 }
 
-/** SpeechMike / teclas: priorizar dictado al informe (no audio para secretaría). */
 function speechMikeActionPrefersBrowserDictation(action) {
     if (!action || !isBrowserDictationSupported()) {
         return false;
@@ -314,7 +360,7 @@ function handleSpeechMikeBrowserDictationAction(action) {
     }
 
     if (action === "toggle" || action === "start" || action === "pause") {
-        toggleBrowserDictation();
+        onBrowserDictationButtonClick();
         return true;
     }
 
@@ -322,9 +368,13 @@ function handleSpeechMikeBrowserDictationAction(action) {
 }
 
 function setupBrowserDictationUi() {
-    $("#btnBrowserDictation").off("click.risBrowserStt").on("click.risBrowserStt", function () {
-        toggleBrowserDictation();
-    });
+    $(document)
+        .off("click.risBrowserStt", "#btnBrowserDictation")
+        .on("click.risBrowserStt", "#btnBrowserDictation", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            onBrowserDictationButtonClick();
+        });
 
     const $lang = $("#selDictationLang");
     if ($lang.length) {
@@ -333,19 +383,12 @@ function setupBrowserDictationUi() {
             setBrowserDictationLang($(this).val());
             if (_browserDictationActive) {
                 stopBrowserDictation(true);
-                if (typeof showToast === "function") {
-                    showToast("Idioma cambiado. Pulse Iniciar dictado de nuevo.", "info");
-                }
+                notifyBrowserDictation("Idioma cambiado. Pulse Iniciar dictado de nuevo.", "info");
             }
         });
     }
 
-    if (!isBrowserDictationSupported()) {
-        $("#btnBrowserDictation").prop("disabled", true);
-        $("#browserDictationStatus").text("Use Chrome o Edge con HTTPS");
-    } else {
-        refreshBrowserDictationButtonState();
-    }
+    refreshBrowserDictationButtonState();
 }
 
 function refreshBrowserDictationButtonState() {
@@ -353,10 +396,23 @@ function refreshBrowserDictationButtonState() {
     if (!$btn.length) {
         return;
     }
+
+    $btn.prop("disabled", false);
+
+    const block = getBrowserDictationBlockReason();
+    if (block) {
+        setBrowserDictationStatusMessage(block, true);
+        return;
+    }
+
     const studyReady = typeof currentRadioStudy !== "undefined" && !!currentRadioStudy;
-    $btn.prop("disabled", !studyReady || !isBrowserDictationSupported());
-    if (studyReady && isBrowserDictationSupported() && !_browserDictationActive) {
-        updateBrowserDictationUi(false);
+    if (!studyReady) {
+        setBrowserDictationStatusMessage("Seleccione un examen en la bandeja izquierda", false);
+        return;
+    }
+
+    if (!_browserDictationActive) {
+        setBrowserDictationStatusMessage("Listo — pulse Iniciar dictado voz", false);
     }
 }
 
