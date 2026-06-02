@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SyncAppointmentBundleToCloud;
 use App\Jobs\SyncEntityToCloud;
+use App\Models\Appointment;
 use App\Models\CloudSyncLog;
 use App\Services\CloudCatalogPullService;
 use App\Support\CloudSyncMode;
@@ -128,11 +130,15 @@ class CloudSyncController extends Controller
 
         $queued = 0;
         foreach ($logs as $log) {
-            $log->update(['status' => 'pending', 'last_error' => null]);
+            $payload = $this->payloadForRetry($log);
+            if (!$payload) {
+                continue;
+            }
+            $log->update(['status' => 'pending', 'last_error' => null, 'payload' => $payload]);
             SyncEntityToCloud::dispatch(
                 $log->entity_type,
                 $log->action,
-                $log->payload,
+                $payload,
                 $log->id
             );
             $queued++;
@@ -158,25 +164,51 @@ class CloudSyncController extends Controller
             ], 400);
         }
 
-        if (!$log->payload) {
+        $payload = $this->payloadForRetry($log);
+        if (!$payload) {
             return response()->json([
                 'success' => false,
                 'message' => 'No hay payload almacenado para reintentar.',
             ], 400);
         }
 
-        $log->update(['status' => 'pending', 'last_error' => null]);
+        $log->update(['status' => 'pending', 'last_error' => null, 'payload' => $payload]);
 
-        SyncEntityToCloud::dispatch(
-            $log->entity_type,
-            $log->action,
-            $log->payload,
-            $log->id
-        );
+        $appointmentId = $payload['id'] ?? $log->entity_id;
+        if ($appointmentId && str_contains((string) $log->entity_type, 'Appointment')) {
+            SyncAppointmentBundleToCloud::dispatch($appointmentId, $log->action ?? 'created', $log->id);
+        } else {
+            SyncEntityToCloud::dispatch(
+                $log->entity_type,
+                $log->action,
+                $payload,
+                $log->id
+            );
+        }
 
         return response()->json([
             'success' => true,
             'message' => 'Reintento de sincronización encolado.',
         ]);
+    }
+
+    private function payloadForRetry(CloudSyncLog $log): ?array
+    {
+        $payload = $log->payload;
+        if (!is_array($payload)) {
+            return null;
+        }
+
+        $type = $log->entity_type ?? '';
+        $appointmentId = $payload['id'] ?? $log->entity_id ?? null;
+
+        if ($appointmentId && str_contains($type, 'Appointment')) {
+            $appointment = Appointment::with(['patient.persona', 'studies', 'supplies'])->find($appointmentId);
+            if ($appointment) {
+                return $appointment->toArray();
+            }
+        }
+
+        return $payload;
     }
 }

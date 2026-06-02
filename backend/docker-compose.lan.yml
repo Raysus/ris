@@ -43,6 +43,11 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     env_file: .env
+    environment:
+      DB_HOST: pgsql
+      REDIS_HOST: redis
+      RIS_CLOUD_ROLE: local
+      CLOUD_API_BASE: https://api.healthticloud.cl/api
     command: serve
     ports:
       - "8000:8000"
@@ -58,6 +63,11 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     env_file: .env
+    environment:
+      DB_HOST: pgsql
+      REDIS_HOST: redis
+      RIS_CLOUD_ROLE: local
+      CLOUD_API_BASE: https://api.healthticloud.cl/api
     command: queue
     depends_on:
       - api

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Appointment;
 use App\Models\AppointmentStudy;
+use App\Models\Paciente;
 use App\Models\Persona;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
@@ -24,22 +25,30 @@ class CloudEntitySyncService
         self::$applying = true;
 
         try {
+            if ($action === 'deleted') {
+                $id = $data['id'] ?? null;
+                if ($id) {
+                    $class::withoutEvents(fn () => $class::where('id', $id)->delete());
+                }
+
+                return;
+            }
+
+            $this->unpackFileFields($data);
+
+            if ($class === Persona::class && !empty($data['rut'])) {
+                $this->syncPersona($data);
+
+                return;
+            }
+
+            if ($class === Paciente::class) {
+                $this->syncPaciente($data);
+
+                return;
+            }
+
             $class::withoutEvents(function () use ($class, $action, $data) {
-                if ($action === 'deleted') {
-                    $id = $data['id'] ?? null;
-                    if ($id) {
-                        $class::where('id', $id)->delete();
-                    }
-                    return;
-                }
-
-                $this->unpackFileFields($data);
-
-                if ($class === Persona::class && !empty($data['rut'])) {
-                    $this->syncPersona($data);
-                    return;
-                }
-
                 if ($class === Appointment::class) {
                     $this->syncAppointment($data);
                     return;
@@ -98,15 +107,48 @@ class CloudEntitySyncService
     private function syncPersona(array $data): void
     {
         $attrs = Arr::only($data, (new Persona())->getFillable());
-        Persona::upsertByRut((string) $data['rut'], $attrs);
+        $rut = (string) ($data['rut'] ?? '');
+
         if (!empty($data['id'])) {
-            Persona::where('id', $data['id'])->update(Arr::only($attrs, ['names', 'last_name_1', 'last_name_2', 'gender', 'birth_date', 'phone', 'address']));
+            $record = Persona::find($data['id']);
+            if ($record) {
+                $record->fill($attrs)->save();
+                return;
+            }
+
+            if ($rut !== '') {
+                $byRut = Persona::findByRut($rut);
+                if ($byRut) {
+                    $byRut->fill($attrs)->save();
+                    return;
+                }
+
+                Persona::create(array_merge(
+                    ['id' => $data['id'], 'rut' => Persona::normalizeRut($rut)],
+                    $attrs
+                ));
+                return;
+            }
+
+            Persona::create(array_merge(['id' => $data['id']], $attrs));
+            return;
+        }
+
+        if ($rut !== '') {
+            Persona::upsertByRut($rut, $attrs);
         }
     }
 
     private function syncAppointment(array $data): void
     {
         $studies = $data['studies'] ?? null;
+        $patient = $data['patient'] ?? null;
+        $laboratoryId = $data['laboratory_id'] ?? null;
+
+        if (is_array($patient)) {
+            $this->ensurePatientForAppointment($patient, $laboratoryId);
+        }
+
         unset($data['studies'], $data['patient'], $data['machine'], $data['laboratory'], $data['supplies']);
 
         $attrs = $this->filterAttributes(Appointment::class, $data);
@@ -138,6 +180,70 @@ class CloudEntitySyncService
                 );
             }
         }
+    }
+
+    private function syncPaciente(array $data): void
+    {
+        $personaId = null;
+        if (!empty($data['persona']['rut'])) {
+            $this->syncPersona($data['persona']);
+            $personaId = Persona::findByRut((string) $data['persona']['rut'])?->id;
+        }
+        if (!$personaId) {
+            $personaId = $data['persona_id'] ?? null;
+        }
+
+        $pacienteId = $data['id'] ?? null;
+        $labId = $data['laboratory_id'] ?? null;
+
+        if (!$personaId || !$pacienteId || !$labId) {
+            throw new \RuntimeException(
+                'Paciente sync incompleto (persona_id, paciente_id o laboratory_id faltante).'
+            );
+        }
+
+        $this->upsertPacienteRow($pacienteId, $personaId, $labId);
+    }
+
+    private function upsertPacienteRow(string $pacienteId, string $personaId, string $labId): void
+    {
+        $now = now();
+        Paciente::query()->upsert(
+            [[
+                'id' => $pacienteId,
+                'persona_id' => $personaId,
+                'laboratory_id' => $labId,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]],
+            ['id'],
+            ['persona_id', 'laboratory_id', 'updated_at']
+        );
+    }
+
+    /**
+     * Crea/actualiza persona y paciente antes de la cita (evita FK patient_id en nube).
+     */
+    private function ensurePatientForAppointment(array $patient, ?string $laboratoryId): void
+    {
+        $personaData = $patient['persona'] ?? null;
+        if (!is_array($personaData) || empty($personaData['rut'])) {
+            return;
+        }
+
+        $this->syncPersona($personaData);
+
+        $personaId = Persona::findByRut((string) $personaData['rut'])?->id
+            ?? $personaData['id']
+            ?? null;
+        $pacienteId = $patient['id'] ?? null;
+        $labId = $patient['laboratory_id'] ?? $laboratoryId;
+
+        if (!$personaId || !$pacienteId || !$labId) {
+            return;
+        }
+
+        $this->upsertPacienteRow($pacienteId, $personaId, $labId);
     }
 
     private function unpackFileFields(array &$data): void

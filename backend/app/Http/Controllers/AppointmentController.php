@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\PortalCredentialsMail;
+use App\Observers\AppointmentObserver;
 use App\Services\AppointmentInstructionMailService;
 use App\Services\AppointmentNotificationService;
 
@@ -75,6 +76,8 @@ class AppointmentController extends Controller
         $labId = $request->header('X-Lab-Id') ?: config('app.current_lab_id');
         if (!$labId)
             return response()->json(['success' => false, 'message' => 'Falta identificador de sucursal.'], 400);
+
+        AppointmentObserver::$suppressRelatedSync = true;
 
         try {
             return DB::transaction(function () use ($request, $labId) {
@@ -179,7 +182,6 @@ class AppointmentController extends Controller
                 }
 
                 $appointment->load(['patient.persona', 'studies', 'supplies']);
-                \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'created', $appointment->toArray());
 
                 $mailResult = $this->instructionMailService->sendIfApplicable($appointment);
                 $confirmationResult = $this->notificationService->sendConfirmation($appointment);
@@ -191,9 +193,10 @@ class AppointmentController extends Controller
                     'confirmation_email' => $confirmationResult,
                 ], 201);
             });
-
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        } finally {
+            AppointmentObserver::$suppressRelatedSync = false;
         }
     }
 
