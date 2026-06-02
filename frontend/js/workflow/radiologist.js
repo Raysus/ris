@@ -20,6 +20,51 @@ let recordingSeconds = 0;
 const MAX_RECORDING_SECONDS = 600;
 let isSplitScreen = false;
 let radiologistRefreshInterval = null;
+
+function risDictationModuleMissingFeedback() {
+    const msg =
+        "No se cargó el módulo de dictado. Pulse Ctrl+F5. En Brave: desactive Shields para este sitio.";
+    const st = document.getElementById("browserDictationStatus");
+    if (st) {
+        st.className = "small text-danger fw-bold mb-0 mt-2";
+        st.textContent = msg;
+    }
+    if (typeof showToast === "function") {
+        showToast(msg, "danger");
+    } else if (typeof showAlert === "function") {
+        showAlert(msg, "Dictado por voz", "danger");
+    }
+}
+
+function wireBrowserDictationButton() {
+    const btn = document.getElementById("btnBrowserDictation");
+    if (!btn) {
+        return;
+    }
+    if (btn.dataset.risWired === "1") {
+        return;
+    }
+    btn.dataset.risWired = "1";
+    btn.addEventListener(
+        "click",
+        function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof window.risStartBrowserDictationClick === "function") {
+                window.risStartBrowserDictationClick(e);
+            } else {
+                risDictationModuleMissingFeedback();
+            }
+        },
+        false
+    );
+}
+
+if (typeof window.risStartBrowserDictationClick !== "function") {
+    window.risStartBrowserDictationClick = function () {
+        risDictationModuleMissingFeedback();
+    };
+}
 let recordingMediaStream = null;
 let _speechMikeShortcutsBound = false;
 let _speechMikeLastKeyAt = 0;
@@ -172,6 +217,7 @@ function initRadiologist() {
     setupAudioEvents();
     setupSpeechMikeShortcuts();
     setupSpeechMikeKeymapUi();
+    wireBrowserDictationButton();
     if (typeof setupBrowserDictationUi === "function") {
         setupBrowserDictationUi();
     } else if (typeof showToast === "function") {
@@ -547,6 +593,7 @@ function cargarEstudioEnEditor(studyId) {
     if (typeof refreshBrowserDictationButtonState === "function") {
         refreshBrowserDictationButtonState();
     }
+    wireBrowserDictationButton();
 }
 
 async function firmarDirecto() {

@@ -30,7 +30,7 @@ const RIS_MODULE_INIT = {
     admin: "initAdmin",
 };
 
-const _loadedModules = new Set();
+const _loadedScriptBases = new Set();
 
 function risAssetUrl(path) {
     const v = window.RIS_BUILD || Date.now();
@@ -38,16 +38,24 @@ function risAssetUrl(path) {
     return `${path}${sep}v=${encodeURIComponent(v)}`;
 }
 
+function scriptBasePath(src) {
+    return String(src || "").replace(/\?.*$/, "");
+}
+
 function loadScriptOnce(src) {
+    const base = scriptBasePath(src);
     const versionedSrc = risAssetUrl(src);
     return new Promise((resolve, reject) => {
-        if (_loadedModules.has(versionedSrc)) {
+        if (_loadedScriptBases.has(base)) {
             resolve();
             return;
         }
-        const existing = document.querySelector(`script[src="${versionedSrc}"]`);
+        const existing = Array.from(document.querySelectorAll("script[src]")).find((el) => {
+            const attr = el.getAttribute("src") || "";
+            return scriptBasePath(attr) === base || scriptBasePath(attr).endsWith(base);
+        });
         if (existing) {
-            _loadedModules.add(versionedSrc);
+            _loadedScriptBases.add(base);
             resolve();
             return;
         }
@@ -55,7 +63,7 @@ function loadScriptOnce(src) {
         script.src = versionedSrc;
         script.async = false;
         script.onload = () => {
-            _loadedModules.add(versionedSrc);
+            _loadedScriptBases.add(base);
             resolve();
         };
         script.onerror = () => reject(new Error(`No se pudo cargar ${versionedSrc}`));
@@ -71,6 +79,9 @@ async function ensureModuleLoaded(page) {
             await loadScriptOnce(src);
         } catch (err) {
             console.error(`[RIS] No se pudo cargar ${src}:`, err);
+            if (scriptBasePath(src).includes("browser-dictation")) {
+                continue;
+            }
             throw err;
         }
     }

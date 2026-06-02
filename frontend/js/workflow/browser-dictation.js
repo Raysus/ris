@@ -1,6 +1,11 @@
 /* =========================================
    Dictado por voz en el navegador (Web Speech API)
    ========================================= */
+(function (global) {
+    if (global.__risBrowserDictationInstalled) {
+        return;
+    }
+    global.__risBrowserDictationInstalled = true;
 
 let _browserRecognition = null;
 let _browserDictationActive = false;
@@ -20,12 +25,19 @@ function isBrowserDictationSupported() {
     return !!getSpeechRecognitionConstructor() && !!navigator.mediaDevices?.getUserMedia;
 }
 
+function isBraveBrowser() {
+    return !!(navigator.brave && typeof navigator.brave.isBrave === "function");
+}
+
 function getBrowserDictationBlockReason() {
     if (!window.isSecureContext) {
         return "Abra el RIS con https:// (no http ni IP sin certificado).";
     }
     if (!getSpeechRecognitionConstructor()) {
-        return "Use Chrome o Microsoft Edge en esta PC.";
+        if (isBraveBrowser()) {
+            return "Brave: desactive Shields para ris.healthticloud.cl o use Chrome/Edge.";
+        }
+        return "Este navegador no expone dictado por voz. Use Chrome o Edge.";
     }
     if (!navigator.mediaDevices?.getUserMedia) {
         return "El navegador no permite acceso al micrófono.";
@@ -449,12 +461,14 @@ function refreshBrowserDictationButtonState() {
     setBrowserDictationStatusMessage("", false);
 }
 
-window.risStartBrowserDictationClick = onBrowserDictationButtonClick;
-window.isBrowserDictationSupported = isBrowserDictationSupported;
-window.isBrowserDictationActive = isBrowserDictationActive;
-window.startBrowserDictation = startBrowserDictation;
-window.stopBrowserDictation = stopBrowserDictation;
-window.toggleBrowserDictation = toggleBrowserDictation;
-window.setupBrowserDictationUi = setupBrowserDictationUi;
-window.refreshBrowserDictationButtonState = refreshBrowserDictationButtonState;
-window.handleSpeechMikeBrowserDictationAction = handleSpeechMikeBrowserDictationAction;
+global.risStartBrowserDictationClick = onBrowserDictationButtonClick;
+global.isBrowserDictationSupported = isBrowserDictationSupported;
+global.isBrowserDictationActive = isBrowserDictationActive;
+global.startBrowserDictation = startBrowserDictation;
+global.stopBrowserDictation = stopBrowserDictation;
+global.toggleBrowserDictation = toggleBrowserDictation;
+global.setupBrowserDictationUi = setupBrowserDictationUi;
+global.refreshBrowserDictationButtonState = refreshBrowserDictationButtonState;
+global.handleSpeechMikeBrowserDictationAction = handleSpeechMikeBrowserDictationAction;
+
+})(window);
