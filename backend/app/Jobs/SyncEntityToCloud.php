@@ -3,7 +3,9 @@
 namespace App\Jobs;
 
 use App\Models\CloudSyncLog;
+use App\Services\CloudEntitySyncService;
 use App\Services\CloudSyncLogger;
+use App\Support\CloudSyncMode;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -40,15 +42,19 @@ class SyncEntityToCloud implements ShouldQueue
 
     public function handle(): void
     {
+        if (CloudEntitySyncService::$applying) {
+            return;
+        }
+
         if ($this->syncLogId) {
             CloudSyncLogger::markAttempt($this->syncLogId);
         }
 
-        $cloudUrl = env('CLOUD_SERVER_URL');
-        $secret = env('CLOUD_SYNC_SECRET');
+        $cloudUrl = config('cloud_sync.inbound_url');
+        $secret = config('cloud_sync.secret');
 
-        if (!$cloudUrl || !$secret) {
-            $msg = 'Sincronización cloud no configurada (CLOUD_SERVER_URL / CLOUD_SYNC_SECRET).';
+        if (!CloudSyncMode::canPushToCloud()) {
+            $msg = 'Sincronización cloud no configurada (CLOUD_API_BASE / CLOUD_SYNC_SECRET).';
             Log::debug($msg);
             if ($this->syncLogId) {
                 CloudSyncLog::where('id', $this->syncLogId)->update([

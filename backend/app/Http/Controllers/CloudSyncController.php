@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Jobs\SyncEntityToCloud;
 use App\Models\CloudSyncLog;
+use App\Services\CloudCatalogPullService;
+use App\Support\CloudSyncMode;
 use Illuminate\Http\Request;
 
 class CloudSyncController extends Controller
@@ -12,8 +14,26 @@ class CloudSyncController extends Controller
     {
         $role = $request->user()->tipoUsuario->name ?? '';
         if (!in_array($role, ['admin', 'sis_admin'], true)) {
-            abort(403, 'Solo administradores pueden consultar la sincronización cloud.');
+            abort(403, 'Solo administradores pueden gestionar la sincronización cloud.');
         }
+    }
+
+    public function status(Request $request)
+    {
+        $this->assertAdmin($request);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'role' => CloudSyncMode::role(),
+                'can_push' => CloudSyncMode::canPushToCloud(),
+                'can_pull' => CloudSyncMode::canPushToCloud(),
+                'accepts_inbound' => CloudSyncMode::acceptsInbound(),
+                'inbound_url' => config('cloud_sync.inbound_url'),
+                'export_url' => config('cloud_sync.export_url'),
+                'queue_connection' => config('queue.default'),
+            ],
+        ]);
     }
 
     public function index(Request $request)
@@ -35,6 +55,7 @@ class CloudSyncController extends Controller
             'pending' => CloudSyncLog::where('status', 'pending')->count(),
             'success' => CloudSyncLog::where('status', 'success')->count(),
             'failed' => CloudSyncLog::where('status', 'failed')->count(),
+            'skipped' => CloudSyncLog::where('status', 'skipped')->count(),
             'last_24h' => CloudSyncLog::where('created_at', '>=', now()->subDay())->count(),
         ];
 
@@ -43,8 +64,84 @@ class CloudSyncController extends Controller
             'data' => [
                 'logs' => $logs,
                 'stats' => $stats,
-                'cloud_configured' => filled(env('CLOUD_SERVER_URL')) && filled(env('CLOUD_SYNC_SECRET')),
+                'cloud_configured' => CloudSyncMode::canPushToCloud(),
+                'role' => CloudSyncMode::role(),
             ],
+        ]);
+    }
+
+    public function pullCatalog(Request $request, CloudCatalogPullService $pull)
+    {
+        $this->assertAdmin($request);
+
+        $validated = $request->validate([
+            'laboratory_id' => 'nullable|uuid',
+            'include_patients' => 'sometimes|boolean',
+        ]);
+
+        $labId = $validated['laboratory_id']
+            ?? config('app.current_lab_id')
+            ?? $request->header('X-Lab-Id');
+
+        if ($labId === 'ALL' || $labId === '') {
+            $labId = null;
+        }
+
+        try {
+            if (CloudSyncMode::acceptsInbound()) {
+                $result = $pull->pullLocalSnapshot($labId, (bool) ($validated['include_patients'] ?? false));
+            } else {
+                $result = $pull->pull($labId, (bool) ($validated['include_patients'] ?? false));
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Catálogo sincronizado desde la nube.',
+                'data' => $result,
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    public function retryFailed(Request $request)
+    {
+        $this->assertAdmin($request);
+
+        if (!CloudSyncMode::canPushToCloud()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Envío a nube no configurado (CLOUD_API_BASE / CLOUD_SYNC_SECRET).',
+            ], 422);
+        }
+
+        $logs = CloudSyncLog::query()
+            ->whereIn('status', ['failed', 'pending'])
+            ->whereNotNull('payload')
+            ->orderByDesc('created_at')
+            ->limit(200)
+            ->get();
+
+        $queued = 0;
+        foreach ($logs as $log) {
+            $log->update(['status' => 'pending', 'last_error' => null]);
+            SyncEntityToCloud::dispatch(
+                $log->entity_type,
+                $log->action,
+                $log->payload,
+                $log->id
+            );
+            $queued++;
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => "Se encolaron {$queued} registros para enviar a la nube.",
+            'data' => ['queued' => $queued],
         ]);
     }
 

@@ -318,7 +318,7 @@ En Agenda: **Escanear** (bridge) o **Subir** (PDF/imagen sin bridge).
 | Función | Variables |
 |---------|-----------|
 | Keycloak / portal | `KEYCLOAK_*` |
-| Sync a nube | `CLOUD_SERVER_URL`, `CLOUD_SYNC_SECRET` |
+| Sync a nube | Ver sección **Sync matriz / sucursales** abajo |
 | FONASA (solo clínico) | `FONASA_*` |
 | Factura electrónica | `DTE_*` |
 | HL7 hospital | `HL7_*` |
@@ -327,6 +327,36 @@ En Agenda: **Escanear** (bridge) o **Subir** (PDF/imagen sin bridge).
 | Forzar modo manual en clínico | `laboratories.settings`: `{"uses_dicom_worklist": false}` |
 
 Tras cambiar `.env`: `php artisan config:clear`
+
+### 6.1 Sync matriz / sucursales (nube ↔ laboratorios)
+
+**Nube** (`api.healthticloud.cl`) — receptor central:
+
+```env
+RIS_CLOUD_ROLE=cloud
+CLOUD_INBOUND_ENABLED=true
+CLOUD_SYNC_SECRET=un-secreto-largo-compartido
+QUEUE_CONNECTION=database
+```
+
+**Laboratorio local** (Docker LAN) — envía operación y puede importar catálogo:
+
+```env
+RIS_CLOUD_ROLE=local
+CLOUD_API_BASE=https://api.healthticloud.cl/api
+CLOUD_SYNC_SECRET=el-mismo-secreto-que-en-nube
+QUEUE_CONNECTION=database
+```
+
+En Admin → **Sync Nube**:
+
+- **Catálogo desde nube** — exámenes, máquinas, médicos solicitantes, previsiones (sede seleccionada).
+- **+ Pacientes** — además pacientes de esa sede.
+- **Enviar pendientes** — reintenta cola de envío local → nube.
+
+La matriz en la **misma BD** ve sucursales con el selector de sede; los labs remotos replican citas/pacientes vía cola automática al guardar.
+
+Colas: en nube `ris-queue` (systemd); en lab contenedor `queue`. Redis es opcional (`QUEUE_CONNECTION=redis` + `REDIS_HOST=redis` en Docker).
 
 ---
 
