@@ -42,22 +42,45 @@ function scriptBasePath(src) {
     return String(src || "").replace(/\?.*$/, "");
 }
 
+function isBrowserDictationScriptReady() {
+    return (
+        typeof window.risStartBrowserDictationClick === "function"
+        && window.__risBrowserDictationInstalled === true
+    );
+}
+
+function purgeBrokenBrowserDictationScripts() {
+    document.querySelectorAll('script[src*="browser-dictation"]').forEach((el) => el.remove());
+    _loadedScriptBases.delete("js/workflow/browser-dictation.js");
+    window.__risBrowserDictationInstalled = false;
+}
+
 function loadScriptOnce(src) {
     const base = scriptBasePath(src);
     const versionedSrc = risAssetUrl(src);
+    const isDictation = base.includes("browser-dictation");
+
     return new Promise((resolve, reject) => {
         if (_loadedScriptBases.has(base)) {
-            resolve();
-            return;
+            if (isDictation && !isBrowserDictationScriptReady()) {
+                purgeBrokenBrowserDictationScripts();
+            } else {
+                resolve();
+                return;
+            }
         }
         const existing = Array.from(document.querySelectorAll("script[src]")).find((el) => {
             const attr = el.getAttribute("src") || "";
             return scriptBasePath(attr) === base || scriptBasePath(attr).endsWith(base);
         });
         if (existing) {
-            _loadedScriptBases.add(base);
-            resolve();
-            return;
+            if (isDictation && !isBrowserDictationScriptReady()) {
+                purgeBrokenBrowserDictationScripts();
+            } else {
+                _loadedScriptBases.add(base);
+                resolve();
+                return;
+            }
         }
         const script = document.createElement("script");
         script.src = versionedSrc;
@@ -137,6 +160,9 @@ function loadPage(page) {
             showToast(`Error cargando scripts: ${err.message}`, "danger");
         });
 }
+
+window.risLoadScript = loadScriptOnce;
+window.risIsBrowserDictationScriptReady = isBrowserDictationScriptReady;
 
 function sincronizarSidebar(paginaActiva) {
     document.querySelectorAll("#sidebar nav a").forEach((enlace) => {

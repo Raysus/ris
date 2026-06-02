@@ -36,6 +36,20 @@ function risDictationModuleMissingFeedback() {
     }
 }
 
+async function ensureBrowserDictationModuleLoaded() {
+    if (typeof window.risStartBrowserDictationClick === "function") {
+        return true;
+    }
+    if (typeof window.risLoadScript === "function") {
+        try {
+            await window.risLoadScript("js/workflow/browser-dictation.js");
+        } catch (err) {
+            console.error("ensureBrowserDictationModuleLoaded:", err);
+        }
+    }
+    return typeof window.risStartBrowserDictationClick === "function";
+}
+
 function wireBrowserDictationButton() {
     const btn = document.getElementById("btnBrowserDictation");
     if (!btn) {
@@ -47,23 +61,23 @@ function wireBrowserDictationButton() {
     btn.dataset.risWired = "1";
     btn.addEventListener(
         "click",
-        function (e) {
+        async function (e) {
             e.preventDefault();
             e.stopPropagation();
-            if (typeof window.risStartBrowserDictationClick === "function") {
-                window.risStartBrowserDictationClick(e);
-            } else {
-                risDictationModuleMissingFeedback();
+            const st = document.getElementById("browserDictationStatus");
+            if (st) {
+                st.className = "small text-muted mb-0 mt-2";
+                st.textContent = "Cargando módulo de dictado…";
             }
+            const ok = await ensureBrowserDictationModuleLoaded();
+            if (!ok) {
+                risDictationModuleMissingFeedback();
+                return;
+            }
+            window.risStartBrowserDictationClick(e);
         },
         false
     );
-}
-
-if (typeof window.risStartBrowserDictationClick !== "function") {
-    window.risStartBrowserDictationClick = function () {
-        risDictationModuleMissingFeedback();
-    };
 }
 let recordingMediaStream = null;
 let _speechMikeShortcutsBound = false;

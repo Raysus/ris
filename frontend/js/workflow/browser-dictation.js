@@ -2,10 +2,12 @@
    Dictado por voz en el navegador (Web Speech API)
    ========================================= */
 (function (global) {
-    if (global.__risBrowserDictationInstalled) {
+    if (typeof global.risStartBrowserDictationClick === "function") {
         return;
     }
-    global.__risBrowserDictationInstalled = true;
+    if (global.__risBrowserDictationInstalled && typeof global.risStartBrowserDictationClick !== "function") {
+        global.__risBrowserDictationInstalled = false;
+    }
 
 let _browserRecognition = null;
 let _browserDictationActive = false;
@@ -470,5 +472,6 @@ global.toggleBrowserDictation = toggleBrowserDictation;
 global.setupBrowserDictationUi = setupBrowserDictationUi;
 global.refreshBrowserDictationButtonState = refreshBrowserDictationButtonState;
 global.handleSpeechMikeBrowserDictationAction = handleSpeechMikeBrowserDictationAction;
+global.__risBrowserDictationInstalled = true;
 
 })(window);
