@@ -381,36 +381,6 @@ function toggleBrowserDictation() {
     onBrowserDictationButtonClick();
 }
 
-function speechMikeActionPrefersBrowserDictation(action) {
-    if (!action || !isBrowserDictationSupported()) {
-        return false;
-    }
-    if (typeof currentRadioStudy === "undefined" || !currentRadioStudy) {
-        return false;
-    }
-    return ["toggle", "start", "stop", "pause"].includes(action);
-}
-
-function handleSpeechMikeBrowserDictationAction(action) {
-    if (!speechMikeActionPrefersBrowserDictation(action)) {
-        return false;
-    }
-
-    if (action === "stop" || (action === "pause" && _browserDictationActive)) {
-        if (_browserDictationActive) {
-            stopBrowserDictation();
-        }
-        return true;
-    }
-
-    if (action === "toggle" || action === "start" || action === "pause") {
-        onBrowserDictationButtonClick();
-        return true;
-    }
-
-    return false;
-}
-
 function setupBrowserDictationUi() {
     $(document)
         .off("click.risBrowserStt", "#btnBrowserDictation")
@@ -471,7 +441,6 @@ global.stopBrowserDictation = stopBrowserDictation;
 global.toggleBrowserDictation = toggleBrowserDictation;
 global.setupBrowserDictationUi = setupBrowserDictationUi;
 global.refreshBrowserDictationButtonState = refreshBrowserDictationButtonState;
-global.handleSpeechMikeBrowserDictationAction = handleSpeechMikeBrowserDictationAction;
 global.__risBrowserDictationInstalled = true;
 
 })(window);

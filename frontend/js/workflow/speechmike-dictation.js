@@ -287,15 +287,9 @@ function executeSpeechMikeRecordingAction(action) {
         return;
     }
 
-    if (typeof handleSpeechMikeBrowserDictationAction === "function") {
-        if (handleSpeechMikeBrowserDictationAction(action)) {
-            return;
-        }
-    }
-
     if (!canHandleSpeechMikeHotkey() && !isRecordingSessionActive()) {
         if (typeof showToast === "function") {
-            showToast("Seleccione un examen en la bandeja antes de dictar.", "warning");
+            showToast("Seleccione un examen antes de grabar audio.", "warning");
         }
         return;
     }

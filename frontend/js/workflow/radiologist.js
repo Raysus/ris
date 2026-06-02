@@ -1122,21 +1122,9 @@ function handleSpeechMikeRecordingShortcut(event) {
     const action = getSpeechMikeRecordingAction(event);
     maybeDebugSpeechMikeKey(event, action);
 
-    if (
-        action
-        && typeof handleSpeechMikeBrowserDictationAction === "function"
-        && handleSpeechMikeBrowserDictationAction(action)
-    ) {
-        if (!isDuplicateSpeechMikeEvent(event)) {
-            event.preventDefault();
-            event.stopImmediatePropagation();
-        }
-        return;
-    }
-
     if (!canHandleSpeechMikeHotkey()) {
         if (action && typeof showToast === "function") {
-            showToast("Seleccione un examen en la bandeja antes de dictar.", "warning");
+            showToast("Seleccione un examen antes de grabar audio.", "warning");
         }
         return;
     }
@@ -1158,25 +1146,13 @@ function handleSpeechMikeRecordingShortcut(event) {
 
     switch (action) {
         case "stop":
-            if (typeof isBrowserDictationActive === "function" && isBrowserDictationActive()) {
-                stopBrowserDictation();
-            } else {
-                stopAudioRecording();
-            }
+            stopAudioRecording();
             break;
         case "start":
-            if (typeof isBrowserDictationSupported === "function" && isBrowserDictationSupported()) {
-                toggleBrowserDictation();
-            } else {
-                startAudioRecording();
-            }
+            startAudioRecording();
             break;
         case "toggle":
-            if (typeof isBrowserDictationSupported === "function" && isBrowserDictationSupported()) {
-                toggleBrowserDictation();
-            } else {
-                toggleAudioRecording();
-            }
+            toggleAudioRecording();
             break;
         case "pause":
             toggleAudioRecordingPause();
