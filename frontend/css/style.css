@@ -1126,6 +1126,44 @@ body.recovery-page .input-group-text {
     color: var(--primary);
 }
 
+body.login-page .input-group:has(.password-toggle-btn) .form-control,
+body.recovery-page .input-group:has(.password-toggle-btn) .form-control {
+    border-radius: 0;
+    border-right: 0;
+}
+
+body.login-page .password-toggle-btn,
+body.recovery-page .password-toggle-btn {
+    border-radius: 0 10px 10px 0;
+    background-color: #f3f0f7;
+    border: 1px solid var(--border-color);
+    border-left: 0;
+    color: var(--primary);
+    padding: 0 0.85rem;
+    line-height: 1;
+}
+
+body.login-page .password-toggle-btn:hover,
+body.recovery-page .password-toggle-btn:hover,
+body.login-page .password-toggle-btn:focus,
+body.recovery-page .password-toggle-btn:focus {
+    background-color: #ebe6f2;
+    color: var(--primary);
+    border-color: var(--border-color);
+}
+
+body.login-page .input-group:has(.password-toggle-btn:focus-within) .form-control,
+body.recovery-page .input-group:has(.password-toggle-btn:focus-within) .form-control,
+body.login-page .input-group:has(.password-toggle-btn:focus-within) .password-toggle-btn,
+body.recovery-page .input-group:has(.password-toggle-btn:focus-within) .password-toggle-btn {
+    border-color: var(--primary);
+}
+
+body.login-page .input-group:has(.password-toggle-btn:focus-within) .password-toggle-btn,
+body.recovery-page .input-group:has(.password-toggle-btn:focus-within) .password-toggle-btn {
+    box-shadow: 0 0 0 0.2rem rgba(var(--primary-rgb), 0.2);
+}
+
 body.login-page .form-check-input:checked,
 body.recovery-page .form-check-input:checked {
     background-color: var(--primary);
