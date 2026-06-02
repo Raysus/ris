@@ -21,6 +21,6 @@ class Paciente extends Model
     // Relación: Un paciente tiene muchas citas médicas
     public function appointments()
     {
-        return $this->hasMany(Appointment::class);
+        return $this->hasMany(Appointment::class, 'patient_id');
     }
 }

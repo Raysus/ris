@@ -71,6 +71,29 @@ class AppointmentController extends Controller
         ]);
     }
 
+    public function show(string $id)
+    {
+        $appointment = $this->getSecureQuery()
+            ->with([
+                'patient.persona',
+                'machine',
+                'studies.exam',
+                'studies.machine',
+                'studies.radiologist',
+                'referringDoctor',
+                'destinationDoctor.persona',
+                'supplies',
+                'insurance',
+                'insurancePlan',
+            ])
+            ->findOrFail($id);
+
+        return response()->json([
+            'success' => true,
+            'data' => $appointment,
+        ]);
+    }
+
     public function store(Request $request)
     {
         $labId = $request->header('X-Lab-Id') ?: config('app.current_lab_id');

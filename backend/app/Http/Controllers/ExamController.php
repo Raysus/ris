@@ -72,6 +72,13 @@ class ExamController extends Controller
         return response()->json(['success' => true, 'exam' => $exam]);
     }
 
+    public function update(Request $request, string $id)
+    {
+        $request->merge(['id' => $id]);
+
+        return $this->store($request);
+    }
+
     private function syncExamInstruction(Exam $exam, ?array $instruction): void
     {
         if ($instruction === null) {

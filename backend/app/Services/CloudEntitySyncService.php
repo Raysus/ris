@@ -7,6 +7,7 @@ use App\Models\AppointmentStudy;
 use App\Models\Paciente;
 use App\Models\Persona;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -104,7 +105,7 @@ class CloudEntitySyncService
         return $filtered;
     }
 
-    private function syncPersona(array $data): void
+    private function syncPersona(array $data): ?string
     {
         $attrs = Arr::only($data, (new Persona())->getFillable());
         $rut = (string) ($data['rut'] ?? '');
@@ -113,30 +114,35 @@ class CloudEntitySyncService
             $record = Persona::find($data['id']);
             if ($record) {
                 $record->fill($attrs)->save();
-                return;
+
+                return $record->id;
             }
 
             if ($rut !== '') {
                 $byRut = Persona::findByRut($rut);
                 if ($byRut) {
                     $byRut->fill($attrs)->save();
-                    return;
+
+                    return $byRut->id;
                 }
 
-                Persona::create(array_merge(
-                    ['id' => $data['id'], 'rut' => Persona::normalizeRut($rut)],
-                    $attrs
-                ));
-                return;
+                return $this->createPersonaOrResolveByRut(
+                    array_merge(['id' => $data['id'], 'rut' => Persona::normalizeRut($rut)], $attrs),
+                    $rut
+                );
             }
 
-            Persona::create(array_merge(['id' => $data['id']], $attrs));
-            return;
+            return $this->createPersonaOrResolveByRut(
+                array_merge(['id' => $data['id']], $attrs),
+                $rut
+            );
         }
 
         if ($rut !== '') {
-            Persona::upsertByRut($rut, $attrs);
+            return Persona::upsertByRut($rut, $attrs)->id;
         }
+
+        return null;
     }
 
     private function syncAppointment(array $data): void
@@ -186,8 +192,8 @@ class CloudEntitySyncService
     {
         $personaId = null;
         if (!empty($data['persona']['rut'])) {
-            $this->syncPersona($data['persona']);
-            $personaId = Persona::findByRut((string) $data['persona']['rut'])?->id;
+            $personaId = $this->syncPersona($data['persona'])
+                ?? Persona::findByRut((string) $data['persona']['rut'])?->id;
         }
         if (!$personaId) {
             $personaId = $data['persona_id'] ?? null;
@@ -231,19 +237,40 @@ class CloudEntitySyncService
             return;
         }
 
-        $this->syncPersona($personaData);
-
-        $personaId = Persona::findByRut((string) $personaData['rut'])?->id
-            ?? $personaData['id']
-            ?? null;
+        $personaId = $this->syncPersona($personaData);
+        if (!$personaId) {
+            $persona = Persona::findByRut((string) $personaData['rut']);
+            if (!$persona && filled($personaData['id'] ?? null)) {
+                $persona = Persona::find($personaData['id']);
+            }
+            $personaId = $persona?->id;
+        }
         $pacienteId = $patient['id'] ?? null;
         $labId = $patient['laboratory_id'] ?? $laboratoryId;
 
         if (!$personaId || !$pacienteId || !$labId) {
-            return;
+            throw new \RuntimeException(
+                'No se pudo resolver persona/paciente para sync de cita (rut=' . ($personaData['rut'] ?? '') . ').'
+            );
         }
 
         $this->upsertPacienteRow($pacienteId, $personaId, $labId);
+    }
+
+    private function createPersonaOrResolveByRut(array $payload, string $rut): string
+    {
+        try {
+            return Persona::create($payload)->id;
+        } catch (QueryException $e) {
+            if ($rut !== '' && str_contains($e->getMessage(), 'rut_hash')) {
+                $existing = Persona::findByRut($rut);
+                if ($existing) {
+                    return $existing->id;
+                }
+            }
+
+            throw $e;
+        }
     }
 
     private function unpackFileFields(array &$data): void
