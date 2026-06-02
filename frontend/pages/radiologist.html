@@ -100,10 +100,11 @@
                                         </select>
                                     </div>
                                     <button type="button" id="btnBrowserDictation"
-                                        class="btn btn-sm btn-outline-primary fw-bold w-100">
+                                        class="btn btn-sm btn-outline-primary fw-bold w-100"
+                                        onclick="window.risStartBrowserDictationClick && window.risStartBrowserDictationClick(event)">
                                         <i class="bi bi-mic-fill me-1"></i> INICIAR DICTADO VOZ
                                     </button>
-                                    <p id="browserDictationStatus" class="small text-muted mb-0 mt-2">Listo (Chrome/Edge)</p>
+                                    <p id="browserDictationStatus" class="small text-muted mb-0 mt-2" aria-live="polite"></p>
                                 </div>
                                 <div
                                     class="bg-white p-3 rounded border shadow-sm d-flex flex-column text-center">

@@ -61,8 +61,25 @@ function setBrowserDictationStatusMessage(text, isError) {
 
 function notifyBrowserDictation(msg, tipo) {
     setBrowserDictationStatusMessage(msg, tipo === "danger" || tipo === "warning");
-    if (typeof showToast === "function") {
-        showToast(msg, tipo || "info");
+    try {
+        if (typeof showToast === "function") {
+            showToast(msg, tipo || "info");
+        }
+    } catch (e) {
+        console.warn("showToast:", e);
+    }
+}
+
+function setBrowserDictationButtonBusy(busy, label) {
+    const btn = document.getElementById("btnBrowserDictation");
+    if (!btn) {
+        return;
+    }
+    btn.disabled = !!busy;
+    if (busy && label) {
+        btn.innerHTML = label;
+    } else if (!busy && !_browserDictationActive) {
+        btn.innerHTML = '<i class="bi bi-mic-fill me-1"></i> INICIAR DICTADO VOZ';
     }
 }
 
@@ -189,6 +206,7 @@ function beginRecognitionSession(Ctor, micLabel) {
         _browserDictationActive = true;
         _browserDictationStopping = false;
         _browserDictationClickBusy = false;
+        setBrowserDictationButtonBusy(false);
         if (typeof currentDictationMethod !== "undefined") {
             currentDictationMethod = "browser_stt";
         }
@@ -308,7 +326,12 @@ async function startBrowserDictation() {
     }
 }
 
-async function onBrowserDictationButtonClick() {
+async function onBrowserDictationButtonClick(ev) {
+    if (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+    }
+
     if (_browserDictationClickBusy) {
         return;
     }
@@ -319,7 +342,12 @@ async function onBrowserDictationButtonClick() {
     }
 
     _browserDictationClickBusy = true;
-    setBrowserDictationStatusMessage("Iniciando dictado…", false);
+    setBrowserDictationButtonBusy(
+        true,
+        '<span class="spinner-border spinner-border-sm me-1"></span> Preparando…'
+    );
+    setBrowserDictationStatusMessage("Preparando micrófono y dictado…", false);
+    notifyBrowserDictation("Preparando dictado por voz…", "info");
 
     try {
         await startBrowserDictation();
@@ -329,6 +357,8 @@ async function onBrowserDictationButtonClick() {
     } finally {
         if (!_browserDictationActive) {
             _browserDictationClickBusy = false;
+            setBrowserDictationButtonBusy(false);
+            updateBrowserDictationUi(false);
         }
     }
 }
@@ -398,6 +428,11 @@ function refreshBrowserDictationButtonState() {
     }
 
     $btn.prop("disabled", false);
+    setBrowserDictationButtonBusy(false);
+
+    if (_browserDictationActive) {
+        return;
+    }
 
     const block = getBrowserDictationBlockReason();
     if (block) {
@@ -411,11 +446,10 @@ function refreshBrowserDictationButtonState() {
         return;
     }
 
-    if (!_browserDictationActive) {
-        setBrowserDictationStatusMessage("Listo — pulse Iniciar dictado voz", false);
-    }
+    setBrowserDictationStatusMessage("", false);
 }
 
+window.risStartBrowserDictationClick = onBrowserDictationButtonClick;
 window.isBrowserDictationSupported = isBrowserDictationSupported;
 window.isBrowserDictationActive = isBrowserDictationActive;
 window.startBrowserDictation = startBrowserDictation;

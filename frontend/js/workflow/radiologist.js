@@ -174,6 +174,8 @@ function initRadiologist() {
     setupSpeechMikeKeymapUi();
     if (typeof setupBrowserDictationUi === "function") {
         setupBrowserDictationUi();
+    } else if (typeof showToast === "function") {
+        showToast("Dictado por voz: módulo no cargado. Pulse Ctrl+F5.", "warning");
     }
     $("#btnDragon").off("click.risDragon").on("click.risDragon", activarDragon);
     $("#btnSpeechMikeDebug").off("click.risSpeechMike").on("click.risSpeechMike", toggleSpeechMikeDebug);
