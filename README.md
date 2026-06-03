@@ -16,9 +16,9 @@ Sistema de información radiológica: agenda, worklist, informes, administració
 
 Incluye: instalación local, red LAN, producción en nube, bridge escáner/visor en cada PC, variables `.env` y fallos frecuentes.
 
-**Despliegue en un laboratorio (paso a paso, no técnico):** **[docs/GUIA_INSTALACION_LABORATORIO.md](docs/GUIA_INSTALACION_LABORATORIO.md)**
+**Despliegue en un laboratorio (paso a paso, no técnico):** **[docs/GUIA_INSTALACION_LABORATORIO.md](docs/GUIA_INSTALACION_LABORATORIO.md)** (Ubuntu). Windows: **[docs/GUIA_INSTALACION_LABORATORIO_WINDOWS.md](docs/GUIA_INSTALACION_LABORATORIO_WINDOWS.md)**.
 
-App local en Docker (PostgreSQL, API, frontend); PACS/Orthanc y visor en la nube vía Tailscale; las PCs cliente solo necesitan navegador.
+RIS local en Docker; PACS y visor en la nube. Las PCs del centro solo usan navegador. **Tailscale** es para despliegues remotos desde el PC de sistemas, no para instalar en el laboratorio.
 
 **Manual de usuario:** `docs/INSTRUCTIVO_HealthTiCloud_RIS.pdf` o `.docx`
 

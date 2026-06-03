@@ -2,10 +2,13 @@
 
 Guía para técnicos. Un solo documento: servidor + PCs de usuario.
 
-> **¿Despliegue en un laboratorio (Windows + Docker, paso a paso y sin tecnicismos)?**
-> Use la guía única **[GUIA_INSTALACION_LABORATORIO.md](GUIA_INSTALACION_LABORATORIO.md)**
-> (instaladores, Tailscale, token de GitHub, instalación con Docker y actualizaciones).
-> Esta guía general cubre el resto de escenarios (desarrollo local y producción en nube).
+> **¿Despliegue en un laboratorio (paso a paso, sin tecnicismos)?**
+> Use **[GUIA_INSTALACION_LABORATORIO.md](GUIA_INSTALACION_LABORATORIO.md)** (Ubuntu Server + Docker).
+> Variante Windows: **[GUIA_INSTALACION_LABORATORIO_WINDOWS.md](GUIA_INSTALACION_LABORATORIO_WINDOWS.md)**.
+> Esta guía cubre desarrollo local, producción en nube y detalle técnico.
+>
+> **Tailscale** solo lo usa quien **despliega o da soporte** desde su computador (SSH/Envoy a nube y laboratorios).
+> El servidor del laboratorio **no** requiere Tailscale para el uso diario del RIS; solo la URL de PACS que indique sistemas.
 
 | Qué | Dónde corre |
 |-----|-------------|
@@ -215,7 +218,9 @@ sudo -u www-data php artisan optimize
 sudo -u www-data php artisan queue:restart
 ```
 
-Desde su PC: `cd backend && php vendor/bin/envoy run deploy-nube`
+Desde su PC (con **Tailscale** activo para alcanzar el servidor): `cd backend && php vendor/bin/envoy run deploy-nube`
+
+Laboratorios LAN: `php vendor/bin/envoy run deploy-lab --lab=lab_lautaro` (misma red Tailscale; el lab no instala Tailscale).
 
 **Envoy y sudo:** las tareas usan `sudo -n` (sin contraseña). Si ve `Authentication failed`, en el servidor **como root** (una sola vez):
 
