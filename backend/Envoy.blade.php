@@ -3,7 +3,7 @@
     Envoy lo compila en una sola linea y romperia el PHP).
 
     - nube: servidor central, rama "nube".
-    - labs: cada laboratorio con su IP Tailscale; se elige con --lab=[alias].
+    - labs: cada laboratorio (IP Tailscale en la red de quien despliega); --lab=[alias].
       Para agregar uno, anada una linea al array, por ejemplo:
         'lab_osorno' => 'admin@100.104.4.30',
         'lab_temuco' => 'admin@100.104.4.40',
@@ -175,7 +175,7 @@
 {{-- --- TAREAS PARA LABORATORIOS (Docker Desktop, stack docker-compose.lan.yml) --- --}}
 {{--                                                                                 --}}
 {{-- Requisitos en el servidor del lab (una sola vez):                              --}}
-{{--   • Tailscale activo (este PC llega por SSH vía su IP Tailscale).              --}}
+{{--   • Tailscale activo en el PC de quien ejecuta Envoy (no en el laboratorio).   --}}
 {{--   • SSH con shell bash (Linux, o WSL/Git-Bash en Windows).                     --}}
 {{--   • Token de GitHub guardado para git (repo privado):                          --}}
 {{--       git config --global credential.helper store                              --}}
