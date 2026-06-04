@@ -35,6 +35,10 @@ return [
         ],
     ],
 
+    'cloud_sync' => [
+        'secret' => env('CLOUD_SYNC_SECRET'),
+    ],
+
     'orthanc' => [
         'url' => env('ORTHANC_URL'),
         'host' => env('ORTHANC_HOST'),

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\LegacyEncryptedString;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
@@ -27,9 +28,9 @@ class Persona extends Model
     protected $casts = [
         'has_sso_account' => 'boolean',
         'birth_date' => 'date',
-        'rut' => 'encrypted',
-        'email' => 'encrypted',
-        'phone' => 'encrypted',
+        'rut' => LegacyEncryptedString::class,
+        'email' => LegacyEncryptedString::class,
+        'phone' => LegacyEncryptedString::class,
     ];
 
     protected static function booted(): void

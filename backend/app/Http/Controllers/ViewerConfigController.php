@@ -40,31 +40,41 @@ class ViewerConfigController extends Controller
             ], 422);
         }
 
-        $appointment = $this->resolveAppointment($request);
+        try {
+            $appointment = $this->resolveAppointment($request);
 
-        $study = $lookup->resolveStudyByAccession(
-            $accession,
-            $appointment,
-            $request->bearerToken()
-        );
+            $study = $lookup->resolveStudyByAccession(
+                $accession,
+                $appointment,
+                $request->bearerToken()
+            );
 
-        if ($study === null || empty($study['study_instance_uid'])) {
+            if ($study === null || empty($study['study_instance_uid'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No hay estudio en PACS para ese accession. '
+                        . 'Verifique que el equipo ya envió las imágenes y que el Accession Number coincide.',
+                    'orthanc_url' => \App\Support\OrthancUrl::base(),
+                ], 404);
+            }
+
+            if ($appointment) {
+                $lookup->persistStudyInstanceUid($appointment, (string) $study['study_instance_uid']);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $study,
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+
             return response()->json([
                 'success' => false,
-                'message' => 'No hay estudio en PACS para ese accession. '
-                    . 'Verifique que el equipo ya envió las imágenes y que el Accession Number coincide.',
+                'message' => 'Error al consultar PACS. Revise ORTHANC_URL en el servidor.',
                 'orthanc_url' => \App\Support\OrthancUrl::base(),
-            ], 404);
+            ], 503);
         }
-
-        if ($appointment) {
-            $lookup->persistStudyInstanceUid($appointment, (string) $study['study_instance_uid']);
-        }
-
-        return response()->json([
-            'success' => true,
-            'data' => $study,
-        ]);
     }
 
     /** @deprecated Alias — usar /viewer-study */

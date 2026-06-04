@@ -1,12 +1,15 @@
 # =====================================================================
-# HealthTiCloud RIS — Stack para despliegue en LAN (Windows + Docker Desktop)
+# HealthTiCloud RIS — Stack para despliegue en LAN (Ubuntu + Docker Engine
+#   o Windows + Docker Desktop)
 #
-#   PACS/Orthanc y visor OHIF NO se levantan en local: la API se conecta al
-#   Orthanc de la NUBE (ORTHANC_URL en .env) y el visor usa el de la nube
-#   (VIEWER_URL en .env). Recomendado vía Tailscale (ver guía).
+#   PACS/Orthanc y visor OHIF NO se levantan en local: la API usa ORTHANC_URL
+#   y VIEWER_URL de la nube (ver docs/GUIA_INSTALACION_LABORATORIO.md).
+#   Tailscale: solo en el PC de quien despliega/soporta por SSH (Envoy).
+#
+#   API/queue/scheduler: imagen PHP 8.5.4 (ver Dockerfile; igual que composer.json ^8.5).
 #
 #   Uso:
-#     copy .env.lan.example .env   (y editar IP del servidor + ORTHANC_URL nube)
+#     cp .env.lan.example .env   (editar IP LAN + ORTHANC_URL nube)
 #     docker compose -f docker-compose.lan.yml up -d --build
 #
 #   Detalle: docs/GUIA_INSTALACION_LABORATORIO.md
@@ -35,7 +38,7 @@ services:
       - ris-redis:/data
 
   # PACS/Orthanc y visor: en la NUBE (no se levantan aquí).
-  #   ORTHANC_URL y VIEWER_URL apuntan a la nube en .env (recomendado vía Tailscale).
+  #   ORTHANC_URL y VIEWER_URL en .env (URL/IP que entregue sistemas).
 
   api:
     build:
@@ -43,6 +46,11 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     env_file: .env
+    environment:
+      DB_HOST: pgsql
+      REDIS_HOST: redis
+      RIS_CLOUD_ROLE: local
+      CLOUD_API_BASE: https://api.healthticloud.cl/api
     command: serve
     ports:
       - "8000:8000"
@@ -58,6 +66,11 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     env_file: .env
+    environment:
+      DB_HOST: pgsql
+      REDIS_HOST: redis
+      RIS_CLOUD_ROLE: local
+      CLOUD_API_BASE: https://api.healthticloud.cl/api
     command: queue
     depends_on:
       - api
@@ -79,6 +92,8 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+    depends_on:
+      - api
     volumes:
       - ../frontend:/usr/share/nginx/html:ro
       - ./docker/frontend.nginx.conf:/etc/nginx/conf.d/default.conf:ro

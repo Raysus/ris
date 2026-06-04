@@ -3,13 +3,14 @@
     Envoy lo compila en una sola linea y romperia el PHP).
 
     - nube: servidor central, rama "nube".
-    - labs: cada laboratorio con su IP Tailscale; se elige con --lab=[alias].
+    - labs: cada laboratorio (IP Tailscale en la red de quien despliega); --lab=[alias].
       Para agregar uno, anada una linea al array, por ejemplo:
         'lab_osorno' => 'admin@100.104.4.30',
         'lab_temuco' => 'admin@100.104.4.40',
 --}}
 @servers([
     'nube' => 'userit@100.104.4.114',
+    'siresa_centro' => 'siresa-centro-servidor@100.103.135.42',
     'lab_lautaro' => 'admin@100.104.4.20',
 ])
 
@@ -29,8 +30,8 @@
     // Rama base desde la que se crean ramas que aún no existen en origin
     $branch_fallback = 'main';
 
-    // Lab destino (alias de @servers). Uso: envoy run deploy-lab --lab=lab_lautaro
-    $lab = isset($lab) ? $lab : 'lab_lautaro';
+    // Lab destino (alias de @servers). Uso: envoy run deploy-lab --lab=siresa_centro
+    $lab = isset($lab) ? $lab : 'siresa_centro';
 @endsetup
 
 @story('deploy-nube')
@@ -175,7 +176,7 @@
 {{-- --- TAREAS PARA LABORATORIOS (Docker Desktop, stack docker-compose.lan.yml) --- --}}
 {{--                                                                                 --}}
 {{-- Requisitos en el servidor del lab (una sola vez):                              --}}
-{{--   • Tailscale activo (este PC llega por SSH vía su IP Tailscale).              --}}
+{{--   • Tailscale activo en el PC de quien ejecuta Envoy (no en el laboratorio).   --}}
 {{--   • SSH con shell bash (Linux, o WSL/Git-Bash en Windows).                     --}}
 {{--   • Token de GitHub guardado para git (repo privado):                          --}}
 {{--       git config --global credential.helper store                              --}}

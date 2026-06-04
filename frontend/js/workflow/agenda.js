@@ -13,16 +13,19 @@ function risNullableUuid(value) {
     return value;
 }
 
-/** Colores de estado (alineados con --agenda-* en style.css) */
+/** Colores de estado (alineados con --agenda-* en style.css / marca HealthTICloud) */
 const AGENDA_ESTADO_COLORES = {
-    'pre-agendado': '#7a6a9a',
-    'agendado': '#5b4a82',
-    'confirmado': '#2d6a8f',
-    'espera': '#9a6f1f',
-    'anulado': '#b83d52',
-    'atendido': '#4a4556',
+    'pre-agendado': '#9a6fa8',
+    'agendado': '#7d2181',
+    'confirmado': '#2d5080',
+    'espera': '#b8860b',
+    'anulado': '#c41e3a',
+    'atendido': '#4a5568',
 };
 const AGENDA_ESTADO_TEXTO = '#ffffff';
+
+/** Minutos por modalidad/sala cuando no viene del servidor (evita fallo si RIS.tiemposPorGrupo no está inicializado). */
+const TIEMPOS_POR_GRUPO_DEFAULT = { RX: 15, TC: 30, RM: 45, US: 20, MG: 15, General: 15 };
 
 const AGENDA_LEYENDA_ITEMS = [
     ['pre-agendado', 'Pre-agendado', 'Reserva tentativa'],
@@ -45,7 +48,7 @@ function pintarLeyendaEstadosAgenda(root) {
     if (!scope) return;
     scope.querySelectorAll('[data-estado-leyenda]').forEach((el) => {
         const key = el.getAttribute('data-estado-leyenda');
-        const color = AGENDA_ESTADO_COLORES[key] || '#5b4a82';
+        const color = AGENDA_ESTADO_COLORES[key] || '#7d2181';
         el.style.setProperty('--leyenda-color', color);
     });
 }
@@ -71,9 +74,12 @@ function montarUiInternaCalendario() {
 }
 
 function calcularDuracionCita(machineId, cantidadExamenes) {
-    const sala = (window.RIS.resources || []).find(r => r.id === machineId);
-    const minutosBase = (sala && window.RIS.tiemposPorGrupo[sala.group]) ? window.RIS.tiemposPorGrupo[sala.group] : 15;
-    return minutosBase * cantidadExamenes;
+    const sala = (window.RIS?.resources || []).find((r) => String(r.id) === String(machineId));
+    const tiempos = { ...TIEMPOS_POR_GRUPO_DEFAULT, ...(window.RIS?.tiemposPorGrupo || {}) };
+    const group = sala?.group;
+    const minutosBase = group != null && tiempos[group] != null ? tiempos[group] : 15;
+    const qty = Math.max(1, Number(cantidadExamenes) || 1);
+    return minutosBase * qty;
 }
 
 function toLocalISOString(date) {
@@ -263,15 +269,14 @@ function actualizarCtaAtencionSalas() {
 }
 
 async function initAgenda() {
-    window.RIS = window.RIS || {
-        agenda: [],
-        config: {},
-        resources: [],
-        tiemposPorGrupo: { RX: 15, TC: 30, RM: 45, US: 20, MG: 15 },
-        doctors: [],
-        supplies: [],
-        supplyPacks: []
-    };
+    window.RIS = window.RIS || {};
+    window.RIS.agenda = window.RIS.agenda || [];
+    window.RIS.config = window.RIS.config || {};
+    window.RIS.resources = window.RIS.resources || [];
+    window.RIS.tiemposPorGrupo = { ...TIEMPOS_POR_GRUPO_DEFAULT, ...(window.RIS.tiemposPorGrupo || {}) };
+    window.RIS.doctors = window.RIS.doctors || [];
+    window.RIS.supplies = window.RIS.supplies || [];
+    window.RIS.supplyPacks = window.RIS.supplyPacks || [];
 
     const calendarEl = document.getElementById('calendar');
     if (!calendarEl) {
@@ -621,7 +626,7 @@ function setupCalendar(el) {
             const isLocked = !estadosIniciales.includes(props.status);
             const lockIcon = isLocked ? '<i class="bi bi-lock-fill text-white me-1"></i>' : '';
 
-            const bgColor = arg.event.backgroundColor || '#5b4a82';
+            const bgColor = arg.event.backgroundColor || '#7d2181';
 
             if (isMonthView) {
                 const alert = needsReview ? '<span class="badge bg-danger rounded-pill" style="font-size:9px">!</span> ' : '';
@@ -1184,7 +1189,7 @@ async function eliminarCita() {
 
 function getHexColorEstado(status) {
     const key = status ? String(status).trim().toLowerCase() : '';
-    return AGENDA_ESTADO_COLORES[key] || '#9a95a5';
+    return AGENDA_ESTADO_COLORES[key] || '#7d2181';
 }
 
 function colorSelectorEstado() {

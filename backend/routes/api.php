@@ -27,6 +27,7 @@ use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\ViewerConfigController;
 use App\Http\Controllers\CloudSyncController;
+use App\Http\Controllers\CloudSyncInboundController;
 use App\Http\Controllers\Hl7Controller;
 use App\Http\Controllers\FonasaController;
 use App\Http\Controllers\BillingController;
@@ -36,6 +37,11 @@ use App\Http\Controllers\LabProfileController;
 Route::get('/health', HealthController::class);
 
 Route::post('/hl7/inbound', [Hl7Controller::class, 'inbound']);
+
+Route::middleware('cloud.sync')->group(function () {
+    Route::post('/integrations/cloud-sync/inbound', [CloudSyncInboundController::class, 'receive']);
+    Route::get('/integrations/cloud-sync/export', [CloudSyncInboundController::class, 'export']);
+});
 
 Route::get('/fhir/metadata', [FhirController::class, 'metadata']);
 Route::post('/fhir/ServiceRequest', [FhirController::class, 'serviceRequest']);
@@ -138,7 +144,10 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::get('/fhir/DiagnosticReport', [FhirController::class, 'diagnosticReport']);
     Route::get('/fhir/Appointment/{id}/bundle', [FhirController::class, 'appointmentBundle']);
 
+    Route::get('/integrations/cloud-sync/status', [CloudSyncController::class, 'status']);
     Route::get('/integrations/cloud-sync', [CloudSyncController::class, 'index']);
+    Route::post('/integrations/cloud-sync/pull-catalog', [CloudSyncController::class, 'pullCatalog']);
+    Route::post('/integrations/cloud-sync/retry-failed', [CloudSyncController::class, 'retryFailed']);
     Route::post('/integrations/cloud-sync/{id}/retry', [CloudSyncController::class, 'retry']);
     Route::get('/integrations/hl7/messages', [Hl7Controller::class, 'index']);
     Route::post('/integrations/hl7/appointments/{id}/oru', [Hl7Controller::class, 'resendOru']);
