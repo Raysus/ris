@@ -38,6 +38,8 @@ return [
         '#^http://192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$#',
         '#^http://10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$#',
         '#^http://172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}(:\d+)?$#',
+        // Tailscale (CGNAT 100.64.0.0/10): soporte remoto y pruebas por http://100.x.x.x
+        '#^http://100\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$#',
     ],
 
     'allowed_headers' => ['Content-Type', 'Authorization', 'X-Lab-Id', 'X-Requested-With'],

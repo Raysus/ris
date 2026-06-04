@@ -6,6 +6,11 @@ function isPrivateLanHost(host) {
     return /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host);
 }
 
+/** Tailscale IPv4 (100.x.x.x): mismo criterio que LAN — API por nginx en :80 (/api). */
+function isTailscaleHost(host) {
+    return /^100\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host);
+}
+
 function resolveRisApiUrl() {
     if (typeof window.__RIS_API_URL__ === 'string' && window.__RIS_API_URL__) {
         return window.__RIS_API_URL__.replace(/\/$/, '');
@@ -28,8 +33,8 @@ function resolveRisApiUrl() {
         return 'https://api.healthticloud.cl/api';
     }
 
-    // Laboratorio LAN: si entra por http://192.168.x.x/ (puerto 80), la API va por /api en nginx.
-    if (isPrivateLanHost(host) && (!port || port === '80' || port === '443')) {
+    // Laboratorio LAN / Tailscale: en :80 la API va por /api (mismo origen, sin CORS).
+    if ((isPrivateLanHost(host) || isTailscaleHost(host)) && (!port || port === '80' || port === '443')) {
         return `${proto}://${host}/api`;
     }
 

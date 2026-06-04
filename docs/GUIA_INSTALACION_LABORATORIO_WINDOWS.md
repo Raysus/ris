@@ -64,7 +64,11 @@ Copy-Item .env.lan.example .env
 notepad .env
 ```
 
-Sustituya `192.168.1.50` por la IPv4 del servidor (`ipconfig`). Configure `ORTHANC_URL` con la URL del PACS en nube que le indique sistemas.
+Sustituya **todas** las apariciones de `192.168.1.50` por la IPv4 del servidor (`ipconfig`).
+`APP_URL` y `FRONTEND_URL` deben ser `http://<SU-IP>` (igual que en el navegador de las otras PCs).
+Configure `ORTHANC_URL` y `CLOUD_SYNC_SECRET` (secreto compartido con la nube) según indique sistemas.
+
+Desde otra PC: `curl http://<IP>/api/health` debe devolver JSON con `"status":"ok"`.
 
 El contenedor API usa **PHP 8.5.4** (igual que `composer.json`). Si en Windows tiene otro PHP instalado, no importa: Docker usa la imagen del `Dockerfile`.
 
