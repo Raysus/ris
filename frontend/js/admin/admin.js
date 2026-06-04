@@ -16,6 +16,77 @@ let currentPacientesAdmin = [];
 let currentPlantillasFromDB = [];
 let currentLaboratoriesTree = [];
 
+/** Modalidades para prestaciones / plantillas (alineado con salas y DICOM). */
+const RIS_EXAM_MODALITY_OPTIONS = [
+    { value: 'RX', label: 'Radiografía (RX)' },
+    { value: 'CT', label: 'Tomografía / Scanner (CT)' },
+    { value: 'MRI', label: 'Resonancia magnética (MRI)' },
+    { value: 'US', label: 'Ecografía (US)' },
+    { value: 'MAMO', label: 'Mamografía (MAMO)' },
+    { value: 'DEXA', label: 'Densitometría ósea (DEXA)' },
+    { value: 'CBCT', label: 'Tomografía cone beam (CBCT)' },
+    { value: 'IO', label: 'Radiografía intraoral (IO)' },
+    { value: 'NM', label: 'Medicina nuclear (NM)' },
+    { value: 'PT', label: 'PET (PT)' },
+    { value: 'RF', label: 'Fluoroscopia (RF)' },
+    { value: 'OT', label: 'Otro / General (OT)' },
+];
+
+const RIS_MODALITY_ALIASES = {
+    ECO: 'US',
+    SCANNER: 'CT',
+    TC: 'CT',
+    RM: 'MRI',
+    MR: 'MRI',
+    MG: 'MAMO',
+    DENSITO: 'DEXA',
+};
+
+function risNormalizarCodigoModalidad(code) {
+    const c = String(code || '').toUpperCase().trim();
+    return RIS_MODALITY_ALIASES[c] || c;
+}
+
+function risBadgeClassModalidad(grupo) {
+    const g = risNormalizarCodigoModalidad(grupo);
+    const map = {
+        RX: 'bg-primary',
+        CT: 'bg-info text-dark',
+        MRI: 'bg-danger',
+        US: 'bg-success',
+        MAMO: 'bg-warning text-dark',
+        DEXA: 'bg-secondary',
+        CBCT: 'bg-info text-dark',
+        IO: 'bg-primary',
+        NM: 'bg-dark',
+        PT: 'bg-dark',
+        RF: 'bg-secondary',
+        OT: 'bg-light text-dark border',
+    };
+    return map[g] || 'bg-secondary';
+}
+
+function risPoblarSelectModalidades(selector) {
+    const $sel = $(selector);
+    if (!$sel.length) return;
+    const selected = $sel.val();
+    $sel.empty();
+    RIS_EXAM_MODALITY_OPTIONS.forEach((m) => {
+        $sel.append(`<option value="${m.value}">${m.label}</option>`);
+    });
+    if (selected) risAsegurarValorModalidad(selector, selected);
+}
+
+function risAsegurarValorModalidad(selector, code) {
+    const $sel = $(selector);
+    if (!$sel.length || code == null || code === '') return;
+    const norm = risNormalizarCodigoModalidad(code);
+    if (!$sel.find(`option[value="${norm}"]`).length) {
+        $sel.append(`<option value="${norm}">${norm}</option>`);
+    }
+    $sel.val(norm);
+}
+
 function esAdminLogueado() {
     const perfil = localStorage.getItem('ris_user_profile') || '';
 
@@ -24,6 +95,8 @@ function esAdminLogueado() {
 
 function initAdmin() {
     if (typeof applyLabProfileUI === 'function') applyLabProfileUI();
+    risPoblarSelectModalidades('#catGrupo');
+    risPoblarSelectModalidades('#tplGrupo');
     window.RIS = window.RIS || { users: [], personas: [], config: {} };
     renderListaUsuariosAdmin();
     renderListaInsumosAdmin();
@@ -1376,11 +1449,7 @@ async function renderCatalogoAdmin() {
                     if (searchStr && !nombreExamen.toLowerCase().includes(searchStr) && !(exData.code || '').toLowerCase().includes(searchStr)) return;
                     totalExamenes++;
 
-                    let badgeColor = 'bg-secondary';
-                    if (grupo === 'RX') badgeColor = 'bg-primary';
-                    if (grupo === 'CT') badgeColor = 'bg-info text-dark';
-                    if (grupo === 'MRI') badgeColor = 'bg-danger';
-                    if (grupo === 'US') badgeColor = 'bg-success';
+                    const badgeColor = risBadgeClassModalidad(grupo);
 
                     const instr = exData.instruction;
                     const hasInstr = instr && instr.body && instr.is_active;
@@ -1428,7 +1497,7 @@ function cargarExamen(id) {
     if (!ex) return;
 
     $("#catId").val(ex.id);
-    $("#catGrupo").val(ex.group_code);
+    risAsegurarValorModalidad('#catGrupo', ex.group_code);
     $("#catNombre").val(ex.name);
     $("#catCodigo").val(ex.fonasa_code);
     $("#catPrecio").val(ex.price);
@@ -2632,11 +2701,7 @@ async function renderListaPlantillasAdmin() {
             }
 
             filtrados.forEach(tpl => {
-                let badgeColor = 'bg-secondary';
-                if (tpl.group_code === 'RX') badgeColor = 'bg-primary';
-                if (tpl.group_code === 'CT') badgeColor = 'bg-info text-dark';
-                if (tpl.group_code === 'MRI') badgeColor = 'bg-danger';
-                if (tpl.group_code === 'US') badgeColor = 'bg-success';
+                const badgeColor = risBadgeClassModalidad(tpl.group_code);
 
                 const alcance = tpl.laboratory_id
                     ? '<span class="badge bg-light text-dark border">Local</span>'
@@ -2719,7 +2784,7 @@ async function procesarImportacionPlantillaWord(inputEl) {
             $("#tplTitulo").val(imported.title);
         }
         if (imported.group_code) {
-            $("#tplGrupo").val(imported.group_code);
+            risAsegurarValorModalidad('#tplGrupo', imported.group_code);
         }
         if (imported.content) {
             $("#tplContenido").val(imported.content);
@@ -2746,7 +2811,7 @@ function cargarPlantilla(id) {
     if (!tpl) return;
 
     $("#tplId").val(tpl.id);
-    $("#tplGrupo").val(tpl.group_code);
+    risAsegurarValorModalidad('#tplGrupo', tpl.group_code);
     $("#tplTitulo").val(tpl.title);
     $("#tplContenido").val(tpl.content);
 

@@ -1056,12 +1056,7 @@
 
                     <div class="mb-3">
                         <label class="form-label fw-bold small text-muted">Grupo Base / Modalidad</label>
-                        <select class="form-select req-cat" id="catGrupo">
-                            <option value="RX">Radiología (RX)</option>
-                            <option value="CT">Scanner (CT)</option>
-                            <option value="MRI">Resonancia (MRI)</option>
-                            <option value="US">Ecografía (US)</option>
-                        </select>
+                        <select class="form-select req-cat" id="catGrupo" data-ris-modality-select="exam"></select>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold small text-muted">Nombre del Examen</label>
@@ -1379,13 +1374,7 @@
                     <div class="row g-3 mb-3">
                         <div class="col-md-4">
                             <label class="form-label fw-bold small text-muted">Modalidad / Grupo *</label>
-                            <select class="form-select req-tpl" id="tplGrupo">
-                                <option value="RX">Radiología (RX)</option>
-                                <option value="CT">Scanner (CT)</option>
-                                <option value="MRI">Resonancia (MRI)</option>
-                                <option value="US">Ecografía (US)</option>
-                                <option value="MAMO">Mamografía (MAMO)</option>
-                            </select>
+                            <select class="form-select req-tpl" id="tplGrupo" data-ris-modality-select="exam"></select>
                         </div>
                         <div class="col-md-8">
                             <label class="form-label fw-bold small text-muted">Título Descriptivo *</label>

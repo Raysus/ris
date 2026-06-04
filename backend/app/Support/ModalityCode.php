@@ -15,6 +15,10 @@ class ModalityCode
 
         return match ($g) {
             'ECO' => 'US',
+            'SCANNER', 'TC' => 'CT',
+            'RM', 'MR' => 'MRI',
+            'MG' => 'MAMO',
+            'DENSITO' => 'DEXA',
             default => $g,
         };
     }
@@ -25,12 +29,16 @@ class ModalityCode
         $g = self::normalizeGroup($group);
 
         return match ($g) {
-            'SCANNER', 'CT' => 'CT',
+            'SCANNER', 'CT', 'CBCT' => 'CT',
             'RM', 'MRI', 'MR' => 'MR',
-            'RX', 'CR', 'DX' => 'DX',
+            'RX', 'CR', 'DX', 'IO' => 'DX',
             'US', 'ULTRASOUND' => 'US',
             'MAMO', 'MG' => 'MG',
-            default => strlen($g) <= 2 ? $g : 'US',
+            'DEXA' => 'DX',
+            'NM' => 'NM',
+            'PT' => 'PT',
+            'RF' => 'RF',
+            default => strlen($g) <= 2 ? $g : 'OT',
         };
     }
 }
