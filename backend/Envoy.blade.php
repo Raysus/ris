@@ -10,6 +10,7 @@
 --}}
 @servers([
     'nube' => 'userit@100.104.4.114',
+    'siresa_centro' => 'admin@100.103.135.42',
     'lab_lautaro' => 'admin@100.104.4.20',
 ])
 
@@ -29,8 +30,8 @@
     // Rama base desde la que se crean ramas que aún no existen en origin
     $branch_fallback = 'main';
 
-    // Lab destino (alias de @servers). Uso: envoy run deploy-lab --lab=lab_lautaro
-    $lab = isset($lab) ? $lab : 'lab_lautaro';
+    // Lab destino (alias de @servers). Uso: envoy run deploy-lab --lab=siresa_centro
+    $lab = isset($lab) ? $lab : 'siresa_centro';
 @endsetup
 
 @story('deploy-nube')
