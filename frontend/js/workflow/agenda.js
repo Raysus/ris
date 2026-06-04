@@ -27,6 +27,13 @@ const AGENDA_ESTADO_TEXTO = '#ffffff';
 /** Minutos por modalidad/sala cuando no viene del servidor (evita fallo si RIS.tiemposPorGrupo no está inicializado). */
 const TIEMPOS_POR_GRUPO_DEFAULT = { RX: 15, TC: 30, RM: 45, US: 20, MG: 15, General: 15 };
 
+/** Equivalencias de código de modalidad (sala ↔ prestación). */
+function risGrupoModalidadEquiv(code) {
+    const c = String(code || '').toUpperCase().trim();
+    const aliases = { ECO: 'US', SCANNER: 'CT', TC: 'CT', RM: 'MRI', MR: 'MRI', MG: 'MAMO', DENSITO: 'DEXA' };
+    return aliases[c] || c;
+}
+
 const AGENDA_LEYENDA_ITEMS = [
     ['pre-agendado', 'Pre-agendado', 'Reserva tentativa'],
     ['agendado', 'Agendado', 'Cita formalizada'],
@@ -1647,7 +1654,10 @@ function setupProEventListeners() {
         const sala = window.RIS.resources.find(r => r.id === machineId);
         if (!sala) return;
 
-        const examenesFiltrados = catalogosAgenda.exams.filter(e => (e.group_code || e.group) === sala.group);
+        const grupoSala = risGrupoModalidadEquiv(sala.group);
+        const examenesFiltrados = catalogosAgenda.exams.filter(
+            (e) => risGrupoModalidadEquiv(e.group_code || e.group) === grupoSala
+        );
 
         examenesFiltrados.forEach(e => {
             examSelect.append(`<option value="${e.id}" data-price="${e.price}">${e.name}</option>`);
