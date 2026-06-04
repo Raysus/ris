@@ -129,6 +129,10 @@ async function cargarWorklistDesdeServidor() {
         if (response.ok && data.data) {
             currentWorklistFromDB = data.data;
             renderWorklist();
+            if ($("#modalAtencion").is(":visible") && currentAtencionChain) {
+                syncAtencionChainFromWorklist();
+                applyWorklistDicomUI(currentAtencionChain);
+            }
         } else {
             tbody.html('<tr><td colspan="7" class="text-center text-muted p-4">No se pudo cargar la lista.</td></tr>');
         }
@@ -190,7 +194,9 @@ function renderWorklist() {
 
         if (app.status === 'dicom_enviado') {
             currentCadenas[chainId].statusGlobal = 'dicom_enviado';
-            currentCadenas[chainId].accessionGlobal = app.accession_number; // 🔴 CAMBIO 1
+        }
+        if (app.accession_number) {
+            currentCadenas[chainId].accessionGlobal = app.accession_number;
         }
 
         if (app.return_reason) {
@@ -285,9 +291,8 @@ function abrirAtencion(chainId) {
     $("#insumoQty").val("1");
     renderInsumosUsados();
 
-    const yaEnviado = currentAtencionChain.statusGlobal === 'dicom_enviado';
     configureDicomIntegrationUI();
-    setDicomUI(yaEnviado, currentAtencionChain.accessionGlobal);
+    applyWorklistDicomUI(currentAtencionChain);
 
 
     // === Habilitar Botones de Documentos ===
@@ -318,39 +323,77 @@ function configureDicomIntegrationUI() {
     $("#dicomManualUploadPanel").toggleClass("d-none", !manual);
 }
 
+function hasWorklistAccession(acc) {
+    return acc != null && String(acc).trim() !== '';
+}
+
+/** Cadena con MWL ya enviada o devuelta por radiólogo (puede reenviarse). */
+function chainAllowsWorklistResend(chain) {
+    if (!chain) return false;
+    if (hasWorklistAccession(chain.accessionGlobal)) return true;
+    return chain.statusGlobal === 'dicom_enviado';
+}
+
+function syncAtencionChainFromWorklist() {
+    if (!currentAtencionChain?.chainId) return;
+    const refreshed = currentCadenas[currentAtencionChain.chainId];
+    if (refreshed) {
+        currentAtencionChain = refreshed;
+    }
+}
+
+function applyWorklistDicomUI(chain) {
+    if (!chain) return;
+    const manual = !usesDicomWorklist();
+    if (manual) {
+        setDicomUI(chain.statusGlobal === 'dicom_enviado', chain.accessionGlobal);
+        return;
+    }
+    const resend = chainAllowsWorklistResend(chain);
+    setDicomUI(resend, chain.accessionGlobal);
+}
+
 function setDicomUI(enviado, acc = null) {
     const manual = !usesDicomWorklist();
+    const hasAcc = hasWorklistAccession(acc);
+    const worklistResend = !manual && (enviado || hasAcc);
 
-    if (acc) {
+    if (hasAcc) {
         $("#globalAccessionDisplay").removeClass("d-none").text("Accession: " + acc);
-        if (enviado) {
-            if (manual) {
-                $("#btnDicomUpload").attr("disabled", true).removeClass("btn-info").addClass("btn-secondary")
-                    .html('<i class="bi bi-check-circle"></i> IMÁGENES EN PACS');
-                $("#dicomStatus").html('<span class="text-success fw-bold">● Estudio cargado en Orthanc</span>');
-            } else {
-                $("#btnDicom").attr("disabled", false).removeClass("btn-secondary").addClass("btn-warning text-dark")
-                    .html('<i class="bi bi-arrow-repeat me-1"></i> REENVIAR A EQUIPOS');
-                $("#dicomStatus").html('<span class="text-success fw-bold">● Enviado al PACS</span> '
-                    + '<span class="text-muted">— pulse para reenviar la worklist</span>');
-            }
-        } else if (!manual) {
-            $("#btnDicom").attr("disabled", false).addClass("btn-info text-white").removeClass("btn-secondary")
-                .html('<i class="bi bi-broadcast"></i> RE-ENVIAR A EQUIPOS');
-            $("#dicomStatus").html('<span class="text-warning fw-bold">¿Re-enviar DICOM?</span>');
-        }
     } else {
-        if (!manual) {
-            $("#btnDicom").attr("disabled", false).addClass("btn-info text-white").removeClass("btn-secondary")
-                .html('<i class="bi bi-broadcast"></i> CREAR A.N. Y ENVIAR');
-            $("#dicomStatus").html('<span class="text-muted">Esperando envío DICOM...</span>');
+        $("#globalAccessionDisplay").addClass("d-none").text("");
+    }
+
+    if (manual) {
+        if (enviado) {
+            $("#btnDicomUpload").prop("disabled", true).removeClass("btn-info").addClass("btn-secondary")
+                .html('<i class="bi bi-check-circle"></i> IMÁGENES EN PACS');
+            $("#dicomStatus").html('<span class="text-success fw-bold">● Estudio cargado en Orthanc</span>');
         } else {
-            $("#btnDicomUpload").attr("disabled", false).addClass("btn-info text-white").removeClass("btn-secondary")
+            $("#btnDicomUpload").prop("disabled", false).removeClass("btn-secondary").addClass("btn-info text-white")
                 .html('<i class="bi bi-cloud-upload me-2"></i> SUBIR IMÁGENES A PACS');
             $("#dicomStatus").html('<span class="text-muted">Suba el archivo exportado del equipo (CBCT, etc.)</span>');
         }
-        $("#globalAccessionDisplay").addClass("d-none").text("");
+        return;
     }
+
+    if (worklistResend) {
+        $("#btnDicom").prop("disabled", false)
+            .removeClass("btn-secondary btn-info text-white")
+            .addClass("btn-warning text-dark")
+            .html('<i class="bi bi-arrow-repeat me-1"></i> REENVIAR A EQUIPOS');
+        $("#dicomStatus").html(
+            '<span class="text-success fw-bold">● Worklist en PACS</span> '
+            + '<span class="text-muted">— pulse para reenviar al equipo</span>'
+        );
+        return;
+    }
+
+    $("#btnDicom").prop("disabled", false)
+        .removeClass("btn-secondary btn-warning text-dark")
+        .addClass("btn-info text-white")
+        .html('<i class="bi bi-broadcast me-2"></i> CREAR A.N. Y ENVIAR A EQUIPOS');
+    $("#dicomStatus").html('<span class="text-muted">Esperando envío DICOM...</span>');
 }
 
 async function subirDicomManual() {
@@ -412,7 +455,7 @@ async function subirDicomManual() {
         showToast(`❌ ${e.message}`, 'danger');
     } finally {
         btn.prop('disabled', false);
-        setDicomUI(currentAtencionChain?.statusGlobal === 'dicom_enviado', currentAtencionChain?.accessionGlobal);
+        applyWorklistDicomUI(currentAtencionChain);
     }
 }
 
@@ -420,16 +463,16 @@ async function enviarADicom() {
     if (!currentAtencionChain) return;
 
     const btn = $("#btnDicom");
-
     const citasInvolucradas = Array.from(currentAtencionChain.citasIds);
+    const eraReenvio = chainAllowsWorklistResend(currentAtencionChain);
+
+    let ultimoAccession = null;
+    let exitos = 0;
+    let fallidos = 0;
+    let ultimoError = '';
 
     try {
-        btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>Sincronizando...');
-
-        let ultimoAccession = null;
-        let exitos = 0;
-        let fallidos = 0;
-        let ultimoError = '';
+        btn.prop("disabled", true).html('<span class="spinner-border spinner-border-sm me-2"></span>Sincronizando...');
 
         for (const citaId of citasInvolucradas) {
             try {
@@ -461,23 +504,27 @@ async function enviarADicom() {
             }
         }
 
+        if (exitos > 0) {
+            currentAtencionChain.statusGlobal = 'dicom_enviado';
+            currentAtencionChain.accessionGlobal = ultimoAccession;
+            applyWorklistDicomUI(currentAtencionChain);
+        }
+
         if (exitos > 0 && fallidos === 0) {
-            setDicomUI(true, ultimoAccession);
-            const reenvio = currentAtencionChain?.statusGlobal === 'dicom_enviado';
             showToast(
-                reenvio
+                eraReenvio
                     ? `📡 Worklist reenviada al PACS (${exitos} cita(s)). El equipo debe consultar de nuevo la MWL.`
                     : `📡 Sincronización exitosa: ${exitos} estudios enviados al PACS.`,
                 'success'
             );
         } else if (exitos > 0 && fallidos > 0) {
-            setDicomUI(true, ultimoAccession);
             showToast(`⚠️ Sincronización incompleta: ${exitos} OK, ${fallidos} errores.`, "warning");
         } else {
             const detalle = ultimoError
                 ? (ultimoError.length > 180 ? ultimoError.slice(0, 180) + '…' : ultimoError)
                 : 'No se pudo comunicar con Orthanc (PACS).';
             showToast(`❌ ${detalle}`, "danger");
+            applyWorklistDicomUI(currentAtencionChain);
         }
 
         await cargarWorklistDesdeServidor();
@@ -485,11 +532,11 @@ async function enviarADicom() {
     } catch (e) {
         console.error("Error de red:", e);
         showToast("🔌 Error de conexión con el servidor central.", "danger");
+        applyWorklistDicomUI(currentAtencionChain);
     } finally {
-        if (currentAtencionChain?.accessionGlobal) {
-            setDicomUI(currentAtencionChain.statusGlobal === 'dicom_enviado', currentAtencionChain.accessionGlobal);
-        } else {
-            btn.prop('disabled', false).html('<i class="bi bi-broadcast me-1"></i> ENVIAR A EQUIPOS');
+        if (exitos === 0) {
+            btn.prop("disabled", false);
+            applyWorklistDicomUI(currentAtencionChain);
         }
     }
 }
