@@ -26,4 +26,20 @@ class OrthancUrl
 
         return 'http://127.0.0.1:8042';
     }
+
+    /** Destino DICOM (C-FIND MWL / C-STORE) que debe usar el equipo en sala. */
+    public static function dicomTarget(): array
+    {
+        $parsed = parse_url(self::base());
+        $host = trim((string) config('services.orthanc.host', ''));
+        if (!empty($parsed['host'])) {
+            $host = $parsed['host'];
+        }
+
+        return [
+            'host' => $host,
+            'port' => (int) config('services.orthanc.port', 4242),
+            'aet' => (string) config('services.orthanc.aet', 'HealthTICloud'),
+        ];
+    }
 }

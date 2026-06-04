@@ -474,16 +474,40 @@ Para dejar el puente al iniciar sesión en Ubuntu desktop, puede crear un servic
 
 ## 13. Equipos de radiografía (DICOM)
 
-Configure en cada modalidad (lo hace el técnico del equipo):
+### Dos caminos distintos (muy importante)
+
+| Camino | Quién lo usa | Puerto típico | Qué hace el RIS |
+|--------|----------------|---------------|-----------------|
+| **HTTP** (`ORTHANC_URL`, ej. `https://pacs.healthticloud.cl`) | RIS al pulsar «Enviar a equipos» | **443** | Crea la worklist en el PACS (se ve en el explorador web) |
+| **DICOM MWL** (C-FIND worklist) | **Rayos, CR, mamógrafo, ecógrafo** | **4242** | El equipo **consulta** la misma worklist al PACS |
+
+Si la orden **sí aparece en el PACS** pero **no en la máquina**, el RIS está bien: falta que el
+modalidad consulte MWL por DICOM o que la red del centro **alcance el puerto 4242** del PACS.
+
+Comprobación desde el servidor del lab:
+
+```bash
+timeout 2 bash -c 'echo >/dev/tcp/pacs.healthticloud.cl/4242' && echo OK || echo FAIL
+```
+
+Si sale **FAIL**, el equipo en `192.168.0.x` tampoco podrá bajar la worklist hasta que sistemas
+abra firewall/VPN o despliegue un **SCP de worklist local** que sincronice con la nube.
+
+### Configuración en cada modalidad (técnico del equipo)
+
+Valores de referencia (confirme con sistemas):
 
 | Dato | Valor típico |
 |------|----------------|
-| AE Title destino | `HEALTHTICLOUD` |
-| IP / hostname | El que indique sistemas (PACS en nube) |
-| Puerto | `4242` |
+| Servidor / host MWL | Hostname del PACS (ej. `pacs.healthticloud.cl`) |
+| Puerto MWL | `4242` |
+| AE Title **destino** (called) | `HealthTICloud` o el que indique sistemas |
+| **AE de estación** / filtro | Debe coincidir con Admin → Salas (ej. `FCR_MAMO` para mamografía) |
+| Modalidad | `MG` en mamógrafo, `DX`/`CR` en rayos, etc. |
 
-El laboratorio **no** necesita Tailscale para esto si el PACS es alcanzable por la red
-que defina el centro (ruta VPN del proveedor, IP pública, etc.).
+En **Admin → Salas**, la IP/puerto de la ficha es del **equipo en la LAN** (ping TCP), no la URL del PACS.
+
+El laboratorio **no** necesita Tailscale en cada PC si el PACS DICOM es alcanzable por la red del centro.
 
 ---
 

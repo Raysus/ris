@@ -151,10 +151,27 @@ class WorklistController extends Controller
             $appointment->load(['patient.persona', 'studies', 'supplies']);
             \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
 
+            $dicom = OrthancUrl::dicomTarget();
+            $modality = ModalityCode::forDicomWorklist($machine->group ?? 'US');
+
             return response()->json([
                 'success' => true,
                 'accession' => $accessionNumber,
                 'resent' => $isResend,
+                'worklist' => [
+                    'scheduled_station_ae' => $stationAeTitle,
+                    'modality' => $modality,
+                    'machine_name' => $machine->name,
+                    'pacs_http' => $orthancBase,
+                    'pacs_dicom_host' => $dicom['host'],
+                    'pacs_dicom_port' => $dicom['port'],
+                    'pacs_dicom_aet' => $dicom['aet'],
+                ],
+                'modality_note' => 'La orden quedó en el PACS (vía web). Para verla en el equipo, el modalidad debe '
+                    . 'consultar la worklist DICOM (C-FIND MWL) al mismo PACS en '
+                    . $dicom['host'] . ':' . $dicom['port']
+                    . ' con AE destino «' . $dicom['aet'] . '» y filtro de estación «' . $stationAeTitle . '» (modalidad ' . $modality . '). '
+                    . 'Si el puerto ' . $dicom['port'] . ' no responde desde la LAN del centro, sistemas debe abrir ruta/VPN o un SCP local.',
             ]);
 
         } catch (\Illuminate\Http\Client\ConnectionException $e) {

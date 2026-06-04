@@ -486,6 +486,9 @@ async function enviarADicom() {
                 if (response.ok) {
                     const data = await response.json();
                     ultimoAccession = data.accession || data.accession_number;
+                    if (data.worklist) {
+                        window._lastWorklistModalityHint = data;
+                    }
                     exitos++;
                 } else {
                     const raw = await response.text();
@@ -511,12 +514,23 @@ async function enviarADicom() {
         }
 
         if (exitos > 0 && fallidos === 0) {
+            const hint = window._lastWorklistModalityHint?.worklist;
+            let extra = '';
+            if (hint) {
+                extra = ` Estación «${hint.scheduled_station_ae}» (${hint.modality}). En el equipo MWL: ${hint.pacs_dicom_host}:${hint.pacs_dicom_port}, AE «${hint.pacs_dicom_aet}».`;
+            }
             showToast(
-                eraReenvio
-                    ? `📡 Worklist reenviada al PACS (${exitos} cita(s)). El equipo debe consultar de nuevo la MWL.`
-                    : `📡 Sincronización exitosa: ${exitos} estudios enviados al PACS.`,
+                (eraReenvio
+                    ? `📡 Worklist reenviada al PACS (${exitos} cita(s)).`
+                    : `📡 Orden en PACS (${exitos} cita(s)).`)
+                    + extra
+                    + ' Si no aparece en la máquina, revise que el equipo consulte MWL por DICOM (no solo la web del PACS).',
                 'success'
             );
+            const note = window._lastWorklistModalityHint?.modality_note;
+            if (note && typeof showAlert === 'function') {
+                showAlert(note, 'Worklist en PACS — ¿por qué no la ve el equipo?', 'info');
+            }
         } else if (exitos > 0 && fallidos > 0) {
             showToast(`⚠️ Sincronización incompleta: ${exitos} OK, ${fallidos} errores.`, "warning");
         } else {
