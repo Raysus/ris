@@ -28,20 +28,21 @@ Tres ideas importantes:
 
 - **Docker** empaqueta la base de datos, la API y el sitio web del RIS.
 - **Las imágenes médicas no se guardan en el laboratorio**; el RIS se conecta al PACS en la nube.
-- **Tailscale no se instala en este servidor** para el uso normal del centro (véase la nota siguiente).
+- **Tailscale en el servidor del lab es opcional** para el día a día del centro, pero **recomendado**
+  si sistemas debe entrar por SSH sin estar en la misma LAN (véase sección 11 y la nota siguiente).
 
-### Nota sobre Tailscale (solo despliegues desde el equipo de sistemas)
+### Nota sobre Tailscale
 
 | Quién | ¿Necesita Tailscale? |
 |-------|----------------------|
-| Servidor del laboratorio | **No** (salvo indicación explícita de VPN) |
-| PCs de usuarios del RIS | **No** |
-| **Quien despliega o actualiza** (SSH, Envoy, soporte remoto) | **Sí**, en **su** computador |
+| PCs de usuarios del RIS (recepción, médicos) | **No** |
+| Servidor del laboratorio | **Opcional** — **sí** si soporte remoto / `deploy-lab` por VPN |
+| **Quien despliega o actualiza** (SSH, Envoy) | **Sí**, en **su** computador (misma red Tailscale que el servidor, si aplica) |
 
-El equipo de sistemas usa Tailscale en su PC para entrar por SSH a la **nube** y a los
-**laboratorios** (`deploy-nube`, `deploy-lab`). En el laboratorio solo configure la
-**URL del PACS** que le entreguen (por ejemplo `https://pacs.healthticloud.cl` o una IP
-accesible desde la red del centro).
+El personal del centro usa el RIS por `http://<IP-LAN>`; no instale Tailscale en cada PC.
+El equipo de sistemas entra a la **nube** y a los **labs** con Envoy (`deploy-nube`, `deploy-lab`)
+usando la IP Tailscale del servidor (ej. `100.104.4.20`), cuando el lab tiene Tailscale activo.
+La **URL del PACS** en `.env` sigue siendo la que indique sistemas (no depende de Tailscale en el lab).
 
 ---
 
@@ -259,7 +260,94 @@ El visor de imágenes se abre desde el botón correspondiente en el RIS (visor e
 
 ---
 
-## 11. Otras computadoras y escáner
+## 11. Configurar Tailscale en el servidor (opcional)
+
+Use este paso **solo si el equipo de sistemas se lo indica** o si el laboratorio necesita
+soporte remoto y despliegues con `envoy run deploy-lab` sin depender de estar en la misma red local.
+
+**No es necesario** para que recepción y médicos usen el RIS en el navegador.
+
+### 11.1 Instalar Tailscale en Ubuntu Server
+
+Conéctese al servidor por consola o SSH y ejecute:
+
+```bash
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo systemctl enable --now tailscaled
+```
+
+### 11.2 Unir el servidor a la red Tailscale
+
+El administrador de sistemas le entregará una de estas formas de registro:
+
+| Método | Comando / acción |
+|--------|------------------|
+| Enlace de invitación | Abra la URL en un navegador **desde el servidor** (o use el login que indique sistemas) y luego: `sudo tailscale up` |
+| Clave de auth (auth key) | `sudo tailscale up --auth-key=tskey-auth-XXXXXXXX` (la clave la entrega sistemas; **no la publique**) |
+| Login interactivo | `sudo tailscale up` y siga el enlace que muestra la consola |
+
+Compruebe que quedó conectado:
+
+```bash
+tailscale status
+tailscale ip -4
+```
+
+Anote la IP que empieza por `100.` (ej. `100.104.4.20`). Esa es la que usará sistemas en
+`backend/Envoy.blade.php` para `deploy-lab`.
+
+### 11.3 SSH y firewall
+
+- Tailscale suele permitir SSH entre nodos de la misma cuenta sin abrir el puerto 22 a Internet.
+- Con **UFW** activo (paso 9), normalmente **no hace falta** abrir puertos extra para Tailscale;
+  el tráfico entra por la interfaz `tailscale0`.
+- Si sistemas usa **Tailscale SSH**, puede pedirle que apruebe el nodo en la consola de Tailscale
+  la primera vez que conecte.
+
+Prueba desde el PC de sistemas (con Tailscale activo en esa máquina):
+
+```bash
+ssh usuario@100.104.4.XX
+```
+
+(Sustituya usuario e IP por los que le indiquen.)
+
+### 11.4 Mantener Tailscale al reiniciar
+
+El servicio `tailscaled` ya queda habilitado con `systemctl enable`. Tras un reinicio del servidor:
+
+```bash
+tailscale status
+```
+
+Si aparece **offline**, ejecute de nuevo `sudo tailscale up` (o con la misma `--auth-key` si usó clave).
+
+### 11.5 Qué comunicar a sistemas
+
+Envíe por correo o ticket:
+
+| Dato | Ejemplo |
+|------|---------|
+| IP Tailscale IPv4 | `100.104.4.20` |
+| Nombre del nodo en Tailscale | `lab-lautaro-srv` |
+| Usuario SSH en el servidor | `admin` |
+| Ruta del proyecto RIS | `/opt/RIS` |
+
+Con eso sistemas puede ejecutar desde su PC:
+
+```bash
+cd backend
+php vendor/bin/envoy run deploy-lab --lab=lab_lautaro
+```
+
+(el alias `lab_lautaro` debe existir en `Envoy.blade.php` con la IP Tailscale correcta).
+
+> **Privacidad:** Tailscale cifra el tráfico entre nodos; no sustituye las políticas de acceso
+> del centro. Solo personal autorizado debe tener cuenta en la misma red Tailscale.
+
+---
+
+## 12. Otras computadoras y escáner
 
 - **Recepción / médicos / tecnólogos:** solo navegador → `http://<IP-del-servidor>`.
 - **PC con escáner:** instale Node.js y NAPS2; en la carpeta del puente:
@@ -284,7 +372,7 @@ Para dejar el puente al iniciar sesión en Ubuntu desktop, puede crear un servic
 
 ---
 
-## 12. Equipos de radiografía (DICOM)
+## 13. Equipos de radiografía (DICOM)
 
 Configure en cada modalidad (lo hace el técnico del equipo):
 
@@ -299,7 +387,7 @@ que defina el centro (ruta VPN del proveedor, IP pública, etc.).
 
 ---
 
-## 13. Uso diario
+## 14. Uso diario
 
 Comandos en `/opt/RIS/backend`:
 
@@ -324,12 +412,13 @@ Guarde el archivo `.sql` en disco externo o nube corporativa.
 
 ---
 
-## 14. Actualizaciones del sistema
+## 15. Actualizaciones del sistema
 
 **El personal del laboratorio no debe actualizar el RIS.**
 
 Las actualizaciones las realiza el **equipo de sistemas** desde **su computador**
-(con Tailscale para conectarse por SSH al servidor) usando Envoy o comandos equivalentes:
+(con Tailscale en su PC y, si aplica, Tailscale en el servidor del lab — sección 11)
+usando Envoy o comandos equivalentes:
 
 ```bash
 # Ejemplo (lo ejecuta sistemas en el servidor, no recepción)
@@ -341,7 +430,7 @@ Si le piden una actualización manual excepcional, use exactamente esos dos bloq
 
 ---
 
-## 15. Problemas frecuentes
+## 16. Problemas frecuentes
 
 | Síntoma | Qué hacer |
 |---------|-----------|
@@ -352,10 +441,12 @@ Si le piden una actualización manual excepcional, use exactamente esos dos bloq
 | Error al `up --build` | `docker compose ... logs api` y `logs pgsql`. Verifique espacio en disco: `df -h`. |
 | Error de versión PHP / Composer | Reconstruya imagen: `docker compose -f docker-compose.lan.yml build --no-cache api`. Debe usar PHP **8.3** (no mezclar con PHP 8.4+ del host). |
 | Puerto 80 ocupado | `sudo ss -tlnp | grep :80` — otro servicio (Apache/nginx) puede chocar; avise a sistemas. |
+| Tailscale «offline» tras reinicio | `sudo systemctl status tailscaled` · `sudo tailscale up` · verifique con `tailscale status`. |
+| Sistemas no entra por SSH a la IP `100.x` | Confirme que el nodo está en la misma cuenta Tailscale, IP con `tailscale ip -4`, y usuario SSH correcto. |
 
 ---
 
-## 16. Lista de verificación final
+## 17. Lista de verificación final
 
 **Servidor Ubuntu**
 
@@ -370,15 +461,17 @@ Si le piden una actualización manual excepcional, use exactamente esos dos bloq
 - [ ] Contraseñas de prueba cambiadas
 - [ ] Primera copia de seguridad `.sql`
 
-**No en el servidor**
+**Tailscale (solo si sistemas lo pidió)**
 
-- [ ] Tailscale instalado “porque sí” — **no hace falta** para usuarios del centro
+- [ ] `tailscaled` activo (`systemctl status tailscaled`)
+- [ ] `tailscale ip -4` muestra IP `100.x.x.x`
+- [ ] IP y usuario SSH comunicados al equipo de sistemas
 
 **Equipos de rayos** (si aplica)
 
-- [ ] Destino DICOM según tabla del paso 12
+- [ ] Destino DICOM según tabla del paso 13
 - [ ] Imagen de prueba visible en el RIS
 
 ---
 
-**Documentación técnica adicional:** [INSTALACION.md](INSTALACION.md) · **Despliegues remotos:** `backend/Envoy.blade.php` (Tailscale en el PC de quien despliega).
+**Documentación técnica adicional:** [INSTALACION.md](INSTALACION.md) · **Despliegues remotos:** `backend/Envoy.blade.php` (IP Tailscale del lab en `@servers`).
