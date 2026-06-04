@@ -16,7 +16,11 @@ function resolveRisApiUrl() {
     const isHttps = window.location.protocol === 'https:';
     const proto = isHttps ? 'https' : 'http';
 
-    if (host === 'localhost' || host === '127.0.0.1' || host === '') {
+    // Mismo hostname que la página (localhost ≠ 127.0.0.1 para CORS).
+    if (host === 'localhost' || host === '127.0.0.1') {
+        return `${proto}://${host}:8000/api`;
+    }
+    if (host === '') {
         return 'http://127.0.0.1:8000/api';
     }
 
@@ -36,4 +40,4 @@ var API_URL = resolveRisApiUrl();
 window.API_URL = API_URL;
 
 /** Incrementar al desplegar frontend para evitar HTML/JS en caché del navegador */
-window.RIS_BUILD = '20260611';
+window.RIS_BUILD = '20260612';
