@@ -293,8 +293,18 @@ function validateAgendaWizardStep(step) {
         }
     }
     if (step === 3) {
-        if ($(".study-entry").length === 0 || !$(".study-entry .eExam").first().val()) {
+        if ($(".study-entry").length === 0) {
             showToast("Agregue al menos un examen.", "warning");
+            return false;
+        }
+        let filaValida = false;
+        $(".study-entry").each(function () {
+            const machine = $(this).find(".eMachine").val();
+            const exam = $(this).find(".eExam").val();
+            if (machine && exam) filaValida = true;
+        });
+        if (!filaValida) {
+            showToast("Complete sala y examen en al menos una fila.", "warning");
             return false;
         }
     }

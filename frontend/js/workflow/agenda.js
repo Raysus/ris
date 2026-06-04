@@ -34,6 +34,59 @@ function risGrupoModalidadEquiv(code) {
     return aliases[c] || c;
 }
 
+const RIS_MODALITY_LABELS = {
+    RX: 'Radiografía (RX)',
+    CT: 'Tomografía (CT)',
+    MRI: 'Resonancia (MRI)',
+    US: 'Ecografía (US)',
+    MAMO: 'Mamografía (MAMO)',
+    DEXA: 'Densitometría (DEXA)',
+    CBCT: 'Cone beam (CBCT)',
+    IO: 'Intraoral (IO)',
+    NM: 'Medicina nuclear (NM)',
+    PT: 'PET (PT)',
+    RF: 'Fluoroscopia (RF)',
+    OT: 'Otro (OT)',
+};
+
+const RIS_MODALITY_ORDER = ['RX', 'CT', 'MRI', 'US', 'MAMO', 'DEXA', 'CBCT', 'IO', 'NM', 'PT', 'RF', 'OT'];
+
+/** Lista todos los exámenes del catálogo agrupados por modalidad (sin filtrar por sala). */
+function poblarSelectExamenesAgenda($examSelect, machineId) {
+    if (!$examSelect || !$examSelect.length) return;
+
+    const prev = $examSelect.val();
+    $examSelect.empty().append('<option value="">-- Seleccione examen --</option>');
+
+    const exams = catalogosAgenda.exams || [];
+    if (!exams.length) return;
+
+    const byGroup = {};
+    exams.forEach((e) => {
+        const g = risGrupoModalidadEquiv(e.group_code || e.group) || 'OT';
+        if (!byGroup[g]) byGroup[g] = [];
+        byGroup[g].push(e);
+    });
+
+    const grupos = [...new Set([...RIS_MODALITY_ORDER, ...Object.keys(byGroup)])].filter((g) => byGroup[g]?.length);
+
+    grupos.forEach((grupo) => {
+        const label = RIS_MODALITY_LABELS[grupo] || grupo;
+        const $og = $(`<optgroup label="${label}"></optgroup>`);
+        byGroup[grupo]
+            .slice()
+            .sort((a, b) => String(a.name).localeCompare(String(b.name), 'es'))
+            .forEach((e) => {
+                $og.append(
+                    `<option value="${e.id}" data-price="${e.price || 0}" data-group="${grupo}">${e.name}</option>`
+                );
+            });
+        $examSelect.append($og);
+    });
+
+    if (prev) $examSelect.val(prev);
+}
+
 const AGENDA_LEYENDA_ITEMS = [
     ['pre-agendado', 'Pre-agendado', 'Reserva tentativa'],
     ['agendado', 'Agendado', 'Cita formalizada'],
@@ -985,17 +1038,27 @@ async function guardarCita() {
 
     const todosLosEstudios = [];
     const salasInvolucradas = new Set();
+    let errorEstudios = null;
 
     $(".study-entry").each(function () {
         const machine = $(this).find(".eMachine").val();
-        if (!machine) return;
+        const examId = $(this).find(".eExam").val();
+        if (!machine && !examId) return;
+        if (!machine) {
+            errorEstudios = "Seleccione la sala en cada fila de examen.";
+            return false;
+        }
+        if (!examId) {
+            errorEstudios = "Seleccione el examen en cada fila agregada.";
+            return false;
+        }
 
         salasInvolucradas.add(machine);
         const subExamVal = $(this).find(".eSubExam").val();
 
         todosLosEstudios.push({
             machine_id: machine,
-            exam_id: $(this).find(".eExam").val(),
+            exam_id: examId,
             exam_name: $(this).find(".eExam option:selected").text().trim(),
             sub_exam_name: $(this).find(".eSubExam option:selected").text().replace('--', '').trim() || null,
             sub_exam_id: (subExamVal && subExamVal !== "-") ? subExamVal : null,
@@ -1005,8 +1068,12 @@ async function guardarCita() {
         });
     });
 
+    if (errorEstudios) {
+        return showToast(errorEstudios, "warning");
+    }
+
     if (todosLosEstudios.length === 0) {
-        return showToast("Debe agregar al menos un examen con su sala.", "warning");
+        return showToast("Debe agregar al menos un examen con sala y prestación.", "warning");
     }
 
     const snapshotPaciente = {
@@ -1396,8 +1463,10 @@ function addStudyRow(relationType = 'primo', existingData = null) {
     $("#studyBody").append(html);
 
     const newRow = $(`#${rowId}`);
+    poblarSelectExamenesAgenda(newRow.find(".eExam"), newRow.find(".eMachine").val());
     if (existingData) {
-        newRow.find(".eMachine").trigger("change");
+        newRow.find(".eMachine").val(existingData.machine || '');
+        poblarSelectExamenesAgenda(newRow.find(".eExam"), existingData.machine);
         setTimeout(() => {
             newRow.find(".eExam").val(existingData.exam).trigger("change");
             setTimeout(() => { newRow.find(".eSubExam").val(existingData.subExam); }, 50);
@@ -1643,25 +1712,16 @@ function setupProEventListeners() {
         const machineId = $(this).val();
         const examSelect = row.find(".eExam");
         const subSelect = row.find(".eSubExam");
+        const prevExam = examSelect.val();
 
-        examSelect.empty().append('<option value="">--</option>');
         subSelect.empty().append('<option value="">--</option>');
         row.find(".ePrice").val(0);
         row.find(".eCode").val('');
 
-        if (!machineId) return;
-
-        const sala = window.RIS.resources.find(r => r.id === machineId);
-        if (!sala) return;
-
-        const grupoSala = risGrupoModalidadEquiv(sala.group);
-        const examenesFiltrados = catalogosAgenda.exams.filter(
-            (e) => risGrupoModalidadEquiv(e.group_code || e.group) === grupoSala
-        );
-
-        examenesFiltrados.forEach(e => {
-            examSelect.append(`<option value="${e.id}" data-price="${e.price}">${e.name}</option>`);
-        });
+        poblarSelectExamenesAgenda(examSelect, machineId);
+        if (prevExam && examSelect.find(`option[value="${prevExam}"]`).length) {
+            examSelect.val(prevExam).trigger("change");
+        }
     });
 
     $(document).on("change", ".eExam", function () {
