@@ -2,10 +2,13 @@
 
 Guía para técnicos. Un solo documento: servidor + PCs de usuario.
 
-> **¿Despliegue en un laboratorio (Windows + Docker, paso a paso y sin tecnicismos)?**
-> Use la guía única **[GUIA_INSTALACION_LABORATORIO.md](GUIA_INSTALACION_LABORATORIO.md)**
-> (instaladores, Tailscale, token de GitHub, instalación con Docker y actualizaciones).
-> Esta guía general cubre el resto de escenarios (desarrollo local y producción en nube).
+> **¿Despliegue en un laboratorio (paso a paso, sin tecnicismos)?**
+> Use **[GUIA_INSTALACION_LABORATORIO.md](GUIA_INSTALACION_LABORATORIO.md)** (Ubuntu Server + Docker).
+> Variante Windows: **[GUIA_INSTALACION_LABORATORIO_WINDOWS.md](GUIA_INSTALACION_LABORATORIO_WINDOWS.md)**.
+> Esta guía cubre desarrollo local, producción en nube y detalle técnico.
+>
+> **Tailscale** solo lo usa quien **despliega o da soporte** desde su computador (SSH/Envoy a nube y laboratorios).
+> El servidor del laboratorio **no** requiere Tailscale para el uso diario del RIS; solo la URL de PACS que indique sistemas.
 
 | Qué | Dónde corre |
 |-----|-------------|
@@ -23,7 +26,7 @@ Guía para técnicos. Un solo documento: servidor + PCs de usuario.
 
 | Software | Versión |
 |----------|---------|
-| PHP | 8.3+ (extensiones: pdo_pgsql, mbstring, openssl, json, fileinfo, bcmath) |
+| PHP | 8.5+ (extensiones: pdo_pgsql, mbstring, openssl, json, fileinfo, bcmath) |
 | Composer | 2.x |
 | Docker | Para PostgreSQL local (opcional en servidor Linux productivo) |
 | Node.js | Solo en PCs con bridge (escáner/visor local) |
@@ -141,6 +144,57 @@ Firewall: permitir puertos **8000** y **5500** (o 80/443 si usa Nginx).
 
 ---
 
+## 3.1 Laboratorio con Docker (`docker-compose.lan.yml`)
+
+Stack recomendado en el servidor del centro (Ubuntu o Windows con Docker Desktop).
+La API corre en contenedor **PHP 8.5.4** (`backend/Dockerfile`, imagen `php:8.5.4-cli`), alineado con `composer.json` (`^8.5`).
+En laboratorio LAN use siempre la imagen Docker; el PHP del host no afecta al contenedor.
+
+```bash
+cd backend
+cp .env.lan.example .env
+# Editar IP LAN, ORTHANC_URL, DB_PASSWORD, etc.
+docker compose -f docker-compose.lan.yml run --rm api php artisan key:generate --show
+# Pegar APP_KEY= en .env
+docker compose -f docker-compose.lan.yml up -d --build
+```
+
+| Servicio | Puerto | Función |
+|----------|--------|---------|
+| `web` (nginx) | 80 | Frontend estático (`../frontend`) |
+| `api` | 8000 | Laravel (`php artisan serve`) |
+| `pgsql` | interno | PostgreSQL 15 |
+| `redis` | interno | Caché opcional (cola por defecto: `database`) |
+
+El frontend detecta la API en `http://<IP-servidor>/api` (puerto 80, nginx) o en `:8000` si no hay proxy (`frontend/js/config.js`).
+No hace falta editar `config.js` en cada PC si todas entran por `http://<IP>` o por un alias DNS local documentado (ej. `http://siresamatriz.healthticloud.cl` — ver guía laboratorio §10.1).
+
+Variables clave (ver `.env.lan.example`):
+
+| Variable | LAN típico |
+|----------|------------|
+| `APP_URL` | `http://192.168.x.x` o `http://siresamatriz.healthticloud.cl` (misma URL que el navegador) |
+| `FRONTEND_URL` | **Igual** que `APP_URL` — debe coincidir con la barra del navegador (CORS y sesión) |
+| `SESSION_SECURE_COOKIE` | `false` (HTTP sin TLS) |
+| `RIS_CLOUD_ROLE` | `local` |
+| `CLOUD_SYNC_SECRET` | Mismo valor que en la nube (envío de citas/pacientes) |
+| `ORTHANC_URL` | URL PACS en nube |
+| `VIEWER_URL` | `https://viewer.healthticloud.cl` |
+
+Comprobación desde otra PC de la LAN:
+
+```bash
+curl -s http://<IP-servidor>/api/health   # JSON "status":"ok", no HTML
+```
+
+Tras el primer arranque: `DB_AUTO_SEED=false` y `docker compose -f docker-compose.lan.yml up -d`.
+
+Tras `git pull` que toque `docker/frontend.nginx.conf`: `docker compose -f docker-compose.lan.yml up -d --force-recreate web`.
+
+Guía paso a paso: **[GUIA_INSTALACION_LABORATORIO.md](GUIA_INSTALACION_LABORATORIO.md)**.
+
+---
+
 ## 4. Producción en nube (sin Docker)
 
 Código típico: `/var/www/ris.healthticloud.cl`
@@ -215,7 +269,9 @@ sudo -u www-data php artisan optimize
 sudo -u www-data php artisan queue:restart
 ```
 
-Desde su PC: `cd backend && php vendor/bin/envoy run deploy-nube`
+Desde su PC (con **Tailscale** activo para alcanzar el servidor): `cd backend && php vendor/bin/envoy run deploy-nube`
+
+Laboratorios LAN: `php vendor/bin/envoy run deploy-lab --lab=lab_lautaro` (misma red Tailscale; el lab no instala Tailscale).
 
 **Envoy y sudo:** las tareas usan `sudo -n` (sin contraseña). Si ve `Authentication failed`, en el servidor **como root** (una sola vez):
 
@@ -318,7 +374,7 @@ En Agenda: **Escanear** (bridge) o **Subir** (PDF/imagen sin bridge).
 | Función | Variables |
 |---------|-----------|
 | Keycloak / portal | `KEYCLOAK_*` |
-| Sync a nube | `CLOUD_SERVER_URL`, `CLOUD_SYNC_SECRET` |
+| Sync a nube | Ver sección **Sync matriz / sucursales** abajo |
 | FONASA (solo clínico) | `FONASA_*` |
 | Factura electrónica | `DTE_*` |
 | HL7 hospital | `HL7_*` |
@@ -328,6 +384,36 @@ En Agenda: **Escanear** (bridge) o **Subir** (PDF/imagen sin bridge).
 
 Tras cambiar `.env`: `php artisan config:clear`
 
+### 6.1 Sync matriz / sucursales (nube ↔ laboratorios)
+
+**Nube** (`api.healthticloud.cl`) — receptor central:
+
+```env
+RIS_CLOUD_ROLE=cloud
+CLOUD_INBOUND_ENABLED=true
+CLOUD_SYNC_SECRET=un-secreto-largo-compartido
+QUEUE_CONNECTION=database
+```
+
+**Laboratorio local** (Docker LAN) — envía operación y puede importar catálogo:
+
+```env
+RIS_CLOUD_ROLE=local
+CLOUD_API_BASE=https://api.healthticloud.cl/api
+CLOUD_SYNC_SECRET=el-mismo-secreto-que-en-nube
+QUEUE_CONNECTION=database
+```
+
+En Admin → **Sync Nube**:
+
+- **Catálogo desde nube** — exámenes, máquinas, médicos solicitantes, previsiones (**sede concreta** en el selector superior; no «Todas mis sucursales»).
+- **+ Pacientes** — además pacientes de esa sede.
+- **Enviar pendientes** — reintenta cola de envío local → nube (requiere `CLOUD_SYNC_SECRET` y contenedor `queue` activo).
+
+La matriz en la **misma BD** ve sucursales con el selector de sede; los labs remotos replican citas/pacientes vía cola automática al guardar.
+
+Colas: en nube `ris-queue` (systemd); en lab contenedor `queue`. Redis es opcional (`QUEUE_CONNECTION=redis` + `REDIS_HOST=redis` en Docker).
+
 ---
 
 ## 7. Problemas frecuentes
@@ -335,7 +421,11 @@ Tras cambiar `.env`: `php artisan config:clear`
 | Problema | Solución |
 |----------|----------|
 | Login 500 | `php artisan migrate --force` · revisar `storage/logs/laravel.log` |
-| CORS / no conecta API | `FRONTEND_URL` en `.env` = URL exacta del navegador |
+| CORS / no conecta API | `FRONTEND_URL` en `.env` = URL exacta del navegador (`http://IP` sin `:8000` si entran por puerto 80). Sustituir IP plantilla `192.168.1.50` por la IP real. |
+| `/api/health` devuelve HTML | Recrear nginx: `docker compose -f docker-compose.lan.yml up -d --force-recreate web` |
+| Otra PC no alcanza el RIS | UFW puerto 80, misma VLAN, `curl http://IP/api/health` desde esa PC |
+| SSH por Tailscale refused | Instalar `openssh-server`; usuario en Envoy = `whoami` del servidor |
+| Sync catálogo pide sede | Selector superior: matriz o sucursal concreta, no «Todas» |
 | Menú vacío | Cerrar sesión y volver a entrar |
 | Agenda sin salas | Elegir laboratorio arriba · Ctrl+F5 |
 | Escáner no funciona | Bridge en `127.0.0.1:8181` · NAPS2 en `config.json` |
@@ -346,18 +436,21 @@ Logs: `backend/storage/logs/laravel.log`
 
 ---
 
-## 8. Manual de usuario
+## 8. Manual de usuario (instructivo)
 
-- PDF/DOCX: `docs/INSTRUCTIVO_HealthTiCloud_RIS.pdf` (o `.docx`)
-- Regenerar ambos formatos:
+Archivos entregables: `docs/INSTRUCTIVO_HealthTiCloud_RIS.pdf` y `.docx` (17 capítulos: flujo clínico, módulos, dental/vet, dictado, secretaria, sync nube, FAQ).
+
+Regenerar tras cambios de interfaz:
 
 ```bash
-cd docs
-python generate_instructivo.py
-python generate_instructivo_docx.py
+pip install -r docs/requirements-docs.txt
+# API en :8000, frontend en :8765 (variables RIS_API_URL / RIS_FRONTEND_URL opcionales)
+node docs/capture_screenshots.mjs
+python docs/generate_instructivo.py
+python docs/generate_instructivo_docx.py
 ```
 
-El capítulo 5 describe Worklist (clínico) y **Atención en salas** (dental/vet). El capítulo 12 detalla diferencias por tipo de centro y los laboratorios de demostración del seeder.
+El capítulo 5 del PDF describe Worklist (clínico) y **Atención en salas** (dental/vet). El capítulo 12 detalla diferencias por tipo de centro.
 
 ---
 

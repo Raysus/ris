@@ -204,8 +204,25 @@ function exportarCierreCajaExcel() {
     showToast('Cierre de caja exportado', 'success');
 }
 
+async function cargarCloudSyncStatus() {
+    try {
+        const res = await fetch(`${API_URL}/integrations/cloud-sync/status`, { headers: adminAuthHeaders() });
+        const json = await res.json();
+        if (!res.ok || !json.success) return;
+        const d = json.data;
+        const roleLabel = d.role === 'local' ? 'Laboratorio (envía a nube)' : 'Servidor central (recibe datos)';
+        $("#cloudSyncRoleHint").text(
+            `${roleLabel} · Cola: ${d.queue_connection || '—'} · ` +
+            (d.can_push ? 'Envío configurado' : 'Envío no configurado')
+        );
+    } catch (e) {
+        $("#cloudSyncRoleHint").text('');
+    }
+}
+
 async function cargarCloudSyncLogs() {
     try {
+        await cargarCloudSyncStatus();
         const res = await fetch(`${API_URL}/integrations/cloud-sync?limit=100`, {
             headers: adminAuthHeaders(),
         });
@@ -218,6 +235,7 @@ async function cargarCloudSyncLogs() {
             <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body py-2"><small class="text-muted">OK</small><h5 class="fw-bold text-success mb-0">${stats.success}</h5></div></div></div>
             <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body py-2"><small class="text-muted">Fallidos</small><h5 class="fw-bold text-danger mb-0">${stats.failed}</h5></div></div></div>
             <div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body py-2"><small class="text-muted">Últimas 24h</small><h5 class="fw-bold mb-0">${stats.last_24h}</h5></div></div></div>
+            ${stats.skipped != null ? `<div class="col-md-3"><div class="card border-0 shadow-sm"><div class="card-body py-2"><small class="text-muted">Omitidos</small><h5 class="fw-bold mb-0">${stats.skipped}</h5></div></div></div>` : ''}
         `);
 
         const tbody = $("#tablaCloudSync tbody").empty();
@@ -239,6 +257,61 @@ async function cargarCloudSyncLogs() {
         if (!json.data.logs?.length) {
             tbody.append('<tr><td colspan="7" class="text-center text-muted py-3">Sin registros de sincronización</td></tr>');
         }
+    } catch (e) {
+        showToast(e.message, 'danger');
+    }
+}
+
+async function pullCatalogoDesdeNube(includePatients) {
+    const labId = typeof risRequireConcreteLabId === 'function'
+        ? risRequireConcreteLabId()
+        : (localStorage.getItem('ris_lab_id') || '');
+    if (!labId) {
+        return;
+    }
+    if (!(await showConfirm(
+        includePatients
+            ? '¿Importar catálogo y pacientes de esta sede desde la nube?'
+            : '¿Importar catálogo (exámenes, máquinas, médicos solicitantes, etc.) desde la nube?',
+        { title: 'Sincronizar desde nube', confirmText: 'Importar' }
+    ))) {
+        return;
+    }
+    try {
+        const res = await fetch(`${API_URL}/integrations/cloud-sync/pull-catalog`, {
+            method: 'POST',
+            headers: { ...adminAuthHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                laboratory_id: labId,
+                include_patients: !!includePatients,
+            }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.message || 'Error al importar');
+        const counts = json.data?.counts || {};
+        const detail = Object.entries(counts).map(([k, v]) => `${k}: ${v}`).join(', ');
+        showToast(`${json.message} ${detail ? '(' + detail + ')' : ''}`, 'success', 8000);
+    } catch (e) {
+        showToast(e.message, 'danger');
+    }
+}
+
+async function reintentarCloudSyncFallidos() {
+    if (!(await showConfirm('¿Reenviar a la nube todos los registros pendientes o fallidos?', {
+        title: 'Enviar pendientes',
+        confirmText: 'Enviar',
+    }))) {
+        return;
+    }
+    try {
+        const res = await fetch(`${API_URL}/integrations/cloud-sync/retry-failed`, {
+            method: 'POST',
+            headers: adminAuthHeaders(),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.message || 'Error');
+        showToast(json.message, 'success');
+        cargarCloudSyncLogs();
     } catch (e) {
         showToast(e.message, 'danger');
     }

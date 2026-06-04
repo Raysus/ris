@@ -43,22 +43,23 @@ class MachineController extends Controller
             'description' => 'nullable|string',
             // === NUEVOS CAMPOS DICOM ===
             'ae_title' => 'nullable|string|max:255',
-            'ip_address' => 'nullable|ip',
+            'ip_address' => 'nullable|string|max:45',
             'port' => 'nullable|integer'
         ]);
 
         $allowedLabs = config('app.allowed_lab_ids');
         $labId = $request->header('X-Lab-Id') ?: config('app.current_lab_id');
+        $group = ModalityCode::normalizeGroup($validated['group']);
 
         $color = '#3788d8';
-        switch (strtoupper($validated['group'])) {
+        switch ($group) {
             case 'RX':
                 $color = '#4CAF50';
                 break;
             case 'SCANNER':
                 $color = '#FF9800';
                 break;
-            case 'ECO':
+            case 'US':
                 $color = '#9C27B0';
                 break;
             case 'RM':
@@ -107,7 +108,8 @@ class MachineController extends Controller
             ]);
         }
 
-        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Machine', 'updated', $machine->toArray());
+        $action = !empty($validated['id']) ? 'updated' : 'created';
+        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Machine', $action, $machine->fresh()->toArray());
         return response()->json(['success' => true, 'machine' => $machine]);
     }
 

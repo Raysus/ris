@@ -6,7 +6,11 @@ const RIS_MODULE_SCRIPTS = {
     agenda: "js/workflow/agenda.js",
     worklist: ["js/workflow/atencionTecnica.js", "js/workflow/worklist.js"],
     atencion: ["js/workflow/atencionTecnica.js", "js/workflow/atencion.js"],
-    radiologist: "js/workflow/radiologist.js",
+    radiologist: [
+        "js/workflow/browser-dictation.js",
+        "js/workflow/speechmike-dictation.js",
+        "js/workflow/radiologist.js",
+    ],
     transcription: "js/workflow/transcription.js",
     validation: "js/workflow/validation.js",
     entrega: "js/workflow/entrega.js",
@@ -26,7 +30,7 @@ const RIS_MODULE_INIT = {
     admin: "initAdmin",
 };
 
-const _loadedModules = new Set();
+const _loadedScriptBases = new Set();
 
 function risAssetUrl(path) {
     const v = window.RIS_BUILD || Date.now();
@@ -34,24 +38,55 @@ function risAssetUrl(path) {
     return `${path}${sep}v=${encodeURIComponent(v)}`;
 }
 
+function scriptBasePath(src) {
+    return String(src || "").replace(/\?.*$/, "");
+}
+
+function isBrowserDictationScriptReady() {
+    return (
+        typeof window.risStartBrowserDictationClick === "function"
+        && window.__risBrowserDictationInstalled === true
+    );
+}
+
+function purgeBrokenBrowserDictationScripts() {
+    document.querySelectorAll('script[src*="browser-dictation"]').forEach((el) => el.remove());
+    _loadedScriptBases.delete("js/workflow/browser-dictation.js");
+    window.__risBrowserDictationInstalled = false;
+}
+
 function loadScriptOnce(src) {
+    const base = scriptBasePath(src);
     const versionedSrc = risAssetUrl(src);
+    const isDictation = base.includes("browser-dictation");
+
     return new Promise((resolve, reject) => {
-        if (_loadedModules.has(versionedSrc)) {
-            resolve();
-            return;
+        if (_loadedScriptBases.has(base)) {
+            if (isDictation && !isBrowserDictationScriptReady()) {
+                purgeBrokenBrowserDictationScripts();
+            } else {
+                resolve();
+                return;
+            }
         }
-        const existing = document.querySelector(`script[src="${versionedSrc}"]`);
+        const existing = Array.from(document.querySelectorAll("script[src]")).find((el) => {
+            const attr = el.getAttribute("src") || "";
+            return scriptBasePath(attr) === base || scriptBasePath(attr).endsWith(base);
+        });
         if (existing) {
-            _loadedModules.add(versionedSrc);
-            resolve();
-            return;
+            if (isDictation && !isBrowserDictationScriptReady()) {
+                purgeBrokenBrowserDictationScripts();
+            } else {
+                _loadedScriptBases.add(base);
+                resolve();
+                return;
+            }
         }
         const script = document.createElement("script");
         script.src = versionedSrc;
         script.async = false;
         script.onload = () => {
-            _loadedModules.add(versionedSrc);
+            _loadedScriptBases.add(base);
             resolve();
         };
         script.onerror = () => reject(new Error(`No se pudo cargar ${versionedSrc}`));
@@ -63,7 +98,15 @@ async function ensureModuleLoaded(page) {
     const spec = RIS_MODULE_SCRIPTS[page];
     const scripts = Array.isArray(spec) ? spec : (spec ? [spec] : []);
     for (const src of scripts) {
-        await loadScriptOnce(src);
+        try {
+            await loadScriptOnce(src);
+        } catch (err) {
+            console.error(`[RIS] No se pudo cargar ${src}:`, err);
+            if (scriptBasePath(src).includes("browser-dictation")) {
+                continue;
+            }
+            throw err;
+        }
     }
     if (page === "agenda") await loadScriptOnce("js/workflow/payments.js");
 }
@@ -117,6 +160,9 @@ function loadPage(page) {
             showToast(`Error cargando scripts: ${err.message}`, "danger");
         });
 }
+
+window.risLoadScript = loadScriptOnce;
+window.risIsBrowserDictationScriptReady = isBrowserDictationScriptReady;
 
 function sincronizarSidebar(paginaActiva) {
     document.querySelectorAll("#sidebar nav a").forEach((enlace) => {

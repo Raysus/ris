@@ -78,13 +78,13 @@ $(document).ready(async function () {
         $(`.sidebar nav a[data-page="${lastPage}"]`).addClass('active');
     }
 
-    $(document).on('click', '.sidebar nav a', function (e) {
+    $(document).on('click', '.sidebar nav a, .sidebar .brand-link', function (e) {
         e.preventDefault();
         const page = $(this).data('page');
 
         if (page) {
             $('.sidebar nav a').removeClass('active');
-            $(this).addClass('active');
+            $(`.sidebar nav a[data-page="${page}"]`).addClass('active');
 
             if (typeof loadPage === "function") {
                 loadPage(page);

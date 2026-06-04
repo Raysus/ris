@@ -13,16 +13,19 @@ function risNullableUuid(value) {
     return value;
 }
 
-/** Colores de estado (alineados con --agenda-* en style.css) */
+/** Colores de estado (alineados con --agenda-* en style.css / marca HealthTICloud) */
 const AGENDA_ESTADO_COLORES = {
-    'pre-agendado': '#7a6a9a',
-    'agendado': '#5b4a82',
-    'confirmado': '#2d6a8f',
-    'espera': '#9a6f1f',
-    'anulado': '#b83d52',
-    'atendido': '#4a4556',
+    'pre-agendado': '#9a6fa8',
+    'agendado': '#7d2181',
+    'confirmado': '#2d5080',
+    'espera': '#b8860b',
+    'anulado': '#c41e3a',
+    'atendido': '#4a5568',
 };
 const AGENDA_ESTADO_TEXTO = '#ffffff';
+
+/** Minutos por modalidad/sala cuando no viene del servidor (evita fallo si RIS.tiemposPorGrupo no está inicializado). */
+const TIEMPOS_POR_GRUPO_DEFAULT = { RX: 15, TC: 30, RM: 45, US: 20, MG: 15, General: 15 };
 
 const AGENDA_LEYENDA_ITEMS = [
     ['pre-agendado', 'Pre-agendado', 'Reserva tentativa'],
@@ -45,7 +48,7 @@ function pintarLeyendaEstadosAgenda(root) {
     if (!scope) return;
     scope.querySelectorAll('[data-estado-leyenda]').forEach((el) => {
         const key = el.getAttribute('data-estado-leyenda');
-        const color = AGENDA_ESTADO_COLORES[key] || '#5b4a82';
+        const color = AGENDA_ESTADO_COLORES[key] || '#7d2181';
         el.style.setProperty('--leyenda-color', color);
     });
 }
@@ -71,9 +74,12 @@ function montarUiInternaCalendario() {
 }
 
 function calcularDuracionCita(machineId, cantidadExamenes) {
-    const sala = (window.RIS.resources || []).find(r => r.id === machineId);
-    const minutosBase = (sala && window.RIS.tiemposPorGrupo[sala.group]) ? window.RIS.tiemposPorGrupo[sala.group] : 15;
-    return minutosBase * cantidadExamenes;
+    const sala = (window.RIS?.resources || []).find((r) => String(r.id) === String(machineId));
+    const tiempos = { ...TIEMPOS_POR_GRUPO_DEFAULT, ...(window.RIS?.tiemposPorGrupo || {}) };
+    const group = sala?.group;
+    const minutosBase = group != null && tiempos[group] != null ? tiempos[group] : 15;
+    const qty = Math.max(1, Number(cantidadExamenes) || 1);
+    return minutosBase * qty;
 }
 
 function toLocalISOString(date) {
@@ -263,15 +269,14 @@ function actualizarCtaAtencionSalas() {
 }
 
 async function initAgenda() {
-    window.RIS = window.RIS || {
-        agenda: [],
-        config: {},
-        resources: [],
-        tiemposPorGrupo: { RX: 15, TC: 30, RM: 45, US: 20, MG: 15 },
-        doctors: [],
-        supplies: [],
-        supplyPacks: []
-    };
+    window.RIS = window.RIS || {};
+    window.RIS.agenda = window.RIS.agenda || [];
+    window.RIS.config = window.RIS.config || {};
+    window.RIS.resources = window.RIS.resources || [];
+    window.RIS.tiemposPorGrupo = { ...TIEMPOS_POR_GRUPO_DEFAULT, ...(window.RIS.tiemposPorGrupo || {}) };
+    window.RIS.doctors = window.RIS.doctors || [];
+    window.RIS.supplies = window.RIS.supplies || [];
+    window.RIS.supplyPacks = window.RIS.supplyPacks || [];
 
     const calendarEl = document.getElementById('calendar');
     if (!calendarEl) {
@@ -362,6 +367,64 @@ function sincronizarRecursosCalendario() {
     } catch (e) {
         console.warn('No se pudieron refrescar recursos del calendario:', e);
     }
+}
+
+function poblarPlanesPrevision(insuranceId, planId = null) {
+    const selectPlan = $("#pPlan");
+    selectPlan.empty().append('<option value="">Seleccione Plan...</option>');
+
+    const insId = insuranceId ? String(insuranceId) : "";
+    if (!insId || !(catalogosAgenda.insurances || []).length) {
+        calculateTotal();
+        return;
+    }
+
+    const seguro = catalogosAgenda.insurances.find((i) => String(i.id) === insId);
+    if (seguro?.plans?.length) {
+        seguro.plans.forEach((plan) => {
+            selectPlan.append(
+                `<option value="${plan.id}">${plan.name} (${plan.percentage}% desc)</option>`
+            );
+        });
+    }
+
+    if (planId) {
+        const planStr = String(planId);
+        if (selectPlan.find(`option[value="${planStr}"]`).length) {
+            selectPlan.val(planStr);
+        }
+    }
+
+    calculateTotal();
+}
+
+/**
+ * Asigna previsión y plan tras poblar catálogos (edición de cita o búsqueda por RUT).
+ */
+function setAgendaPrevision(insuranceId, planId = null) {
+    const ins = insuranceId ? String(insuranceId) : "";
+
+    if (!ins) {
+        $("#pInsurance").val("");
+        poblarPlanesPrevision(null);
+        return;
+    }
+
+    const existe = (catalogosAgenda.insurances || []).some((i) => String(i.id) === ins);
+    if (!existe) {
+        if (typeof showToast === "function") {
+            showToast(
+                "La previsión guardada no está disponible en el catálogo de esta sede.",
+                "warning"
+            );
+        }
+        $("#pInsurance").val("");
+        poblarPlanesPrevision(null);
+        return;
+    }
+
+    $("#pInsurance").val(ins);
+    poblarPlanesPrevision(ins, planId);
 }
 
 function poblarSelectsAgenda() {
@@ -563,7 +626,7 @@ function setupCalendar(el) {
             const isLocked = !estadosIniciales.includes(props.status);
             const lockIcon = isLocked ? '<i class="bi bi-lock-fill text-white me-1"></i>' : '';
 
-            const bgColor = arg.event.backgroundColor || '#5b4a82';
+            const bgColor = arg.event.backgroundColor || '#7d2181';
 
             if (isMonthView) {
                 const alert = needsReview ? '<span class="badge bg-danger rounded-pill" style="font-size:9px">!</span> ' : '';
@@ -740,6 +803,7 @@ function abrirModalCita(data) {
         applyLabProfileUI(document.getElementById('appointmentModal') || document);
     }
     if ($form.length) $form[0].reset();
+    poblarSelectsAgenda();
 
     $("#studyBody").empty();
     currentInsumos = [];
@@ -779,12 +843,7 @@ function abrirModalCita(data) {
         $("#pEmail").val(p.email || "");
         $("#pPhone").val(p.phone || "");
 
-        if (p.insurance) {
-            $("#pInsurance").val(p.insurance).trigger("change");
-            setTimeout(() => {
-                $("#pPlan").val(p.plan || "");
-            }, 100);
-        }
+        setAgendaPrevision(p.insurance || null, p.plan || null);
 
         $("#agendaStatus").val(data.status || "pre-agendado").trigger("change");
         actualizarCtaAtencionSalas();
@@ -1130,7 +1189,7 @@ async function eliminarCita() {
 
 function getHexColorEstado(status) {
     const key = status ? String(status).trim().toLowerCase() : '';
-    return AGENDA_ESTADO_COLORES[key] || '#9a95a5';
+    return AGENDA_ESTADO_COLORES[key] || '#7d2181';
 }
 
 function colorSelectorEstado() {
@@ -1415,10 +1474,16 @@ function setupProEventListeners() {
         }
     });
 
-    $("#pRut").on("input", function () {
-        let actual = $(this).val().replace(/[^0-9kK]/g, '');
-        if (actual.length === 0) { $(this).val(""); return; }
-        let rutPuntos = ""; let cuerpo = actual.slice(0, -1); let dv = actual.slice(-1).toUpperCase();
+    $("#pRut").off("input.agendaRutFormat").on("input.agendaRutFormat", function () {
+        if (($("#pTipoDoc").val() || "RUT") !== "RUT") return;
+        let actual = $(this).val().replace(/[^0-9kK]/g, "");
+        if (actual.length === 0) {
+            $(this).val("");
+            return;
+        }
+        let rutPuntos = "";
+        let cuerpo = actual.slice(0, -1);
+        let dv = actual.slice(-1).toUpperCase();
         for (let i = cuerpo.length - 1, j = 1; i >= 0; i--, j++) {
             rutPuntos = cuerpo.charAt(i) + rutPuntos;
             if (j % 3 === 0 && i !== 0) rutPuntos = "." + rutPuntos;
@@ -1426,30 +1491,41 @@ function setupProEventListeners() {
         $(this).val(cuerpo.length > 0 ? rutPuntos + "-" + dv : dv);
     });
 
-    $("#pRut").on("blur", async function () {
-        let rut = $(this).val().toUpperCase();
-        if (!rut) return;
+    $("#pRut").off("blur.agenda").on("blur.agenda", async function () {
+        const tipoDoc = $("#pTipoDoc").val() || "RUT";
+        const doc = $(this).val().trim().toUpperCase();
+        if (!doc) return;
 
-        if (!validarRut(rut)) {
-            if (typeof showToast === 'function') showToast("❌ RUT Inválido", "danger");
+        if (tipoDoc === "RUT") {
+            if (!validarRut(doc)) {
+                if (typeof showToast === "function") showToast("❌ RUT Inválido", "danger");
+                $(this).addClass("is-invalid");
+                return;
+            }
+        } else if (doc.length < 4) {
+            if (typeof showToast === "function") showToast("Documento inválido.", "warning");
             $(this).addClass("is-invalid");
             return;
         }
+
         $(this).removeClass("is-invalid").addClass("is-valid");
 
-        const token = localStorage.getItem('ris_token');
-        const labId = localStorage.getItem('ris_lab_id');
+        const token = localStorage.getItem("ris_token");
+        const labId = localStorage.getItem("ris_lab_id");
 
         try {
-            const labIdBusqueda = typeof risRequireConcreteLabId === 'function'
-                ? risRequireConcreteLabId(false)
-                : labId;
+            const labIdBusqueda =
+                typeof risRequireConcreteLabId === "function"
+                    ? risRequireConcreteLabId(false)
+                    : labId;
             if (!labIdBusqueda) {
                 showToast("Seleccione una sede específica en la barra superior.", "warning");
                 return;
             }
 
-            const response = await fetch(`${API_URL}/patients/search?rut=${encodeURIComponent(rut)}`, {
+            const response = await fetch(
+                `${API_URL}/patients/search?rut=${encodeURIComponent(doc)}`,
+                {
                 headers: {
                     'Accept': 'application/json',
                     'Authorization': `Bearer ${token}`,
@@ -1468,7 +1544,19 @@ function setupProEventListeners() {
             }
 
             if (response.ok && data?.success && data.data) {
-                const persona = data.data.persona || data.data;
+                const payload = data.data;
+                const persona = payload.persona;
+
+                if (!persona) {
+                    showToast("Respuesta incompleta: falta registro de persona.", "danger");
+                    return;
+                }
+
+                const birthRaw = persona.birth_date;
+                const birthVal =
+                    typeof birthRaw === "string"
+                        ? birthRaw.split("T")[0]
+                        : birthRaw || "";
 
                 $("#pName").val(persona.names || "");
                 $("#pLastName").val(persona.last_name_1 || "");
@@ -1476,29 +1564,34 @@ function setupProEventListeners() {
                 $("#pSex").val(persona.gender || "M");
                 $("#pEmail").val(persona.email || "");
                 $("#pPhone").val(persona.phone || "");
+                $("#pBirthDate").val(birthVal).trigger("change");
 
-                $("#pBirthDate").val(persona.birth_date || "").trigger("change");
+                setAgendaPrevision(
+                    payload.insurance_id || null,
+                    payload.insurance_plan_id || null
+                );
 
-                if (data.data.insurance_id) {
-                    $("#pInsurance").val(data.data.insurance_id).trigger("change");
-                    setTimeout(() => {
-                        if (data.data.insurance_plan_id) {
-                            $("#pPlan").val(data.data.insurance_plan_id);
-                        }
-                    }, 250);
-                } else {
-                    $("#pInsurance, #pPlan").val("");
+                if (payload.history_count && payload.history_count > 0) {
+                    showToast(
+                        `🔔 ${payload.history_count} cita(s) previa(s) en esta sede (registro global de persona).`,
+                        "info"
+                    );
+                    $("#pName").addClass("border-info bg-info-subtle");
+                } else if (payload.insurance_id) {
+                    showToast(
+                        "Previsión sugerida desde la última atención registrada.",
+                        "info"
+                    );
                 }
 
-                if (data.data.history_count && data.data.history_count > 0) {
-                    showToast(`🔔 Este paciente tiene ${data.data.history_count} exámenes previos. Pídale que los traiga para comparativa.`, "info");
-                    $("#pName").addClass('border-info bg-info-subtle');
-                }
-                showToast("✅ Paciente encontrado. Datos cargados.", "success");
+                showToast("✅ Persona encontrada (registro global).", "success");
             } else if (response.status === 404 || (data && data.success === false)) {
-                showToast("ℹ️ Paciente no registrado en esta sede. Complete sus datos para crear la ficha.", "info");
+                showToast(
+                    "ℹ️ No hay persona con ese documento. Al guardar la cita se creará el registro.",
+                    "info"
+                );
                 $("#pName, #pLastName, #pSecondLastName, #pBirthDate, #pEmail, #pPhone").val("");
-                $("#pInsurance, #pPlan").val("");
+                setAgendaPrevision(null);
                 $("#pSex").val("M");
             } else {
                 showToast(data?.message || `Error al buscar paciente (${response.status})`, "danger");
@@ -1509,18 +1602,7 @@ function setupProEventListeners() {
         }
     });
     $("#pInsurance").on("change", function () {
-        const insId = $(this).val();
-        const selectPlan = $("#pPlan");
-        selectPlan.empty().append('<option value="">Seleccione Plan...</option>');
-
-        const seguro = catalogosAgenda.insurances.find(i => i.id == insId);
-        if (seguro && seguro.plans) {
-            seguro.plans.forEach(plan => {
-                selectPlan.append(`<option value="${plan.id}">${plan.name} (${plan.percentage}% desc)</option>`);
-            });
-        }
-
-        calculateTotal();
+        poblarPlanesPrevision(risNullableUuid($(this).val()));
     });
 
     $("#pPlan").on("change", function () {
@@ -1776,12 +1858,11 @@ function toggleFormatoDocAgenda() {
     if (tipo === "PASAPORTE") {
         label.text("N° Pasaporte / ID *");
         input.attr("placeholder", "Ej. AB123456");
-        input.off("input"); // Desactivamos el formateo automático de RUT
+        input.off("input.agendaRutFormat");
     } else {
         label.text("N° de RUT *");
         input.attr("placeholder", "12.345.678-9");
-        // Re-vinculamos el formateo de RUT
-        input.on("input", function () {
+        input.off("input.agendaRutFormat").on("input.agendaRutFormat", function () {
             let actual = $(this).val().replace(/[^0-9kK]/g, '');
             if (actual.length === 0) return;
             let cuerpo = actual.slice(0, -1);

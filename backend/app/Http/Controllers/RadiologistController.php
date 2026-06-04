@@ -39,6 +39,7 @@ class RadiologistController extends Controller
             return [
                 'id' => $app->id,
                 'accessionNumber' => $app->accession_number ?? 'ACC-' . $app->id,
+                'studyInstanceUid' => $app->study_instance_uid,
                 'anamnesis' => $anamnesisGlobal,
                 'patient' => [
                     'rut' => $app->patient->persona->rut,
@@ -298,6 +299,7 @@ class RadiologistController extends Controller
             return [
                 'id' => $app->id,
                 'accessionNumber' => $app->accession_number ?? 'ACC-' . $app->id,
+                'studyInstanceUid' => $app->study_instance_uid,
                 'start_time' => $app->start_time,
                 'destinationDoctorId' => $app->destination_doctor_id,
                 'referringDoctorId' => $app->referring_doctor_id,

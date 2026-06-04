@@ -3,9 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\LoginRequest;
+use App\Mail\ResetPasswordMail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use App\Models\User;
 use App\Models\Persona;
@@ -160,7 +163,27 @@ class AuthController extends Controller
             . '/recovery.html?token=' . $token
             . '&email=' . urlencode($request->email);
 
-        // Mail::to($request->email)->send(new ResetPasswordMail($recoveryLink));
+        $user->loadMissing('persona');
+        $recipientName = trim(
+            ($user->persona->names ?? '') . ' ' . ($user->persona->last_name_1 ?? '')
+        );
+
+        try {
+            Mail::to($request->email)->send(new ResetPasswordMail($recoveryLink, $recipientName));
+        } catch (\Throwable $e) {
+            Log::error('Error enviando correo de recuperación de contraseña', [
+                'email' => $request->email,
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'No se pudo enviar el correo. Contacte al administrador del sistema.',
+            ], 503);
+        }
+
+        \App\Services\AuditLogger::record('auth.password_forgot', 'User', $user->id, [], $request);
 
         return response()->json([
             'success' => true,
@@ -183,6 +206,16 @@ class AuthController extends Controller
 
         if (!$reset) {
             return response()->json(['success' => false, 'message' => 'Token inválido o expirado.'], 400);
+        }
+
+        $expiresMinutes = (int) config('auth.passwords.users.expire', 60);
+        if ($expiresMinutes > 0 && isset($reset->created_at)) {
+            $createdAt = \Carbon\Carbon::parse($reset->created_at);
+            if ($createdAt->addMinutes($expiresMinutes)->isPast()) {
+                DB::table('password_reset_tokens')->where('email', $request->email)->delete();
+
+                return response()->json(['success' => false, 'message' => 'Token inválido o expirado.'], 400);
+            }
         }
 
         $user = User::whereHas('persona', function ($q) use ($request) {

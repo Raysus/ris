@@ -56,7 +56,6 @@ class AppServiceProvider extends ServiceProvider
         ReferringDoctor::observe(ReferringDoctorObserver::class);
         Persona::observe(PersonaObserver::class);
         Paciente::observe(PacienteObserver::class);
-        Appointment::observe(AppointmentObserver::class);
         Exam::observe(ExamObserver::class);
         Insurance::observe(InsuranceObserver::class);
         InsurancePlan::observe(InsurancePlanObserver::class);

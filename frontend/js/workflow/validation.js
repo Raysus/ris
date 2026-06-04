@@ -91,6 +91,20 @@ function abrirValidacion(citaId) {
     currentValidationChain = currentValidationData.find(c => String(c.id) === String(citaId));
     if (!currentValidationChain) return;
 
+    if (
+        currentValidationChain.accessionNumber &&
+        typeof prefetchPacsStudy === "function"
+    ) {
+        prefetchPacsStudy(
+            currentValidationChain.accessionNumber,
+            currentValidationChain.id
+        ).then((pacs) => {
+            if (pacs && currentValidationChain?.id === citaId) {
+                applyPacsStudyToChain(currentValidationChain, pacs);
+            }
+        });
+    }
+
     renderValidationStudies();
 
     $("#placeholderValidacion").addClass("d-none");
@@ -251,12 +265,16 @@ function generarVistaPrevia() {
 
 async function abrirVisorPACSValidacion() {
     if (!currentValidationChain) return;
-    await abrirVisorPACS(currentValidationChain.accessionNumber);
+    await abrirVisorPACS(currentValidationChain.accessionNumber, {
+        chain: currentValidationChain,
+    });
 }
 
 async function abrirVisorSoloOHIFValidacion() {
     if (!currentValidationChain) return;
-    await abrirVisorSoloOHIF(currentValidationChain.accessionNumber);
+    await abrirVisorSoloOHIF(currentValidationChain.accessionNumber, {
+        chain: currentValidationChain,
+    });
 }
 
 function habilitarEdicionValidacion() {

@@ -2,26 +2,37 @@
 
 namespace App\Observers;
 
-use App\Models\Appointment;
+use App\Jobs\SyncAppointmentBundleToCloud;
 use App\Jobs\SyncEntityToCloud;
+use App\Models\Appointment;
 
 class AppointmentObserver
 {
-    public function created(Appointment $appointment)
+    /** Evita jobs duplicados de Persona/Paciente durante el alta de una cita. */
+    public static bool $suppressRelatedSync = false;
+
+    public function created(Appointment $appointment): void
     {
-        // Cargamos las relaciones para que viajen a la nube en el mismo paquete
-        $data = $appointment->load(['patient.persona', 'studies', 'supplies'])->toArray();
-        SyncEntityToCloud::dispatch('Appointment', 'created', $data);
+        $this->dispatchSyncChain($appointment, 'created');
     }
 
-    public function updated(Appointment $appointment)
+    public function updated(Appointment $appointment): void
     {
-        $data = $appointment->load(['patient.persona', 'studies', 'supplies'])->toArray();
-        SyncEntityToCloud::dispatch('Appointment', 'updated', $data);
+        $this->dispatchSyncChain($appointment, 'updated');
     }
 
-    public function deleted(Appointment $appointment)
+    public function deleted(Appointment $appointment): void
     {
-        SyncEntityToCloud::dispatch('Appointment', 'deleted', ['id' => $appointment->id]);
+        SyncEntityToCloud::dispatch('App\Models\Appointment', 'deleted', ['id' => $appointment->id]);
+    }
+
+    private function dispatchSyncChain(Appointment $appointment, string $action): void
+    {
+        if ($action === 'deleted') {
+            SyncEntityToCloud::dispatch('App\Models\Appointment', 'deleted', ['id' => $appointment->id]);
+            return;
+        }
+
+        SyncAppointmentBundleToCloud::dispatch($appointment->id, $action)->afterCommit();
     }
 }

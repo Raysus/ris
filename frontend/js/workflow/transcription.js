@@ -9,6 +9,8 @@ let colorInformeGlobal = "#333333";
 
 // Declaración global para evitar el Uncaught ReferenceError
 let autoSaveIntervalTrans = null;
+/** Duración estimada cuando el WebM del dictado reporta Infinity (MediaRecorder). */
+let audioDurationFallback = 0;
 
 function initTranscription() {
     cargarAjustesVisuales();
@@ -182,6 +184,7 @@ function cargarEstudioTranscripcion(studyId) {
     const audioEl = document.getElementById("audioDictado");
 
     if (study.audioUrl) {
+        resetAudioPlaybackState();
         audioEl.src = study.audioUrl;
         audioEl.load();
 
@@ -189,9 +192,10 @@ function cargarEstudioTranscripcion(studyId) {
         $("#iconPlayPause").removeClass("bi-pause-fill").addClass("bi-play-fill");
         $("#audioProgress").val(0).prop("disabled", false);
         $("#timeCurrent").text("0:00");
-        $("#timeTotal").text("0:00");
+        $("#timeTotal").text("--:--");
         setAudioSpeed(1.0);
     } else {
+        resetAudioPlaybackState();
         audioEl.src = "";
         $("#btnPlayPause").prop("disabled", true).removeClass("btn-primary").addClass("btn-secondary");
         $("#iconPlayPause").removeClass("bi-pause-fill").addClass("bi-play-fill");
@@ -201,26 +205,68 @@ function cargarEstudioTranscripcion(studyId) {
     }
 }
 
+function resetAudioPlaybackState() {
+    audioDurationFallback = 0;
+}
+
+function getAudioDurationSeconds(audio) {
+    if (!audio) return null;
+    const meta = audio.duration;
+    if (Number.isFinite(meta) && meta > 0) {
+        return meta;
+    }
+    if (audioDurationFallback > 0) {
+        return audioDurationFallback;
+    }
+    return null;
+}
+
+function updateAudioTimeUI() {
+    const audio = document.getElementById("audioDictado");
+    if (!audio || !audio.src) return;
+
+    const current = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+    const total = getAudioDurationSeconds(audio);
+
+    $("#timeCurrent").text(formatTime(current));
+
+    if (total) {
+        $("#timeTotal").text(formatTime(total));
+        $("#audioProgress").val(Math.min(100, Math.max(0, (current / total) * 100)));
+    } else {
+        $("#timeTotal").text("--:--");
+    }
+}
+
 // === ASINCRONISMO Y ESCUCHADORES DEL AUDIO ===
 function setupAudioListeners() {
     const audio = document.getElementById("audioDictado");
     if (!audio) return;
 
     audio.addEventListener("timeupdate", () => {
-        if (!audio.duration) return;
-        const current = audio.currentTime;
-        const total = audio.duration;
-
-        $("#audioProgress").val((current / total) * 100);
-        $("#timeCurrent").text(formatTime(current));
+        if (Number.isFinite(audio.currentTime)) {
+            audioDurationFallback = Math.max(audioDurationFallback, audio.currentTime + 0.1);
+        }
+        updateAudioTimeUI();
     });
 
-    audio.addEventListener("loadedmetadata", () => {
-        $("#timeTotal").text(formatTime(audio.duration));
-    });
+    audio.addEventListener("loadedmetadata", () => updateAudioTimeUI());
+    audio.addEventListener("durationchange", () => updateAudioTimeUI());
+    audio.addEventListener("loadeddata", () => updateAudioTimeUI());
 
     audio.addEventListener("ended", () => {
+        if (Number.isFinite(audio.currentTime)) {
+            audioDurationFallback = Math.max(audioDurationFallback, audio.currentTime);
+        }
+        updateAudioTimeUI();
         $("#iconPlayPause").removeClass("bi-pause-fill").addClass("bi-play-fill");
+    });
+
+    audio.addEventListener("error", () => {
+        if (typeof showToast === "function") {
+            showToast("No se pudo cargar el archivo de audio.", "danger");
+        }
+        $("#timeTotal").text("--:--");
     });
 }
 
@@ -240,14 +286,22 @@ function togglePlayPause() {
 function skipAudio(seconds) {
     const audio = document.getElementById("audioDictado");
     if (!audio || !audio.src) return;
-    audio.currentTime = Math.max(0, Math.min(audio.duration, audio.currentTime + seconds));
+    const total = getAudioDurationSeconds(audio);
+    const next = audio.currentTime + seconds;
+    audio.currentTime = total
+        ? Math.max(0, Math.min(total, next))
+        : Math.max(0, next);
+    updateAudioTimeUI();
 }
 
 function seekAudio() {
     const audio = document.getElementById("audioDictado");
-    if (!audio || !audio.duration) return;
+    if (!audio || !audio.src) return;
+    const total = getAudioDurationSeconds(audio);
+    if (!total) return;
     const porcentaje = $("#audioProgress").val();
-    audio.currentTime = (porcentaje / 100) * audio.duration;
+    audio.currentTime = (porcentaje / 100) * total;
+    updateAudioTimeUI();
 }
 
 function setAudioSpeed(speed) {
@@ -258,10 +312,11 @@ function setAudioSpeed(speed) {
 }
 
 function formatTime(seconds) {
-    if (isNaN(seconds)) return "0:00";
-    const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60);
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
+    if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+    const totalSecs = Math.floor(seconds);
+    const m = Math.floor(totalSecs / 60);
+    const s = totalSecs % 60;
+    return `${m}:${s < 10 ? "0" : ""}${s}`;
 }
 
 // === CONTROL DE AUTOGUARDADO ===
@@ -382,6 +437,7 @@ function limpiarPantallaTranscripcion() {
 
     const audioEl = document.getElementById("audioDictado");
     if (audioEl) audioEl.src = "";
+    resetAudioPlaybackState();
 
     currentTranscriptionChain = null;
     currentTransStudy = null;

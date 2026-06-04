@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Appointment;
 use App\Services\OrthancStudyLookup;
 use Illuminate\Http\Request;
 
@@ -16,7 +17,7 @@ class ViewerConfigController extends Controller
                 'viewer_url' => rtrim(env('VIEWER_URL', 'https://viewer.healthticloud.cl'), '/'),
                 'viewer_path' => env('VIEWER_PATH', '/viewer'),
                 'viewer_query_param' => env('VIEWER_QUERY_PARAM', 'StudyInstanceUIDs'),
-                'viewer_accession_param' => env('VIEWER_QUERY_PARAM', env('VIEWER_ACCESSION_PARAM', 'StudyInstanceUIDs')),
+                'viewer_accession_param' => env('VIEWER_ACCESSION_PARAM', ''),
                 'viewer_token' => env('VIEWER_TOKEN', ''),
                 'patient_portal_url' => rtrim(env('PATIENT_PORTAL_URL', 'https://portal.healthticloud.cl'), '/'),
                 'pacs_bridge_url' => env('PACS_BRIDGE_URL', 'http://localhost:8181/open-dicom'),
@@ -29,7 +30,7 @@ class ViewerConfigController extends Controller
         ]);
     }
 
-    public function resolveStudyUid(Request $request, OrthancStudyLookup $lookup)
+    public function resolveStudy(Request $request, OrthancStudyLookup $lookup)
     {
         $accession = trim((string) $request->query('accession', ''));
         if ($accession === '') {
@@ -39,20 +40,61 @@ class ViewerConfigController extends Controller
             ], 422);
         }
 
-        $uid = $lookup->studyInstanceUidForAccession($accession);
+        try {
+            $appointment = $this->resolveAppointment($request);
 
-        if (!$uid) {
+            $study = $lookup->resolveStudyByAccession(
+                $accession,
+                $appointment,
+                $request->bearerToken()
+            );
+
+            if ($study === null || empty($study['study_instance_uid'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No hay estudio en PACS para ese accession. '
+                        . 'Verifique que el equipo ya envió las imágenes y que el Accession Number coincide.',
+                    'orthanc_url' => \App\Support\OrthancUrl::base(),
+                ], 404);
+            }
+
+            if ($appointment) {
+                $lookup->persistStudyInstanceUid($appointment, (string) $study['study_instance_uid']);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $study,
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+
             return response()->json([
                 'success' => false,
-                'message' => 'No se encontró estudio en PACS para ese accession.',
-            ], 404);
+                'message' => 'Error al consultar PACS. Revise ORTHANC_URL en el servidor.',
+                'orthanc_url' => \App\Support\OrthancUrl::base(),
+            ], 503);
         }
+    }
+
+    /** @deprecated Alias — usar /viewer-study */
+    public function resolveStudyUid(Request $request, OrthancStudyLookup $lookup)
+    {
+        $response = $this->resolveStudy($request, $lookup);
+        if ($response->getStatusCode() !== 200) {
+            return $response;
+        }
+
+        $payload = $response->getData(true);
+        $study = $payload['data'] ?? [];
 
         return response()->json([
             'success' => true,
             'data' => [
-                'accession' => $accession,
-                'study_instance_uid' => $uid,
+                'accession' => $study['accession_requested'] ?? $request->query('accession'),
+                'study_instance_uid' => $study['study_instance_uid'] ?? null,
+                'orthanc_study_id' => $study['orthanc_study_id'] ?? null,
+                'pacs' => $study,
             ],
         ]);
     }
@@ -61,5 +103,17 @@ class ViewerConfigController extends Controller
     public function __invoke(Request $request)
     {
         return $this->config($request);
+    }
+
+    private function resolveAppointment(Request $request): ?Appointment
+    {
+        $appointmentId = trim((string) $request->query('appointment_id', ''));
+        if ($appointmentId === '') {
+            return null;
+        }
+
+        return Appointment::query()
+            ->with('patient.persona')
+            ->find($appointmentId);
     }
 }
