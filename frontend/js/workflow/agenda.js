@@ -24,6 +24,9 @@ const AGENDA_ESTADO_COLORES = {
 };
 const AGENDA_ESTADO_TEXTO = '#ffffff';
 
+/** Minutos por modalidad/sala cuando no viene del servidor (evita fallo si RIS.tiemposPorGrupo no está inicializado). */
+const TIEMPOS_POR_GRUPO_DEFAULT = { RX: 15, TC: 30, RM: 45, US: 20, MG: 15, General: 15 };
+
 const AGENDA_LEYENDA_ITEMS = [
     ['pre-agendado', 'Pre-agendado', 'Reserva tentativa'],
     ['agendado', 'Agendado', 'Cita formalizada'],
@@ -71,9 +74,12 @@ function montarUiInternaCalendario() {
 }
 
 function calcularDuracionCita(machineId, cantidadExamenes) {
-    const sala = (window.RIS.resources || []).find(r => r.id === machineId);
-    const minutosBase = (sala && window.RIS.tiemposPorGrupo[sala.group]) ? window.RIS.tiemposPorGrupo[sala.group] : 15;
-    return minutosBase * cantidadExamenes;
+    const sala = (window.RIS?.resources || []).find((r) => String(r.id) === String(machineId));
+    const tiempos = { ...TIEMPOS_POR_GRUPO_DEFAULT, ...(window.RIS?.tiemposPorGrupo || {}) };
+    const group = sala?.group;
+    const minutosBase = group != null && tiempos[group] != null ? tiempos[group] : 15;
+    const qty = Math.max(1, Number(cantidadExamenes) || 1);
+    return minutosBase * qty;
 }
 
 function toLocalISOString(date) {
@@ -263,15 +269,14 @@ function actualizarCtaAtencionSalas() {
 }
 
 async function initAgenda() {
-    window.RIS = window.RIS || {
-        agenda: [],
-        config: {},
-        resources: [],
-        tiemposPorGrupo: { RX: 15, TC: 30, RM: 45, US: 20, MG: 15 },
-        doctors: [],
-        supplies: [],
-        supplyPacks: []
-    };
+    window.RIS = window.RIS || {};
+    window.RIS.agenda = window.RIS.agenda || [];
+    window.RIS.config = window.RIS.config || {};
+    window.RIS.resources = window.RIS.resources || [];
+    window.RIS.tiemposPorGrupo = { ...TIEMPOS_POR_GRUPO_DEFAULT, ...(window.RIS.tiemposPorGrupo || {}) };
+    window.RIS.doctors = window.RIS.doctors || [];
+    window.RIS.supplies = window.RIS.supplies || [];
+    window.RIS.supplyPacks = window.RIS.supplyPacks || [];
 
     const calendarEl = document.getElementById('calendar');
     if (!calendarEl) {

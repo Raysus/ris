@@ -10,7 +10,7 @@
 --}}
 @servers([
     'nube' => 'userit@100.104.4.114',
-    'siresa_centro' => 'admin@100.103.135.42',
+    'siresa_centro' => 'siresa-centro-servidor@100.103.135.42',
     'lab_lautaro' => 'admin@100.104.4.20',
 ])
 

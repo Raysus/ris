@@ -263,9 +263,10 @@ async function cargarCloudSyncLogs() {
 }
 
 async function pullCatalogoDesdeNube(includePatients) {
-    const labId = localStorage.getItem('ris_active_lab_id') || '';
-    if (!labId || labId === 'ALL') {
-        showToast('Seleccione una sede específica en el selector superior (no «Todas»).', 'warning');
+    const labId = typeof risRequireConcreteLabId === 'function'
+        ? risRequireConcreteLabId()
+        : (localStorage.getItem('ris_lab_id') || '');
+    if (!labId) {
         return;
     }
     if (!(await showConfirm(

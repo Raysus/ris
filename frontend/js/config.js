@@ -3,7 +3,27 @@
  * Debe ser `var API_URL` (global) para scripts en modo estricto (p. ej. callbacks de jQuery).
  */
 function isPrivateLanHost(host) {
-    return /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host);
+    return /^(192\.168\.|172\.17\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host);
+}
+/** Tailscale IPv4 (100.x.x.x): mismo criterio que LAN — API por nginx en :80 (/api). */
+function isTailscaleHost(host) {
+    return /^100\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host);
+}
+
+/** Hostnames DNS local (hosts/router) del laboratorio — no confundir con ris.healthticloud.cl (nube). */
+const RIS_LOCAL_LAB_HOSTS = [
+    'siresamatriz.healthticloud.cl',
+];
+
+function isLocalLabHostname(host) {
+    if (RIS_LOCAL_LAB_HOSTS.includes(host)) {
+        return true;
+    }
+    return /^lab[a-z0-9-]*\.healthticloud\.cl$/i.test(host);
+}
+
+function isStandardWebPort(port) {
+    return !port || port === '80' || port === '443';
 }
 
 function resolveRisApiUrl() {
@@ -24,12 +44,18 @@ function resolveRisApiUrl() {
         return 'http://127.0.0.1:8000/api';
     }
 
-    if (host === 'ris.healthticloud.cl' || host.endsWith('.healthticloud.cl')) {
+    // RIS en nube (producción HTTPS)
+    if (host === 'ris.healthticloud.cl') {
         return 'https://api.healthticloud.cl/api';
     }
 
-    // Laboratorio LAN: si entra por http://192.168.x.x/ (puerto 80), la API va por /api en nginx.
-    if (isPrivateLanHost(host) && (!port || port === '80' || port === '443')) {
+    // Laboratorio con alias DNS local (*.healthticloud.cl → IP LAN, HTTP en :80)
+    if (isLocalLabHostname(host) && isStandardWebPort(port)) {
+        return `${proto}://${host}/api`;
+    }
+
+    // Laboratorio LAN / Tailscale: en :80 la API va por /api (mismo origen, sin CORS).
+    if ((isPrivateLanHost(host) || isTailscaleHost(host)) && isStandardWebPort(port)) {
         return `${proto}://${host}/api`;
     }
 
@@ -40,4 +66,4 @@ var API_URL = resolveRisApiUrl();
 window.API_URL = API_URL;
 
 /** Incrementar al desplegar frontend para evitar HTML/JS en caché del navegador */
-window.RIS_BUILD = '20260612';
+window.RIS_BUILD = '20260604c';

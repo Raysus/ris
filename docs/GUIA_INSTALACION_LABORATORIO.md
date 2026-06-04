@@ -139,7 +139,14 @@ avise a sistemas (firewall del centro o reglas en la nube).
 ## 5. Obtener la llave para descargar el RIS (token GitHub)
 
 El código está en GitHub privado. Necesita un **token** (`github_pat_...` o `ghp_...`)
-con permiso de **solo lectura**, entregado por el equipo de sistemas.
+entregado por el equipo de sistemas.
+
+| Uso | Permiso en GitHub |
+|-----|-------------------|
+| Solo clonar / `git pull` | **Contents: Read** (fine-grained) o scope `repo` (classic) |
+| También `git push` (actualizar el servidor) | **Contents: Read and write** — ver **[GIT_ACCESO_GITHUB.md](GIT_ACCESO_GITHUB.md)** |
+
+> No pegue el token en la URL del remoto (`git remote`). Use `credential.helper store` o SSH (guía Git).
 
 ---
 
@@ -151,10 +158,12 @@ sudo chown "$USER:$USER" /opt
 cd /opt
 
 # Reemplace EL_TOKEN por el token del paso 5
-git clone https://EL_TOKEN@github.com/Raysus/ris.git RIS
+git clone https://github.com/Raysus/ris.git RIS
 cd RIS
+git checkout laboratorios
 
 git config --global credential.helper store
+# Al hacer pull/push: usuario = su cuenta GitHub, contraseña = el token
 ```
 
 ---
@@ -174,19 +183,24 @@ En `nano`: edite, luego `Ctrl+O`, Enter, `Ctrl+X`.
 
 | Buscar | Poner |
 |--------|--------|
-| `192.168.1.50` (todas las apariciones) | IP **real** del servidor en la LAN |
+| `192.168.1.50` (todas las apariciones) | IP **real** del servidor en la LAN (ver comando abajo) |
+| `APP_URL` | `http://<SU-IP>` o alias DNS (ej. `http://siresamatriz.healthticloud.cl`) |
+| `FRONTEND_URL` | **Igual** que `APP_URL` — debe coincidir **exactamente** con la barra del navegador |
 | `ORTHANC_URL` | URL del PACS que le dio sistemas |
 | `PACS_DEFAULT_IP` / `PACS_DEFAULT_PORT` / `PACS_DEFAULT_AET` | Datos DICOM para equipos (si aplica) |
 | `DB_PASSWORD` | Contraseña fuerte inventada por usted |
-| `SANCTUM_STATEFUL_DOMAINS` | Misma IP del servidor + `localhost,127.0.0.1` |
+| `CLOUD_SYNC_SECRET` | Secreto **igual al de la nube** (lo entrega sistemas; sin esto no se envían citas a la matriz) |
+| `SANCTUM_STATEFUL_DOMAINS` | Alias DNS, IP LAN, Tailscale `100.x` (si aplica), `localhost,127.0.0.1` |
 | `VIEWER_URL` / `VIEWER_PATH` | Visor OHIF en nube (`https://viewer.healthticloud.cl`, `/viewer`) |
 | `PATIENT_PORTAL_URL` | `https://portal.healthticloud.cl` (enlaces en correos) |
 
-Obtenga la IP del servidor:
+Obtenga la IP del servidor (primera dirección de la LAN):
 
 ```bash
 hostname -I | awk '{print $1}'
 ```
+
+> **Error frecuente:** dejar `192.168.1.50` de la plantilla provoca CORS, sesión inestable o que otras PCs no conecten bien. Sustituya **todas** las apariciones por su IP real.
 
 Genere la clave interna (`APP_KEY`):
 
@@ -230,6 +244,7 @@ Permita el acceso desde otras PCs de la LAN:
 ```bash
 sudo ufw allow OpenSSH
 sudo ufw allow 80/tcp
+# Opcional: solo si algún equipo accede directo al puerto 8000 (no necesario con nginx en :80)
 sudo ufw allow 8000/tcp
 sudo ufw enable
 sudo ufw status
@@ -241,22 +256,92 @@ sudo ufw status
 
 **En el servidor:**
 
+```bash
+curl -s http://127.0.0.1/api/health
+# Debe responder JSON con "status":"ok" (no HTML de login)
 ```
-http://localhost
-```
+
+Navegador: `http://localhost`
 
 **Desde otra PC del laboratorio** (misma red Wi‑Fi/cable):
 
-```
-http://192.168.1.50
+```bash
+# Sustituya IP por la del servidor (hostname -I)
+curl -s http://192.168.1.50/api/health
+ping -c 2 192.168.1.50
 ```
 
-(use su IP real). Debe verse la pantalla de inicio de sesión.
+Navegador: `http://192.168.1.50` (use su IP real). Debe verse la pantalla de inicio de sesión.
+
+Si `curl` devuelve HTML en lugar de JSON, recargue la configuración de nginx:
+
+```bash
+cd /opt/RIS/backend
+docker compose -f docker-compose.lan.yml up -d --force-recreate web
+```
 
 Inicie sesión con el usuario de prueba que indique sistemas y **cambie contraseñas de
 prueba** antes de uso real.
 
 El visor de imágenes se abre desde el botón correspondiente en el RIS (visor en la nube).
+
+---
+
+## 10.1 Alias DNS para otras PCs (`siresamatriz.healthticloud.cl`)
+
+En lugar de recordar la IP (`192.168.x.x`), el centro puede usar un **nombre** que apunte
+al servidor del RIS en la red local. Ejemplo para **Siresa matriz**:
+
+| Dato | Valor |
+|------|--------|
+| Nombre | `siresamatriz.healthticloud.cl` |
+| IP del servidor RIS | La de `hostname -I` (ej. `192.168.100.20`) |
+
+Ese nombre **no** es la nube pública: solo funciona si cada PC o el router lo resuelve a la IP del servidor.
+
+### A) Archivo `hosts` en cada PC
+
+**Windows** (Bloc de notas como administrador): `C:\Windows\System32\drivers\etc\hosts`  
+**Linux / macOS:** `/etc/hosts`
+
+```
+192.168.100.20    siresamatriz.healthticloud.cl
+```
+
+(Sustituya la IP por la real del servidor.)
+
+### B) DNS en el router (recomendado con muchas PCs)
+
+En el router del laboratorio, registro **A** o DNS local:
+
+| Host | IP |
+|------|-----|
+| `siresamatriz.healthticloud.cl` | IP del servidor RIS |
+
+### C) `.env` del servidor (obligatorio si usan el alias)
+
+```env
+APP_URL=http://siresamatriz.healthticloud.cl
+FRONTEND_URL=http://siresamatriz.healthticloud.cl
+SANCTUM_STATEFUL_DOMAINS=siresamatriz.healthticloud.cl,192.168.100.20,localhost,127.0.0.1
+```
+
+```bash
+cd /opt/RIS/backend
+docker compose -f docker-compose.lan.yml up -d
+docker compose -f docker-compose.lan.yml build api && docker compose -f docker-compose.lan.yml up -d api
+```
+
+### Probar desde otra PC
+
+```bash
+ping siresamatriz.healthticloud.cl
+curl -s http://siresamatriz.healthticloud.cl/api/health
+```
+
+Navegador: **`http://siresamatriz.healthticloud.cl`** (sin `https` en LAN salvo que instalen TLS local).
+
+Otro laboratorio: añada su hostname en `frontend/js/config.js` → `RIS_LOCAL_LAB_HOSTS` o use el patrón `lab*.healthticloud.cl`.
 
 ---
 
@@ -267,7 +352,19 @@ soporte remoto y despliegues con `envoy run deploy-lab` sin depender de estar en
 
 **No es necesario** para que recepción y médicos usen el RIS en el navegador.
 
-### 11.1 Instalar Tailscale en Ubuntu Server
+### 11.1 SSH en el servidor (obligatorio para soporte remoto)
+
+Tailscale solo enruta la red; **hace falta un servidor SSH** escuchando en el equipo:
+
+```bash
+sudo apt-get install -y openssh-server
+sudo systemctl enable --now ssh
+whoami   # anote este usuario para sistemas (ej. admin, no siempre es "admin")
+```
+
+Compruebe en el servidor: `ss -tlnp | grep :22` debe mostrar **LISTEN**.
+
+### 11.2 Instalar Tailscale en Ubuntu Server
 
 Conéctese al servidor por consola o SSH y ejecute:
 
@@ -276,7 +373,7 @@ curl -fsSL https://tailscale.com/install.sh | sh
 sudo systemctl enable --now tailscaled
 ```
 
-### 11.2 Unir el servidor a la red Tailscale
+### 11.3 Unir el servidor a la red Tailscale
 
 El administrador de sistemas le entregará una de estas formas de registro:
 
@@ -296,7 +393,7 @@ tailscale ip -4
 Anote la IP que empieza por `100.` (ej. `100.104.4.20`). Esa es la que usará sistemas en
 `backend/Envoy.blade.php` para `deploy-lab`.
 
-### 11.3 SSH y firewall
+### 11.4 SSH por Tailscale y firewall
 
 - Tailscale suele permitir SSH entre nodos de la misma cuenta sin abrir el puerto 22 a Internet.
 - Con **UFW** activo (paso 9), normalmente **no hace falta** abrir puertos extra para Tailscale;
@@ -307,12 +404,14 @@ Anote la IP que empieza por `100.` (ej. `100.104.4.20`). Esa es la que usará si
 Prueba desde el PC de sistemas (con Tailscale activo en esa máquina):
 
 ```bash
-ssh usuario@100.104.4.XX
+ssh $(whoami)@100.104.4.XX   # en el servidor: whoami indica el usuario correcto
 ```
 
-(Sustituya usuario e IP por los que le indiquen.)
+Si aparece **Connection refused**, instale `openssh-server` (paso 11.1), no solo Tailscale.
 
-### 11.4 Mantener Tailscale al reiniciar
+En `backend/Envoy.blade.php`, sistemas debe registrar `usuario@IP-Tailscale` (usuario real del servidor).
+
+### 11.5 Mantener Tailscale al reiniciar
 
 El servicio `tailscaled` ya queda habilitado con `systemctl enable`. Tras un reinicio del servidor:
 
@@ -322,15 +421,16 @@ tailscale status
 
 Si aparece **offline**, ejecute de nuevo `sudo tailscale up` (o con la misma `--auth-key` si usó clave).
 
-### 11.5 Qué comunicar a sistemas
+### 11.6 Qué comunicar a sistemas
 
 Envíe por correo o ticket:
 
 | Dato | Ejemplo |
 |------|---------|
+| IP LAN del servidor | `192.168.100.20` |
 | IP Tailscale IPv4 | `100.104.4.20` |
 | Nombre del nodo en Tailscale | `lab-lautaro-srv` |
-| Usuario SSH en el servidor | `admin` |
+| Usuario SSH en el servidor | Salida de `whoami` en el servidor |
 | Ruta del proyecto RIS | `/opt/RIS` |
 
 Con eso sistemas puede ejecutar desde su PC:
@@ -349,7 +449,7 @@ php vendor/bin/envoy run deploy-lab --lab=lab_lautaro
 
 ## 12. Otras computadoras y escáner
 
-- **Recepción / médicos / tecnólogos:** solo navegador → `http://<IP-del-servidor>`.
+- **Recepción / médicos / tecnólogos:** solo navegador → `http://siresamatriz.healthticloud.cl` (con alias DNS, §10.1) o `http://<IP-del-servidor>`.
 - **PC con escáner:** instale Node.js y NAPS2; en la carpeta del puente:
 
 ```bash
@@ -424,9 +524,22 @@ usando Envoy o comandos equivalentes:
 # Ejemplo (lo ejecuta sistemas en el servidor, no recepción)
 cd /opt/RIS && git pull
 cd backend && docker compose -f docker-compose.lan.yml up -d --build
+# Si cambió docker/frontend.nginx.conf, recree nginx:
+docker compose -f docker-compose.lan.yml up -d --force-recreate web
 ```
 
-Si le piden una actualización manual excepcional, use exactamente esos dos bloques.
+Si le piden una actualización manual excepcional, use exactamente esos bloques.
+
+### Sync con la nube (matriz)
+
+En Admin → **Sync Nube**:
+
+| Acción | Requisito |
+|--------|-----------|
+| **Catálogo desde nube** | Sede **concreta** en el selector superior (no «Todas mis sucursales») |
+| **Enviar pendientes** | `CLOUD_SYNC_SECRET` en `.env` y contenedor `queue` en ejecución |
+
+Tras cambiar `.env` (IP, secreto cloud): `docker compose -f docker-compose.lan.yml up -d`.
 
 ---
 
@@ -435,8 +548,11 @@ Si le piden una actualización manual excepcional, use exactamente esos dos bloq
 | Síntoma | Qué hacer |
 |---------|-----------|
 | Otra PC no abre `http://IP` | Compruebe IP con `hostname -I`, reglas UFW (paso 9), que el servidor esté encendido. Pruebe `ping IP` desde la otra PC. |
-| Navegador «failed to fetch» / connection reset | Desde la otra PC: `curl http://IP/api/health`. Si falla: `docker compose ... ps` (api y web running), reinicie `web` tras actualizar nginx. El frontend LAN usa **`http://IP/api`** (puerto 80), no hace falta abrir 8000 en el firewall si nginx hace proxy. |
+| Navegador «failed to fetch» / CORS | `FRONTEND_URL` = URL exacta del navegador (`http://IP` sin barra final). Recree `web` si `/api/health` devuelve HTML. |
+| Otra PC: `curl` devuelve HTML en `/api/health` | `docker compose -f docker-compose.lan.yml up -d --force-recreate web` (falta proxy `/api/` en nginx). |
 | Login no guarda sesión / se cae | En `.env`: `SESSION_SECURE_COOKIE=false`. `docker compose -f docker-compose.lan.yml up -d`. |
+| Sync nube: «Seleccione una sede» | Elija matriz o sucursal concreta en el selector (no «Todas»). |
+| No envía citas a la nube | `CLOUD_SYNC_SECRET` configurado · `docker compose ... ps` muestra `queue` **running** · Admin → Sync Nube sin fallos. |
 | No hay imágenes / visor vacío | Pruebe `curl` a `ORTHANC_URL` desde el servidor. Si falla, es red o URL incorrecta — contacte sistemas (no es problema del navegador del usuario). |
 | `permission denied` con Docker | Usuario en grupo `docker`, cerrar sesión y volver a entrar. |
 | Error al `up --build` | `docker compose ... logs api` y `logs pgsql`. Verifique espacio en disco: `df -h`. |
@@ -453,20 +569,23 @@ Si le piden una actualización manual excepcional, use exactamente esos dos bloq
 
 - [ ] Docker instalado (`docker compose version` OK)
 - [ ] Proyecto en `/opt/RIS`
-- [ ] `.env` con IP LAN, `ORTHANC_URL`, `DB_PASSWORD`, `APP_KEY`
-- [ ] `docker compose ... ps` → todo **running**
+- [ ] `.env` con IP LAN real (no plantilla `192.168.1.50`), `APP_URL`/`FRONTEND_URL`, `ORTHANC_URL`, `DB_PASSWORD`, `APP_KEY`, `CLOUD_SYNC_SECRET`
+- [ ] `docker compose ... ps` → **api**, **web**, **queue**, **pgsql** en **running**
 - [ ] `DB_AUTO_SEED=false` tras el primer arranque
-- [ ] UFW permite 80 y 8000
+- [ ] UFW permite **80** (y 22 para SSH)
+- [ ] `curl http://localhost/api/health` → JSON `"status":"ok"`
+- [ ] **Otra PC** en la LAN: `curl http://<IP>/api/health` o `curl http://siresamatriz.healthticloud.cl/api/health` → JSON
+- [ ] Si usa alias DNS: `hosts` o router configurado; `.env` con `FRONTEND_URL` = ese nombre
 - [ ] `http://localhost` muestra login
-- [ ] Otra PC abre `http://<IP-servidor>`
 - [ ] Contraseñas de prueba cambiadas
 - [ ] Primera copia de seguridad `.sql`
 
 **Tailscale (solo si sistemas lo pidió)**
 
+- [ ] `openssh-server` instalado y puerto 22 en LISTEN
 - [ ] `tailscaled` activo (`systemctl status tailscaled`)
 - [ ] `tailscale ip -4` muestra IP `100.x.x.x`
-- [ ] IP y usuario SSH comunicados al equipo de sistemas
+- [ ] IP LAN, IP Tailscale y usuario SSH (`whoami`) comunicados al equipo de sistemas
 
 **Equipos de rayos** (si aplica)
 

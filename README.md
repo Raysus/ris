@@ -12,13 +12,16 @@ Sistema de información radiológica: agenda, worklist, informes, administració
 
 ## Documentación
 
-**Guía de instalación (técnicos):** **[docs/INSTALACION.md](docs/INSTALACION.md)**
+**Guía de instalación (técnicos):** **[docs/INSTALACION.md](docs/INSTALACION.md)**  
+**Git push/pull (permisos 403):** **[docs/GIT_ACCESO_GITHUB.md](docs/GIT_ACCESO_GITHUB.md)**
 
 Incluye: instalación local, red LAN, producción en nube, bridge escáner/visor en cada PC, variables `.env` y fallos frecuentes.
 
 **Despliegue en un laboratorio (paso a paso, no técnico):** **[docs/GUIA_INSTALACION_LABORATORIO.md](docs/GUIA_INSTALACION_LABORATORIO.md)** (Ubuntu). Windows: **[docs/GUIA_INSTALACION_LABORATORIO_WINDOWS.md](docs/GUIA_INSTALACION_LABORATORIO_WINDOWS.md)**.
 
-RIS local en Docker; PACS y visor en la nube. Las PCs del centro solo usan navegador. **Tailscale** es para despliegues remotos desde el PC de sistemas, no para instalar en el laboratorio.
+RIS local en Docker; PACS y visor en la nube. Las PCs del centro entran por `http://<IP-del-servidor>` (puerto 80). **Tailscale** + **openssh-server** son para soporte remoto y `deploy-lab`, no para cada PC del centro.
+
+**Checklist LAN:** otra PC debe poder `curl http://<IP>/api/health` (JSON ok). Alias DNS ejemplo: `http://siresamatriz.healthticloud.cl` (guía §10.1).
 
 **Manual de usuario:** `docs/INSTRUCTIVO_HealthTiCloud_RIS.pdf` o `.docx`
 

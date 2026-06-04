@@ -166,21 +166,30 @@ docker compose -f docker-compose.lan.yml up -d --build
 | `pgsql` | interno | PostgreSQL 15 |
 | `redis` | interno | Caché opcional (cola por defecto: `database`) |
 
-El frontend detecta la API en `http://<IP-servidor>:8000/api` automáticamente (`frontend/js/config.js`).
-No hace falta editar `config.js` en cada PC si todas entran por `http://<IP>`.
+El frontend detecta la API en `http://<IP-servidor>/api` (puerto 80, nginx) o en `:8000` si no hay proxy (`frontend/js/config.js`).
+No hace falta editar `config.js` en cada PC si todas entran por `http://<IP>` o por un alias DNS local documentado (ej. `http://siresamatriz.healthticloud.cl` — ver guía laboratorio §10.1).
 
-Variables clave (ver `.env.lan.example`, espejo de `.env.example`):
+Variables clave (ver `.env.lan.example`):
 
 | Variable | LAN típico |
 |----------|------------|
-| `APP_URL` | `http://192.168.x.x:8000` |
-| `FRONTEND_URL` | `http://192.168.x.x` (puerto 80) |
+| `APP_URL` | `http://192.168.x.x` o `http://siresamatriz.healthticloud.cl` (misma URL que el navegador) |
+| `FRONTEND_URL` | **Igual** que `APP_URL` — debe coincidir con la barra del navegador (CORS y sesión) |
 | `SESSION_SECURE_COOKIE` | `false` (HTTP sin TLS) |
 | `RIS_CLOUD_ROLE` | `local` |
+| `CLOUD_SYNC_SECRET` | Mismo valor que en la nube (envío de citas/pacientes) |
 | `ORTHANC_URL` | URL PACS en nube |
 | `VIEWER_URL` | `https://viewer.healthticloud.cl` |
 
+Comprobación desde otra PC de la LAN:
+
+```bash
+curl -s http://<IP-servidor>/api/health   # JSON "status":"ok", no HTML
+```
+
 Tras el primer arranque: `DB_AUTO_SEED=false` y `docker compose -f docker-compose.lan.yml up -d`.
+
+Tras `git pull` que toque `docker/frontend.nginx.conf`: `docker compose -f docker-compose.lan.yml up -d --force-recreate web`.
 
 Guía paso a paso: **[GUIA_INSTALACION_LABORATORIO.md](GUIA_INSTALACION_LABORATORIO.md)**.
 
@@ -397,9 +406,9 @@ QUEUE_CONNECTION=database
 
 En Admin → **Sync Nube**:
 
-- **Catálogo desde nube** — exámenes, máquinas, médicos solicitantes, previsiones (sede seleccionada).
+- **Catálogo desde nube** — exámenes, máquinas, médicos solicitantes, previsiones (**sede concreta** en el selector superior; no «Todas mis sucursales»).
 - **+ Pacientes** — además pacientes de esa sede.
-- **Enviar pendientes** — reintenta cola de envío local → nube.
+- **Enviar pendientes** — reintenta cola de envío local → nube (requiere `CLOUD_SYNC_SECRET` y contenedor `queue` activo).
 
 La matriz en la **misma BD** ve sucursales con el selector de sede; los labs remotos replican citas/pacientes vía cola automática al guardar.
 
@@ -412,7 +421,11 @@ Colas: en nube `ris-queue` (systemd); en lab contenedor `queue`. Redis es opcion
 | Problema | Solución |
 |----------|----------|
 | Login 500 | `php artisan migrate --force` · revisar `storage/logs/laravel.log` |
-| CORS / no conecta API | `FRONTEND_URL` en `.env` = URL exacta del navegador |
+| CORS / no conecta API | `FRONTEND_URL` en `.env` = URL exacta del navegador (`http://IP` sin `:8000` si entran por puerto 80). Sustituir IP plantilla `192.168.1.50` por la IP real. |
+| `/api/health` devuelve HTML | Recrear nginx: `docker compose -f docker-compose.lan.yml up -d --force-recreate web` |
+| Otra PC no alcanza el RIS | UFW puerto 80, misma VLAN, `curl http://IP/api/health` desde esa PC |
+| SSH por Tailscale refused | Instalar `openssh-server`; usuario en Envoy = `whoami` del servidor |
+| Sync catálogo pide sede | Selector superior: matriz o sucursal concreta, no «Todas» |
 | Menú vacío | Cerrar sesión y volver a entrar |
 | Agenda sin salas | Elegir laboratorio arriba · Ctrl+F5 |
 | Escáner no funciona | Bridge en `127.0.0.1:8181` · NAPS2 en `config.json` |

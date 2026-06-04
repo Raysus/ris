@@ -64,7 +64,13 @@ Copy-Item .env.lan.example .env
 notepad .env
 ```
 
-Sustituya `192.168.1.50` por la IPv4 del servidor (`ipconfig`). Configure `ORTHANC_URL` con la URL del PACS en nube que le indique sistemas.
+Sustituya **todas** las apariciones de `192.168.1.50` por la IPv4 del servidor (`ipconfig`).
+`APP_URL` y `FRONTEND_URL` deben ser `http://<SU-IP>` (igual que en el navegador de las otras PCs).
+Configure `ORTHANC_URL` y `CLOUD_SYNC_SECRET` (secreto compartido con la nube) según indique sistemas.
+
+Desde otra PC: `curl http://<IP>/api/health` debe devolver JSON con `"status":"ok"`.
+
+Alias DNS (opcional): en `C:\Windows\System32\drivers\etc\hosts` agregue `192.168.x.x siresamatriz.healthticloud.cl` y use `http://siresamatriz.healthticloud.cl` con el mismo valor en `APP_URL` / `FRONTEND_URL` (ver guía Ubuntu §10.1).
 
 El contenedor API usa **PHP 8.5.4** (igual que `composer.json`). Si en Windows tiene otro PHP instalado, no importa: Docker usa la imagen del `Dockerfile`.
 
