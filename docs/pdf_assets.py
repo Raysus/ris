@@ -9,7 +9,8 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 ASSETS = Path(__file__).resolve().parent / "assets"
-COLOR_PRIMARY = (168, 148, 196)
+# Marca accesible (#5b4a82), alineada con frontend y portal
+COLOR_PRIMARY = (91, 74, 130)
 COLOR_DARK = (33, 37, 41)
 COLOR_MUTED = (108, 117, 125)
 COLOR_LIGHT = (240, 248, 247)

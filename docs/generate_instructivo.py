@@ -55,7 +55,7 @@ class InstructivoPDF(FPDF):
         self.set_text_color(110, 110, 110)
         self.cell(self.epw / 2, 5, "HealthTiCloud RIS")
         self.cell(self.epw / 2, 5, self._section_title, align="R", new_x="LMARGIN", new_y="NEXT")
-        self.set_draw_color(168, 148, 196)
+        self.set_draw_color(91, 74, 130)
         self.line(self.l_margin, self.get_y() + 1, self.w - self.r_margin, self.get_y() + 1)
         self.ln(4)
         self.set_text_color(0, 0, 0)
@@ -70,7 +70,7 @@ class InstructivoPDF(FPDF):
         self.add_page()
         self.ln(16)
         self._set("B", 24)
-        self.set_text_color(168, 148, 196)
+        self.set_text_color(91, 74, 130)
         self.cell(0, 10, "HealthTiCloud RIS", align="C", new_x="LMARGIN", new_y="NEXT")
         self.ln(2)
         self._set("", 13)
@@ -81,7 +81,7 @@ class InstructivoPDF(FPDF):
             self.figure(banner, "", max_height=52, caption_below=False)
         self._set("", 10)
         self.set_text_color(100, 100, 100)
-        self.cell(0, 6, "Sistema de Información Radiológica  ·  Mayo 2026", align="C")
+        self.cell(0, 6, "Sistema de Información Radiológica  ·  Junio 2026", align="C")
 
     def toc(self, items: list[str]) -> None:
         self.add_page()
@@ -97,7 +97,7 @@ class InstructivoPDF(FPDF):
         self.add_page()
         self._section_title = title
         self._set("B", 16)
-        self.set_text_color(168, 148, 196)
+        self.set_text_color(91, 74, 130)
         self.multi_cell(self.epw, 8, f"{number}. {title}")
         self.set_text_color(0, 0, 0)
         self.ln(2)
@@ -183,7 +183,7 @@ class InstructivoPDF(FPDF):
             family=self._font,
             emphasis="BOLD",
             color=(255, 255, 255),
-            fill_color=(168, 148, 196),
+            fill_color=(91, 74, 130),
         )
         body_style = FontFace(family=self._font, size_pt=10)
 

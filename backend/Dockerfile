@@ -1,3 +1,4 @@
+# Debe coincidir con composer.json ("php": "^8.3") y docs (PHP 8.3+).
 FROM php:8.3-cli
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
