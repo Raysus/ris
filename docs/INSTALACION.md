@@ -167,13 +167,13 @@ docker compose -f docker-compose.lan.yml up -d --build
 | `redis` | interno | Caché opcional (cola por defecto: `database`) |
 
 El frontend detecta la API en `http://<IP-servidor>/api` (puerto 80, nginx) o en `:8000` si no hay proxy (`frontend/js/config.js`).
-No hace falta editar `config.js` en cada PC si todas entran por `http://<IP>`.
+No hace falta editar `config.js` en cada PC si todas entran por `http://<IP>` o por un alias DNS local documentado (ej. `http://siresamatriz.healthticloud.cl` — ver guía laboratorio §10.1).
 
 Variables clave (ver `.env.lan.example`):
 
 | Variable | LAN típico |
 |----------|------------|
-| `APP_URL` | `http://192.168.x.x` (misma URL que el navegador) |
+| `APP_URL` | `http://192.168.x.x` o `http://siresamatriz.healthticloud.cl` (misma URL que el navegador) |
 | `FRONTEND_URL` | **Igual** que `APP_URL` — debe coincidir con la barra del navegador (CORS y sesión) |
 | `SESSION_SECURE_COOKIE` | `false` (HTTP sin TLS) |
 | `RIS_CLOUD_ROLE` | `local` |

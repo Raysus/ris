@@ -21,7 +21,7 @@ Incluye: instalación local, red LAN, producción en nube, bridge escáner/visor
 
 RIS local en Docker; PACS y visor en la nube. Las PCs del centro entran por `http://<IP-del-servidor>` (puerto 80). **Tailscale** + **openssh-server** son para soporte remoto y `deploy-lab`, no para cada PC del centro.
 
-**Checklist LAN:** otra PC debe poder `curl http://<IP>/api/health` (JSON ok). Ver guía laboratorio §10.
+**Checklist LAN:** otra PC debe poder `curl http://<IP>/api/health` (JSON ok). Alias DNS ejemplo: `http://siresamatriz.healthticloud.cl` (guía §10.1).
 
 **Manual de usuario:** `docs/INSTRUCTIVO_HealthTiCloud_RIS.pdf` o `.docx`
 

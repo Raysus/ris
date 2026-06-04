@@ -34,6 +34,8 @@ return [
     
     'allowed_origins_patterns' => [
         '#^https://([a-z0-9-]+\.)?healthticloud\.cl$#',
+        // Laboratorios LAN con alias DNS (ej. siresamatriz.healthticloud.cl → IP del servidor)
+        '#^http://([a-z0-9-]+\.)?healthticloud\.cl$#',
         '#^http://(localhost|127\.0\.0\.1)(:\d+)?$#',
         '#^http://192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$#',
         '#^http://10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$#',

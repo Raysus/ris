@@ -184,13 +184,13 @@ En `nano`: edite, luego `Ctrl+O`, Enter, `Ctrl+X`.
 | Buscar | Poner |
 |--------|--------|
 | `192.168.1.50` (todas las apariciones) | IP **real** del servidor en la LAN (ver comando abajo) |
-| `APP_URL` | `http://<SU-IP>` (sin `:8000` si el personal entra por puerto 80) |
-| `FRONTEND_URL` | **Igual** que `APP_URL` — debe coincidir con lo que escriben en el navegador (`http://<SU-IP>`) |
+| `APP_URL` | `http://<SU-IP>` o alias DNS (ej. `http://siresamatriz.healthticloud.cl`) |
+| `FRONTEND_URL` | **Igual** que `APP_URL` — debe coincidir **exactamente** con la barra del navegador |
 | `ORTHANC_URL` | URL del PACS que le dio sistemas |
 | `PACS_DEFAULT_IP` / `PACS_DEFAULT_PORT` / `PACS_DEFAULT_AET` | Datos DICOM para equipos (si aplica) |
 | `DB_PASSWORD` | Contraseña fuerte inventada por usted |
 | `CLOUD_SYNC_SECRET` | Secreto **igual al de la nube** (lo entrega sistemas; sin esto no se envían citas a la matriz) |
-| `SANCTUM_STATEFUL_DOMAINS` | IP LAN, IP Tailscale `100.x` (si aplica), `localhost,127.0.0.1` |
+| `SANCTUM_STATEFUL_DOMAINS` | Alias DNS, IP LAN, Tailscale `100.x` (si aplica), `localhost,127.0.0.1` |
 | `VIEWER_URL` / `VIEWER_PATH` | Visor OHIF en nube (`https://viewer.healthticloud.cl`, `/viewer`) |
 | `PATIENT_PORTAL_URL` | `https://portal.healthticloud.cl` (enlaces en correos) |
 
@@ -284,6 +284,64 @@ Inicie sesión con el usuario de prueba que indique sistemas y **cambie contrase
 prueba** antes de uso real.
 
 El visor de imágenes se abre desde el botón correspondiente en el RIS (visor en la nube).
+
+---
+
+## 10.1 Alias DNS para otras PCs (`siresamatriz.healthticloud.cl`)
+
+En lugar de recordar la IP (`192.168.x.x`), el centro puede usar un **nombre** que apunte
+al servidor del RIS en la red local. Ejemplo para **Siresa matriz**:
+
+| Dato | Valor |
+|------|--------|
+| Nombre | `siresamatriz.healthticloud.cl` |
+| IP del servidor RIS | La de `hostname -I` (ej. `192.168.100.20`) |
+
+Ese nombre **no** es la nube pública: solo funciona si cada PC o el router lo resuelve a la IP del servidor.
+
+### A) Archivo `hosts` en cada PC
+
+**Windows** (Bloc de notas como administrador): `C:\Windows\System32\drivers\etc\hosts`  
+**Linux / macOS:** `/etc/hosts`
+
+```
+192.168.100.20    siresamatriz.healthticloud.cl
+```
+
+(Sustituya la IP por la real del servidor.)
+
+### B) DNS en el router (recomendado con muchas PCs)
+
+En el router del laboratorio, registro **A** o DNS local:
+
+| Host | IP |
+|------|-----|
+| `siresamatriz.healthticloud.cl` | IP del servidor RIS |
+
+### C) `.env` del servidor (obligatorio si usan el alias)
+
+```env
+APP_URL=http://siresamatriz.healthticloud.cl
+FRONTEND_URL=http://siresamatriz.healthticloud.cl
+SANCTUM_STATEFUL_DOMAINS=siresamatriz.healthticloud.cl,192.168.100.20,localhost,127.0.0.1
+```
+
+```bash
+cd /opt/RIS/backend
+docker compose -f docker-compose.lan.yml up -d
+docker compose -f docker-compose.lan.yml build api && docker compose -f docker-compose.lan.yml up -d api
+```
+
+### Probar desde otra PC
+
+```bash
+ping siresamatriz.healthticloud.cl
+curl -s http://siresamatriz.healthticloud.cl/api/health
+```
+
+Navegador: **`http://siresamatriz.healthticloud.cl`** (sin `https` en LAN salvo que instalen TLS local).
+
+Otro laboratorio: añada su hostname en `frontend/js/config.js` → `RIS_LOCAL_LAB_HOSTS` o use el patrón `lab*.healthticloud.cl`.
 
 ---
 
@@ -391,7 +449,7 @@ php vendor/bin/envoy run deploy-lab --lab=lab_lautaro
 
 ## 12. Otras computadoras y escáner
 
-- **Recepción / médicos / tecnólogos:** solo navegador → `http://<IP-del-servidor>`.
+- **Recepción / médicos / tecnólogos:** solo navegador → `http://siresamatriz.healthticloud.cl` (con alias DNS, §10.1) o `http://<IP-del-servidor>`.
 - **PC con escáner:** instale Node.js y NAPS2; en la carpeta del puente:
 
 ```bash
@@ -516,7 +574,8 @@ Tras cambiar `.env` (IP, secreto cloud): `docker compose -f docker-compose.lan.y
 - [ ] `DB_AUTO_SEED=false` tras el primer arranque
 - [ ] UFW permite **80** (y 22 para SSH)
 - [ ] `curl http://localhost/api/health` → JSON `"status":"ok"`
-- [ ] **Otra PC** en la LAN: `curl http://<IP>/api/health` → JSON y navegador abre login
+- [ ] **Otra PC** en la LAN: `curl http://<IP>/api/health` o `curl http://siresamatriz.healthticloud.cl/api/health` → JSON
+- [ ] Si usa alias DNS: `hosts` o router configurado; `.env` con `FRONTEND_URL` = ese nombre
 - [ ] `http://localhost` muestra login
 - [ ] Contraseñas de prueba cambiadas
 - [ ] Primera copia de seguridad `.sql`
