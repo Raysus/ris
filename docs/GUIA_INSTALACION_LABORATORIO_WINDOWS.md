@@ -10,9 +10,12 @@
 
 | Dónde | ¿Instala Tailscale? |
 |-------|---------------------|
-| **Servidor del laboratorio** | **No** (salvo que sistemas indique otra VPN concreta) |
+| **Servidor del laboratorio** | **Opcional** — recomendado para soporte remoto y `deploy-lab` |
 | **PCs de recepción / médicos** | **No** |
 | **Computador del equipo de sistemas** (despliegues y soporte) | **Sí** — para SSH a la nube y laboratorios vía Envoy |
+
+Instalación paso a paso en el servidor (Ubuntu): **[GUIA_INSTALACION_LABORATORIO.md § 11](GUIA_INSTALACION_LABORATORIO.md#11-configurar-tailscale-en-el-servidor-opcional)**.
+En Windows Server puede usar el instalador MSI desde [tailscale.com/download](https://tailscale.com/download) y el mismo flujo de `tailscale up`.
 
 El laboratorio se conecta al PACS de la nube con la **URL o IP** que entregue el responsable (`ORTHANC_URL` en `.env`), no necesariamente por Tailscale.
 
@@ -23,7 +26,7 @@ El laboratorio se conecta al PACS de la nube con la **URL o IP** que entregue el
 En el laboratorio habrá **un computador principal** (el **servidor**). Ahí corre el RIS en **Docker Desktop**. Las demás PCs usan el **navegador**.
 
 - Las **imágenes médicas** están en la **nube**; el RIS local se conecta por red a ese PACS.
-- **Tailscale no se instala en el servidor** para el día a día del centro.
+- **Tailscale en el servidor** es opcional para usuarios del centro; sistemas puede pedirlo para soporte remoto (ver guía Ubuntu § 11).
 
 ---
 
