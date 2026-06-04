@@ -4,7 +4,7 @@ Sistema de información radiológica: agenda, worklist, informes, administració
 
 | Componente | Tecnología |
 |------------|------------|
-| API | Laravel 13 · PHP 8.3+ |
+| API | Laravel 13 · PHP 8.5+ |
 | Frontend | HTML + JavaScript + Bootstrap 5 |
 | Base de datos | PostgreSQL 15 |
 

@@ -508,7 +508,7 @@ def render_instructivo(
     ])
     doc.p(
         "Documentación técnica de instalación: docs/INSTALACION.md y "
-        "docs/GUIA_INSTALACION_LABORATORIO.md (Docker LAN, PHP 8.3)."
+        "docs/GUIA_INSTALACION_LABORATORIO.md (Docker LAN, PHP 8.5.4)."
     )
 
     doc.chapter("13", "Dictado por voz, visor OHIF y bridge local")

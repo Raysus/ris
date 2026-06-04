@@ -26,7 +26,7 @@ Guía para técnicos. Un solo documento: servidor + PCs de usuario.
 
 | Software | Versión |
 |----------|---------|
-| PHP | 8.3+ (extensiones: pdo_pgsql, mbstring, openssl, json, fileinfo, bcmath) |
+| PHP | 8.5+ (extensiones: pdo_pgsql, mbstring, openssl, json, fileinfo, bcmath) |
 | Composer | 2.x |
 | Docker | Para PostgreSQL local (opcional en servidor Linux productivo) |
 | Node.js | Solo en PCs con bridge (escáner/visor local) |
@@ -147,8 +147,8 @@ Firewall: permitir puertos **8000** y **5500** (o 80/443 si usa Nginx).
 ## 3.1 Laboratorio con Docker (`docker-compose.lan.yml`)
 
 Stack recomendado en el servidor del centro (Ubuntu o Windows con Docker Desktop).
-La API corre en contenedor **PHP 8.3** (`backend/Dockerfile`), alineado con `composer.json` (`^8.3`).
-En su PC de desarrollo puede tener PHP 8.4 u 8.5; en producción LAN use siempre la imagen Docker.
+La API corre en contenedor **PHP 8.5.4** (`backend/Dockerfile`, imagen `php:8.5.4-cli`), alineado con `composer.json` (`^8.5`).
+En laboratorio LAN use siempre la imagen Docker; el PHP del host no afecta al contenedor.
 
 ```bash
 cd backend
