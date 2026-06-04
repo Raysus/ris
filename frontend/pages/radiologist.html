@@ -81,17 +81,40 @@
                         <textarea id="textoInforme"
                             class="form-control border-0 shadow-sm flex-grow-1 mb-3 p-3 transition-all"
                             style="resize: none; font-size: 1rem; line-height: 1.5;"
-                            placeholder="Redacte aquí el informe o utilice Dragon Medical..." disabled></textarea>
+                            placeholder="Redacte aquí el informe, dictado por voz o Dragon..." disabled></textarea>
 
                         <div class="row g-2 mb-1">
                             <div class="col-md-6">
                                 <div
-                                    class="bg-white p-3 rounded border shadow-sm h-100 d-flex flex-column justify-content-center text-center">
-                                    <h6 class="fw-bold mb-1 text-success"><i class="bi bi-soundwave me-1"></i>Dictado
-                                        Directo (Dragon)</h6>
-                                    <small class="text-muted mb-2">Dicte el informe directamente en pantalla.</small>
-                                    <button id="btnDragon" class="btn btn-sm btn-outline-success fw-bold w-100"
-                                        onclick="activarDragon()" disabled>
+                                    class="bg-white p-3 rounded border border-primary shadow-sm mb-2 d-flex flex-column text-center">
+                                    <h6 class="fw-bold mb-2 text-primary"><i class="bi bi-mic-fill me-1"></i>Dictado por
+                                        voz (navegador)</h6>
+                                    <div class="d-flex gap-2 mb-2 align-items-center">
+                                        <label class="small text-muted mb-0" for="selDictationLang">Idioma</label>
+                                        <select id="selDictationLang" class="form-select form-select-sm"
+                                            style="max-width: 8rem;">
+                                            <option value="es-CL" selected>Español (CL)</option>
+                                            <option value="es-ES">Español (ES)</option>
+                                            <option value="es-MX">Español (MX)</option>
+                                            <option value="en-US">English (US)</option>
+                                        </select>
+                                    </div>
+                                    <button type="button" id="btnBrowserDictation"
+                                        class="btn btn-sm btn-outline-primary fw-bold w-100">
+                                        <i class="bi bi-mic-fill me-1"></i> INICIAR DICTADO VOZ
+                                    </button>
+                                    <p id="browserDictationStatus" class="small text-muted mb-0 mt-2" aria-live="polite"></p>
+                                </div>
+                                <div
+                                    class="bg-white p-3 rounded border shadow-sm d-flex flex-column text-center">
+                                    <h6 class="fw-bold mb-1 text-success"><i class="bi bi-soundwave me-1"></i>Dragon
+                                        Medical <span class="text-muted fw-normal">(opcional)</span></h6>
+                                    <small class="text-muted mb-2 text-start" style="font-size: 0.72rem;">
+                                        Solo si tiene <b>Dragon / DMO</b> instalado en la PC. SpeechControl puede mapear
+                                        el botón Record del SpeechMike al micrófono de Dragon.
+                                    </small>
+                                    <button type="button" id="btnDragon" class="btn btn-sm btn-outline-success fw-bold w-100"
+                                        disabled>
                                         <i class="bi bi-cursor-text me-1"></i> ACTIVAR DRAGON
                                     </button>
                                 </div>
@@ -103,6 +126,20 @@
                                     <h6 class="fw-bold mb-1 text-danger"><i class="bi bi-mic-fill me-1"></i>Audio a
                                         Transcripción</h6>
                                     <small class="text-muted mb-2">Grabe para la secretaría (Máx 10 min).</small>
+                                    <div class="d-flex flex-wrap align-items-center justify-content-center gap-2 mb-2">
+                                        <button type="button" id="btnConnectSpeechMike"
+                                            class="btn btn-sm btn-outline-primary fw-bold">
+                                            Conectar SpeechMike
+                                        </button>
+                                        <button type="button" class="btn btn-link btn-sm p-0 text-secondary"
+                                            style="font-size: 0.72rem;" id="btnSpeechMikeDebug">
+                                            Probar teclas
+                                        </button>
+                                    </div>
+                                    <p id="speechMikeHidStatus" class="small text-warning mb-2 px-1" style="font-size: 0.72rem;">
+                                        Al pulsar <b>Conectar</b>: ventana de Chrome con dispositivos Philips (o un aviso si ya
+                                        tenía permiso). Luego texto verde «Conectado: …». Si no sale nada: use Chrome/Edge + HTTPS.
+                                    </p>
 
                                     <div class="d-flex justify-content-center align-items-center gap-2">
                                         <div id="recordingPulse" class="d-none text-danger fw-bold small">

@@ -35,11 +35,17 @@ return [
         ],
     ],
 
+    'cloud_sync' => [
+        'secret' => env('CLOUD_SYNC_SECRET'),
+    ],
+
     'orthanc' => [
         'url' => env('ORTHANC_URL'),
         'host' => env('ORTHANC_HOST'),
         'port' => env('ORTHANC_PORT', 4242),
         'aet' => env('ORTHANC_AET', 'HEALTHTICLOUD'),
+        /** Token Bearer para plugin Authorization de Orthanc (mismo JWT que OHIF si aplica). */
+        'http_bearer' => env('ORTHANC_HTTP_BEARER'),
     ],
 
 ];

@@ -16,8 +16,13 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->trustProxies(at: '*');
 
+        $middleware->api(prepend: [
+            \App\Http\Middleware\ForceApiCors::class,
+        ]);
+
         $middleware->alias([
             'tenant' => \App\Http\Middleware\CheckLabTenant::class,
+            'cloud.sync' => \App\Http\Middleware\VerifyCloudSyncSecret::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

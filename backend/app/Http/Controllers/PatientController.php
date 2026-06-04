@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ChecksPatientMutationAccess;
 use App\Http\Requests\StorePatientRequest;
+use App\Models\Appointment;
 use App\Models\Paciente;
 use App\Models\Persona;
 use Illuminate\Http\Request;
@@ -136,7 +137,13 @@ class PatientController extends Controller
     public function searchByRut(Request $request)
     {
         try {
-            $rut = $request->query('rut');
+            $rut = trim((string) $request->query('rut', ''));
+            if ($rut === '') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Indique un RUT o documento.',
+                ], 422);
+            }
 
             $labId = $request->header('X-Lab-Id') ?: config('app.current_lab_id');
             $allowedLabs = config('app.allowed_lab_ids');
@@ -155,25 +162,81 @@ class PatientController extends Controller
                 return response()->json(['success' => false, 'message' => 'Acceso denegado a esta sucursal.'], 403);
             }
 
-            $persona = Persona::where('rut_hash', Persona::hashRut($rut))->first();
+            // Registro global: identidad siempre desde tabla personas (no depende de patients por sede).
+            $persona = Persona::findByRut($rut);
 
             if (!$persona) {
-                return response()->json(['success' => false, 'message' => 'Paciente no encontrado'], 404);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No hay persona registrada con ese documento.',
+                ], 404);
             }
 
-            $patient = Paciente::where('persona_id', $persona->id)
+            $patientInLab = Paciente::where('persona_id', $persona->id)
                 ->where('laboratory_id', $labId)
                 ->first();
 
-            $responseData = $persona->toArray();
+            $patientIds = Paciente::where('persona_id', $persona->id)->pluck('id');
 
-            if ($patient) {
-                $responseData['insurance_id'] = $patient->insurance_id ?? null;
+            $historyInLab = 0;
+            $lastWithInsurance = null;
+
+            if ($patientIds->isNotEmpty()) {
+                $historyInLab = Appointment::query()
+                    ->where('laboratory_id', $labId)
+                    ->whereIn('patient_id', $patientIds)
+                    ->count();
+
+                $lastWithInsurance = Appointment::query()
+                    ->whereIn('patient_id', $patientIds)
+                    ->where('laboratory_id', $labId)
+                    ->whereNotNull('insurance_id')
+                    ->orderByDesc('start_time')
+                    ->first();
+
+                if (!$lastWithInsurance) {
+                    $lastWithInsurance = Appointment::query()
+                        ->whereIn('patient_id', $patientIds)
+                        ->whereNotNull('insurance_id')
+                        ->orderByDesc('start_time')
+                        ->first();
+                }
             }
+
+            $personaPayload = [
+                'id' => $persona->id,
+                'rut' => $persona->rut,
+                'names' => $persona->names,
+                'last_name_1' => $persona->last_name_1,
+                'last_name_2' => $persona->last_name_2,
+                'gender' => $persona->gender,
+                'birth_date' => $persona->birth_date?->format('Y-m-d'),
+                'email' => $persona->email,
+                'phone' => $persona->phone,
+                'address' => $persona->address,
+                'city' => $persona->city,
+            ];
+
+            $responseData = [
+                'persona' => $personaPayload,
+                'persona_id' => $persona->id,
+                'patient_id' => $patientInLab?->id,
+                'has_ficha_in_lab' => $patientInLab !== null,
+                'history_count' => $historyInLab,
+                'had_prior_appointment_in_lab' => $historyInLab > 0,
+            ];
+
+            if ($lastWithInsurance) {
+                $responseData['insurance_id'] = $lastWithInsurance->insurance_id;
+                $responseData['insurance_plan_id'] = $lastWithInsurance->insurance_plan_id;
+            }
+
+            // Compatibilidad con código que lee campos en la raíz de data.
+            $responseData = array_merge($personaPayload, $responseData);
 
             return response()->json([
                 'success' => true,
-                'data' => $responseData
+                'data' => $responseData,
             ], 200);
 
         } catch (\Exception $e) {
