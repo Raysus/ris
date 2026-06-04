@@ -1064,7 +1064,7 @@ async function renderListaSalasAdmin() {
                         </td>
                         <td><span class="badge ${badgeColor} px-3 py-2">${res.group}</span></td>
                         <td class="text-center pe-4">
-                            <button class="btn btn-sm btn-outline-success fw-bold me-1" onclick="pingDicom('${res.id}')" title="Test de conexión DICOM C-ECHO">
+                            <button class="btn btn-sm btn-outline-success fw-bold me-1" onclick="pingDicom('${res.id}')" title="Prueba TCP desde el servidor RIS al equipo (IP+puerto de la sala)">
                                 <i class="bi bi-wifi"></i> Ping
                             </button>
                             <button class="btn btn-sm btn-outline-info fw-bold text-dark" onclick="cargarSala('${res.id}')">

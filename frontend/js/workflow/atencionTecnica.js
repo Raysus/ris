@@ -329,9 +329,10 @@ function setDicomUI(enviado, acc = null) {
                     .html('<i class="bi bi-check-circle"></i> IMÁGENES EN PACS');
                 $("#dicomStatus").html('<span class="text-success fw-bold">● Estudio cargado en Orthanc</span>');
             } else {
-                $("#btnDicom").attr("disabled", true).removeClass("btn-info").addClass("btn-secondary")
-                    .html('<i class="bi bi-check-circle"></i> ENVIADO A MODALIDADES');
-                $("#dicomStatus").html('<span class="text-success fw-bold">● LISTO EN EQUIPOS</span>');
+                $("#btnDicom").attr("disabled", false).removeClass("btn-secondary").addClass("btn-warning text-dark")
+                    .html('<i class="bi bi-arrow-repeat me-1"></i> REENVIAR A EQUIPOS');
+                $("#dicomStatus").html('<span class="text-success fw-bold">● Enviado al PACS</span> '
+                    + '<span class="text-muted">— pulse para reenviar la worklist</span>');
             }
         } else if (!manual) {
             $("#btnDicom").attr("disabled", false).addClass("btn-info text-white").removeClass("btn-secondary")
@@ -462,7 +463,13 @@ async function enviarADicom() {
 
         if (exitos > 0 && fallidos === 0) {
             setDicomUI(true, ultimoAccession);
-            showToast(`📡 Sincronización exitosa: ${exitos} estudios enviados al PACS.`, "success");
+            const reenvio = currentAtencionChain?.statusGlobal === 'dicom_enviado';
+            showToast(
+                reenvio
+                    ? `📡 Worklist reenviada al PACS (${exitos} cita(s)). El equipo debe consultar de nuevo la MWL.`
+                    : `📡 Sincronización exitosa: ${exitos} estudios enviados al PACS.`,
+                'success'
+            );
         } else if (exitos > 0 && fallidos > 0) {
             setDicomUI(true, ultimoAccession);
             showToast(`⚠️ Sincronización incompleta: ${exitos} OK, ${fallidos} errores.`, "warning");
@@ -479,7 +486,11 @@ async function enviarADicom() {
         console.error("Error de red:", e);
         showToast("🔌 Error de conexión con el servidor central.", "danger");
     } finally {
-        btn.prop('disabled', false).html('<i class="bi bi-broadcast me-1"></i> ENVIAR A EQUIPOS');
+        if (currentAtencionChain?.accessionGlobal) {
+            setDicomUI(currentAtencionChain.statusGlobal === 'dicom_enviado', currentAtencionChain.accessionGlobal);
+        } else {
+            btn.prop('disabled', false).html('<i class="bi bi-broadcast me-1"></i> ENVIAR A EQUIPOS');
+        }
     }
 }
 

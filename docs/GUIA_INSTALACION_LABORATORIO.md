@@ -554,6 +554,7 @@ Tras cambiar `.env` (IP, secreto cloud): `docker compose -f docker-compose.lan.y
 | Sync nube: «Seleccione una sede» | Elija matriz o sucursal concreta en el selector (no «Todas»). |
 | No envía citas a la nube | `CLOUD_SYNC_SECRET` configurado · `docker compose ... ps` muestra `queue` **running** · Admin → Sync Nube sin fallos. |
 | No hay imágenes / visor vacío | Pruebe `curl` a `ORTHANC_URL` desde el servidor. Si falla, es red o URL incorrecta — contacte sistemas (no es problema del navegador del usuario). |
+| Cambié `ORTHANC_URL` y sigue la IP antigua | Edite `backend/.env`, luego: `docker compose -f docker-compose.lan.yml up -d --force-recreate api queue` y `docker compose ... exec api php artisan config:clear`. Los contenedores **no** releen `.env` solos al guardar el archivo. |
 | `permission denied` con Docker | Usuario en grupo `docker`, cerrar sesión y volver a entrar. |
 | `Connection refused` PostgreSQL 127.0.0.1:5432 | PostgreSQL va en Docker: `docker compose ... ps` (pgsql running). Tras actualizar compose, `up -d pgsql` publica el puerto en localhost. O use: `docker compose ... exec api php artisan ...` |
 | Error al `up --build` | `docker compose ... logs api` y `logs pgsql`. Verifique espacio en disco: `df -h`. |

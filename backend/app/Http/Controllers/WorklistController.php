@@ -90,18 +90,29 @@ class WorklistController extends Controller
             ], 422);
         }
 
-        $userId = $request->user()->id;
         $appointment = $this->getSecureAppointmentQuery()
-            ->with(['patient.persona', 'machine'])
+            ->with(['patient.persona', 'machine', 'studies.machine'])
             ->findOrFail($appointmentId);
 
-        $accessionNumber = 'ACC-' . date('Ymd') . '-' . substr($appointment->id, 0, 5);
+        $machine = $appointment->studies->first(fn ($s) => $s->machine)?->machine
+            ?? $appointment->machine;
+
+        if (!$machine) {
+            return response()->json([
+                'success' => false,
+                'message' => 'La cita no tiene sala/equipo asignado. Asigne la modalidad en Agenda antes de enviar la worklist.',
+            ], 422);
+        }
+
+        $isResend = filled($appointment->accession_number);
+        $accessionNumber = $appointment->accession_number
+            ?: ('ACC-' . date('Ymd') . '-' . substr($appointment->id, 0, 5));
 
         try {
             $orthancBase = OrthancUrl::base();
             $orthancUrl = $orthancBase . '/worklists/create';
 
-            $stationAeTitle = $appointment->machine->ae_title ?? "SALA_" . $appointment->machine_id;
+            $stationAeTitle = $machine->ae_title ?: ('SALA_' . $machine->id);
 
             // 🔥 CORRECCIÓN 2: El formato exacto que pide el plugin envuelto en "Tags"
             $dicomWorklistData = [
@@ -115,7 +126,7 @@ class WorklistController extends Controller
                             "ScheduledProcedureStepStartDate" => \Carbon\Carbon::parse($appointment->start_time)->format('Ymd'),
                             "ScheduledProcedureStepStartTime" => \Carbon\Carbon::parse($appointment->start_time)->format('His'),
                             "ScheduledProcedureStepID" => (string) $appointment->id,
-                            "Modality" => ModalityCode::forDicomWorklist($appointment->machine->group ?? 'US')
+                            "Modality" => ModalityCode::forDicomWorklist($machine->group ?? 'US')
                         ]
                     ]
                 ]
@@ -140,7 +151,11 @@ class WorklistController extends Controller
             $appointment->load(['patient.persona', 'studies', 'supplies']);
             \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
 
-            return response()->json(['success' => true, 'accession' => $accessionNumber]);
+            return response()->json([
+                'success' => true,
+                'accession' => $accessionNumber,
+                'resent' => $isResend,
+            ]);
 
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
             return response()->json([

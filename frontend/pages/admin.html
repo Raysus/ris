@@ -1006,12 +1006,14 @@
                     <input type="text" class="form-control" id="salaAeTitle" placeholder="Ej. CT_SALA1">
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label fw-bold small text-muted">Dirección IP</label>
-                    <input type="text" class="form-control" id="salaIp" placeholder="Ej. 192.168.1.50">
+                    <label class="form-label fw-bold small text-muted">Dirección IP del equipo</label>
+                    <input type="text" class="form-control" id="salaIp" placeholder="Ej. 192.168.0.108">
+                    <div class="form-text">IP LAN del <strong>equipo de rayos/CR/ecógrafo</strong>, no la URL del PACS en nube.</div>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label fw-bold small text-muted">Puerto</label>
-                    <input type="number" class="form-control" id="salaPort" placeholder="Ej. 104">
+                    <label class="form-label fw-bold small text-muted">Puerto DICOM</label>
+                    <input type="number" class="form-control" id="salaPort" placeholder="104 o 4242">
+                    <div class="form-text">Puerto del modalidad (Fuji/CR suele usar <strong>104</strong>; DICOM estándar <strong>4242</strong>).</div>
                 </div>
                 <div class="col-12 mt-4">
                     <h6 class="fw-bold text-secondary border-bottom pb-2">Información del Equipo (Opcional)</h6>

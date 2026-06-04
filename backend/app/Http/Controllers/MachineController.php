@@ -125,7 +125,10 @@ class MachineController extends Controller
         return response()->json(['success' => false, 'message' => 'Sala no encontrada o acceso denegado'], 404);
     }
 
-    // === NUEVO: PRUEBA DE CONEXIÓN DICOM (PING) ===
+    /**
+     * Prueba TCP desde el servidor RIS hacia el equipo adquisidor (IP + puerto de la sala).
+     * No es un C-ECHO DICOM completo. No valida ORTHANC_URL del .env (PACS en nube es otro destino).
+     */
     public function pingDicom($id)
     {
         $machine = $this->getSecureMachineQuery()->findOrFail($id);
@@ -137,22 +140,39 @@ class MachineController extends Controller
             ], 400);
         }
 
-        $waitTimeoutInSeconds = 3;
+        $host = trim((string) $machine->ip_address);
+        $port = (int) $machine->port;
 
-        // Intentamos abrir un socket TCP a la IP y Puerto de la máquina
-        $fp = @fsockopen($machine->ip_address, $machine->port, $errCode, $errStr, $waitTimeoutInSeconds);
+        if ($port < 1 || $port > 65535) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Puerto inválido. Use el puerto DICOM del equipo (p. ej. 104, 4242), no la URL web del PACS.',
+            ], 400);
+        }
+
+        $errCode = 0;
+        $errStr = '';
+        $fp = @fsockopen($host, $port, $errCode, $errStr, 3);
 
         if ($fp) {
             fclose($fp);
+
             return response()->json([
                 'success' => true,
-                'message' => "¡C-ECHO Exitoso! El equipo [{$machine->ae_title}] responde en la red."
+                'message' => "Puerto TCP abierto en {$host}:{$port} ({$machine->ae_title}). "
+                    . 'El equipo acepta conexiones; esto no garantiza C-ECHO DICOM.',
             ]);
-        } else {
-            return response()->json([
-                'success' => false,
-                'message' => "Fallo de conexión. El equipo está apagado o el puerto cerrado ($errStr)."
-            ], 408); // 408 Request Timeout
         }
+
+        $hint = match (true) {
+            in_array($port, [80, 443, 8042], true) => ' El PACS en la nube se configura en ORTHANC_URL del .env, no en la IP de la sala.',
+            $errCode === 111 => ' Connection refused: no hay servicio escuchando en ese puerto o el equipo está apagado.',
+            default => ' Revise que el servidor RIS alcance esa red (misma VLAN), firewall y el puerto DICOM correcto.',
+        };
+
+        return response()->json([
+            'success' => false,
+            'message' => "Sin conexión TCP a {$host}:{$port} ({$errStr}).{$hint}",
+        ], 408);
     }
 }
