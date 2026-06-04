@@ -466,8 +466,8 @@
 
                         <div class="row g-2 mt-3 align-items-center">
                             <div class="col-md-8">
-                                <button type="button" class="btn btn-sm btn-success fw-bold" id="btnRegistrarPago"
-                                    onclick="registrarPagoDesdeAgenda()" style="display: none;">
+                                <button type="button" class="btn btn-sm btn-success fw-bold d-none" id="btnRegistrarPago"
+                                    onclick="registrarPagoDesdeAgenda()">
                                     <i class="bi bi-cash-stack me-1"></i> Registrar pago en caja
                                 </button>
                             </div>
@@ -487,13 +487,13 @@
 
             </div>
 
-            <div class="modal-footer bg-white border-top-0 d-flex justify-content-between py-3 px-4">
-                <button type="button" class="btn btn-outline-danger fw-bold" id="btnEliminarCita"
-                    onclick="eliminarCita()" style="display: none;">
+            <div class="modal-footer agenda-modal-footer bg-white d-flex justify-content-between flex-wrap gap-2 py-3 px-4">
+                <button type="button" class="btn btn-outline-danger fw-bold d-none" id="btnEliminarCita"
+                    onclick="eliminarCita()">
                     <i class="bi bi-trash me-2"></i> Anular Cita
                 </button>
-                <div class="d-flex gap-2 ms-auto">
-                    <button type="button" class="btn btn-outline-secondary fw-bold" id="btnWizardPrev" onclick="prevAgendaWizardStep()" style="display: none;">
+                <div class="d-flex flex-wrap gap-2 ms-auto agenda-wizard-actions">
+                    <button type="button" class="btn btn-outline-secondary fw-bold d-none" id="btnWizardPrev" onclick="prevAgendaWizardStep()">
                         <i class="bi bi-arrow-left me-1"></i> Anterior
                     </button>
                     <button type="button" class="btn btn-light text-dark fw-bold px-4 border"
@@ -501,7 +501,7 @@
                     <button type="button" class="btn btn-outline-primary fw-bold" id="btnWizardNext" onclick="nextAgendaWizardStep()">
                         Siguiente <i class="bi bi-arrow-right ms-1"></i>
                     </button>
-                    <button type="button" class="btn btn-primary fw-bold shadow-sm px-5" id="btnGuardarCita" onclick="guardarCita()" style="display: none;">
+                    <button type="button" class="btn btn-primary fw-bold shadow-sm px-5 d-none" id="btnGuardarCita" onclick="guardarCita()">
                         <i class="bi bi-save me-2"></i> Guardar Cita
                     </button>
                 </div>

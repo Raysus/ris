@@ -294,10 +294,30 @@ async function initAgenda() {
     setupCalendar(calendarEl);
     await cargarAgendaDesdeServidor();
 
+    ensureAgendaModalsAnchored();
+    bindAgendaModalWizardEvents();
+
     if (!window._agendaListenersBound) {
         setupProEventListeners();
         window._agendaListenersBound = true;
     }
+}
+
+function ensureAgendaModalsAnchored() {
+    ['appointmentModal', 'modalNuevoMedico'].forEach((id) => {
+        if (typeof risEnsureModalInBody === 'function') {
+            risEnsureModalInBody(id);
+        }
+    });
+}
+
+function bindAgendaModalWizardEvents() {
+    const modalEl = document.getElementById('appointmentModal');
+    if (!modalEl || modalEl.dataset.risWizardBound === '1') return;
+    modalEl.dataset.risWizardBound = '1';
+    modalEl.addEventListener('shown.bs.modal', () => {
+        if (typeof updateAgendaWizardUI === 'function') updateAgendaWizardUI();
+    });
 }
 async function cargarCatalogosDesdeBD() {
     const token = localStorage.getItem('ris_token');
@@ -879,11 +899,11 @@ function abrirModalCita(data) {
         }
 
         $("#modalTitle").html('<i class="bi bi-pencil-square me-2"></i>Editar Cita Médica');
-        $("#btnEliminarCita").show();
+        $("#btnEliminarCita").removeClass("d-none");
 
     } else {
         $("#modalTitle").html('<i class="bi bi-calendar-plus me-2"></i>Nueva Cita Médica');
-        $("#btnEliminarCita").hide();
+        $("#btnEliminarCita").addClass("d-none");
         $("#agendaStatus").val("pre-agendado").trigger("change");
         actualizarCtaAtencionSalas();
 
@@ -892,7 +912,7 @@ function abrirModalCita(data) {
     }
 
     const appointmentId = $("#appointmentId").val();
-    $("#btnRegistrarPago").toggle(!!appointmentId);
+    $("#btnRegistrarPago").toggleClass("d-none", !appointmentId);
     if (appointmentId && window.paymentManager) {
         window.paymentManager.cargarDesglose(appointmentId);
         window.paymentManager.cargarHistorialPagos(appointmentId);
@@ -1410,6 +1430,8 @@ function setupProEventListeners() {
         actualizarTerminoEstimadoDesdeExamenes();
     });
     $(document).on('change', '#manualEndTime', actualizarResumenBloquesCita);
+    $(document).on('change', '#fileOrdenMedica', function (e) { procesarArchivoEscaner(e, 'orden'); });
+    $(document).on('change', '#fileEncuesta', function (e) { procesarArchivoEscaner(e, 'encuesta'); });
 
     $("#agendaStatus").on("change", function () {
         colorSelectorEstado();
@@ -1699,11 +1721,6 @@ function subirDocumentoAgenda(tipo) {
     $(inputId).trigger('click');
 }
 
-$(document).ready(function () {
-    $('#fileOrdenMedica').on('change', function (e) { procesarArchivoEscaner(e, 'orden'); });
-    $('#fileEncuesta').on('change', function (e) { procesarArchivoEscaner(e, 'encuesta'); });
-});
-
 function procesarArchivoEscaner(event, tipo) {
     const file = event.target.files[0];
     if (!file) return;
@@ -1728,6 +1745,19 @@ function procesarArchivoEscaner(event, tipo) {
         showToast("✅ Documento procesado y adjuntado correctamente.", "success");
     };
     reader.readAsDataURL(file);
+}
+
+function borrarDocumento(tipo) {
+    if (tipo === 'orden') {
+        $('#docOrdenMedica').val('');
+        $('#fileOrdenMedica').val('');
+        $('#btnVerOrden, #btnBorrarOrden').addClass('d-none');
+    } else {
+        $('#docEncuesta').val('');
+        $('#fileEncuesta').val('');
+        $('#btnVerEncuesta, #btnBorrarEncuesta').addClass('d-none');
+    }
+    if (typeof showToast === 'function') showToast('Documento eliminado.', 'info');
 }
 
 function verDocumento(tipo) {

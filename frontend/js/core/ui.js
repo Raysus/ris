@@ -193,9 +193,17 @@ function showPrompt(message, options = {}) {
     });
 }
 
+function risEnsureModalInBody(id) {
+    const el = document.getElementById(id);
+    if (el && el.parentElement && el.parentElement !== document.body) {
+        document.body.appendChild(el);
+    }
+}
+
 function openModal(id) {
     const el = document.getElementById(id);
     if (!el) return Promise.resolve();
+    risEnsureModalInBody(id);
     const modal = bootstrap.Modal.getOrCreateInstance(el);
     modal.show();
     return Promise.resolve(modal);
@@ -293,6 +301,17 @@ function validateAgendaWizardStep(step) {
     return true;
 }
 
+function setAgendaWizardFooterBtn(id, visible) {
+    const $btn = $(`#${id}`);
+    if (!$btn.length) return;
+    $btn.toggleClass("d-none", !visible);
+    if (visible) {
+        $btn.css("display", "");
+    } else {
+        $btn.css("display", "none");
+    }
+}
+
 function updateAgendaWizardUI() {
     $(".agenda-wizard-step").addClass("d-none");
     $(`.agenda-wizard-step[data-step="${_agendaWizardStep}"]`).removeClass("d-none");
@@ -300,9 +319,9 @@ function updateAgendaWizardUI() {
     $(".agenda-wizard-nav .nav-link").removeClass("active");
     $(`.agenda-wizard-nav .nav-link[data-step="${_agendaWizardStep}"]`).addClass("active");
 
-    $("#btnWizardPrev").toggle(_agendaWizardStep > 1);
-    $("#btnWizardNext").toggle(_agendaWizardStep < AGENDA_WIZARD_MAX);
-    $("#btnGuardarCita").toggle(_agendaWizardStep === AGENDA_WIZARD_MAX);
+    setAgendaWizardFooterBtn("btnWizardPrev", _agendaWizardStep > 1);
+    setAgendaWizardFooterBtn("btnWizardNext", _agendaWizardStep < AGENDA_WIZARD_MAX);
+    setAgendaWizardFooterBtn("btnGuardarCita", _agendaWizardStep === AGENDA_WIZARD_MAX);
 }
 
 /** Valida campos obligatorios marcados con una clase (ej. .req-sala). */
@@ -330,6 +349,12 @@ function limpiarFormulario(selector) {
 
 window.validarFormulario = validarFormulario;
 window.limpiarFormulario = limpiarFormulario;
+window.risEnsureModalInBody = risEnsureModalInBody;
+window.initAgendaWizard = initAgendaWizard;
+window.goAgendaWizardStep = goAgendaWizardStep;
+window.nextAgendaWizardStep = nextAgendaWizardStep;
+window.prevAgendaWizardStep = prevAgendaWizardStep;
+window.updateAgendaWizardUI = updateAgendaWizardUI;
 
 $(document).ready(function () {
     initMobileSidebar();
