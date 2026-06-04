@@ -56,6 +56,7 @@ accesible desde la red del centro).
 | Disco | Mínimo **50 GB** libres |
 | Red | IP fija en la LAN (ej. `192.168.1.50`) |
 | Acceso | Usuario con `sudo` y conexión a internet para la primera instalación |
+| PHP en Docker | **8.3** (imagen `php:8.3-cli` en `backend/Dockerfile`; igual que `composer.json`) |
 
 ### En PCs con escáner (opcional)
 
@@ -165,15 +166,20 @@ cp .env.lan.example .env
 nano .env
 ```
 
+El archivo `.env.lan.example` replica las variables importantes de `.env.example`,
+adaptadas al stack Docker LAN (PostgreSQL en contenedor `pgsql`, PACS/visor en nube).
+
 En `nano`: edite, luego `Ctrl+O`, Enter, `Ctrl+X`.
 
 | Buscar | Poner |
 |--------|--------|
 | `192.168.1.50` (todas las apariciones) | IP **real** del servidor en la LAN |
 | `ORTHANC_URL` | URL del PACS que le dio sistemas |
-| `PACS_DEFAULT_IP` / `PACS_DEFAULT_PORT` | Datos DICOM para equipos (si aplica) |
+| `PACS_DEFAULT_IP` / `PACS_DEFAULT_PORT` / `PACS_DEFAULT_AET` | Datos DICOM para equipos (si aplica) |
 | `DB_PASSWORD` | Contraseña fuerte inventada por usted |
 | `SANCTUM_STATEFUL_DOMAINS` | Misma IP del servidor + `localhost,127.0.0.1` |
+| `VIEWER_URL` / `VIEWER_PATH` | Visor OHIF en nube (`https://viewer.healthticloud.cl`, `/viewer`) |
+| `PATIENT_PORTAL_URL` | `https://portal.healthticloud.cl` (enlaces en correos) |
 
 Obtenga la IP del servidor:
 
@@ -344,6 +350,7 @@ Si le piden una actualización manual excepcional, use exactamente esos dos bloq
 | No hay imágenes / visor vacío | Pruebe `curl` a `ORTHANC_URL` desde el servidor. Si falla, es red o URL incorrecta — contacte sistemas (no es problema del navegador del usuario). |
 | `permission denied` con Docker | Usuario en grupo `docker`, cerrar sesión y volver a entrar. |
 | Error al `up --build` | `docker compose ... logs api` y `logs pgsql`. Verifique espacio en disco: `df -h`. |
+| Error de versión PHP / Composer | Reconstruya imagen: `docker compose -f docker-compose.lan.yml build --no-cache api`. Debe usar PHP **8.3** (no mezclar con PHP 8.4+ del host). |
 | Puerto 80 ocupado | `sudo ss -tlnp | grep :80` — otro servicio (Apache/nginx) puede chocar; avise a sistemas. |
 
 ---

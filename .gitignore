@@ -9,6 +9,11 @@ vendor/
 frontend/js/config.local.js
 backend/.env
 backend/.env.*
+!backend/.env.lan.example
+
+# Python
+__pycache__/
+*.pyc
 
 # IDE / SO
 .DS_Store

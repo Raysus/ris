@@ -144,6 +144,48 @@ Firewall: permitir puertos **8000** y **5500** (o 80/443 si usa Nginx).
 
 ---
 
+## 3.1 Laboratorio con Docker (`docker-compose.lan.yml`)
+
+Stack recomendado en el servidor del centro (Ubuntu o Windows con Docker Desktop).
+La API corre en contenedor **PHP 8.3** (`backend/Dockerfile`), alineado con `composer.json` (`^8.3`).
+En su PC de desarrollo puede tener PHP 8.4 u 8.5; en producción LAN use siempre la imagen Docker.
+
+```bash
+cd backend
+cp .env.lan.example .env
+# Editar IP LAN, ORTHANC_URL, DB_PASSWORD, etc.
+docker compose -f docker-compose.lan.yml run --rm api php artisan key:generate --show
+# Pegar APP_KEY= en .env
+docker compose -f docker-compose.lan.yml up -d --build
+```
+
+| Servicio | Puerto | Función |
+|----------|--------|---------|
+| `web` (nginx) | 80 | Frontend estático (`../frontend`) |
+| `api` | 8000 | Laravel (`php artisan serve`) |
+| `pgsql` | interno | PostgreSQL 15 |
+| `redis` | interno | Caché opcional (cola por defecto: `database`) |
+
+El frontend detecta la API en `http://<IP-servidor>:8000/api` automáticamente (`frontend/js/config.js`).
+No hace falta editar `config.js` en cada PC si todas entran por `http://<IP>`.
+
+Variables clave (ver `.env.lan.example`, espejo de `.env.example`):
+
+| Variable | LAN típico |
+|----------|------------|
+| `APP_URL` | `http://192.168.x.x:8000` |
+| `FRONTEND_URL` | `http://192.168.x.x` (puerto 80) |
+| `SESSION_SECURE_COOKIE` | `false` (HTTP sin TLS) |
+| `RIS_CLOUD_ROLE` | `local` |
+| `ORTHANC_URL` | URL PACS en nube |
+| `VIEWER_URL` | `https://viewer.healthticloud.cl` |
+
+Tras el primer arranque: `DB_AUTO_SEED=false` y `docker compose -f docker-compose.lan.yml up -d`.
+
+Guía paso a paso: **[GUIA_INSTALACION_LABORATORIO.md](GUIA_INSTALACION_LABORATORIO.md)**.
+
+---
+
 ## 4. Producción en nube (sin Docker)
 
 Código típico: `/var/www/ris.healthticloud.cl`
@@ -381,18 +423,21 @@ Logs: `backend/storage/logs/laravel.log`
 
 ---
 
-## 8. Manual de usuario
+## 8. Manual de usuario (instructivo)
 
-- PDF/DOCX: `docs/INSTRUCTIVO_HealthTiCloud_RIS.pdf` (o `.docx`)
-- Regenerar ambos formatos:
+Archivos entregables: `docs/INSTRUCTIVO_HealthTiCloud_RIS.pdf` y `.docx` (17 capítulos: flujo clínico, módulos, dental/vet, dictado, secretaria, sync nube, FAQ).
+
+Regenerar tras cambios de interfaz:
 
 ```bash
-cd docs
-python generate_instructivo.py
-python generate_instructivo_docx.py
+pip install -r docs/requirements-docs.txt
+# API en :8000, frontend en :8765 (variables RIS_API_URL / RIS_FRONTEND_URL opcionales)
+node docs/capture_screenshots.mjs
+python docs/generate_instructivo.py
+python docs/generate_instructivo_docx.py
 ```
 
-El capítulo 5 describe Worklist (clínico) y **Atención en salas** (dental/vet). El capítulo 12 detalla diferencias por tipo de centro y los laboratorios de demostración del seeder.
+El capítulo 5 del PDF describe Worklist (clínico) y **Atención en salas** (dental/vet). El capítulo 12 detalla diferencias por tipo de centro.
 
 ---
 

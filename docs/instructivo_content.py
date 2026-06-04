@@ -19,9 +19,13 @@ TOC = [
     "8. Módulo Validación",
     "9. Módulo Entrega y retiro",
     "10. Módulo Administración",
-    "11. Módulo Dashboard",
+    "11. Módulo Dashboard y alertas",
     "12. Anexo: centros dental y veterinarios",
-    "13. Anexo técnico",
+    "13. Dictado por voz, visor OHIF y bridge local",
+    "14. Perfil Secretaria",
+    "15. Sincronización con la nube",
+    "16. Preguntas frecuentes",
+    "17. Anexo técnico",
 ]
 
 
@@ -149,9 +153,17 @@ def render_instructivo(
     doc.h2("Elementos comunes de la interfaz")
     doc.bullets([
         "Menú lateral izquierdo: cambio entre módulos visibles para usted.",
-        "Barra superior: laboratorio activo, nombre de usuario y rol.",
+        "Barra superior: laboratorio activo, selector de sede, nombre de usuario y rol.",
+        "Botón «Hoy» en Agenda: centra el calendario en la fecha actual (use las flechas para otros días).",
+        "Paleta morada (#5b4a82): botones principales y encabezados; textos en gris oscuro para buena lectura.",
         "Toasts (avisos abajo a la derecha): confirmaciones y errores.",
         "Modales de confirmación: acciones importantes piden confirmación antes de ejecutarse.",
+    ])
+    doc.h2("Contraseña y recuperación")
+    doc.steps([
+        "En la pantalla de login use «¿Olvidó su contraseña?» si el centro tiene correo configurado.",
+        "Tras el enlace recibido, defina una clave nueva que cumpla la política del centro.",
+        "Si el administrador exige cambio al primer ingreso, el sistema redirige a «Cambiar contraseña».",
     ])
     doc.render_table(
         ["Módulo en menú", "Roles con acceso"],
@@ -383,7 +395,7 @@ def render_instructivo(
         "Exportar datos a Excel donde esté disponible.",
     ])
 
-    doc.chapter("11", "Módulo Dashboard")
+    doc.chapter("11", "Módulo Dashboard y alertas")
     doc.p("Acceso: administradores y perfiles operativos con permiso de visualización.")
     if s("10_modulo_dashboard"):
         doc.figure(
@@ -399,6 +411,12 @@ def render_instructivo(
         "Monitorear en qué etapa del flujo clínico están las citas del día.",
         "Usar el selector de laboratorio para filtrar sucursales (administradores multi-sede).",
     ])
+    doc.h2("Alertas operativas")
+    doc.p(
+        "El panel puede resaltar citas con demora (TAT por encima del umbral configurado en el servidor), "
+        "estudios en informe prolongado o colas de worklist. Revise el detalle en cada módulo "
+        "(Agenda, Worklist, Radiólogo) para actuar."
+    )
 
     doc.chapter("12", "Anexo: centros dental y veterinarios")
     doc.p(
@@ -489,10 +507,79 @@ def render_instructivo(
         "Portal del paciente: https://portal.healthticloud.cl (servicio aparte).",
     ])
     doc.p(
-        "Documentación técnica de instalación: docs/INSTALACION.md"
+        "Documentación técnica de instalación: docs/INSTALACION.md y "
+        "docs/GUIA_INSTALACION_LABORATORIO.md (Docker LAN, PHP 8.3)."
     )
 
-    doc.chapter("13", "Anexo técnico")
+    doc.chapter("13", "Dictado por voz, visor OHIF y bridge local")
+    doc.p(
+        "El radiólogo puede redactar informes con dictado por voz del navegador (Chrome/Edge) "
+        "o con pedal SpeechMike HID si está habilitado en su PC."
+    )
+    doc.h2("Dictado por voz en el navegador")
+    doc.steps([
+        "En Radiólogo o Transcripción, abra el editor de informe.",
+        "Pulse el botón de micrófono; el navegador pedirá permiso de micrófono (una sola vez).",
+        "Hable con claridad; el texto se inserta en el cursor. Detenga con el mismo botón.",
+        "Si no aparece texto, compruebe que el sitio no esté bloqueado en configuración de privacidad.",
+    ])
+    doc.h2("Visor OHIF (imágenes en la nube)")
+    doc.bullets([
+        "Botón «Visor PACS» abre https://viewer.healthticloud.cl/viewer?StudyInstanceUIDs=…",
+        "El RIS obtiene el StudyInstanceUID desde Orthanc usando el accession de la cita.",
+        "Si hay bridge local (RadiAnt/Weasis) en la PC, puede usarse como alternativa.",
+    ])
+    doc.h2("Bridge escáner/visor en recepción")
+    doc.p(
+        "En PCs con escáner documental, el programa ris-local-bridge (Node.js + NAPS2) corre en "
+        "http://127.0.0.1:8181. No es necesario en todas las estaciones; solo donde se digitalicen órdenes."
+    )
+
+    doc.chapter("14", "Perfil Secretaria")
+    doc.p(
+        "La secretaria apoya recepción: agenda citas, entrega resultados y puede subir imágenes o "
+        "informes según el centro. **No** edita fichas de paciente en PACS salvo excepción RDOX Osorno."
+    )
+    doc.bullets([
+        "Módulos visibles: Agenda y Entrega/Retiro (igual que recepción en muchos centros).",
+        "Subida de DICOM o informes PDF cuando el flujo del centro lo permite.",
+        "En RDOX Osorno puede corregir datos de paciente en PACS (política local).",
+        "El administrador crea el usuario en Administración → Usuarios y asigna rol Secretaria.",
+    ])
+
+    doc.chapter("15", "Sincronización con la nube")
+    doc.p(
+        "En instalaciones multi-sede, el servidor central (nube) concentra catálogos y puede recibir "
+        "datos desde laboratorios LAN. Solo administradores del sistema o perfiles autorizados ven estas opciones."
+    )
+    doc.h2("Desde un laboratorio (LAN)")
+    doc.bullets([
+        "RIS_CLOUD_ROLE=local: el lab opera de forma autónoma y puede enviar entidades pendientes a la nube.",
+        "Requiere CLOUD_API_BASE y CLOUD_SYNC_SECRET configurados por sistemas.",
+        "En Administración puede aparecer «Enviar pendientes a nube» o sincronización por módulo.",
+    ])
+    doc.h2("En el servidor nube")
+    doc.bullets([
+        "RIS_CLOUD_ROLE=cloud: recibe actualizaciones inbound y publica catálogo para pull.",
+        "Los labs descargan catálogo (exámenes, previsiones) sin duplicar carga manual.",
+    ])
+    doc.p("El personal de recepción no debe ejecutar sync manual salvo indicación de soporte.")
+
+    doc.chapter("16", "Preguntas frecuentes")
+    doc.render_table(
+        ["Problema", "Qué hacer"],
+        [
+            ["No veo un módulo", "Verifique laboratorio en barra superior y roles en Administración."],
+            ["Login no guarda sesión (LAN)", "Soporte: SESSION_SECURE_COOKIE=false en servidor."],
+            ["Visor vacío", "Imágenes aún no en PACS o accession incorrecto; tecnología debe finalizar atención."],
+            ["Correo no llega al paciente", "SMTP del centro o MAIL_MAILER=log en pruebas."],
+            ["Colores viejos tras actualizar", "Ctrl+Shift+R o ventana de incógnito en el navegador."],
+            ["Otra PC no abre el RIS", "Use http://IP-del-servidor (no localhost) y misma red Wi‑Fi/LAN."],
+        ],
+        (52, 138),
+    )
+
+    doc.chapter("17", "Anexo técnico")
     doc.p("Información para soporte TI o regeneración de este manual.")
     doc.bullets([
         "URL producción RIS: https://ris.healthticloud.cl — API en /api (config.js con detección automática).",

@@ -63,6 +63,8 @@ notepad .env
 
 Sustituya `192.168.1.50` por la IPv4 del servidor (`ipconfig`). Configure `ORTHANC_URL` con la URL del PACS en nube que le indique sistemas.
 
+El contenedor API usa **PHP 8.3** (igual que `composer.json`). Si en Windows tiene otro PHP instalado, no importa: Docker usa la imagen del `Dockerfile`.
+
 ```powershell
 docker compose -f docker-compose.lan.yml run --rm api php artisan key:generate --show
 ```

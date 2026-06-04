@@ -6,8 +6,10 @@
 #   y VIEWER_URL de la nube (ver docs/GUIA_INSTALACION_LABORATORIO.md).
 #   Tailscale: solo en el PC de quien despliega/soporta por SSH (Envoy).
 #
+#   API/queue/scheduler: imagen PHP 8.3 (ver Dockerfile; igual que composer.json ^8.3).
+#
 #   Uso:
-#     copy .env.lan.example .env   (y editar IP del servidor + ORTHANC_URL nube)
+#     cp .env.lan.example .env   (editar IP LAN + ORTHANC_URL nube)
 #     docker compose -f docker-compose.lan.yml up -d --build
 #
 #   Detalle: docs/GUIA_INSTALACION_LABORATORIO.md
