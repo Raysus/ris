@@ -19,6 +19,9 @@ services:
   pgsql:
     image: postgres:15
     restart: unless-stopped
+    # Solo localhost: permite php artisan / composer en el host (DB_HOST=127.0.0.1 en .env)
+    ports:
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_DB: ${DB_DATABASE:-ris_db}
       POSTGRES_USER: ${DB_USERNAME:-risuserdb}

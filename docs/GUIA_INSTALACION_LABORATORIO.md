@@ -555,6 +555,7 @@ Tras cambiar `.env` (IP, secreto cloud): `docker compose -f docker-compose.lan.y
 | No envía citas a la nube | `CLOUD_SYNC_SECRET` configurado · `docker compose ... ps` muestra `queue` **running** · Admin → Sync Nube sin fallos. |
 | No hay imágenes / visor vacío | Pruebe `curl` a `ORTHANC_URL` desde el servidor. Si falla, es red o URL incorrecta — contacte sistemas (no es problema del navegador del usuario). |
 | `permission denied` con Docker | Usuario en grupo `docker`, cerrar sesión y volver a entrar. |
+| `Connection refused` PostgreSQL 127.0.0.1:5432 | PostgreSQL va en Docker: `docker compose ... ps` (pgsql running). Tras actualizar compose, `up -d pgsql` publica el puerto en localhost. O use: `docker compose ... exec api php artisan ...` |
 | Error al `up --build` | `docker compose ... logs api` y `logs pgsql`. Verifique espacio en disco: `df -h`. |
 | Error de versión PHP / Composer | Reconstruya imagen: `docker compose -f docker-compose.lan.yml build --no-cache api`. Debe usar PHP **8.5.4** del `Dockerfile` (no el PHP del host). |
 | Puerto 80 ocupado | `sudo ss -tlnp | grep :80` — otro servicio (Apache/nginx) puede chocar; avise a sistemas. |

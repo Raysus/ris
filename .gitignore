@@ -1,6 +1,7 @@
 # Dependencias y entornos
 node_modules/
 vendor/
+backend/vendor/
 
 # Secretos y config local
 .env
