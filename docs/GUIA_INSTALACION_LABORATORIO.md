@@ -57,7 +57,7 @@ La **URL del PACS** en `.env` sigue siendo la que indique sistemas (no depende d
 | Disco | Mínimo **50 GB** libres |
 | Red | IP fija en la LAN (ej. `192.168.1.50`) |
 | Acceso | Usuario con `sudo` y conexión a internet para la primera instalación |
-| PHP en Docker | **8.3** (imagen `php:8.3-cli` en `backend/Dockerfile`; igual que `composer.json`) |
+| PHP en Docker | **8.5.4** (imagen `php:8.5.4-cli` en `backend/Dockerfile`; igual que `composer.json`) |
 
 ### En PCs con escáner (opcional)
 
@@ -440,7 +440,7 @@ Si le piden una actualización manual excepcional, use exactamente esos dos bloq
 | No hay imágenes / visor vacío | Pruebe `curl` a `ORTHANC_URL` desde el servidor. Si falla, es red o URL incorrecta — contacte sistemas (no es problema del navegador del usuario). |
 | `permission denied` con Docker | Usuario en grupo `docker`, cerrar sesión y volver a entrar. |
 | Error al `up --build` | `docker compose ... logs api` y `logs pgsql`. Verifique espacio en disco: `df -h`. |
-| Error de versión PHP / Composer | Reconstruya imagen: `docker compose -f docker-compose.lan.yml build --no-cache api`. Debe usar PHP **8.3** (no mezclar con PHP 8.4+ del host). |
+| Error de versión PHP / Composer | Reconstruya imagen: `docker compose -f docker-compose.lan.yml build --no-cache api`. Debe usar PHP **8.5.4** del `Dockerfile` (no el PHP del host). |
 | Puerto 80 ocupado | `sudo ss -tlnp | grep :80` — otro servicio (Apache/nginx) puede chocar; avise a sistemas. |
 | Tailscale «offline» tras reinicio | `sudo systemctl status tailscaled` · `sudo tailscale up` · verifique con `tailscale status`. |
 | Sistemas no entra por SSH a la IP `100.x` | Confirme que el nodo está en la misma cuenta Tailscale, IP con `tailscale ip -4`, y usuario SSH correcto. |

@@ -6,7 +6,7 @@
 #   y VIEWER_URL de la nube (ver docs/GUIA_INSTALACION_LABORATORIO.md).
 #   Tailscale: solo en el PC de quien despliega/soporta por SSH (Envoy).
 #
-#   API/queue/scheduler: imagen PHP 8.3 (ver Dockerfile; igual que composer.json ^8.3).
+#   API/queue/scheduler: imagen PHP 8.5.4 (ver Dockerfile; igual que composer.json ^8.5).
 #
 #   Uso:
 #     cp .env.lan.example .env   (editar IP LAN + ORTHANC_URL nube)
