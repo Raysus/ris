@@ -435,6 +435,7 @@ Si le piden una actualización manual excepcional, use exactamente esos dos bloq
 | Síntoma | Qué hacer |
 |---------|-----------|
 | Otra PC no abre `http://IP` | Compruebe IP con `hostname -I`, reglas UFW (paso 9), que el servidor esté encendido. Pruebe `ping IP` desde la otra PC. |
+| Navegador «failed to fetch» / connection reset | Desde la otra PC: `curl http://IP/api/health`. Si falla: `docker compose ... ps` (api y web running), reinicie `web` tras actualizar nginx. El frontend LAN usa **`http://IP/api`** (puerto 80), no hace falta abrir 8000 en el firewall si nginx hace proxy. |
 | Login no guarda sesión / se cae | En `.env`: `SESSION_SECURE_COOKIE=false`. `docker compose -f docker-compose.lan.yml up -d`. |
 | No hay imágenes / visor vacío | Pruebe `curl` a `ORTHANC_URL` desde el servidor. Si falla, es red o URL incorrecta — contacte sistemas (no es problema del navegador del usuario). |
 | `permission denied` con Docker | Usuario en grupo `docker`, cerrar sesión y volver a entrar. |
