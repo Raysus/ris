@@ -13,6 +13,62 @@ function risNullableUuid(value) {
     return value;
 }
 
+/** Capitaliza cada palabra: "maria jose" → "Maria Jose", "GONZÁLEZ" → "González". */
+function capitalizarNombrePropio(value) {
+    if (value == null || typeof value !== 'string') return '';
+    return value
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((word) => {
+            const lower = word.toLocaleLowerCase('es-CL');
+            return lower.charAt(0).toLocaleUpperCase('es-CL') + lower.slice(1);
+        })
+        .join(' ');
+}
+
+function configurarCamposPacienteAgenda() {
+    const hoy = new Date().toISOString().split('T')[0];
+    $("#pBirthDate").attr({ min: '1900-01-01', max: hoy });
+
+    const camposNombre = '#pName, #pLastName, #pSecondLastName';
+    $(document).off('blur.agendaCapitalize', camposNombre).on('blur.agendaCapitalize', camposNombre, function () {
+        const formatted = capitalizarNombrePropio($(this).val());
+        if (formatted !== $(this).val()) {
+            $(this).val(formatted);
+        }
+    });
+}
+
+function validarFechaNacimientoAgenda() {
+    const raw = $("#pBirthDate").val();
+    if (!raw) return true;
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+        showToast('La fecha de nacimiento debe usar año de 4 dígitos (AAAA-MM-DD).', 'warning');
+        $("#pBirthDate").addClass('is-invalid');
+        return false;
+    }
+
+    const year = parseInt(raw.slice(0, 4), 10);
+    const currentYear = new Date().getFullYear();
+    if (year < 1900 || year > currentYear) {
+        showToast(`El año de nacimiento debe estar entre 1900 y ${currentYear}.`, 'warning');
+        $("#pBirthDate").addClass('is-invalid');
+        return false;
+    }
+
+    const bd = new Date(raw + 'T12:00:00');
+    if (Number.isNaN(bd.getTime()) || bd > new Date()) {
+        showToast('La fecha de nacimiento no es válida.', 'warning');
+        $("#pBirthDate").addClass('is-invalid');
+        return false;
+    }
+
+    $("#pBirthDate").removeClass('is-invalid');
+    return true;
+}
+
 /** Colores de estado (alineados con --agenda-* en style.css / marca HealthTICloud) */
 const AGENDA_ESTADO_COLORES = {
     'pre-agendado': '#9a6fa8',
@@ -356,6 +412,7 @@ async function initAgenda() {
 
     ensureAgendaModalsAnchored();
     bindAgendaModalWizardEvents();
+    configurarCamposPacienteAgenda();
 
     if (!window._agendaListenersBound) {
         setupProEventListeners();
@@ -915,9 +972,9 @@ function abrirModalCita(data) {
         const p = data.patient || {};
 
         $("#pRut").val(p.rut || "");
-        $("#pName").val(p.name || "");
-        $("#pLastName").val(p.lastName || "");
-        $("#pSecondLastName").val(p.secondLastName || "");
+        $("#pName").val(capitalizarNombrePropio(p.name || ""));
+        $("#pLastName").val(capitalizarNombrePropio(p.lastName || ""));
+        $("#pSecondLastName").val(capitalizarNombrePropio(p.secondLastName || ""));
         $("#pSex").val(p.sex || "M");
         $("#pBirthDate").val(p.birthDate || "").trigger("change");
         $("#pEmail").val(p.email || "");
@@ -1024,6 +1081,12 @@ async function guardarCita() {
 
     if (!validarDocumentoAgenda()) {
         return showToast("Documento del paciente inválido o incompleto.", "danger");
+    }
+    $("#pName").val(capitalizarNombrePropio($("#pName").val()));
+    $("#pLastName").val(capitalizarNombrePropio($("#pLastName").val()));
+    $("#pSecondLastName").val(capitalizarNombrePropio($("#pSecondLastName").val()));
+    if (!validarFechaNacimientoAgenda()) {
+        return;
     }
     if (!rut || !$("#pName").val() || !$("#pLastName").val()) {
         const pLabel = (typeof getLabProfile === 'function' ? getLabProfile().patient_label : 'Paciente');
@@ -1525,8 +1588,12 @@ function setupProEventListeners() {
     });
 
     $("#pBirthDate").on("change", function () {
-        const bd = new Date($(this).val());
-        if (isNaN(bd)) return;
+        if (!validarFechaNacimientoAgenda()) {
+            $("#pAge").val('');
+            return;
+        }
+        const raw = $(this).val();
+        const bd = new Date(raw + 'T12:00:00');
         const today = new Date();
         let age = today.getFullYear() - bd.getFullYear();
         if (today.getMonth() < bd.getMonth() || (today.getMonth() === bd.getMonth() && today.getDate() < bd.getDate())) age--;
@@ -1656,9 +1723,9 @@ function setupProEventListeners() {
                         ? birthRaw.split("T")[0]
                         : birthRaw || "";
 
-                $("#pName").val(persona.names || "");
-                $("#pLastName").val(persona.last_name_1 || "");
-                $("#pSecondLastName").val(persona.last_name_2 || "");
+                $("#pName").val(capitalizarNombrePropio(persona.names || ""));
+                $("#pLastName").val(capitalizarNombrePropio(persona.last_name_1 || ""));
+                $("#pSecondLastName").val(capitalizarNombrePropio(persona.last_name_2 || ""));
                 $("#pSex").val(persona.gender || "M");
                 $("#pEmail").val(persona.email || "");
                 $("#pPhone").val(persona.phone || "");

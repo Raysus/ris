@@ -117,7 +117,9 @@
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label small fw-bold text-muted mb-1">F. Nacimiento</label>
-                                <input type="date" id="pBirthDate" class="form-control form-control-sm" required>
+                                <input type="date" id="pBirthDate" class="form-control form-control-sm" min="1900-01-01" required
+                                    aria-describedby="pBirthDateHelp">
+                                <div id="pBirthDateHelp" class="form-text">Año con 4 dígitos (ej. 1985)</div>
                             </div>
                             <div class="col-md-1">
                                 <label class="form-label small fw-bold text-muted mb-1">Edad</label>

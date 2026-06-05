@@ -113,12 +113,25 @@ class WorklistController extends Controller
             $orthancUrl = $orthancBase . '/worklists/create';
 
             $stationAeTitle = $machine->ae_title ?: ('SALA_' . $machine->id);
+            $persona = $appointment->patient->persona;
 
-            // 🔥 CORRECCIÓN 2: El formato exacto que pide el plugin envuelto en "Tags"
+            $patientSex = match (strtoupper((string) ($persona->gender ?? ''))) {
+                'M', 'MALE', 'MASCULINO' => 'M',
+                'F', 'FEMALE', 'FEMENINO' => 'F',
+                default => 'O',
+            };
+
+            $patientBirthDate = $persona->birth_date
+                ? \Carbon\Carbon::parse($persona->birth_date)->format('Ymd')
+                : '';
+
+            // Formato Orthanc worklists plugin (Tags DICOM)
             $dicomWorklistData = [
                 "Tags" => [
-                    "PatientName" => $appointment->patient->persona->names . "^" . $appointment->patient->persona->last_name_1,
-                    "PatientID" => $appointment->patient->persona->rut,
+                    "PatientName" => $persona->names . "^" . $persona->last_name_1,
+                    "PatientID" => $persona->rut,
+                    "PatientSex" => $patientSex,
+                    "PatientBirthDate" => $patientBirthDate,
                     "AccessionNumber" => $accessionNumber,
                     "ScheduledProcedureStepSequence" => [
                         [
