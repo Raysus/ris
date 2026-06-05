@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Appointment;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
 
@@ -78,10 +79,10 @@ class RadiologistController extends Controller
     public function signReport(Request $request, $id)
     {
         $request->validate([
-            'reports' => 'required|array',
+            'reports' => 'required|array|min:1',
             'reports.*.id' => 'required|string',
             'reports.*.text' => 'nullable|string',
-            'dictation_method' => 'required|string'
+            'dictation_method' => 'required|string',
         ]);
 
         $userId = $request->user()->id;
@@ -94,7 +95,7 @@ class RadiologistController extends Controller
             $appointment->save();
 
             foreach ($request->reports as $reportData) {
-                DB::table('appointment_studies')
+                $updated = DB::table('appointment_studies')
                     ->where('id', $reportData['id'])
                     ->where('appointment_id', $appointment->id)
                     ->update([
@@ -102,6 +103,12 @@ class RadiologistController extends Controller
                         'status' => 'entregable',
                         'updated_at' => now()
                     ]);
+
+                if ($updated === 0) {
+                    throw new \RuntimeException(
+                        'No se encontró el estudio «' . ($reportData['id'] ?? '') . '» en la cita.'
+                    );
+                }
             }
 
             DB::table('appointment_logs')->insert([
@@ -119,20 +126,34 @@ class RadiologistController extends Controller
             ]);
 
             $appointment->touch();
+
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::warning('signReport falló', [
+                'appointment_id' => $id,
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+
+        try {
             $appointment->load(['patient.persona', 'studies', 'supplies']);
             \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
 
             if (config('hl7.enabled') && config('hl7.send_oru_on_sign')) {
                 app(\App\Services\Hl7IntegrationService::class)->queueOruForAppointment($appointment);
             }
-
-            DB::commit();
-            return response()->json(['success' => true]);
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        } catch (\Throwable $e) {
+            Log::warning('signReport: sync/HL7 post-firma omitido', [
+                'appointment_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
         }
+
+        return response()->json(['success' => true]);
     }
 
     public function saveDraft(Request $request, $id)
