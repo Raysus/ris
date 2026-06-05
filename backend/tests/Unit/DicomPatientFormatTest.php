@@ -17,9 +17,9 @@ class DicomPatientFormatTest extends TestCase
 
     public function test_patient_name_family_given_middle(): void
     {
-        $pn = $this->service->formatPatientNameDicom('Alan Gerardo', 'Vásquez', 'Pérez');
+        $pn = $this->service->formatPatientNameDicom('Alan Gerardo', 'Vásquez', 'Hertling');
 
-        $this->assertSame('VÁSQUEZ^ALAN GERARDO^PÉREZ', $pn);
+        $this->assertSame('VÁSQUEZ HERTLING^ALAN GERARDO', $pn);
     }
 
     public function test_patient_name_without_second_surname(): void

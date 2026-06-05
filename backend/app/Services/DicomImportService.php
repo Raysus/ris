@@ -58,21 +58,29 @@ class DicomImportService
     }
 
     /**
-     * PN DICOM: ApellidoPaterno^nombres^ApellidoMaterno (Family^Given^Middle).
+     * PN DICOM: «ApellidoPaterno ApellidoMaterno^nombres» (Family^Given).
+     * El apellido materno va en el mismo componente Family, separado por espacio.
      */
     public function formatPatientNameDicom(string $names, string $lastName1, ?string $lastName2 = null): string
     {
         $family = strtoupper(trim(preg_replace('/\s+/', ' ', $lastName1)));
         $given = strtoupper(trim(preg_replace('/\s+/', ' ', $names)));
-        $middle = strtoupper(trim(preg_replace('/\s+/', ' ', (string) $lastName2)));
+        $maternal = strtoupper(trim(preg_replace('/\s+/', ' ', (string) $lastName2)));
 
-        $components = array_values(array_filter(
-            [$family, $given, $middle],
-            static fn (string $part): bool => $part !== ''
-        ));
+        if ($maternal !== '') {
+            $family = trim($family === '' ? $maternal : "{$family} {$maternal}");
+        }
 
-        if ($components !== []) {
-            return implode('^', $components);
+        if ($family !== '' && $given !== '') {
+            return "{$family}^{$given}";
+        }
+
+        if ($family !== '') {
+            return $family;
+        }
+
+        if ($given !== '') {
+            return $given;
         }
 
         return strtoupper(trim("{$names} {$lastName1} {$lastName2}"));
