@@ -39,6 +39,12 @@ class AppointmentStudy extends Model
         return $this->hasOne(MedicalReport::class);
     }
 
+    /** Texto en columna appointment_studies.report (evita colisión con relación report()). */
+    public function getStoredReportText(): string
+    {
+        return (string) ($this->attributes['report'] ?? '');
+    }
+
     public function radiologist()
     {
         return $this->belongsTo(User::class, 'radiologist_user_id');

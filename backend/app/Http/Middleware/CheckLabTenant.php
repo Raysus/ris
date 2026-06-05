@@ -51,10 +51,16 @@ class CheckLabTenant
 
         $contextIds = [$laboratory->id];
 
+        if ($laboratory->parent_id) {
+            $contextIds[] = $laboratory->parent_id;
+        }
+
         if (is_null($laboratory->parent_id)) {
             $childrenIds = $laboratory->children->pluck('id')->toArray();
             $contextIds = array_merge($contextIds, $childrenIds);
         }
+
+        $contextIds = array_values(array_unique($contextIds));
 
         if ($isSysAdmin) {
             config(['app.current_lab_id' => $laboratory->id]);
