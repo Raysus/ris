@@ -226,6 +226,11 @@ body {
     padding: 2rem;
 }
 
+/* Confirmación / alerta / prompt del sistema: siempre sobre modales de módulo */
+.modal.ris-system-modal {
+    pointer-events: auto;
+}
+
 .skip-link:focus {
     position: fixed;
     top: 0.5rem;
