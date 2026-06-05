@@ -24,10 +24,22 @@ class ModalityCode
         };
     }
 
-    /** Código Modality (0008,0060) para worklist DICOM — máx. 2 caracteres. */
-    public static function forDicomWorklist(?string $group): string
+    /**
+     * Código Modality (0008,0060) para worklist DICOM — máx. 2 caracteres.
+     *
+     * @param  string|null  $stationAe  AE de la sala (ej. FCR_PANO). Fuji FCR consulta CR/MG, no DX.
+     */
+    public static function forDicomWorklist(?string $group, ?string $stationAe = null): string
     {
         $g = self::normalizeGroup($group);
+        $ae = strtoupper(trim((string) $stationAe));
+
+        if (self::isFujiFcrStation($ae)) {
+            return match ($g) {
+                'MAMO', 'MG' => 'MG',
+                default => 'CR',
+            };
+        }
 
         return match ($g) {
             'SCANNER', 'CT', 'CBCT' => 'CT',
@@ -44,5 +56,10 @@ class ModalityCode
             'XA' => 'XA',
             default => strlen($g) <= 2 ? $g : 'OT',
         };
+    }
+
+    private static function isFujiFcrStation(string $stationAe): bool
+    {
+        return str_starts_with($stationAe, 'FCR_');
     }
 }

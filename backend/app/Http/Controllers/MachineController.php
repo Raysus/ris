@@ -129,7 +129,7 @@ class MachineController extends Controller
         $host = trim((string) ($machine->ip_address ?? ''));
         $port = (int) ($machine->port ?? 0);
         $stationAe = $machine->ae_title ?: ('SALA_' . $machine->id);
-        $modality = ModalityCode::forDicomWorklist($machine->group ?? 'US');
+        $modality = ModalityCode::forDicomWorklist($machine->group ?? 'US', $stationAe);
         $isCrFamily = in_array(
             ModalityCode::normalizeGroup($machine->group),
             ['CR', 'DX', 'MAMO', 'RX'],
@@ -164,16 +164,21 @@ class MachineController extends Controller
 
         $httpHost = parse_url(\App\Support\OrthancUrl::base(), PHP_URL_HOST) ?: '';
         $pacsDetail = $pacsOk
-            ? "PACS MWL alcanzable en {$pacs['host']}:{$pacs['port']} (AE «{$pacs['aet']}»)."
+            ? "PACS MWL alcanzable en {$pacs['host']}:{$pacs['port']} (AE destino «{$pacs['aet']}»)."
             : "PACS MWL NO alcanzable en {$pacs['host']}:{$pacs['port']} ({$pacsErr}). "
                 . ($httpHost !== '' && $httpHost !== $pacs['host']
                     ? "No use «{$httpHost}:4242» en el FCR; use la IP DICOM «{$pacs['host']}»."
                     : 'Revise firewall y PACS_DICOM_HOST en .env.');
 
-        $fcrHint = "En el FCR: servidor «{$pacs['host']}», puerto {$pacs['port']}, AE destino «{$pacs['aet']}», "
+        $cfindNote = $pacsOk
+            ? 'TCP :4242 OK no garantiza C-FIND. Si el FCR no trae órdenes, pruebe en el servidor: php artisan pacs:probe-mwl --station='
+                . $stationAe . ' --modality=' . $modality
+            : '';
+
+        $fcrHint = "En el FCR: servidor «{$pacs['host']}», puerto {$pacs['port']}, AE destino «{$pacs['aet']}» (called AET del PACS), "
             . "estación «{$stationAe}», modalidad «{$modality}» y la fecha de la cita en agenda.";
 
-        $message = trim($equipmentTcp['detail'] . ' ' . $pacsDetail . ' ' . $fcrHint);
+        $message = trim($equipmentTcp['detail'] . ' ' . $pacsDetail . ' ' . $fcrHint . ($cfindNote !== '' ? ' ' . $cfindNote : ''));
 
         return response()->json([
             'success' => $pacsOk,
@@ -184,6 +189,7 @@ class MachineController extends Controller
                 'port' => $pacs['port'],
                 'aet' => $pacs['aet'],
                 'detail' => $pacsDetail,
+                'cfind_note' => $cfindNote,
             ],
             'station_ae' => $stationAe,
             'modality' => $modality,

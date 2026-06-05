@@ -28,4 +28,12 @@ class ModalityCodeTest extends TestCase
         $this->assertSame('MAMO', ModalityCode::normalizeGroup('MG'));
         $this->assertSame('MG', ModalityCode::forDicomWorklist('MAMO'));
     }
+
+    public function test_fuji_fcr_station_uses_cr_not_dx(): void
+    {
+        $this->assertSame('CR', ModalityCode::forDicomWorklist('CR', 'FCR_PANO'));
+        $this->assertSame('CR', ModalityCode::forDicomWorklist('DX', 'FCR_PACS'));
+        $this->assertSame('CR', ModalityCode::forDicomWorklist('RX', 'FCR_PACS'));
+        $this->assertSame('MG', ModalityCode::forDicomWorklist('MAMO', 'FCR_MAMO'));
+    }
 }

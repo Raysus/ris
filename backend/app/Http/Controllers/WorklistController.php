@@ -475,7 +475,7 @@ class WorklistController extends Controller
             default => $machineGroup !== '' ? $machineGroup : ($examGroup !== '' ? $examGroup : 'US'),
         };
 
-        return ModalityCode::forDicomWorklist($group);
+        return ModalityCode::forDicomWorklist($group, $machine->ae_title);
     }
 
     /**
@@ -593,9 +593,9 @@ class WorklistController extends Controller
         $dateHint = $procedureSteps[0]['ScheduledProcedureStepStartDate'] ?? '';
 
         return 'La orden quedó en el PACS (HTTP). El Fuji FCR la baja por DICOM MWL (C-FIND), no por la web. '
-            . "{$hostHint} Puerto {$dicom['port']}, AE destino «{$dicom['aet']}». "
+            . "{$hostHint} Puerto {$dicom['port']}, AE destino (called) «{$dicom['aet']}». "
             . "En el FCR configure filtro de estación «{$stationAe}», modalidad «{$modality}» "
             . "y fecha de la cita «{$dateHint}» (el FCR filtra por fecha + modalidad + estación). "
-            . 'Si pacs.healthticloud.cl:4242 no responde desde la LAN, use la IP pública DICOM que indique sistemas.';
+            . 'Reenvíe la worklist si cambió modalidad o estación. TCP :4242 OK no garantiza C-FIND en el PACS.';
     }
 }

@@ -502,7 +502,7 @@ Valores de referencia (confirme con sistemas):
 |------|----------------|
 | Servidor / host MWL | **IP DICOM** alcanzable desde la LAN (ej. `170.246.172.84`), no el hostname HTTPS |
 | Puerto MWL | `4242` |
-| AE Title **destino** (called) | `HealthTICloud` o el que indique sistemas |
+| AE Title **destino** (called) | `HEALTHTICLOUD` (valor de `DicomAet` en Orthanc `/system`) |
 | **AE de estación** / filtro | Debe coincidir con Admin → Salas (ej. `FCR_MAMO`, `FCR_PANO`) |
 | Modalidad en el FCR | `CR` en CR Fuji, `MG` en mamógrafo FCR |
 
@@ -531,8 +531,17 @@ Si la orden **sí aparece en el explorador web del PACS** pero **no en el FCR**:
 4. Modalidad en el FCR = `CR` o `MG` según el equipo (no `DX` si la sala es CR Fuji).
 5. Reenvíe la worklist desde el RIS tras cambiar sala o paciente (el RIS envía nombres en **ISO_IR 100**, sin tildes).
 
+Comprobación **C-FIND** desde el servidor del lab (no basta con TCP :4242):
+
+```bash
+cd /opt/RIS/backend
+php artisan pacs:probe-mwl --station=FCR_PANO --modality=CR
+```
+
+Si devuelve `Find Failed`, el PACS no está sirviendo MWL por DICOM aunque la orden exista en la web.
+
 En el PACS (Orthanc), sistemas debe tener el plugin Worklists con `FilterIssuerAet: false` si el FCR no envía
-estación en la consulta (comportamiento habitual en equipos legacy).
+estación en la consulta (comportamiento habitual en equipos legacy), y **C-FIND habilitado** en el puerto 4242.
 
 El laboratorio **no** necesita Tailscale en cada PC si el PACS DICOM es alcanzable por la red del centro.
 
