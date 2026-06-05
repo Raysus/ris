@@ -48,9 +48,14 @@ async function cargarListaValidacion() {
         const data = await response.json();
 
         if (response.ok && data.success) {
-            currentValidationData = data.data;
+            currentValidationData = Array.isArray(data.data) ? data.data : [];
             renderValidationStudies();
+            return;
         }
+
+        const msg = data?.message || `Error al cargar bandeja (${response.status})`;
+        console.error("Error cargando validaciones:", msg, data);
+        lista.html(`<div class="p-4 text-center text-danger"><i class="bi bi-exclamation-triangle fs-2 d-block mb-2"></i>${msg}</div>`);
     } catch (e) {
         console.error("Error cargando validaciones:", e);
         lista.html('<div class="p-4 text-center text-danger"><i class="bi bi-wifi-off fs-2 d-block mb-2"></i>Error de conexión</div>');
@@ -73,7 +78,8 @@ function renderValidationStudies() {
         const textColor = isActive ? 'text-white' : 'text-primary';
         const mutedColor = isActive ? 'text-white-50' : 'text-muted';
 
-        const nombresExamenes = cadena.studies.map(s => s.exam).join(" + ");
+        const estudios = Array.isArray(cadena.studies) ? cadena.studies : [];
+        const nombresExamenes = estudios.map(s => s.exam).filter(Boolean).join(" + ") || 'Sin examen';
 
         lista.append(`
             <button type="button" class="list-group-item list-group-item-action ${isActive} p-3 border-bottom" onclick="abrirValidacion('${cadena.id}')">
@@ -302,6 +308,8 @@ $(document).on("input", "#finalReportText", function () {
     }
 });
 
-$(document).ready(function () {
-    initValidation();
-});
+window.initValidation = initValidation;
+window.abrirValidacion = abrirValidacion;
+window.cargarListaValidacion = cargarListaValidacion;
+window.firmarInforme = firmarInforme;
+window.rechazarInforme = rechazarInforme;
