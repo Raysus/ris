@@ -40,6 +40,44 @@ function configurarCamposPacienteAgenda() {
     });
 }
 
+/** Normaliza birth_date de la API (ISO) al formato YYYY-MM-DD del input date. */
+function risFormatBirthDateForInput(raw) {
+    if (raw == null || raw === '') return '';
+    if (typeof raw === 'string') {
+        const m = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+        if (m) return m[1];
+    }
+    try {
+        const d = new Date(raw);
+        if (!Number.isNaN(d.getTime())) {
+            const y = d.getUTCFullYear();
+            const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(d.getUTCDate()).padStart(2, '0');
+            return `${y}-${mo}-${day}`;
+        }
+    } catch (_) { /* ignore */ }
+    return '';
+}
+
+function risActualizarEdadPacienteAgenda() {
+    if (!validarFechaNacimientoAgenda()) {
+        $("#pAge").val('');
+        return;
+    }
+    const raw = $("#pBirthDate").val();
+    if (!raw) {
+        $("#pAge").val('');
+        return;
+    }
+    const bd = new Date(raw + 'T12:00:00');
+    const today = new Date();
+    let age = today.getFullYear() - bd.getFullYear();
+    if (today.getMonth() < bd.getMonth() || (today.getMonth() === bd.getMonth() && today.getDate() < bd.getDate())) {
+        age--;
+    }
+    $("#pAge").val(age >= 0 ? age : '');
+}
+
 function validarFechaNacimientoAgenda() {
     const raw = $("#pBirthDate").val();
     if (!raw) return true;
@@ -890,7 +928,7 @@ async function cargarAgendaDesdeServidor() {
                         lastName: p.last_name_1,
                         secondLastName: p.last_name_2,
                         sex: p.gender,
-                        birthDate: p.birth_date,
+                        birthDate: risFormatBirthDateForInput(p.birth_date),
                         email: p.email,
                         phone: p.phone,
                         insurance: app.insurance_id,
@@ -979,7 +1017,9 @@ function abrirModalCita(data) {
         $("#pLastName").val(capitalizarNombrePropio(p.lastName || ""));
         $("#pSecondLastName").val(capitalizarNombrePropio(p.secondLastName || ""));
         $("#pSex").val(p.sex || "M");
-        $("#pBirthDate").val(p.birthDate || "").trigger("change");
+        const birthVal = risFormatBirthDateForInput(p.birthDate);
+        $("#pBirthDate").val(birthVal);
+        risActualizarEdadPacienteAgenda();
         $("#pEmail").val(p.email || "");
         $("#pPhone").val(p.phone || "");
 
@@ -1591,16 +1631,7 @@ function setupProEventListeners() {
     });
 
     $("#pBirthDate").on("change", function () {
-        if (!validarFechaNacimientoAgenda()) {
-            $("#pAge").val('');
-            return;
-        }
-        const raw = $(this).val();
-        const bd = new Date(raw + 'T12:00:00');
-        const today = new Date();
-        let age = today.getFullYear() - bd.getFullYear();
-        if (today.getMonth() < bd.getMonth() || (today.getMonth() === bd.getMonth() && today.getDate() < bd.getDate())) age--;
-        $("#pAge").val(age);
+        risActualizarEdadPacienteAgenda();
     });
 
     $("#payMethod").on("change", function () {
@@ -1720,19 +1751,14 @@ function setupProEventListeners() {
                     return;
                 }
 
-                const birthRaw = persona.birth_date;
-                const birthVal =
-                    typeof birthRaw === "string"
-                        ? birthRaw.split("T")[0]
-                        : birthRaw || "";
-
                 $("#pName").val(capitalizarNombrePropio(persona.names || ""));
                 $("#pLastName").val(capitalizarNombrePropio(persona.last_name_1 || ""));
                 $("#pSecondLastName").val(capitalizarNombrePropio(persona.last_name_2 || ""));
                 $("#pSex").val(persona.gender || "M");
                 $("#pEmail").val(persona.email || "");
                 $("#pPhone").val(persona.phone || "");
-                $("#pBirthDate").val(birthVal).trigger("change");
+                $("#pBirthDate").val(risFormatBirthDateForInput(persona.birth_date));
+                risActualizarEdadPacienteAgenda();
 
                 setAgendaPrevision(
                     payload.insurance_id || null,
