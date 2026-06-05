@@ -2646,13 +2646,7 @@ async function guardarMatriz() {
 
 function descargarPlantillaExamenes() {
     let csv = '\uFEFF';
-
     csv += "group_code;name;fonasa_code;price\n";
-
-    csv += "RX;Radiografía de Tórax AP y Lateral;0401001;15000\n";
-    csv += "CT;Tomografía Computarizada de Cerebro sin contraste;0402005;85000\n";
-    csv += "MRI;Resonancia Magnética de Columna Lumbar;0403010;150000\n";
-    csv += "US;Ecografía Abdominal Completa;0404002;35000\n";
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
@@ -2664,7 +2658,7 @@ function descargarPlantillaExamenes() {
     link.click();
     document.body.removeChild(link);
 
-    showToast("Descargando plantilla de ejemplo...", "success");
+    showToast("Plantilla vacía descargada. Complete una fila por examen.", "success");
 }
 
 /* =========================================
