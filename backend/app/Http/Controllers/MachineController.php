@@ -118,53 +118,76 @@ class MachineController extends Controller
     }
 
     /**
-     * Prueba TCP desde el servidor RIS hacia el equipo adquisidor (IP + puerto de la sala).
-     * No es un C-ECHO DICOM completo. No valida ORTHANC_URL del .env (PACS en nube es otro destino).
+     * Diagnóstico de red para salas DICOM.
+     * 1) TCP al equipo en LAN (opcional; Fuji FCR suele no aceptar TCP entrante).
+     * 2) TCP al PACS MWL (C-FIND) — lo que el FCR debe alcanzar en :4242.
      */
     public function pingDicom($id)
     {
         $machine = $this->getSecureMachineQuery()->findOrFail($id);
 
-        if (empty($machine->ip_address) || empty($machine->port)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Falta configurar la IP o el Puerto en esta máquina.'
-            ], 400);
+        $host = trim((string) ($machine->ip_address ?? ''));
+        $port = (int) ($machine->port ?? 0);
+        $stationAe = $machine->ae_title ?: ('SALA_' . $machine->id);
+        $modality = ModalityCode::forDicomWorklist($machine->group ?? 'US');
+        $isCrFamily = in_array(
+            ModalityCode::normalizeGroup($machine->group),
+            ['CR', 'DX', 'MAMO', 'RX'],
+            true
+        );
+
+        $equipmentTcp = ['ok' => false, 'host' => $host, 'port' => $port, 'detail' => ''];
+        if ($host !== '' && $port >= 1 && $port <= 65535) {
+            $errCode = 0;
+            $errStr = '';
+            $fp = @fsockopen($host, $port, $errCode, $errStr, 3);
+            if ($fp) {
+                fclose($fp);
+                $equipmentTcp['ok'] = true;
+                $equipmentTcp['detail'] = "TCP abierto en {$host}:{$port}.";
+            } else {
+                $equipmentTcp['detail'] = $isCrFamily
+                    ? "Sin TCP entrante en {$host}:{$port} ({$errStr}). En Fuji FCR es habitual: el equipo solo consulta MWL al PACS, no recibe conexiones del RIS."
+                    : "Sin TCP en {$host}:{$port} ({$errStr}).";
+            }
+        } else {
+            $equipmentTcp['detail'] = 'IP/puerto de la sala no configurados (no afecta MWL si el FCR alcanza el PACS).';
         }
 
-        $host = trim((string) $machine->ip_address);
-        $port = (int) $machine->port;
-
-        if ($port < 1 || $port > 65535) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Puerto inválido. Use el puerto DICOM del equipo (p. ej. 104, 4242), no la URL web del PACS.',
-            ], 400);
+        $pacs = \App\Support\OrthancUrl::dicomTarget();
+        $pacsErr = '';
+        $pacsFp = @fsockopen($pacs['host'], $pacs['port'], $pacsCode, $pacsErr, 3);
+        $pacsOk = (bool) $pacsFp;
+        if ($pacsFp) {
+            fclose($pacsFp);
         }
 
-        $errCode = 0;
-        $errStr = '';
-        $fp = @fsockopen($host, $port, $errCode, $errStr, 3);
+        $httpHost = parse_url(\App\Support\OrthancUrl::base(), PHP_URL_HOST) ?: '';
+        $pacsDetail = $pacsOk
+            ? "PACS MWL alcanzable en {$pacs['host']}:{$pacs['port']} (AE «{$pacs['aet']}»)."
+            : "PACS MWL NO alcanzable en {$pacs['host']}:{$pacs['port']} ({$pacsErr}). "
+                . ($httpHost !== '' && $httpHost !== $pacs['host']
+                    ? "No use «{$httpHost}:4242» en el FCR; use la IP DICOM «{$pacs['host']}»."
+                    : 'Revise firewall y PACS_DICOM_HOST en .env.');
 
-        if ($fp) {
-            fclose($fp);
+        $fcrHint = "En el FCR: servidor «{$pacs['host']}», puerto {$pacs['port']}, AE destino «{$pacs['aet']}», "
+            . "estación «{$stationAe}», modalidad «{$modality}» y la fecha de la cita en agenda.";
 
-            return response()->json([
-                'success' => true,
-                'message' => "Puerto TCP abierto en {$host}:{$port} ({$machine->ae_title}). "
-                    . 'El equipo acepta conexiones; esto no garantiza C-ECHO DICOM.',
-            ]);
-        }
-
-        $hint = match (true) {
-            in_array($port, [80, 443, 8042], true) => ' El PACS en la nube se configura en ORTHANC_URL del .env, no en la IP de la sala.',
-            $errCode === 111 => ' Connection refused: no hay servicio escuchando en ese puerto o el equipo está apagado.',
-            default => ' Revise que el servidor RIS alcance esa red (misma VLAN), firewall y el puerto DICOM correcto.',
-        };
+        $message = trim($equipmentTcp['detail'] . ' ' . $pacsDetail . ' ' . $fcrHint);
 
         return response()->json([
-            'success' => false,
-            'message' => "Sin conexión TCP a {$host}:{$port} ({$errStr}).{$hint}",
-        ], 408);
+            'success' => $pacsOk,
+            'equipment_tcp' => $equipmentTcp,
+            'pacs_mwl' => [
+                'ok' => $pacsOk,
+                'host' => $pacs['host'],
+                'port' => $pacs['port'],
+                'aet' => $pacs['aet'],
+                'detail' => $pacsDetail,
+            ],
+            'station_ae' => $stationAe,
+            'modality' => $modality,
+            'message' => $message,
+        ], $pacsOk ? 200 : 408);
     }
 }

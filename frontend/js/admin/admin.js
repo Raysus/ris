@@ -1074,8 +1074,8 @@ async function renderListaSalasAdmin() {
                         </td>
                         <td><span class="badge ${badgeColor} px-3 py-2">${res.group}</span></td>
                         <td class="text-center pe-4">
-                            <button class="btn btn-sm btn-outline-success fw-bold me-1" onclick="pingDicom('${res.id}')" title="Prueba TCP desde el servidor RIS al equipo (IP+puerto de la sala)">
-                                <i class="bi bi-wifi"></i> Ping
+                            <button class="btn btn-sm btn-outline-success fw-bold me-1" onclick="pingDicom('${res.id}')" title="Diagnóstico: PACS MWL (4242) + TCP al equipo Fuji (puede fallar y ser normal)">
+                                <i class="bi bi-wifi"></i> Red/MWL
                             </button>
                             <button class="btn btn-sm btn-outline-info fw-bold text-dark" onclick="cargarSala('${res.id}')">
                                 <i class="bi bi-pencil-square"></i> Editar
@@ -3134,11 +3134,7 @@ async function pingDicom(id) {
     const sala = currentMachinesFromDB.find(s => String(s.id) === String(id));
     if (!sala) return;
 
-    if (!sala.ip_address || !sala.port) {
-        return showToast("Debe configurar la IP y el Puerto editando la sala primero.", "warning");
-    }
-
-    if (typeof showToast === 'function') showToast(`Testeando conexión con ${sala.ae_title || sala.name}...`, "info");
+    if (typeof showToast === 'function') showToast(`Diagnóstico MWL: ${sala.ae_title || sala.name}...`, "info");
 
     const token = localStorage.getItem('ris_token');
     const labId = localStorage.getItem('ris_lab_id');
@@ -3151,11 +3147,11 @@ async function pingDicom(id) {
 
         const data = await response.json();
 
-        if (response.ok && data.success) {
-            showAlert(data.message, "Conexión establecida", "success");
-        } else {
-            showAlert(data.message || "Error de red", "Error de conexión", "danger");
-        }
+        const title = data.pacs_mwl?.ok
+            ? (data.equipment_tcp?.ok ? "Red y PACS MWL OK" : "PACS MWL OK (equipo Fuji sin TCP entrante)")
+            : "Revise configuración MWL en el FCR";
+        const type = data.pacs_mwl?.ok ? "success" : "danger";
+        showAlert(data.message || "Sin detalle", title, type);
     } catch (e) {
         showAlert("No se pudo contactar al servidor RIS.", "Error crítico", "danger");
     }
