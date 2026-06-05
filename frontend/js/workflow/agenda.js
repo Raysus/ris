@@ -118,6 +118,31 @@ const AGENDA_ESTADO_COLORES = {
 };
 const AGENDA_ESTADO_TEXTO = '#ffffff';
 
+/** Estados que ya salieron de recepción → gris en calendario. */
+const AGENDA_ESTADOS_ATENDIDO = new Set([
+    'dicom_enviado',
+    'en_atencion',
+    'devuelto_worklist',
+    'en_informe',
+    'pendiente_radiologo',
+    'para_firma',
+    'entregable',
+    'entregado',
+    'atendido',
+]);
+
+/** Clave visual para color de cita en la agenda. */
+function risNormalizarEstadoAgendaVisual(status) {
+    const s = String(status || '').trim().toLowerCase();
+    if (AGENDA_ESTADOS_ATENDIDO.has(s)) return 'atendido';
+    if (s.includes('pre')) return 'pre-agendado';
+    if (s.includes('anulado')) return 'anulado';
+    if (s.includes('espera')) return 'espera';
+    if (s.includes('confirmado')) return 'confirmado';
+    if (s.includes('agendado')) return 'agendado';
+    return 'agendado';
+}
+
 /** Minutos por modalidad/sala cuando no viene del servidor (evita fallo si RIS.tiemposPorGrupo no está inicializado). */
 const TIEMPOS_POR_GRUPO_DEFAULT = { CR: 15, DX: 15, RX: 15, CT: 30, MRI: 45, US: 20, MAMO: 15, General: 15 };
 
@@ -860,14 +885,7 @@ function getEventsFromRIS() {
     const colors = AGENDA_ESTADO_COLORES;
 
     return window.RIS.agenda.map(a => {
-        let estadoRaw = String(a.status).trim().toLowerCase();
-        let estadoLimpio = 'agendado';
-
-        if (estadoRaw.includes('pre')) estadoLimpio = 'pre-agendado';
-        else if (estadoRaw.includes('espera')) estadoLimpio = 'espera';
-        else if (estadoRaw.includes('confirmado')) estadoLimpio = 'confirmado';
-        else if (estadoRaw.includes('anulado')) estadoLimpio = 'anulado';
-        else if (estadoRaw.includes('agendado')) estadoLimpio = 'agendado';
+        const estadoVisual = risNormalizarEstadoAgendaVisual(a.statusRaw || a.status);
 
         return {
             id: a.id,
@@ -875,10 +893,15 @@ function getEventsFromRIS() {
             title: `${a.patient.lastName}, ${a.patient.name}`,
             start: a.start,
             end: a.end,
-            backgroundColor: colors[estadoLimpio],
-            borderColor: colors[estadoLimpio],
+            backgroundColor: colors[estadoVisual],
+            borderColor: colors[estadoVisual],
             textColor: AGENDA_ESTADO_TEXTO,
-            extendedProps: { patient: a.patient, status: estadoLimpio, needsReview: a.needsReview }
+            extendedProps: {
+                patient: a.patient,
+                status: estadoVisual,
+                statusRaw: a.statusRaw || a.status,
+                needsReview: a.needsReview,
+            },
         };
     });
 }
@@ -909,7 +932,8 @@ async function cargarAgendaDesdeServidor() {
                     resourceIds: salasUnicas,
                     start: app.start_time.split('.')[0],
                     end: app.end_time.split('.')[0],
-                    status: app.status || 'pre-agendado',
+                    statusRaw: app.status || 'pre-agendado',
+                    status: risNormalizarEstadoAgendaVisual(app.status || 'pre-agendado'),
                     needsReview: app.needs_review || false,
                     returnReason: app.return_reason || '',
                     title: `${p.names || 'Paciente'} ${p.last_name_1 || ''}`,
@@ -1025,7 +1049,7 @@ function abrirModalCita(data) {
 
         setAgendaPrevision(p.insurance || null, p.plan || null);
 
-        $("#agendaStatus").val(data.status || "pre-agendado").trigger("change");
+        $("#agendaStatus").val(data.statusRaw || data.status || "pre-agendado").trigger("change");
         actualizarCtaAtencionSalas();
         $("#mTratante").val(data.mTratante || "");
         $("#mDestinado").val(data.mDestinado || "");
@@ -1388,7 +1412,7 @@ async function eliminarCita() {
 }
 
 function getHexColorEstado(status) {
-    const key = status ? String(status).trim().toLowerCase() : '';
+    const key = risNormalizarEstadoAgendaVisual(status);
     return AGENDA_ESTADO_COLORES[key] || '#7d2181';
 }
 
