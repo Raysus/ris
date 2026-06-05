@@ -16,9 +16,11 @@ let currentPacientesAdmin = [];
 let currentPlantillasFromDB = [];
 let currentLaboratoriesTree = [];
 
-/** Modalidades para prestaciones / plantillas (alineado con salas y DICOM). */
+/** Modalidades para prestaciones / plantillas. */
 const RIS_EXAM_MODALITY_OPTIONS = [
-    { value: 'RX', label: 'Radiografía (RX)' },
+    { value: 'CR', label: 'Radiografía CR — cassette digital (CR)' },
+    { value: 'DX', label: 'Radiografía DX — detector digital (DX)' },
+    { value: 'RX', label: 'Radiografía general (RX, legado)' },
     { value: 'CT', label: 'Tomografía / Scanner (CT)' },
     { value: 'MRI', label: 'Resonancia magnética (MRI)' },
     { value: 'US', label: 'Ecografía (US)' },
@@ -29,8 +31,12 @@ const RIS_EXAM_MODALITY_OPTIONS = [
     { value: 'NM', label: 'Medicina nuclear (NM)' },
     { value: 'PT', label: 'PET (PT)' },
     { value: 'RF', label: 'Fluoroscopia (RF)' },
+    { value: 'XA', label: 'Angiografía (XA)' },
     { value: 'OT', label: 'Otro / General (OT)' },
 ];
+
+/** Modalidades para equipos / salas (misma lista; CR y DX son salas distintas). */
+const RIS_MACHINE_MODALITY_OPTIONS = RIS_EXAM_MODALITY_OPTIONS;
 
 const RIS_MODALITY_ALIASES = {
     ECO: 'US',
@@ -50,6 +56,8 @@ function risNormalizarCodigoModalidad(code) {
 function risBadgeClassModalidad(grupo) {
     const g = risNormalizarCodigoModalidad(grupo);
     const map = {
+        CR: 'bg-success',
+        DX: 'bg-primary',
         RX: 'bg-primary',
         CT: 'bg-info text-dark',
         MRI: 'bg-danger',
@@ -61,17 +69,18 @@ function risBadgeClassModalidad(grupo) {
         NM: 'bg-dark',
         PT: 'bg-dark',
         RF: 'bg-secondary',
+        XA: 'bg-secondary',
         OT: 'bg-light text-dark border',
     };
     return map[g] || 'bg-secondary';
 }
 
-function risPoblarSelectModalidades(selector) {
+function risPoblarSelectModalidades(selector, options = RIS_EXAM_MODALITY_OPTIONS) {
     const $sel = $(selector);
     if (!$sel.length) return;
     const selected = $sel.val();
     $sel.empty();
-    RIS_EXAM_MODALITY_OPTIONS.forEach((m) => {
+    options.forEach((m) => {
         $sel.append(`<option value="${m.value}">${m.label}</option>`);
     });
     if (selected) risAsegurarValorModalidad(selector, selected);
@@ -97,6 +106,7 @@ function initAdmin() {
     if (typeof applyLabProfileUI === 'function') applyLabProfileUI();
     risPoblarSelectModalidades('#catGrupo');
     risPoblarSelectModalidades('#tplGrupo');
+    risPoblarSelectModalidades('#salaGroup', RIS_MACHINE_MODALITY_OPTIONS);
     window.RIS = window.RIS || { users: [], personas: [], config: {} };
     renderListaUsuariosAdmin();
     renderListaInsumosAdmin();
@@ -1055,7 +1065,7 @@ async function renderListaSalasAdmin() {
             if (filtradas.length === 0) return tbody.append(`<tr><td colspan="4" class="text-center text-muted p-4">Sin equipos.</td></tr>`);
 
             filtradas.forEach(res => {
-                let badgeColor = (res.group === 'MRI') ? 'bg-danger' : (res.group === 'CT' ? 'bg-info text-dark' : 'bg-primary');
+                const badgeColor = risBadgeClassModalidad(res.group);
                 tbody.append(`
                     <tr>
                         <td class="fw-bold text-dark">
@@ -1088,7 +1098,7 @@ function cargarSala(id) {
         if (sala) {
             $("#salaId").val(sala.id);
             $("#salaName").val(sala.name);
-            $("#salaGroup").val(sala.group);
+            risAsegurarValorModalidad('#salaGroup', sala.group);
             $("#salaManufacturer").val(sala.manufacturer);
             $("#salaModel").val(sala.model_name);
             $("#salaDescription").val(sala.description);

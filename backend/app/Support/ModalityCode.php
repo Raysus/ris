@@ -19,6 +19,7 @@ class ModalityCode
             'RM', 'MR' => 'MRI',
             'MG' => 'MAMO',
             'DENSITO' => 'DEXA',
+            // RX genérico legado; salas nuevas usan CR o DX por separado
             default => $g,
         };
     }
@@ -31,13 +32,16 @@ class ModalityCode
         return match ($g) {
             'SCANNER', 'CT', 'CBCT' => 'CT',
             'RM', 'MRI', 'MR' => 'MR',
-            'RX', 'CR', 'DX', 'IO' => 'DX',
+            'CR' => 'CR',
+            'DX', 'RX' => 'DX',
+            'IO' => 'IO',
             'US', 'ULTRASOUND' => 'US',
             'MAMO', 'MG' => 'MG',
             'DEXA' => 'DX',
             'NM' => 'NM',
             'PT' => 'PT',
             'RF' => 'RF',
+            'XA' => 'XA',
             default => strlen($g) <= 2 ? $g : 'OT',
         };
     }

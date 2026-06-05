@@ -51,27 +51,21 @@ class MachineController extends Controller
         $labId = $request->header('X-Lab-Id') ?: config('app.current_lab_id');
         $group = ModalityCode::normalizeGroup($validated['group']);
 
-        $color = '#3788d8';
-        switch ($group) {
-            case 'RX':
-                $color = '#4CAF50';
-                break;
-            case 'SCANNER':
-                $color = '#FF9800';
-                break;
-            case 'US':
-                $color = '#9C27B0';
-                break;
-            case 'RM':
-                $color = '#E91E63';
-                break;
-            case 'MAMO':
-                $color = '#00BCD4';
-                break;
-            case 'DENSITO':
-                $color = '#795548';
-                break;
-        }
+        $color = match ($group) {
+            'CR' => '#43A047',
+            'DX' => '#2E7D32',
+            'RX' => '#66BB6A',
+            'CT', 'CBCT' => '#FF9800',
+            'MRI' => '#E91E63',
+            'US' => '#9C27B0',
+            'MAMO' => '#00BCD4',
+            'DEXA' => '#795548',
+            'IO' => '#5C6BC0',
+            'NM', 'PT' => '#37474F',
+            'RF', 'XA' => '#607D8B',
+            'OT' => '#78909C',
+            default => '#3788d8',
+        };
 
         if (!empty($validated['id'])) {
             $machine = $this->getSecureMachineQuery()->findOrFail($validated['id']);

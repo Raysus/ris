@@ -81,9 +81,9 @@ const AGENDA_ESTADO_COLORES = {
 const AGENDA_ESTADO_TEXTO = '#ffffff';
 
 /** Minutos por modalidad/sala cuando no viene del servidor (evita fallo si RIS.tiemposPorGrupo no está inicializado). */
-const TIEMPOS_POR_GRUPO_DEFAULT = { RX: 15, TC: 30, RM: 45, US: 20, MG: 15, General: 15 };
+const TIEMPOS_POR_GRUPO_DEFAULT = { CR: 15, DX: 15, RX: 15, CT: 30, MRI: 45, US: 20, MAMO: 15, General: 15 };
 
-/** Equivalencias de código de modalidad (sala ↔ prestación). */
+/** Equivalencias de código de modalidad (sala ↔ prestación). CR y DX no se fusionan. */
 function risGrupoModalidadEquiv(code) {
     const c = String(code || '').toUpperCase().trim();
     const aliases = { ECO: 'US', SCANNER: 'CT', TC: 'CT', RM: 'MRI', MR: 'MRI', MG: 'MAMO', DENSITO: 'DEXA' };
@@ -91,6 +91,8 @@ function risGrupoModalidadEquiv(code) {
 }
 
 const RIS_MODALITY_LABELS = {
+    CR: 'Radiografía CR',
+    DX: 'Radiografía DX',
     RX: 'Radiografía (RX)',
     CT: 'Tomografía (CT)',
     MRI: 'Resonancia (MRI)',
@@ -102,10 +104,11 @@ const RIS_MODALITY_LABELS = {
     NM: 'Medicina nuclear (NM)',
     PT: 'PET (PT)',
     RF: 'Fluoroscopia (RF)',
+    XA: 'Angiografía (XA)',
     OT: 'Otro (OT)',
 };
 
-const RIS_MODALITY_ORDER = ['RX', 'CT', 'MRI', 'US', 'MAMO', 'DEXA', 'CBCT', 'IO', 'NM', 'PT', 'RF', 'OT'];
+const RIS_MODALITY_ORDER = ['CR', 'DX', 'RX', 'CT', 'MRI', 'US', 'MAMO', 'DEXA', 'CBCT', 'IO', 'NM', 'PT', 'RF', 'XA', 'OT'];
 
 /** Lista todos los exámenes del catálogo agrupados por modalidad (sin filtrar por sala). */
 function poblarSelectExamenesAgenda($examSelect, machineId) {
