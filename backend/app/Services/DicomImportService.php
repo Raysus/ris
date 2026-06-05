@@ -57,6 +57,31 @@ class DicomImportService
         ];
     }
 
+    /** PatientID DICOM sin puntuación (RUT → 181977876). */
+    public function normalizePatientIdDicom(string $patientId): string
+    {
+        return strtoupper(str_replace(['.', '-', ' '], '', trim($patientId)));
+    }
+
+    /**
+     * Texto seguro para equipos legacy (Fuji FCR): ASCII + ISO_IR 100.
+     * Elimina tildes y caracteres fuera de Latin-1 básico.
+     */
+    public function toDicomAscii(string $text): string
+    {
+        $text = trim($text);
+        if ($text === '') {
+            return '';
+        }
+
+        $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $text);
+        if ($ascii === false || $ascii === '') {
+            $ascii = preg_replace('/[^\x20-\x7E]/', '', $text) ?? '';
+        }
+
+        return strtoupper(preg_replace('/\s+/', ' ', $ascii));
+    }
+
     /**
      * PN DICOM: «ApellidoPaterno ApellidoMaterno^nombres» (Family^Given).
      * El apellido materno va en el mismo componente Family, separado por espacio.
@@ -84,6 +109,15 @@ class DicomImportService
         }
 
         return strtoupper(trim("{$names} {$lastName1} {$lastName2}"));
+    }
+
+    /** PN para MWL en consolas Fuji FCR (ISO_IR 100, sin tildes). */
+    public function formatPatientNameDicomWorklist(string $names, string $lastName1, ?string $lastName2 = null): string
+    {
+        $raw = $this->formatPatientNameDicom($names, $lastName1, $lastName2);
+        $parts = explode('^', $raw);
+
+        return implode('^', array_map(fn (string $part): string => $this->toDicomAscii($part), $parts));
     }
 
     /** Sexo DICOM (0010,0040): M, F u omitir si no se conoce. */

@@ -41,4 +41,16 @@ class DicomPatientFormatTest extends TestCase
         $this->assertSame('19900515', $this->service->formatPatientBirthDate('1990-05-15'));
         $this->assertSame('', $this->service->formatPatientBirthDate(null));
     }
+
+    public function test_worklist_patient_name_ascii_for_fcr(): void
+    {
+        $pn = $this->service->formatPatientNameDicomWorklist('Alan Gerardo', 'Vásquez', 'Hertling');
+
+        $this->assertSame('VASQUEZ HERTLING^ALAN GERARDO', $pn);
+    }
+
+    public function test_normalize_patient_id_strips_rut_punctuation(): void
+    {
+        $this->assertSame('181977876', $this->service->normalizePatientIdDicom('18.197.787-6'));
+    }
 }

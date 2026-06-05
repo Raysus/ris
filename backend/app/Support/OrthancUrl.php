@@ -31,8 +31,11 @@ class OrthancUrl
     public static function dicomTarget(): array
     {
         $parsed = parse_url(self::base());
-        $host = trim((string) config('services.orthanc.host', ''));
-        if (!empty($parsed['host'])) {
+        $host = trim((string) config('services.orthanc.dicom_host', ''));
+        if ($host === '') {
+            $host = trim((string) config('services.orthanc.host', ''));
+        }
+        if ($host === '' && !empty($parsed['host'])) {
             $host = $parsed['host'];
         }
 
@@ -40,6 +43,7 @@ class OrthancUrl
             'host' => $host,
             'port' => (int) config('services.orthanc.port', 4242),
             'aet' => (string) config('services.orthanc.aet', 'HealthTICloud'),
+            'http_host' => $parsed['host'] ?? $host,
         ];
     }
 }

@@ -178,11 +178,7 @@ class WorklistController extends Controller
                     'pacs_dicom_port' => $dicom['port'],
                     'pacs_dicom_aet' => $dicom['aet'],
                 ],
-                'modality_note' => 'La orden quedó en el PACS (vía web). Para verla en el equipo, el modalidad debe '
-                    . 'consultar la worklist DICOM (C-FIND MWL) al mismo PACS en '
-                    . $dicom['host'] . ':' . $dicom['port']
-                    . ' con AE destino «' . $dicom['aet'] . '» y filtro de estación «' . $stationAeTitle . '» (modalidad ' . $modality . '). '
-                    . 'Si el puerto ' . $dicom['port'] . ' no responde desde la LAN del centro, sistemas debe abrir ruta/VPN o un SCP local.',
+                'modality_note' => $this->buildWorklistModalityNote($dicom, $stationAeTitle, $modality, $procedureSteps),
             ]);
 
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
@@ -489,6 +485,7 @@ class WorklistController extends Controller
      */
     private function buildScheduledProcedureSteps(Appointment $appointment): array
     {
+        $dicomImport = app(DicomImportService::class);
         $startDate = \Carbon\Carbon::parse($appointment->start_time)->format('Ymd');
         $startTime = \Carbon\Carbon::parse($appointment->start_time)->format('His');
         $steps = [];
@@ -503,6 +500,7 @@ class WorklistController extends Controller
                 'ScheduledProcedureStepStartDate' => $startDate,
                 'ScheduledProcedureStepStartTime' => $startTime,
                 'ScheduledProcedureStepID' => (string) $appointment->id,
+                'ScheduledProcedureStepStatus' => 'SCHEDULED',
                 'Modality' => $this->resolveWorklistModality(null, $appointment->machine),
             ]];
         }
@@ -513,12 +511,13 @@ class WorklistController extends Controller
                 continue;
             }
 
-            $procedureDesc = trim((string) ($study->exam_name ?? $study->sub_exam_name ?? ''));
+            $procedureDesc = $dicomImport->toDicomAscii((string) ($study->exam_name ?? $study->sub_exam_name ?? ''));
             $step = [
                 'ScheduledStationAETitle' => $machine->ae_title ?: ('SALA_' . $machine->id),
                 'ScheduledProcedureStepStartDate' => $startDate,
                 'ScheduledProcedureStepStartTime' => $startTime,
                 'ScheduledProcedureStepID' => (string) $study->id,
+                'ScheduledProcedureStepStatus' => 'SCHEDULED',
                 'Modality' => $this->resolveWorklistModality($study, $machine),
             ];
 
@@ -545,13 +544,15 @@ class WorklistController extends Controller
         ?string $procedureDescription = null
     ): array {
         $tags = [
-            'PatientName' => $dicomImport->formatPatientNameDicom(
+            'SpecificCharacterSet' => 'ISO_IR 100',
+            'PatientName' => $dicomImport->formatPatientNameDicomWorklist(
                 (string) ($persona->names ?? ''),
                 (string) ($persona->last_name_1 ?? ''),
                 filled($persona->last_name_2) ? (string) $persona->last_name_2 : null
             ),
-            'PatientID' => (string) $persona->rut,
+            'PatientID' => $dicomImport->normalizePatientIdDicom((string) $persona->rut),
             'AccessionNumber' => $accessionNumber,
+            'RequestedProcedureID' => $accessionNumber,
         ];
 
         $sex = $dicomImport->normalizePatientSex($persona->gender);
@@ -564,16 +565,37 @@ class WorklistController extends Controller
             $tags['PatientBirthDate'] = $birthDate;
         }
 
-        $institution = strtoupper(trim($institutionName));
+        $institution = $dicomImport->toDicomAscii($institutionName);
         if ($institution !== '') {
             $tags['InstitutionName'] = $institution;
         }
 
-        $procedure = strtoupper(trim((string) $procedureDescription));
+        $procedure = $dicomImport->toDicomAscii((string) $procedureDescription);
         if ($procedure !== '') {
             $tags['RequestedProcedureDescription'] = $procedure;
         }
 
         return $tags;
+    }
+
+    /**
+     * @param  array{host: string, port: int, aet: string, http_host?: string}  $dicom
+     * @param  list<array<string, string>>  $procedureSteps
+     */
+    private function buildWorklistModalityNote(array $dicom, string $stationAe, string $modality, array $procedureSteps): string
+    {
+        $httpHost = $dicom['http_host'] ?? $dicom['host'];
+        $dicomHost = $dicom['host'];
+        $hostHint = $dicomHost !== $httpHost
+            ? "Use la IP DICOM «{$dicomHost}» (no «{$httpHost}») en el equipo."
+            : "Host DICOM: «{$dicomHost}».";
+
+        $dateHint = $procedureSteps[0]['ScheduledProcedureStepStartDate'] ?? '';
+
+        return 'La orden quedó en el PACS (HTTP). El Fuji FCR la baja por DICOM MWL (C-FIND), no por la web. '
+            . "{$hostHint} Puerto {$dicom['port']}, AE destino «{$dicom['aet']}». "
+            . "En el FCR configure filtro de estación «{$stationAe}», modalidad «{$modality}» "
+            . "y fecha de la cita «{$dateHint}» (el FCR filtra por fecha + modalidad + estación). "
+            . 'Si pacs.healthticloud.cl:4242 no responde desde la LAN, use la IP pública DICOM que indique sistemas.';
     }
 }
