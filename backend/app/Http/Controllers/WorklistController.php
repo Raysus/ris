@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Appointment;
+use App\Models\AppointmentStudy;
+use App\Models\Machine;
 use App\Models\Supply;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -38,6 +40,7 @@ class WorklistController extends Controller
         $query = $this->getSecureAppointmentQuery()
             ->with([
                 'studies.machine',
+                'studies.exam',
                 'patient.persona',
                 'machine',
             ])
@@ -57,6 +60,8 @@ class WorklistController extends Controller
                     'quantity' => $study->quantity,
                     'machine_id' => $study->machine_id,
                     'machine_name' => $study->machine?->name ?? $appointment->machine?->name ?? 'Sala Desconocida',
+                    'machine_group' => $study->machine?->group ?? $appointment->machine?->group,
+                    'machine_ae_title' => $study->machine?->ae_title ?? $appointment->machine?->ae_title,
                     'appointment' => [
                         'id' => $appointment->id,
                         'start_time' => $appointment->start_time?->format('Y-m-d\TH:i:s'),
@@ -92,28 +97,28 @@ class WorklistController extends Controller
         }
 
         $appointment = $this->getSecureAppointmentQuery()
-            ->with(['patient.persona', 'machine', 'studies.machine', 'laboratory'])
+            ->with(['patient.persona', 'machine', 'studies.machine', 'studies.exam', 'laboratory'])
             ->findOrFail($appointmentId);
 
-        $machine = $appointment->studies->first(fn ($s) => $s->machine)?->machine
-            ?? $appointment->machine;
-
-        if (!$machine) {
+        $procedureSteps = $this->buildScheduledProcedureSteps($appointment);
+        if ($procedureSteps === []) {
             return response()->json([
                 'success' => false,
                 'message' => 'La cita no tiene sala/equipo asignado. Asigne la modalidad en Agenda antes de enviar la worklist.',
             ], 422);
         }
 
+        $primaryMachine = $this->resolveStudyMachine($appointment->studies->first(), $appointment)
+            ?? $appointment->machine;
+
         $isResend = filled($appointment->accession_number);
         $accessionNumber = $appointment->accession_number
-            ?: ('ACC-' . date('Ymd') . '-' . substr($appointment->id, 0, 5));
+            ?: $this->generateAccessionNumber($appointment);
 
         try {
             $orthancBase = OrthancUrl::base();
             $orthancUrl = $orthancBase . '/worklists/create';
 
-            $stationAeTitle = $machine->ae_title ?: ('SALA_' . $machine->id);
             $persona = $appointment->patient->persona;
             $study = $appointment->studies->first();
             $lab = $appointment->laboratory ?? LaboratoryProfileService::currentLaboratory();
@@ -126,20 +131,7 @@ class WorklistController extends Controller
                 $study?->exam_name ?? $study?->sub_exam_name
             );
 
-            $step = [
-                'ScheduledStationAETitle' => $stationAeTitle,
-                'ScheduledProcedureStepStartDate' => \Carbon\Carbon::parse($appointment->start_time)->format('Ymd'),
-                'ScheduledProcedureStepStartTime' => \Carbon\Carbon::parse($appointment->start_time)->format('His'),
-                'ScheduledProcedureStepID' => (string) $appointment->id,
-                'Modality' => ModalityCode::forDicomWorklist($machine->group ?? 'US'),
-            ];
-
-            $procedureDesc = trim((string) ($study?->exam_name ?? $study?->sub_exam_name ?? ''));
-            if ($procedureDesc !== '') {
-                $step['RequestedProcedureDescription'] = strtoupper($procedureDesc);
-            }
-
-            $tags['ScheduledProcedureStepSequence'] = [$step];
+            $tags['ScheduledProcedureStepSequence'] = $procedureSteps;
 
             $dicomWorklistData = ['Tags' => $tags];
 
@@ -163,7 +155,14 @@ class WorklistController extends Controller
             \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
 
             $dicom = OrthancUrl::dicomTarget();
-            $modality = ModalityCode::forDicomWorklist($machine->group ?? 'US');
+            $primaryStep = $procedureSteps[0];
+            $stationAeTitle = (string) ($primaryStep['ScheduledStationAETitle'] ?? '');
+            $modality = (string) ($primaryStep['Modality'] ?? 'OT');
+            $stepsSummary = collect($procedureSteps)->map(fn (array $step) => [
+                'station_ae' => $step['ScheduledStationAETitle'] ?? '',
+                'modality' => $step['Modality'] ?? '',
+                'procedure' => $step['RequestedProcedureDescription'] ?? null,
+            ])->values()->all();
 
             return response()->json([
                 'success' => true,
@@ -172,7 +171,8 @@ class WorklistController extends Controller
                 'worklist' => [
                     'scheduled_station_ae' => $stationAeTitle,
                     'modality' => $modality,
-                    'machine_name' => $machine->name,
+                    'machine_name' => $primaryMachine?->name,
+                    'steps' => $stepsSummary,
                     'pacs_http' => $orthancBase,
                     'pacs_dicom_host' => $dicom['host'],
                     'pacs_dicom_port' => $dicom['port'],
@@ -446,6 +446,90 @@ class WorklistController extends Controller
                 'linea' => $e->getLine()
             ], 500);
         }
+    }
+
+    private function generateAccessionNumber(Appointment $appointment): string
+    {
+        $suffix = strtoupper(substr(str_replace('-', '', (string) $appointment->id), 0, 8));
+
+        return 'ACC-' . date('Ymd') . '-' . $suffix;
+    }
+
+    private function resolveStudyMachine(?AppointmentStudy $study, Appointment $appointment): ?Machine
+    {
+        if ($study?->machine) {
+            return $study->machine;
+        }
+
+        return $appointment->machine;
+    }
+
+    /**
+     * Modalidad DICOM para MWL: sala asignada al estudio; si la sala es RX legado, usa el catálogo del examen.
+     */
+    private function resolveWorklistModality(?AppointmentStudy $study, Machine $machine): string
+    {
+        $machineGroup = ModalityCode::normalizeGroup($machine->group);
+        $examGroup = ModalityCode::normalizeGroup($study?->exam?->group_code);
+
+        $group = match (true) {
+            in_array($machineGroup, ['CR', 'DX', 'CT', 'MRI', 'US', 'MAMO', 'DEXA', 'IO', 'CBCT', 'NM', 'PT', 'RF', 'XA'], true)
+                => $machineGroup,
+            $examGroup !== '' && !in_array($examGroup, ['RX', 'OT', 'GENERAL'], true) => $examGroup,
+            default => $machineGroup !== '' ? $machineGroup : ($examGroup !== '' ? $examGroup : 'US'),
+        };
+
+        return ModalityCode::forDicomWorklist($group);
+    }
+
+    /**
+     * Un paso MWL por estudio, con la sala y modalidad actuales (CR, DX, MAMO→MG, etc.).
+     *
+     * @return list<array<string, string>>
+     */
+    private function buildScheduledProcedureSteps(Appointment $appointment): array
+    {
+        $startDate = \Carbon\Carbon::parse($appointment->start_time)->format('Ymd');
+        $startTime = \Carbon\Carbon::parse($appointment->start_time)->format('His');
+        $steps = [];
+
+        if ($appointment->studies->isEmpty()) {
+            if (!$appointment->machine) {
+                return [];
+            }
+
+            return [[
+                'ScheduledStationAETitle' => $appointment->machine->ae_title ?: ('SALA_' . $appointment->machine->id),
+                'ScheduledProcedureStepStartDate' => $startDate,
+                'ScheduledProcedureStepStartTime' => $startTime,
+                'ScheduledProcedureStepID' => (string) $appointment->id,
+                'Modality' => $this->resolveWorklistModality(null, $appointment->machine),
+            ]];
+        }
+
+        foreach ($appointment->studies as $study) {
+            $machine = $this->resolveStudyMachine($study, $appointment);
+            if (!$machine) {
+                continue;
+            }
+
+            $procedureDesc = trim((string) ($study->exam_name ?? $study->sub_exam_name ?? ''));
+            $step = [
+                'ScheduledStationAETitle' => $machine->ae_title ?: ('SALA_' . $machine->id),
+                'ScheduledProcedureStepStartDate' => $startDate,
+                'ScheduledProcedureStepStartTime' => $startTime,
+                'ScheduledProcedureStepID' => (string) $study->id,
+                'Modality' => $this->resolveWorklistModality($study, $machine),
+            ];
+
+            if ($procedureDesc !== '') {
+                $step['RequestedProcedureDescription'] = strtoupper($procedureDesc);
+            }
+
+            $steps[] = $step;
+        }
+
+        return $steps;
     }
 
     /**

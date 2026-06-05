@@ -22,4 +22,10 @@ class ModalityCodeTest extends TestCase
         $this->assertSame('DX', ModalityCode::forDicomWorklist('DX'));
         $this->assertSame('DX', ModalityCode::forDicomWorklist('RX'));
     }
+
+    public function test_mamo_maps_to_mg_in_worklist(): void
+    {
+        $this->assertSame('MAMO', ModalityCode::normalizeGroup('MG'));
+        $this->assertSame('MG', ModalityCode::forDicomWorklist('MAMO'));
+    }
 }
