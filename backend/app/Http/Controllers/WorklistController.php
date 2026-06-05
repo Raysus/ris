@@ -132,6 +132,9 @@ class WorklistController extends Controller
             );
 
             $tags['ScheduledProcedureStepSequence'] = $procedureSteps;
+            $tags = $this->shapeWorklistForFujiCfind($tags, $procedureSteps, $accessionNumber);
+
+            $this->purgeOrthancWorklistsForAccession($orthancBase, $accessionNumber);
 
             $dicomWorklistData = ['Tags' => $tags];
 
@@ -495,13 +498,17 @@ class WorklistController extends Controller
                 return [];
             }
 
+            $stationAe = $appointment->machine->ae_title ?: ('SALA_' . $appointment->machine->id);
+            $modality = $this->resolveWorklistModality(null, $appointment->machine);
+
             return [[
-                'ScheduledStationAETitle' => $appointment->machine->ae_title ?: ('SALA_' . $appointment->machine->id),
+                'ScheduledStationAETitle' => $stationAe,
+                'ScheduledStationName' => $this->truncateDicomShortString($stationAe, 16),
                 'ScheduledProcedureStepStartDate' => $startDate,
                 'ScheduledProcedureStepStartTime' => $startTime,
-                'ScheduledProcedureStepID' => (string) $appointment->id,
+                'ScheduledProcedureStepID' => $this->fujiScheduledProcedureStepId($appointment, (string) $appointment->id),
                 'ScheduledProcedureStepStatus' => 'SCHEDULED',
-                'Modality' => $this->resolveWorklistModality(null, $appointment->machine),
+                'Modality' => $modality,
             ]];
         }
 
@@ -512,13 +519,17 @@ class WorklistController extends Controller
             }
 
             $procedureDesc = $dicomImport->toDicomAscii((string) ($study->exam_name ?? $study->sub_exam_name ?? ''));
+            $stationAe = $machine->ae_title ?: ('SALA_' . $machine->id);
+            $modality = $this->resolveWorklistModality($study, $machine);
+
             $step = [
-                'ScheduledStationAETitle' => $machine->ae_title ?: ('SALA_' . $machine->id),
+                'ScheduledStationAETitle' => $stationAe,
+                'ScheduledStationName' => $this->truncateDicomShortString($stationAe, 16),
                 'ScheduledProcedureStepStartDate' => $startDate,
                 'ScheduledProcedureStepStartTime' => $startTime,
-                'ScheduledProcedureStepID' => (string) $study->id,
+                'ScheduledProcedureStepID' => $this->fujiScheduledProcedureStepId($appointment, (string) $study->id),
                 'ScheduledProcedureStepStatus' => 'SCHEDULED',
-                'Modality' => $this->resolveWorklistModality($study, $machine),
+                'Modality' => $modality,
             ];
 
             if ($procedureDesc !== '') {
@@ -576,6 +587,117 @@ class WorklistController extends Controller
         }
 
         return $tags;
+    }
+
+    /**
+     * Alinea tags MWL con el *Broad Query* del Fuji FCR (estación + modalidad + fecha).
+     * Orthanc indexa mejor C-FIND si Modality/StudyDate van también a nivel raíz.
+     *
+     * @param  list<array<string, string>>  $procedureSteps
+     * @return array<string, mixed>
+     */
+    private function shapeWorklistForFujiCfind(array $tags, array $procedureSteps, string $accessionNumber): array
+    {
+        if ($procedureSteps === []) {
+            return $tags;
+        }
+
+        $primary = $procedureSteps[0];
+        $stationAe = (string) ($primary['ScheduledStationAETitle'] ?? '');
+        $modality = (string) ($primary['Modality'] ?? 'OT');
+        $stepDate = (string) ($primary['ScheduledProcedureStepStartDate'] ?? '');
+        $stepTime = (string) ($primary['ScheduledProcedureStepStartTime'] ?? '');
+
+        unset($tags['StudyInstanceUID']);
+
+        $tags['Modality'] = $modality;
+        if ($stepDate !== '') {
+            $tags['StudyDate'] = $stepDate;
+        }
+        if ($stepTime !== '') {
+            $tags['StudyTime'] = $stepTime;
+        }
+
+        $tags['ScheduledProcedureStepSequence'] = array_map(
+            function (array $step) use ($accessionNumber, $modality): array {
+                $station = (string) ($step['ScheduledStationAETitle'] ?? '');
+                if ($station !== '') {
+                    $step['ScheduledStationName'] = $this->truncateDicomShortString($station, 16);
+                }
+
+                $step['ScheduledProcedureStepStatus'] = $step['ScheduledProcedureStepStatus'] ?? 'SCHEDULED';
+                $step['Modality'] = $step['Modality'] ?? $modality;
+
+                if ($this->isFujiFcrStation($station)) {
+                    $step['ScheduledProcedureStepID'] = $this->fujiScheduledProcedureStepIdFromAccession(
+                        $accessionNumber,
+                        (string) ($step['ScheduledProcedureStepID'] ?? '1')
+                    );
+                }
+
+                return $step;
+            },
+            $procedureSteps
+        );
+
+        if ($this->isFujiFcrStation($stationAe)) {
+            $tags['RequestedProcedureID'] = $this->truncateDicomShortString($accessionNumber, 16);
+        }
+
+        return $tags;
+    }
+
+    private function isFujiFcrStation(string $stationAe): bool
+    {
+        return str_starts_with(strtoupper(trim($stationAe)), 'FCR_');
+    }
+
+    private function fujiScheduledProcedureStepId(Appointment $appointment, string $fallbackId): string
+    {
+        $accession = (string) ($appointment->accession_number ?? '');
+
+        return $accession !== ''
+            ? $this->fujiScheduledProcedureStepIdFromAccession($accession, $fallbackId)
+            : $this->truncateDicomShortString($fallbackId, 16);
+    }
+
+    private function fujiScheduledProcedureStepIdFromAccession(string $accessionNumber, string $fallbackId): string
+    {
+        $compact = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $accessionNumber) ?? '');
+
+        if ($compact !== '') {
+            return $this->truncateDicomShortString($compact, 16);
+        }
+
+        return $this->truncateDicomShortString($fallbackId, 16);
+    }
+
+    private function truncateDicomShortString(string $value, int $maxLength): string
+    {
+        $trimmed = trim($value);
+
+        return $trimmed === '' ? '' : substr($trimmed, 0, $maxLength);
+    }
+
+    private function purgeOrthancWorklistsForAccession(string $orthancBase, string $accessionNumber): void
+    {
+        try {
+            $response = Http::timeout(15)->acceptJson()->get($orthancBase . '/worklists');
+            if (!$response->successful()) {
+                return;
+            }
+
+            foreach ($response->json() as $item) {
+                $existingAccession = (string) ($item['Tags']['AccessionNumber'] ?? '');
+                if ($existingAccession !== $accessionNumber || empty($item['ID'])) {
+                    continue;
+                }
+
+                Http::timeout(10)->acceptJson()->delete($orthancBase . '/worklists/' . $item['ID']);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo purgar worklist previa en Orthanc: ' . $e->getMessage());
+        }
     }
 
     /**
