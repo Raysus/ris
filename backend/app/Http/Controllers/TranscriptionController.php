@@ -66,7 +66,7 @@ class TranscriptionController extends Controller
                         'exam' => $study->exam_name,
                         'subExam' => $study->sub_exam_name,
                         // Se corrigen las variables apuntando a $study en lugar de $app
-                        'reportText' => $study->report ?? '',
+                        'reportText' => $study->getStoredReportText(),
                         'audioUrl' => $study->audio_path ? asset('storage/' . $study->audio_path) : null,
                     ];
                 })

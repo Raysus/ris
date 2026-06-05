@@ -10,6 +10,32 @@ use Illuminate\Support\Str;
 
 class RadiologistController extends Controller
 {
+    private function formatPatientPayload($patient): array
+    {
+        $persona = optional(optional($patient)->persona);
+
+        return [
+            'rut' => $persona->rut ?? 'Sin RUT',
+            'name' => $persona->names ?? $persona->name ?? 'Sin nombre',
+            'lastName' => $persona->last_name_1 ?? $persona->last_name ?? 'Sin apellido',
+            'secondLastName' => $persona->last_name_2 ?? $persona->second_last_name ?? '',
+            'age' => $persona->birth_date
+                ? Carbon::parse($persona->birth_date)->age
+                : ($persona->age ?? 'N/A'),
+        ];
+    }
+
+    private function formatStudyPayload($study): array
+    {
+        return [
+            'study_id' => $study->id,
+            'exam' => $study->exam_name,
+            'subExam' => $study->sub_exam_name,
+            'reportText' => $study->getStoredReportText(),
+            'audioUrl' => $study->audio_path ? asset('storage/' . $study->audio_path) : null,
+        ];
+    }
+
     private function getSecureAppointmentQuery()
     {
         $allowedLabs = config('app.allowed_lab_ids');
@@ -41,22 +67,8 @@ class RadiologistController extends Controller
                 'accessionNumber' => $app->accession_number ?? 'ACC-' . $app->id,
                 'studyInstanceUid' => $app->study_instance_uid,
                 'anamnesis' => $anamnesisGlobal,
-                'patient' => [
-                    'rut' => $app->patient->persona->rut,
-                    'name' => $app->patient->persona->names,
-                    'lastName' => $app->patient->persona->last_name_1,
-                    'age' => $app->patient->persona->birth_date ? \Carbon\Carbon::parse($app->patient->persona->birth_date)->age : ($app->patient->persona->age ?? 'N/A'),
-
-                ],
-                'studies' => $app->studies->map(function ($s) {
-                    return [
-                        'study_id' => $s->id,
-                        'exam' => $s->exam_name,
-                        'subExam' => $s->sub_exam_name,
-                        'reportText' => $s->report ?? '',
-                        'audioUrl' => $s->audio_path ? asset('storage/' . $s->audio_path) : null,
-                    ];
-                })
+                'patient' => $this->formatPatientPayload($app->patient),
+                'studies' => $app->studies->map(fn ($s) => $this->formatStudyPayload($s))->values(),
             ];
         });
 
@@ -272,9 +284,12 @@ class RadiologistController extends Controller
                 'patient.persona',
                 'studies',
                 'destinationDoctor.persona',
-                'referringDoctor'
+                'referringDoctor',
             ])
-            ->where('status', 'para_firma')
+            ->where(function ($q) {
+                $q->where('status', 'para_firma')
+                    ->orWhereHas('studies', fn ($s) => $s->where('status', 'para_firma'));
+            })
             ->orderBy('updated_at', 'asc')
             ->get();
 
@@ -296,6 +311,10 @@ class RadiologistController extends Controller
                 $refDoctorName = $app->referringDoctor->name ?? $app->referringDoctor->names ?? 'Derivante Registrado';
             }
 
+            $studies = $app->studies->filter(
+                fn ($s) => $app->status === 'para_firma' || $s->status === 'para_firma'
+            );
+
             return [
                 'id' => $app->id,
                 'accessionNumber' => $app->accession_number ?? 'ACC-' . $app->id,
@@ -306,23 +325,17 @@ class RadiologistController extends Controller
                 'destinationDoctorName' => $destDoctorName,
                 'referringDoctorName' => $refDoctorName,
                 'firmaUrl' => $firmaUrl,
-                'patient' => [
-                    'rut' => $app->patient->persona->rut,
-                    'name' => $app->patient->persona->names,
-                    'lastName' => $app->patient->persona->last_name_1,
-                    'secondLastName' => $app->patient->persona->last_name_2,
-                    'age' => Carbon::parse($app->patient->persona->birth_date)->age ?? null,
-                ],
-                'studies' => $app->studies->map(function ($s) {
+                'patient' => $this->formatPatientPayload($app->patient),
+                'studies' => $studies->map(function ($s) {
                     return [
                         'study_id' => $s->id,
                         'exam' => $s->exam_name,
                         'subExam' => $s->sub_exam_name,
-                        'reportText' => $s->report ?? '',
+                        'reportText' => $s->getStoredReportText(),
                     ];
-                }),
+                })->values(),
             ];
-        });
+        })->filter(fn ($row) => $row['studies']->isNotEmpty())->values();
 
         return response()->json(['success' => true, 'data' => $formattedData]);
     }

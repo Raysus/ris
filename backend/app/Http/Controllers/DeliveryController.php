@@ -66,7 +66,7 @@ class DeliveryController extends Controller
                     return [
                         'study_id' => $s->id,
                         'exam' => $s->exam_name,
-                        'reportText' => $s->report ?? '',
+                        'reportText' => $s->getStoredReportText(),
                     ];
                 })
             ];
