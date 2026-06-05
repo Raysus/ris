@@ -108,8 +108,6 @@ class MachineController extends Controller
             ]);
         }
 
-        $action = !empty($validated['id']) ? 'updated' : 'created';
-        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Machine', $action, $machine->fresh()->toArray());
         return response()->json(['success' => true, 'machine' => $machine]);
     }
 
