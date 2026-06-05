@@ -57,16 +57,49 @@ class DicomImportService
         ];
     }
 
-    public function formatPatientNameDicom(string $names, string $lastName): string
+    /**
+     * PN DICOM: ApellidoPaterno^nombres^ApellidoMaterno (Family^Given^Middle).
+     */
+    public function formatPatientNameDicom(string $names, string $lastName1, ?string $lastName2 = null): string
     {
-        $n = strtoupper(trim(preg_replace('/\s+/', ' ', $names)));
-        $a = strtoupper(trim(preg_replace('/\s+/', ' ', $lastName)));
+        $family = strtoupper(trim(preg_replace('/\s+/', ' ', $lastName1)));
+        $given = strtoupper(trim(preg_replace('/\s+/', ' ', $names)));
+        $middle = strtoupper(trim(preg_replace('/\s+/', ' ', (string) $lastName2)));
 
-        if ($a !== '' && $n !== '') {
-            return "{$a}^{$n}";
+        $components = array_values(array_filter(
+            [$family, $given, $middle],
+            static fn (string $part): bool => $part !== ''
+        ));
+
+        if ($components !== []) {
+            return implode('^', $components);
         }
 
-        return strtoupper(trim("{$n} {$a}"));
+        return strtoupper(trim("{$names} {$lastName1} {$lastName2}"));
+    }
+
+    /** Sexo DICOM (0010,0040): M, F u omitir si no se conoce. */
+    public function normalizePatientSex(mixed $gender): string
+    {
+        return match (strtoupper(trim((string) $gender))) {
+            'M', 'MALE', 'MASCULINO', 'H', 'HOMBRE' => 'M',
+            'F', 'FEMALE', 'FEMENINO', 'MUJER' => 'F',
+            default => '',
+        };
+    }
+
+    /** Fecha nacimiento DICOM (0010,0030) YYYYMMDD. */
+    public function formatPatientBirthDate(mixed $birthDate): string
+    {
+        if ($birthDate === null || $birthDate === '') {
+            return '';
+        }
+
+        try {
+            return \Carbon\Carbon::parse($birthDate)->format('Ymd');
+        } catch (\Throwable) {
+            return '';
+        }
     }
 
     /** @return list<string> Orthanc study IDs */

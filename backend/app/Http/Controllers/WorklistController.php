@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use App\Services\DicomImportService;
+use App\Models\Persona;
 use App\Services\OrthancStudyLookup;
 use App\Support\ModalityCode;
 use App\Support\OrthancUrl;
@@ -80,7 +81,7 @@ class WorklistController extends Controller
         return response()->json(['success' => true, 'data' => $formattedData]);
     }
 
-    public function sendToDicom(Request $request, $appointmentId)
+    public function sendToDicom(Request $request, $appointmentId, DicomImportService $dicomImport)
     {
         $profile = LaboratoryProfileService::resolve();
         if (!($profile['uses_dicom_worklist'] ?? true)) {
@@ -91,7 +92,7 @@ class WorklistController extends Controller
         }
 
         $appointment = $this->getSecureAppointmentQuery()
-            ->with(['patient.persona', 'machine', 'studies.machine'])
+            ->with(['patient.persona', 'machine', 'studies.machine', 'laboratory'])
             ->findOrFail($appointmentId);
 
         $machine = $appointment->studies->first(fn ($s) => $s->machine)?->machine
@@ -114,36 +115,33 @@ class WorklistController extends Controller
 
             $stationAeTitle = $machine->ae_title ?: ('SALA_' . $machine->id);
             $persona = $appointment->patient->persona;
+            $study = $appointment->studies->first();
+            $lab = $appointment->laboratory ?? LaboratoryProfileService::currentLaboratory();
 
-            $patientSex = match (strtoupper((string) ($persona->gender ?? ''))) {
-                'M', 'MALE', 'MASCULINO' => 'M',
-                'F', 'FEMALE', 'FEMENINO' => 'F',
-                default => 'O',
-            };
+            $tags = $this->buildWorklistTags(
+                $dicomImport,
+                $persona,
+                $accessionNumber,
+                $lab?->name ?? config('app.name', 'HealthTiCloud'),
+                $study?->exam_name ?? $study?->sub_exam_name
+            );
 
-            $patientBirthDate = $persona->birth_date
-                ? \Carbon\Carbon::parse($persona->birth_date)->format('Ymd')
-                : '';
-
-            // Formato Orthanc worklists plugin (Tags DICOM)
-            $dicomWorklistData = [
-                "Tags" => [
-                    "PatientName" => $persona->names . "^" . $persona->last_name_1,
-                    "PatientID" => $persona->rut,
-                    "PatientSex" => $patientSex,
-                    "PatientBirthDate" => $patientBirthDate,
-                    "AccessionNumber" => $accessionNumber,
-                    "ScheduledProcedureStepSequence" => [
-                        [
-                            "ScheduledStationAETitle" => $stationAeTitle,
-                            "ScheduledProcedureStepStartDate" => \Carbon\Carbon::parse($appointment->start_time)->format('Ymd'),
-                            "ScheduledProcedureStepStartTime" => \Carbon\Carbon::parse($appointment->start_time)->format('His'),
-                            "ScheduledProcedureStepID" => (string) $appointment->id,
-                            "Modality" => ModalityCode::forDicomWorklist($machine->group ?? 'US')
-                        ]
-                    ]
-                ]
+            $step = [
+                'ScheduledStationAETitle' => $stationAeTitle,
+                'ScheduledProcedureStepStartDate' => \Carbon\Carbon::parse($appointment->start_time)->format('Ymd'),
+                'ScheduledProcedureStepStartTime' => \Carbon\Carbon::parse($appointment->start_time)->format('His'),
+                'ScheduledProcedureStepID' => (string) $appointment->id,
+                'Modality' => ModalityCode::forDicomWorklist($machine->group ?? 'US'),
             ];
+
+            $procedureDesc = trim((string) ($study?->exam_name ?? $study?->sub_exam_name ?? ''));
+            if ($procedureDesc !== '') {
+                $step['RequestedProcedureDescription'] = strtoupper($procedureDesc);
+            }
+
+            $tags['ScheduledProcedureStepSequence'] = [$step];
+
+            $dicomWorklistData = ['Tags' => $tags];
 
             $response = Http::timeout(20)
                 ->acceptJson()
@@ -242,7 +240,8 @@ class WorklistController extends Controller
 
             $patientName = $dicomImport->formatPatientNameDicom(
                 (string) ($persona->names ?? ''),
-                (string) ($persona->last_name_1 ?? '')
+                (string) ($persona->last_name_1 ?? ''),
+                filled($persona->last_name_2) ? (string) $persona->last_name_2 : null
             );
 
             $result = $dicomImport->uploadAndTag(
@@ -447,5 +446,50 @@ class WorklistController extends Controller
                 'linea' => $e->getLine()
             ], 500);
         }
+    }
+
+    /**
+     * Tags DICOM para Orthanc /worklists/create.
+     *
+     * @return array<string, mixed>
+     */
+    private function buildWorklistTags(
+        DicomImportService $dicomImport,
+        Persona $persona,
+        string $accessionNumber,
+        string $institutionName,
+        ?string $procedureDescription = null
+    ): array {
+        $tags = [
+            'PatientName' => $dicomImport->formatPatientNameDicom(
+                (string) ($persona->names ?? ''),
+                (string) ($persona->last_name_1 ?? ''),
+                filled($persona->last_name_2) ? (string) $persona->last_name_2 : null
+            ),
+            'PatientID' => (string) $persona->rut,
+            'AccessionNumber' => $accessionNumber,
+        ];
+
+        $sex = $dicomImport->normalizePatientSex($persona->gender);
+        if ($sex !== '') {
+            $tags['PatientSex'] = $sex;
+        }
+
+        $birthDate = $dicomImport->formatPatientBirthDate($persona->birth_date);
+        if ($birthDate !== '') {
+            $tags['PatientBirthDate'] = $birthDate;
+        }
+
+        $institution = strtoupper(trim($institutionName));
+        if ($institution !== '') {
+            $tags['InstitutionName'] = $institution;
+        }
+
+        $procedure = strtoupper(trim((string) $procedureDescription));
+        if ($procedure !== '') {
+            $tags['RequestedProcedureDescription'] = $procedure;
+        }
+
+        return $tags;
     }
 }
