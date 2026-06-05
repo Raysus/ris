@@ -175,8 +175,11 @@ class MachineController extends Controller
                 . $stationAe . ' --modality=' . $modality
             : '';
 
-        $fcrHint = "En el FCR: servidor «{$pacs['host']}», puerto {$pacs['port']}, AE destino «{$pacs['aet']}» (called AET del PACS), "
-            . "estación «{$stationAe}», modalidad «{$modality}» y la fecha de la cita en agenda.";
+        $today = (new \DateTimeImmutable('now', new \DateTimeZone('America/Santiago')))->format('d/m/Y');
+        $fcrHint = "FCR Console: remoto «{$pacs['host']}»:{$pacs['port']}, AE destino (called) «{$pacs['aet']}», "
+            . "AE local (calling) «{$stationAe}», modalidad «{$modality}». "
+            . "El broad query usa la fecha del día en el equipo (hoy {$today}) o la de la cita; si no coinciden, la lista sale vacía. "
+            . 'Pruebe también búsqueda por Accession en el FCR.';
 
         $message = trim($equipmentTcp['detail'] . ' ' . $pacsDetail . ' ' . $fcrHint . ($cfindNote !== '' ? ' ' . $cfindNote : ''));
 

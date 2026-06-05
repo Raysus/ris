@@ -512,10 +512,18 @@ En **Admin → Salas**, la IP/puerto de la ficha es del **equipo en la LAN** (pi
 > El RIS crea la worklist por **HTTPS (443)**; el **Fuji FCR la descarga por DICOM (4242)** a la **IP pública** del PACS.
 > En `backend/.env` del lab: `PACS_DICOM_HOST=170.246.172.84` (o la IP que indique sistemas).
 
-### Fuji FCR (CR / mamografía) — checklist MWL
+### Fuji FCR Console (CR / mamografía) — checklist MWL
 
-Según el *DICOM Conformance Statement* de Fuji FCR, la consola hace **C-FIND** con estos filtros obligatorios
-(*Broad Query*):
+El **FCR Console** no usa la web del PACS: solo hace **C-FIND** al puerto **4242** de la IP DICOM del PACS.
+
+Según el *DICOM Conformance Statement* del CR Console, hay dos formas de bajar la worklist:
+
+| Modo en el FCR | Claves de búsqueda |
+|----------------|-------------------|
+| **Broad Query** (lista automática / Refresh) | Fecha del paso + modalidad `CR`/`MG` + estación AE |
+| **Patient Based Query** (búsqueda manual) | Patient ID (obligatorio) + Accession (opcional) |
+
+**Broad Query** — filtros obligatorios:
 
 | Filtro en el FCR | Debe coincidir con la orden del RIS |
 |------------------|-------------------------------------|
@@ -532,6 +540,9 @@ Si la orden **sí aparece en el explorador web del PACS** pero **no en el FCR**:
 5. **Fecha en el FCR** = fecha de la cita en agenda (`YYYYMMDD`). Si el FCR consulta solo «hoy» y la cita es mañana, la lista sale vacía.
 6. **Reenvíe la worklist** desde el RIS tras actualizar el sistema o cambiar sala/paciente (el RIS envía nombres en **ISO_IR 100**, sin tildes).
 7. Orthanc (PACS) exige que `ScheduledStationAETitle` y `ScheduledProcedureStepStartDate` estén también a **nivel raíz** de la worklist para el *broad query* plano del Fuji; el RIS las duplica al reenviar.
+8. En el FCR Console → **DICOM Setup**: **Local AE Title** = mismo valor que Admin → Salas (ej. `FCR_PANO`); **Remote AE Title** = `HEALTHTICLOUD`.
+9. Si la orden **ya no aparece en** `https://pacs…/worklists` (lista vacía), el PACS la borró (`DeleteWorklistsDelay` / estudio estable). **Reenvíe desde el RIS el mismo día del examen**.
+10. Si el broad query no trae nada: en el FCR busque por **RUT (Patient ID)** y **Accession** de la cita.
 
 Comprobación **C-FIND** desde el servidor del lab (no basta con TCP :4242):
 

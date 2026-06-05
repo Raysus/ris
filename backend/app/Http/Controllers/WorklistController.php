@@ -150,6 +150,14 @@ class WorklistController extends Controller
                 );
             }
 
+            if (!$this->verifyOrthancWorklistPresent($orthancBase, $accessionNumber)) {
+                throw new \Exception(
+                    'Orthanc aceptó la worklist pero ya no aparece en el PACS. '
+                    . 'Suele ocurrir si el PACS tiene «DeleteWorklistsOnStableStudy» o «DeleteWorklistsDelay» '
+                    . 'y el accession ya tiene estudio, o si la orden expiró. Pida a sistemas desactivar el borrado automático o reenvíe el mismo día del examen.'
+                );
+            }
+
             $appointment->status = 'dicom_enviado';
             $appointment->accession_number = $accessionNumber;
             $appointment->save();
@@ -489,8 +497,9 @@ class WorklistController extends Controller
     private function buildScheduledProcedureSteps(Appointment $appointment): array
     {
         $dicomImport = app(DicomImportService::class);
-        $startDate = \Carbon\Carbon::parse($appointment->start_time)->format('Ymd');
-        $startTime = \Carbon\Carbon::parse($appointment->start_time)->format('His');
+        $start = \Carbon\Carbon::parse($appointment->start_time)->timezone($this->worklistTimezone());
+        $startDate = $start->format('Ymd');
+        $startTime = $start->format('His');
         $steps = [];
 
         if ($appointment->studies->isEmpty()) {
@@ -715,15 +724,57 @@ class WorklistController extends Controller
         $httpHost = $dicom['http_host'] ?? $dicom['host'];
         $dicomHost = $dicom['host'];
         $hostHint = $dicomHost !== $httpHost
-            ? "Use la IP DICOM «{$dicomHost}» (no «{$httpHost}») en el equipo."
-            : "Host DICOM: «{$dicomHost}».";
+            ? "Use la IP DICOM «{$dicomHost}» (no «{$httpHost}») en el FCR Console."
+            : "Host DICOM del FCR Console: «{$dicomHost}».";
 
         $dateHint = $procedureSteps[0]['ScheduledProcedureStepStartDate'] ?? '';
+        $dateDisplay = $dateHint !== ''
+            ? \Carbon\Carbon::createFromFormat('Ymd', $dateHint, $this->worklistTimezone())->format('d/m/Y')
+            : '';
+        $todayHint = \Carbon\Carbon::now($this->worklistTimezone())->format('Ymd');
+        $todayDisplay = \Carbon\Carbon::now($this->worklistTimezone())->format('d/m/Y');
+        $dateWarning = $dateHint !== '' && $dateHint !== $todayHint
+            ? " Hoy en el centro es {$todayDisplay}: el FCR Console suele consultar la fecha del día; si no cambia la fecha en el equipo, no verá citas del {$dateDisplay}."
+            : '';
 
-        return 'La orden quedó en el PACS (HTTP). El Fuji FCR la baja por DICOM MWL (C-FIND), no por la web. '
-            . "{$hostHint} Puerto {$dicom['port']}, AE destino (called) «{$dicom['aet']}». "
-            . "En el FCR configure filtro de estación «{$stationAe}», modalidad «{$modality}» "
-            . "y fecha de la cita «{$dateHint}» (el FCR filtra por fecha + modalidad + estación). "
-            . 'Reenvíe la worklist si cambió modalidad o estación. TCP :4242 OK no garantiza C-FIND en el PACS.';
+        $fcrHint = $this->isFujiFcrStation($stationAe)
+            ? ' FCR Console: AE local (calling) debe ser «' . $stationAe . '»; AE remoto (called) «' . $dicom['aet'] . '». '
+                . 'Broad Query exige fecha «' . $dateHint . '», modalidad «' . $modality . '» y estación «' . $stationAe . '». '
+                . 'Alternativa: búsqueda por Patient ID + Accession en el FCR.'
+            : '';
+
+        return 'La orden quedó en el PACS. El Fuji FCR Console la baja por DICOM MWL (C-FIND), no por la web. '
+            . "{$hostHint} Puerto {$dicom['port']}, AE destino «{$dicom['aet']}». "
+            . "Filtros MWL: estación «{$stationAe}», modalidad «{$modality}», fecha «{$dateHint}» ({$dateDisplay})."
+            . $dateWarning
+            . $fcrHint
+            . ' Reenvíe la worklist el mismo día del examen si el PACS borra órdenes antiguas.';
+    }
+
+    private function worklistTimezone(): string
+    {
+        return (string) config('app.worklist_timezone', 'America/Santiago');
+    }
+
+    private function verifyOrthancWorklistPresent(string $orthancBase, string $accessionNumber): bool
+    {
+        try {
+            $response = Http::timeout(10)->acceptJson()->get($orthancBase . '/worklists');
+            if (!$response->successful()) {
+                return true;
+            }
+
+            foreach ($response->json() ?? [] as $item) {
+                if ((string) ($item['Tags']['AccessionNumber'] ?? '') === $accessionNumber) {
+                    return true;
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo verificar worklist en Orthanc: ' . $e->getMessage());
+
+            return true;
+        }
+
+        return false;
     }
 }
