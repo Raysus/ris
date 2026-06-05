@@ -591,7 +591,8 @@ class WorklistController extends Controller
 
     /**
      * Alinea tags MWL con el *Broad Query* del Fuji FCR (estación + modalidad + fecha).
-     * Orthanc indexa mejor C-FIND si Modality/StudyDate van también a nivel raíz.
+     * Orthanc solo matchea esos filtros planos si estación/fecha del paso van también a nivel raíz
+     * (además de ScheduledProcedureStepSequence); Modality/StudyDate en raíz ayudan al índice C-FIND.
      *
      * @param  list<array<string, string>>  $procedureSteps
      * @return array<string, mixed>
@@ -611,11 +612,16 @@ class WorklistController extends Controller
         unset($tags['StudyInstanceUID']);
 
         $tags['Modality'] = $modality;
+        if ($stationAe !== '') {
+            $tags['ScheduledStationAETitle'] = $stationAe;
+        }
         if ($stepDate !== '') {
             $tags['StudyDate'] = $stepDate;
+            $tags['ScheduledProcedureStepStartDate'] = $stepDate;
         }
         if ($stepTime !== '') {
             $tags['StudyTime'] = $stepTime;
+            $tags['ScheduledProcedureStepStartTime'] = $stepTime;
         }
 
         $tags['ScheduledProcedureStepSequence'] = array_map(

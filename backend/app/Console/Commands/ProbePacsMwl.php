@@ -64,12 +64,6 @@ class ProbePacsMwl extends Command
         $text = implode("\n", $output);
         $this->line($text);
 
-        if (str_contains($text, 'Find Response') || str_contains($text, 'Find Response (Pending)')) {
-            $this->info('C-FIND respondió con resultados.');
-
-            return self::SUCCESS;
-        }
-
         if (str_contains($text, 'Find Failed') || str_contains($text, 'Peer Aborted')) {
             $this->error('C-FIND falló en el PACS (TCP puede estar OK). Revise Orthanc worklists + C-FIND.');
 
@@ -82,8 +76,17 @@ class ProbePacsMwl extends Command
             return self::FAILURE;
         }
 
-        $this->warn('Sin coincidencias en worklist (C-FIND OK pero lista vacía para estos filtros).');
+        $hasPending = preg_match('/Find Response:\s*\d+\s*\(Pending\)/', $text) === 1;
+        if ($hasPending) {
+            $this->info('C-FIND devolvió worklist(s) con estos filtros (el Fuji debería verlas).');
 
-        return self::SUCCESS;
+            return self::SUCCESS;
+        }
+
+        $this->warn('C-FIND OK pero lista vacía para estación+modalidad+fecha (el Fuji verá lo mismo).');
+        $this->line('Compruebe: (1) reenviar worklist desde el RIS tras actualizar, (2) fecha del FCR = fecha de la cita, (3) modalidad CR/MG.');
+        $this->line('Diagnóstico Orthanc: si por accession sí hay Pending pero este query no, faltan tags planos en la worklist.');
+
+        return self::FAILURE;
     }
 }

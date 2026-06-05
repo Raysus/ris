@@ -529,7 +529,9 @@ Si la orden **sí aparece en el explorador web del PACS** pero **no en el FCR**:
 2. En el FCR, host MWL = **IP** (no URL web), puerto **4242**, AE destino correcto.
 3. AE de estación en el FCR = mismo valor que Admin → Salas → AE Title.
 4. Modalidad en el FCR = `CR` o `MG` según el equipo (no `DX` si la sala es CR Fuji).
-5. Reenvíe la worklist desde el RIS tras cambiar sala o paciente (el RIS envía nombres en **ISO_IR 100**, sin tildes).
+5. **Fecha en el FCR** = fecha de la cita en agenda (`YYYYMMDD`). Si el FCR consulta solo «hoy» y la cita es mañana, la lista sale vacía.
+6. **Reenvíe la worklist** desde el RIS tras actualizar el sistema o cambiar sala/paciente (el RIS envía nombres en **ISO_IR 100**, sin tildes).
+7. Orthanc (PACS) exige que `ScheduledStationAETitle` y `ScheduledProcedureStepStartDate` estén también a **nivel raíz** de la worklist para el *broad query* plano del Fuji; el RIS las duplica al reenviar.
 
 Comprobación **C-FIND** desde el servidor del lab (no basta con TCP :4242):
 
