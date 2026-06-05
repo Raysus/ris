@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Machine;
 use App\Support\ModalityCode;
+use App\Support\PacsMwlProbe;
 use Illuminate\Http\Request;
 
 class MachineController extends Controller
@@ -170,21 +171,31 @@ class MachineController extends Controller
                     ? "No use «{$httpHost}:4242» en el FCR; use la IP DICOM «{$pacs['host']}»."
                     : 'Revise firewall y PACS_DICOM_HOST en .env.');
 
-        $cfindNote = $pacsOk
-            ? 'TCP :4242 OK no garantiza C-FIND. Si el FCR no trae órdenes, pruebe en el servidor: php artisan pacs:probe-mwl --station='
-                . $stationAe . ' --modality=' . $modality
-            : '';
+        $cfind = $pacsOk
+            ? PacsMwlProbe::run($stationAe, $modality)
+            : ['ok' => false, 'pending' => false, 'failed' => true, 'output' => '', 'calling_ae' => $stationAe, 'station_ae' => $stationAe, 'modality' => $modality, 'date' => date('Ymd')];
+
+        $cfindDetail = '';
+        if ($pacsOk) {
+            if ($cfind['ok']) {
+                $cfindDetail = "C-FIND OK con AE «{$stationAe}» (hay worklist para hoy «{$cfind['date']}»).";
+            } elseif ($cfind['failed']) {
+                $cfindDetail = "C-FIND RECHAZADO (Find Failed) con AE «{$stationAe}». El PACS exige que el Local AE del FCR Console sea exactamente «{$stationAe}».";
+            } else {
+                $cfindDetail = "C-FIND sin resultados para hoy «{$cfind['date']}» con estación «{$stationAe}» y modalidad «{$modality}». Reenvíe la worklist o ajuste la fecha en el FCR.";
+            }
+        }
 
         $today = (new \DateTimeImmutable('now', new \DateTimeZone('America/Santiago')))->format('d/m/Y');
         $fcrHint = "FCR Console: remoto «{$pacs['host']}»:{$pacs['port']}, AE destino (called) «{$pacs['aet']}», "
-            . "AE local (calling) «{$stationAe}», modalidad «{$modality}». "
-            . "El broad query usa la fecha del día en el equipo (hoy {$today}) o la de la cita; si no coinciden, la lista sale vacía. "
-            . 'Pruebe también búsqueda por Accession en el FCR.';
+            . "AE local (calling) OBLIGATORIO «{$stationAe}» (si el FCR tiene otro AE, el PACS rechaza la consulta). "
+            . "Modalidad «{$modality}», fecha hoy {$today} o la de la cita. "
+            . 'Alternativa: búsqueda por Patient ID + Accession en el FCR.';
 
-        $message = trim($equipmentTcp['detail'] . ' ' . $pacsDetail . ' ' . $fcrHint . ($cfindNote !== '' ? ' ' . $cfindNote : ''));
+        $message = trim($equipmentTcp['detail'] . ' ' . $pacsDetail . ' ' . $cfindDetail . ' ' . $fcrHint);
 
         return response()->json([
-            'success' => $pacsOk,
+            'success' => $pacsOk && ($cfind['ok'] || !$cfind['failed']),
             'equipment_tcp' => $equipmentTcp,
             'pacs_mwl' => [
                 'ok' => $pacsOk,
@@ -192,7 +203,11 @@ class MachineController extends Controller
                 'port' => $pacs['port'],
                 'aet' => $pacs['aet'],
                 'detail' => $pacsDetail,
-                'cfind_note' => $cfindNote,
+                'cfind_ok' => $cfind['ok'],
+                'cfind_failed' => $cfind['failed'],
+                'cfind_pending' => $cfind['pending'],
+                'cfind_date' => $cfind['date'],
+                'cfind_detail' => $cfindDetail,
             ],
             'station_ae' => $stationAe,
             'modality' => $modality,

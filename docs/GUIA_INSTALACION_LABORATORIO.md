@@ -540,7 +540,7 @@ Si la orden **sí aparece en el explorador web del PACS** pero **no en el FCR**:
 5. **Fecha en el FCR** = fecha de la cita en agenda (`YYYYMMDD`). Si el FCR consulta solo «hoy» y la cita es mañana, la lista sale vacía.
 6. **Reenvíe la worklist** desde el RIS tras actualizar el sistema o cambiar sala/paciente (el RIS envía nombres en **ISO_IR 100**, sin tildes).
 7. Orthanc (PACS) exige que `ScheduledStationAETitle` y `ScheduledProcedureStepStartDate` estén también a **nivel raíz** de la worklist para el *broad query* plano del Fuji; el RIS las duplica al reenviar.
-8. En el FCR Console → **DICOM Setup**: **Local AE Title** = mismo valor que Admin → Salas (ej. `FCR_PANO`); **Remote AE Title** = `HEALTHTICLOUD`.
+8. En el FCR Console → **DICOM Setup**: **Local AE Title** = **exactamente** el mismo valor que Admin → Salas (ej. `FCR_PANO`). **No** use `FCR`, `CONSOLE` ni el hostname: el PACS (Orthanc con `FilterIssuerAet`) **rechaza** el C-FIND si el AE local no coincide → el Fuji queda sin lista aunque la orden exista en el PACS. **Remote AE Title** = `HEALTHTICLOUD`.
 9. Si la orden **ya no aparece en** `https://pacs…/worklists` (lista vacía), el PACS la borró (`DeleteWorklistsDelay` / estudio estable). **Reenvíe desde el RIS el mismo día del examen**.
 10. Si el broad query no trae nada: en el FCR busque por **RUT (Patient ID)** y **Accession** de la cita.
 

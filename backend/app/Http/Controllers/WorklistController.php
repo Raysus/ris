@@ -738,9 +738,9 @@ class WorklistController extends Controller
             : '';
 
         $fcrHint = $this->isFujiFcrStation($stationAe)
-            ? ' FCR Console: AE local (calling) debe ser «' . $stationAe . '»; AE remoto (called) «' . $dicom['aet'] . '». '
-                . 'Broad Query exige fecha «' . $dateHint . '», modalidad «' . $modality . '» y estación «' . $stationAe . '». '
-                . 'Alternativa: búsqueda por Patient ID + Accession en el FCR.'
+            ? ' CRÍTICO FCR Console: Local AE Title = «' . $stationAe . '» exacto (si el equipo tiene otro AE, ej. FCR, el PACS rechaza con Find Failed). '
+                . 'Remote AE (called) = «' . $dicom['aet'] . '». Broad Query: fecha «' . $dateHint . '», modalidad «' . $modality . '», estación «' . $stationAe . '». '
+                . 'Alternativa: Patient ID + Accession en el FCR.'
             : '';
 
         return 'La orden quedó en el PACS. El Fuji FCR Console la baja por DICOM MWL (C-FIND), no por la web. '

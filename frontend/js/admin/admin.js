@@ -3147,10 +3147,18 @@ async function pingDicom(id) {
 
         const data = await response.json();
 
-        const title = data.pacs_mwl?.ok
-            ? (data.equipment_tcp?.ok ? "Red y PACS MWL OK" : "PACS MWL OK (equipo Fuji sin TCP entrante)")
-            : "Revise configuración MWL en el FCR";
-        const type = data.pacs_mwl?.ok ? "success" : "danger";
+        let title = "Revise configuración MWL en el FCR";
+        let type = "danger";
+        if (data.pacs_mwl?.cfind_ok) {
+            title = data.equipment_tcp?.ok ? "C-FIND OK — PACS y worklist" : "C-FIND OK (Fuji sin TCP entrante, normal)";
+            type = "success";
+        } else if (data.pacs_mwl?.cfind_failed) {
+            title = "C-FIND rechazado — revise Local AE en FCR Console";
+            type = "danger";
+        } else if (data.pacs_mwl?.ok) {
+            title = "PACS alcanzable pero sin worklist hoy";
+            type = "warning";
+        }
         showAlert(data.message || "Sin detalle", title, type);
     } catch (e) {
         showAlert("No se pudo contactar al servidor RIS.", "Error crítico", "danger");

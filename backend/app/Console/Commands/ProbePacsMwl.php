@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Support\ModalityCode;
 use App\Support\OrthancUrl;
+use App\Support\PacsMwlProbe;
 use Illuminate\Console\Command;
 
 class ProbePacsMwl extends Command
@@ -44,48 +45,35 @@ class ProbePacsMwl extends Command
         $this->line("PACS: {$pacs['host']}:{$pacs['port']}  called AET: {$pacs['aet']}");
         $this->line("C-FIND: station={$station} modality={$modality} date={$date} calling={$calling}");
 
-        $args = [
-            'docker', 'run', '--rm', '--network', 'host', 'darthunix/dcmtk',
-            'findscu', '-W', '-v',
-            '-aet', $calling,
-            '-aec', $pacs['aet'],
-            $pacs['host'], (string) $pacs['port'],
-            '-k', 'ScheduledStationAETitle=' . $station,
-            '-k', 'Modality=' . $modality,
-            '-k', 'ScheduledProcedureStepStartDate=' . $date,
-        ];
-
-        $cmd = implode(' ', array_map('escapeshellarg', $args));
-        $this->line('Ejecutando: ' . $cmd);
-
-        $output = [];
-        $exitCode = 0;
-        exec($cmd . ' 2>&1', $output, $exitCode);
-        $text = implode("\n", $output);
+        $result = PacsMwlProbe::run($station, $modality, $date, $calling);
+        $text = $result['output'];
         $this->line($text);
 
-        if (str_contains($text, 'Find Failed') || str_contains($text, 'Peer Aborted')) {
-            $this->error('C-FIND falló en el PACS (TCP puede estar OK). Revise Orthanc worklists + C-FIND.');
+        if ($result['failed']) {
+            $this->error('C-FIND rechazado por el PACS (Find Failed).');
+            if (strtoupper($calling) !== strtoupper($station)) {
+                $this->line("Probó calling «{$calling}» con estación «{$station}»: deben ser iguales (FilterIssuerAet en Orthanc).");
+            }
+            $this->line("En FCR Console → DICOM Setup → Local AE Title debe ser exactamente «{$station}» (igual que Admin → Salas).");
 
             return self::FAILURE;
         }
 
-        if ($exitCode !== 0) {
-            $this->error("findscu terminó con código {$exitCode}.");
+        if ($result['exit_code'] !== 0) {
+            $this->error("findscu terminó con código {$result['exit_code']}.");
 
             return self::FAILURE;
         }
 
-        $hasPending = preg_match('/Find Response:\s*\d+\s*\(Pending\)/', $text) === 1;
-        if ($hasPending) {
-            $this->info('C-FIND devolvió worklist(s) con estos filtros (el Fuji debería verlas).');
+        if ($result['pending']) {
+            $this->info('C-FIND devolvió worklist(s) con estos filtros (el Fuji debería verlas si su Local AE = «' . $station . '»).');
 
             return self::SUCCESS;
         }
 
         $this->warn('C-FIND OK pero lista vacía para estación+modalidad+fecha (el Fuji verá lo mismo).');
-        $this->line('Compruebe: (1) reenviar worklist desde el RIS tras actualizar, (2) fecha del FCR = fecha de la cita, (3) modalidad CR/MG.');
-        $this->line('Diagnóstico Orthanc: si por accession sí hay Pending pero este query no, faltan tags planos en la worklist.');
+        $this->line('Compruebe: (1) reenviar worklist desde el RIS, (2) fecha del FCR = «' . $date . '», (3) modalidad CR/MG.');
+        $this->line('Si el FCR tiene otro Local AE (ej. FCR), el PACS rechaza la consulta: cámbielo a «' . $station . '» o pida a sistemas desactivar FilterIssuerAet.');
 
         return self::FAILURE;
     }
