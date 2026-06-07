@@ -4,9 +4,19 @@ namespace App\Services;
 
 use App\Models\Appointment;
 use App\Models\AppointmentStudy;
+use App\Models\Exam;
+use App\Models\Insurance;
+use App\Models\InsurancePlan;
+use App\Models\Laboratory;
+use App\Models\Machine;
 use App\Models\Paciente;
 use App\Models\Persona;
+use App\Models\ReferringDoctor;
+use App\Models\ReportTemplate;
+use App\Models\Service;
+use App\Models\Supply;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
@@ -70,17 +80,203 @@ class CloudEntitySyncService
                     }
                 }
 
-                $record = $class::find($id);
-                if ($record) {
-                    $record->fill($attrs);
-                    $record->save();
-                } else {
-                    $class::create(array_merge(['id' => $id], $attrs));
-                }
+                $this->upsertCatalogEntity($class, $id, $attrs);
             });
         } finally {
             self::$applying = false;
         }
+    }
+
+    /**
+     * Pull: omitir filas que ya existen con los mismos datos (evita reescribir todo el catálogo).
+     */
+    public function catalogRowIsUnchanged(string $class, array $row): bool
+    {
+        $attrs = $this->filterAttributes($class, $row);
+        $incomingId = $attrs['id'] ?? $row['id'] ?? null;
+        if (!$incomingId) {
+            return false;
+        }
+        unset($attrs['id']);
+
+        $record = $this->findCatalogRecord($class, $attrs, (string) $incomingId);
+        if (!$record) {
+            return false;
+        }
+
+        foreach ($attrs as $key => $value) {
+            if (in_array($key, ['created_at', 'updated_at', 'deleted_at'], true)) {
+                continue;
+            }
+            if ($this->catalogValuesDiffer($record->getAttribute($key), $value)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function upsertCatalogEntity(string $class, string $incomingId, array $attrs): void
+    {
+        $record = $this->findCatalogRecord($class, $attrs, $incomingId);
+
+        if ($record) {
+            if ($this->usesSoftDeletes($class) && $record->trashed()) {
+                $record->restore();
+            }
+            $record->fill($attrs);
+            $record->save();
+
+            if ((string) $record->id !== (string) $incomingId) {
+                Log::debug('cloud sync catalog: actualizado por clave de negocio', [
+                    'model' => class_basename($class),
+                    'incoming_id' => $incomingId,
+                    'matched_id' => $record->id,
+                ]);
+            }
+
+            return;
+        }
+
+        $class::create(array_merge(['id' => $incomingId], $attrs));
+    }
+
+    private function findCatalogRecord(string $class, array $attrs, string $incomingId): ?Model
+    {
+        $query = $this->usesSoftDeletes($class)
+            ? $class::withTrashed()
+            : $class::query();
+
+        $byId = (clone $query)->find($incomingId);
+        if ($byId) {
+            return $byId;
+        }
+
+        return $this->findCatalogByBusinessKey($class, $attrs);
+    }
+
+    private function findCatalogByBusinessKey(string $class, array $attrs): ?Model
+    {
+        $query = $this->usesSoftDeletes($class)
+            ? $class::withTrashed()
+            : $class::query();
+
+        return match ($class) {
+            Exam::class => $this->firstWhenFilled($query, [
+                'laboratory_id' => $attrs['laboratory_id'] ?? null,
+                'name' => $this->normalizeCatalogText($attrs['name'] ?? null),
+            ], fn ($q, $labId, $name) => $q->where('laboratory_id', $labId)
+                ->whereRaw('LOWER(TRIM(name)) = ?', [$name])),
+
+            Machine::class => $this->firstWhenFilled($query, [
+                'laboratory_id' => $attrs['laboratory_id'] ?? null,
+                'name' => $this->normalizeCatalogText($attrs['name'] ?? null),
+            ], fn ($q, $labId, $name) => $q->where('laboratory_id', $labId)
+                ->whereRaw('LOWER(TRIM(name)) = ?', [$name])),
+
+            ReportTemplate::class => $this->firstWhenFilled($query, [
+                'laboratory_id' => $attrs['laboratory_id'] ?? null,
+                'group_code' => $attrs['group_code'] ?? null,
+                'title' => $this->normalizeCatalogText($attrs['title'] ?? null),
+            ], fn ($q, $labId, $group, $title) => $q->where('laboratory_id', $labId)
+                ->where('group_code', $group)
+                ->whereRaw('LOWER(TRIM(title)) = ?', [$title])),
+
+            Supply::class => $this->firstWhenFilled($query, [
+                'laboratory_id' => $attrs['laboratory_id'] ?? null,
+                'name' => $this->normalizeCatalogText($attrs['name'] ?? null),
+            ], fn ($q, $labId, $name) => $q->where('laboratory_id', $labId)
+                ->whereRaw('LOWER(TRIM(name)) = ?', [$name])),
+
+            Service::class => $this->firstWhenFilled($query, [
+                'laboratory_id' => $attrs['laboratory_id'] ?? null,
+                'name' => $this->normalizeCatalogText($attrs['name'] ?? null),
+            ], fn ($q, $labId, $name) => $q->where('laboratory_id', $labId)
+                ->whereRaw('LOWER(TRIM(name)) = ?', [$name])),
+
+            ReferringDoctor::class => filled($attrs['rut'] ?? null)
+                ? $query->where('rut', Persona::normalizeRut((string) $attrs['rut']))->first()
+                : null,
+
+            Insurance::class => filled($attrs['name'] ?? null)
+                ? $query->when(
+                    filled($attrs['laboratory_id'] ?? null),
+                    fn ($q) => $q->where('laboratory_id', $attrs['laboratory_id']),
+                    fn ($q) => $q->whereNull('laboratory_id')
+                )->whereRaw('LOWER(TRIM(name)) = ?', [$this->normalizeCatalogText($attrs['name'])])->first()
+                : null,
+
+            InsurancePlan::class => $this->firstWhenFilled($query, [
+                'insurance_id' => $attrs['insurance_id'] ?? null,
+                'name' => $this->normalizeCatalogText($attrs['name'] ?? null),
+            ], fn ($q, $insuranceId, $name) => $q->where('insurance_id', $insuranceId)
+                ->whereRaw('LOWER(TRIM(name)) = ?', [$name])),
+
+            Laboratory::class => filled($attrs['name'] ?? null) && filled($attrs['parent_id'] ?? null)
+                ? $query->where('parent_id', $attrs['parent_id'])
+                    ->whereRaw('LOWER(TRIM(name)) = ?', [$this->normalizeCatalogText($attrs['name'])])
+                    ->first()
+                : null,
+
+            default => null,
+        };
+    }
+
+    private function firstWhenFilled($query, array $fields, callable $callback): ?Model
+    {
+        foreach ($fields as $value) {
+            if ($value === null || $value === '') {
+                return null;
+            }
+        }
+
+        return $callback($query, ...array_values($fields));
+    }
+
+    private function normalizeCatalogText(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        return mb_strtolower(trim($value));
+    }
+
+    private function catalogValuesDiffer(mixed $current, mixed $incoming): bool
+    {
+        if (is_array($current) || is_array($incoming)) {
+            return json_encode($this->normalizeComparableValue($current))
+                !== json_encode($this->normalizeComparableValue($incoming));
+        }
+
+        if (is_numeric($current) || is_numeric($incoming)) {
+            return (float) $current !== (float) $incoming;
+        }
+
+        if ($current === null && $incoming === null) {
+            return false;
+        }
+
+        if (is_bool($current) || is_bool($incoming)) {
+            return (bool) $current !== (bool) $incoming;
+        }
+
+        return (string) $current !== (string) $incoming;
+    }
+
+    private function normalizeComparableValue(mixed $value): mixed
+    {
+        if (is_array($value)) {
+            ksort($value);
+            return $value;
+        }
+
+        return $value;
+    }
+
+    private function usesSoftDeletes(string $class): bool
+    {
+        return in_array(SoftDeletes::class, class_uses_recursive($class), true);
     }
 
     private function resolveModelClass(string $modelKey): ?string

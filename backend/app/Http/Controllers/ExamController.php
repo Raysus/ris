@@ -48,26 +48,28 @@ class ExamController extends Controller
             return response()->json(['success' => false, 'message' => 'Debe seleccionar un laboratorio.'], 400);
         }
 
-        $exam = Exam::updateOrCreate(
-            ['id' => $validated['id'] ?? null],
-            [
-                'laboratory_id' => $labId,
-                'group_code' => ModalityCode::normalizeGroup($validated['group_code']),
-                'name' => $validated['name'],
-                'sub_exams' => $validated['sub_exams'] ?? [],
-                'fonasa_code' => $validated['fonasa_code'] ?? null,
-                'price' => $validated['price'] ?? 0,
-                'is_active' => true
-            ]
-        );
+        $payload = [
+            'laboratory_id' => $labId,
+            'group_code' => ModalityCode::normalizeGroup($validated['group_code']),
+            'name' => $validated['name'],
+            'sub_exams' => $validated['sub_exams'] ?? [],
+            'fonasa_code' => $validated['fonasa_code'] ?? null,
+            'price' => $validated['price'] ?? 0,
+            'is_active' => true,
+        ];
+
+        if (!empty($validated['id'])) {
+            $exam = Exam::updateOrCreate(['id' => $validated['id']], $payload);
+        } else {
+            $exam = Exam::updateOrCreate(
+                ['laboratory_id' => $labId, 'name' => $validated['name']],
+                $payload
+            );
+        }
 
         $this->syncExamInstruction($exam, $validated['instruction'] ?? null);
 
         $exam->load('instruction');
-
-        // === ☁️ INICIO SINCRONIZACIÓN CON LA NUBE (VÍA REDIS) ☁️ ===
-        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Exam', 'updated', $exam->toArray());
-        // === FIN SINCRONIZACIÓN ===
 
         return response()->json(['success' => true, 'exam' => $exam]);
     }
@@ -145,8 +147,6 @@ class ExamController extends Controller
                     ]
                 );
                 $importedCount++;
-
-                \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Exam', 'updated', $exam->toArray());
             }
             fclose($handle);
         }

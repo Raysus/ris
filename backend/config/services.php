@@ -42,6 +42,8 @@ return [
     'orthanc' => [
         'url' => env('ORTHANC_URL'),
         'host' => env('ORTHANC_HOST'),
+        /** Host/IP DICOM para equipos en LAN (MWL C-FIND). Suele ser IP pública, no el hostname HTTPS. */
+        'dicom_host' => env('PACS_DICOM_HOST'),
         'port' => env('ORTHANC_PORT', 4242),
         'aet' => env('ORTHANC_AET', 'HEALTHTICLOUD'),
         /** Token Bearer para plugin Authorization de Orthanc (mismo JWT que OHIF si aplica). */

@@ -7,6 +7,7 @@ use App\Services\CloudEntitySyncService;
 use App\Services\CloudSyncLogger;
 use App\Support\CloudSyncMode;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -15,7 +16,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
-class SyncEntityToCloud implements ShouldQueue
+class SyncEntityToCloud implements ShouldQueue, ShouldBeUnique
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -26,6 +27,7 @@ class SyncEntityToCloud implements ShouldQueue
 
     public $tries = 5;
     public $backoff = 30;
+    public int $uniqueFor = 120;
 
     public function __construct($entityType, $action, $payload, ?string $syncLogId = null)
     {
@@ -38,6 +40,16 @@ class SyncEntityToCloud implements ShouldQueue
         } else {
             $this->syncLogId = CloudSyncLogger::startPending($entityType, $action, $payload)->id;
         }
+    }
+
+    public function uniqueId(): string
+    {
+        $entityId = is_array($this->payload) ? (string) ($this->payload['id'] ?? '') : '';
+        if ($entityId === '') {
+            $entityId = substr(md5(json_encode($this->payload)), 0, 16);
+        }
+
+        return strtolower(class_basename((string) $this->entityType)) . ':' . $this->action . ':' . $entityId;
     }
 
     public function handle(): void

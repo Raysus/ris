@@ -15,8 +15,15 @@
 ])
 
 @setup
+    // Nube: despliegue PHP nativo en /var/www
     $app_dir = '/var/www/ris.healthticloud.cl';
     $backend_dir = $app_dir . '/backend';
+
+    // Laboratorios: ruta del repo en cada servidor (alias @servers)
+    $lab_app_dirs = [
+        'siresa_centro' => '/opt/RIS',
+        'lab_lautaro' => '/var/www/ris.healthticloud.cl',
+    ];
 
     // Stack Docker de los laboratorios (LAN)
     $compose = 'docker compose -f docker-compose.lan.yml';
@@ -32,6 +39,8 @@
 
     // Lab destino (alias de @servers). Uso: envoy run deploy-lab --lab=siresa_centro
     $lab = isset($lab) ? $lab : 'siresa_centro';
+    $app_dir_lab = $lab_app_dirs[$lab] ?? '/var/www/ris.healthticloud.cl';
+    $backend_dir_lab = $app_dir_lab . '/backend';
 @endsetup
 
 @story('deploy-nube')
@@ -180,12 +189,13 @@
 {{--   • SSH con shell bash (Linux, o WSL/Git-Bash en Windows).                     --}}
 {{--   • Token de GitHub guardado para git (repo privado):                          --}}
 {{--       git config --global credential.helper store                              --}}
-{{--       git clone https://<TOKEN>@github.com/Raysus/ris.git {{ $app_dir }}        --}}
+{{--       git clone https://<TOKEN>@github.com/Raysus/ris.git <ruta-del-lab>         --}}
+{{--     siresa_centro: /opt/RIS · lab_lautaro: /var/www/ris.healthticloud.cl         --}}
 {{--     (tras el primer clone, los pull usan el token guardado sin volver a pedirlo)--}}
 
 @task('git_pull_lab', ['on' => $lab])
-    echo "🏥 Lab {{ $lab }}: actualizando código (rama {{ $branch_laboratorio }}, solo lectura)..."
-    cd {{ $app_dir }}
+    echo "🏥 Lab {{ $lab }}: actualizando código en {{ $app_dir_lab }} (rama {{ $branch_laboratorio }})..."
+    cd {{ $app_dir_lab }}
 
     BRANCH="{{ $branch_laboratorio }}"
     FALLBACK="{{ $branch_fallback }}"
@@ -205,8 +215,8 @@
 @endtask
 
 @task('rebuild_lab', ['on' => $lab])
-    echo "🐳 Lab {{ $lab }}: reconstruyendo y levantando contenedores..."
-    cd {{ $backend_dir }}
+    echo "🐳 Lab {{ $lab }}: reconstruyendo y levantando contenedores en {{ $backend_dir_lab }}..."
+    cd {{ $backend_dir_lab }}
 
     {{ $compose }} up -d --build
 

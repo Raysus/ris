@@ -17,9 +17,13 @@ class WorklistService
             }
             $template = file_get_contents($templatePath);
 
-            // 2. Extraer datos (Asegúrate de que las relaciones existan)
             $patient = $appointment->patient->persona;
-            $nombreDicom = strtoupper($patient->last_name_1 . '^' . $patient->names);
+            $dicomImport = app(DicomImportService::class);
+            $nombreDicom = $dicomImport->formatPatientNameDicom(
+                (string) ($patient->names ?? ''),
+                (string) ($patient->last_name_1 ?? ''),
+                filled($patient->last_name_2) ? (string) $patient->last_name_2 : null
+            );
             $rutDicom = str_replace(['.', '-'], '', $patient->rut);
 
             // Reemplazar variables
@@ -42,7 +46,7 @@ class WorklistService
                 '[' . $nombreDicom . ']',
                 '[' . $rutDicom . ']',
                 '[' . ($patient->birth_date ? \Carbon\Carbon::parse($patient->birth_date)->format('Ymd') : '') . ']',
-                '[' . ($patient->gender ?? 'O') . ']',
+                '[' . ($dicomImport->normalizePatientSex($patient->gender) ?: 'O') . ']',
                 '[' . ($appointment->study_instance_uid ?? '1.2.3.4.5.' . time()) . ']',
                 '[' . strtoupper($appointment->exam_name ?? 'ESTUDIO') . ']',
                 '[' . ($appointment->modality ?? 'DX') . ']', // DX (Rayos), CT (Scanner), etc.

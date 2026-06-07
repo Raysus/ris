@@ -620,29 +620,45 @@ async function firmarDirecto() {
         try {
             btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Firmando...');
 
-            const paqueteInformes = currentReportingChain.studies.map(s => ({
-                id: s.study_id,
-                text: s.reportText
-            }));
+            if (currentRadioStudy && $("#textoInforme").length) {
+                currentRadioStudy.reportText = $("#textoInforme").val();
+            }
+
+            const paqueteInformes = (currentReportingChain.studies || [])
+                .filter(s => s && s.study_id)
+                .map(s => ({
+                    id: String(s.study_id),
+                    text: s.reportText ?? ''
+                }));
+
+            if (paqueteInformes.length === 0) {
+                showToast("No hay exámenes válidos para firmar. Vuelva a abrir la cita.", "warning");
+                return;
+            }
 
             const response = await fetch(`${API_URL}/radiologist/appointments/${currentReportingChain.id}/sign`, {
                 method: 'POST',
                 headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders({ 'Content-Type': 'application/json' }) : {},
                 body: JSON.stringify({
                     reports: paqueteInformes,
-                    dictation_method: currentDictationMethod
+                    dictation_method: currentDictationMethod || 'teclado'
                 })
             });
 
-            if (response.ok) {
+            const data = await response.json().catch(() => ({}));
+
+            if (response.ok && data.success !== false) {
                 showToast("✅ Informes firmados digitalmente y liberados.", "success");
                 limpiarPantallaRadiologo();
                 cargarEstudiosRadiologo();
             } else {
-                throw new Error("Error en el servidor");
+                const detalle = data.message
+                    || (data.errors ? Object.values(data.errors).flat().join(' ') : '')
+                    || `Error en el servidor (${response.status})`;
+                showToast(`❌ Error al firmar: ${detalle}`, "danger");
             }
         } catch (e) {
-            showToast("❌ Error al firmar", "danger");
+            showToast("❌ Error al firmar: no se pudo contactar al servidor.", "danger");
         } finally {
             btn.prop('disabled', false).html('<i class="bi bi-pen me-1"></i> Firmar y Liberar');
         }

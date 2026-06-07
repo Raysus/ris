@@ -487,7 +487,8 @@ modalidad consulte MWL por DICOM o que la red del centro **alcance el puerto 424
 Comprobación desde el servidor del lab:
 
 ```bash
-timeout 2 bash -c 'echo >/dev/tcp/pacs.healthticloud.cl/4242' && echo OK || echo FAIL
+# Probar la IP DICOM (no el hostname HTTPS):
+timeout 2 bash -c 'echo >/dev/tcp/170.246.172.84/4242' && echo OK || echo FAIL
 ```
 
 Si sale **FAIL**, el equipo en `192.168.0.x` tampoco podrá bajar la worklist hasta que sistemas
@@ -499,13 +500,61 @@ Valores de referencia (confirme con sistemas):
 
 | Dato | Valor típico |
 |------|----------------|
-| Servidor / host MWL | Hostname del PACS (ej. `pacs.healthticloud.cl`) |
+| Servidor / host MWL | **IP DICOM** alcanzable desde la LAN (ej. `170.246.172.84`), no el hostname HTTPS |
 | Puerto MWL | `4242` |
-| AE Title **destino** (called) | `HealthTICloud` o el que indique sistemas |
-| **AE de estación** / filtro | Debe coincidir con Admin → Salas (ej. `FCR_MAMO` para mamografía) |
-| Modalidad | `MG` en mamógrafo, `DX`/`CR` en rayos, etc. |
+| AE Title **destino** (called) | `HEALTHTICLOUD` (valor de `DicomAet` en Orthanc `/system`) |
+| **AE de estación** / filtro | Debe coincidir con Admin → Salas (ej. `FCR_MAMO`, `FCR_PANO`) |
+| Modalidad en el FCR | `CR` en CR Fuji, `MG` en mamógrafo FCR |
 
 En **Admin → Salas**, la IP/puerto de la ficha es del **equipo en la LAN** (ping TCP), no la URL del PACS.
+
+> **Importante:** `pacs.healthticloud.cl:4242` suele **fallar** desde la LAN (el dominio HTTPS no expone DICOM).
+> El RIS crea la worklist por **HTTPS (443)**; el **Fuji FCR la descarga por DICOM (4242)** a la **IP pública** del PACS.
+> En `backend/.env` del lab: `PACS_DICOM_HOST=170.246.172.84` (o la IP que indique sistemas).
+
+### Fuji FCR Console (CR / mamografía) — checklist MWL
+
+El **FCR Console** no usa la web del PACS: solo hace **C-FIND** al puerto **4242** de la IP DICOM del PACS.
+
+Según el *DICOM Conformance Statement* del CR Console, hay dos formas de bajar la worklist:
+
+| Modo en el FCR | Claves de búsqueda |
+|----------------|-------------------|
+| **Broad Query** (lista automática / Refresh) | Fecha del paso + modalidad `CR`/`MG` + estación AE |
+| **Patient Based Query** (búsqueda manual) | Patient ID (obligatorio) + Accession (opcional) |
+
+**Broad Query** — filtros obligatorios:
+
+| Filtro en el FCR | Debe coincidir con la orden del RIS |
+|------------------|-------------------------------------|
+| **Scheduled Station AE Title** | AE de la sala en Admin (ej. `FCR_PANO`, `FCR_MAMO`) |
+| **Modality** | `CR` en rayos CR, `MG` en mamo (no confundir con el grupo «MAMO» del RIS) |
+| **Scheduled Procedure Step Start Date** | Fecha de la cita en agenda (si el FCR consulta solo «hoy», no verá citas de otro día) |
+
+Si la orden **sí aparece en el explorador web del PACS** pero **no en el FCR**:
+
+1. Compruebe desde el servidor: `timeout 2 bash -c 'echo >/dev/tcp/170.246.172.84/4242'` → debe dar **OK**.
+2. En el FCR, host MWL = **IP** (no URL web), puerto **4242**, AE destino correcto.
+3. AE de estación en el FCR = mismo valor que Admin → Salas → AE Title.
+4. Modalidad en el FCR = `CR` o `MG` según el equipo (no `DX` si la sala es CR Fuji).
+5. **Fecha en el FCR** = fecha de la cita en agenda (`YYYYMMDD`). Si el FCR consulta solo «hoy» y la cita es mañana, la lista sale vacía.
+6. **Reenvíe la worklist** desde el RIS tras actualizar el sistema o cambiar sala/paciente (el RIS envía nombres en **ISO_IR 100**, sin tildes).
+7. Orthanc (PACS) exige que `ScheduledStationAETitle` y `ScheduledProcedureStepStartDate` estén también a **nivel raíz** de la worklist para el *broad query* plano del Fuji; el RIS las duplica al reenviar.
+8. En el FCR Console → **DICOM Setup**: **Local AE Title** = **exactamente** el mismo valor que Admin → Salas (ej. `FCR_PANO`). **No** use `FCR`, `CONSOLE` ni el hostname: el PACS (Orthanc con `FilterIssuerAet`) **rechaza** el C-FIND si el AE local no coincide → el Fuji queda sin lista aunque la orden exista en el PACS. **Remote AE Title** = `HEALTHTICLOUD`.
+9. Si la orden **ya no aparece en** `https://pacs…/worklists` (lista vacía), el PACS la borró (`DeleteWorklistsDelay` / estudio estable). **Reenvíe desde el RIS el mismo día del examen**.
+10. Si el broad query no trae nada: en el FCR busque por **RUT (Patient ID)** y **Accession** de la cita.
+
+Comprobación **C-FIND** desde el servidor del lab (no basta con TCP :4242):
+
+```bash
+cd /opt/RIS/backend
+php artisan pacs:probe-mwl --station=FCR_PANO --modality=CR
+```
+
+Si devuelve `Find Failed`, el PACS no está sirviendo MWL por DICOM aunque la orden exista en la web.
+
+En el PACS (Orthanc), sistemas debe tener el plugin Worklists con `FilterIssuerAet: false` si el FCR no envía
+estación en la consulta (comportamiento habitual en equipos legacy), y **C-FIND habilitado** en el puerto 4242.
 
 El laboratorio **no** necesita Tailscale en cada PC si el PACS DICOM es alcanzable por la red del centro.
 

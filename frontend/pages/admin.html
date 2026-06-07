@@ -987,14 +987,8 @@
                 </div>
                 <div class="col-md-6">
                     <label class="form-label fw-bold small text-muted" for="salaGroup">Modalidad / Grupo *</label>
-                    <select class="form-select req-sala" id="salaGroup">
-                        <option value="SCANNER">Scanner (CT)</option>
-                        <option value="RM">Resonancia Magnética (MR)</option>
-                        <option value="RX">Rayos X (CR/DX)</option>
-                        <option value="US">Ecografía (US)</option>
-                        <option value="MAMO">Mamografía (MG)</option>
-                        <option value="DENSITO">Densitometría</option>
-                    </select>
+                    <select class="form-select req-sala" id="salaGroup" data-ris-modality-select="machine"></select>
+                    <div class="form-text">CR (cassette) y DX (detector digital) son <strong>equipos distintos</strong>. Use CT, MRI, US, MAMO, etc.</div>
                 </div>
 
                 <div class="col-12 mt-4">
@@ -1163,7 +1157,7 @@
                     <p class="small mb-2">Descargue la plantilla vacía (CSV con punto y coma), complete una fila por
                         examen y súbala aquí. Si actualiza precios, vuelva a importar el archivo completo.</p>
                     <ul class="small mb-3 text-dark">
-                        <li><b>group_code:</b> RX, CT, MRI, US, MAMO, DEXA, CBCT, NM, PT, etc.</li>
+                        <li><b>group_code:</b> CR, DX, RX, CT, MRI, US, MAMO, DEXA, CBCT, IO, NM, PT, RF, XA, OT</li>
                         <li><b>name:</b> Nombre completo del examen (debe coincidir para actualizar un registro).</li>
                         <li><b>fonasa_code:</b> Código Fonasa, ej. 0401009 (opcional).</li>
                         <li><b>price:</b> Valor en pesos chilenos, solo números (ej. 18000).</li>

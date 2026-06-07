@@ -523,14 +523,9 @@ async function enviarADicom() {
                 (eraReenvio
                     ? `📡 Worklist reenviada al PACS (${exitos} cita(s)).`
                     : `📡 Orden en PACS (${exitos} cita(s)).`)
-                    + extra
-                    + ' Si no aparece en la máquina, revise que el equipo consulte MWL por DICOM (no solo la web del PACS).',
+                    + extra,
                 'success'
             );
-            const note = window._lastWorklistModalityHint?.modality_note;
-            if (note && typeof showAlert === 'function') {
-                showAlert(note, 'Worklist en PACS — ¿por qué no la ve el equipo?', 'info');
-            }
         } else if (exitos > 0 && fallidos > 0) {
             showToast(`⚠️ Sincronización incompleta: ${exitos} OK, ${fallidos} errores.`, "warning");
         } else {
