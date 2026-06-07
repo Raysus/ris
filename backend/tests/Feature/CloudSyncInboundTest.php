@@ -3,10 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\Appointment;
+use App\Models\Exam;
 use App\Models\Machine;
 use App\Models\Paciente;
 use App\Models\Persona;
 use App\Models\ReferringDoctor;
+use App\Services\CloudCatalogPullService;
 use App\Support\CloudSyncMode;
 use Tests\Concerns\InteractsWithRis;
 use Tests\TestCase;
@@ -118,6 +120,74 @@ class CloudSyncInboundTest extends TestCase
 
         $this->assertDatabaseHas('patients', ['id' => $pacienteId, 'persona_id' => $personaId]);
         $this->assertDatabaseHas('appointments', ['id' => $appointmentId, 'patient_id' => $pacienteId]);
+    }
+
+    public function test_inbound_exam_updates_existing_row_by_business_key_instead_of_duplicate(): void
+    {
+        $lab = $this->risLab;
+        $existingId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+        $incomingId = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+
+        Exam::create([
+            'id' => $existingId,
+            'laboratory_id' => $lab->id,
+            'group_code' => 'US',
+            'name' => 'Ecotomografía abdominal',
+            'fonasa_code' => '0404003',
+            'price' => 48000,
+            'is_active' => true,
+        ]);
+
+        $this->withToken('test-sync-secret')
+            ->postJson('/api/integrations/cloud-sync/inbound', [
+                'model' => 'Exam',
+                'action' => 'updated',
+                'data' => [
+                    'id' => $incomingId,
+                    'laboratory_id' => $lab->id,
+                    'group_code' => 'MAMO',
+                    'name' => 'Ecotomografía abdominal',
+                    'fonasa_code' => '0404003',
+                    'price' => 48000,
+                    'is_active' => true,
+                ],
+            ])
+            ->assertOk();
+
+        $this->assertSame(1, Exam::where('laboratory_id', $lab->id)
+            ->whereRaw('LOWER(TRIM(name)) = ?', ['ecotomografía abdominal'])
+            ->count());
+        $this->assertDatabaseHas('exams', [
+            'id' => $existingId,
+            'group_code' => 'MAMO',
+        ]);
+        $this->assertDatabaseMissing('exams', ['id' => $incomingId]);
+    }
+
+    public function test_pull_catalog_skips_unchanged_exams(): void
+    {
+        $lab = $this->risLab;
+        $exam = Exam::create([
+            'id' => 'cccccccc-cccc-cccc-cccc-cccccccccccc',
+            'laboratory_id' => $lab->id,
+            'group_code' => 'RX',
+            'name' => 'Tórax simple',
+            'fonasa_code' => '0401070',
+            'price' => 28000,
+            'is_active' => true,
+        ]);
+
+        $payload = [
+            'exams' => [$exam->fresh()->toArray()],
+        ];
+
+        $pull = app(CloudCatalogPullService::class);
+        $first = $pull->pull($lab->id, false, $payload);
+        $second = $pull->pull($lab->id, false, $payload);
+
+        $this->assertSame(1, $first['counts']['exams']);
+        $this->assertSame(0, $second['counts']['exams']);
+        $this->assertSame(1, $second['counts']['exams_skipped']);
     }
 
     public function test_admin_can_pull_catalog_on_cloud(): void

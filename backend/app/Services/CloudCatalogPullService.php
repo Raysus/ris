@@ -43,11 +43,16 @@ class CloudCatalogPullService
         foreach ($map as $key => $class) {
             $rows = $payload[$key] ?? [];
             $counts[$key] = 0;
+            $counts[$key . '_skipped'] = 0;
             foreach ($rows as $row) {
                 if (empty($row['id'])) {
                     continue;
                 }
                 try {
+                    if ($this->entitySync->catalogRowIsUnchanged($class, $row)) {
+                        $counts[$key . '_skipped']++;
+                        continue;
+                    }
                     $this->entitySync->apply(class_basename($class), 'updated', $row);
                     $counts[$key]++;
                 } catch (\Throwable $e) {

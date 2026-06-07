@@ -16,9 +16,11 @@ let currentPacientesAdmin = [];
 let currentPlantillasFromDB = [];
 let currentLaboratoriesTree = [];
 
-/** Modalidades para prestaciones / plantillas (alineado con salas y DICOM). */
+/** Modalidades para prestaciones / plantillas. */
 const RIS_EXAM_MODALITY_OPTIONS = [
-    { value: 'RX', label: 'Radiografía (RX)' },
+    { value: 'CR', label: 'Radiografía CR — cassette digital (CR)' },
+    { value: 'DX', label: 'Radiografía DX — detector digital (DX)' },
+    { value: 'RX', label: 'Radiografía general (RX, legado)' },
     { value: 'CT', label: 'Tomografía / Scanner (CT)' },
     { value: 'MRI', label: 'Resonancia magnética (MRI)' },
     { value: 'US', label: 'Ecografía (US)' },
@@ -29,8 +31,12 @@ const RIS_EXAM_MODALITY_OPTIONS = [
     { value: 'NM', label: 'Medicina nuclear (NM)' },
     { value: 'PT', label: 'PET (PT)' },
     { value: 'RF', label: 'Fluoroscopia (RF)' },
+    { value: 'XA', label: 'Angiografía (XA)' },
     { value: 'OT', label: 'Otro / General (OT)' },
 ];
+
+/** Modalidades para equipos / salas (misma lista; CR y DX son salas distintas). */
+const RIS_MACHINE_MODALITY_OPTIONS = RIS_EXAM_MODALITY_OPTIONS;
 
 const RIS_MODALITY_ALIASES = {
     ECO: 'US',
@@ -50,6 +56,8 @@ function risNormalizarCodigoModalidad(code) {
 function risBadgeClassModalidad(grupo) {
     const g = risNormalizarCodigoModalidad(grupo);
     const map = {
+        CR: 'bg-success',
+        DX: 'bg-primary',
         RX: 'bg-primary',
         CT: 'bg-info text-dark',
         MRI: 'bg-danger',
@@ -61,17 +69,18 @@ function risBadgeClassModalidad(grupo) {
         NM: 'bg-dark',
         PT: 'bg-dark',
         RF: 'bg-secondary',
+        XA: 'bg-secondary',
         OT: 'bg-light text-dark border',
     };
     return map[g] || 'bg-secondary';
 }
 
-function risPoblarSelectModalidades(selector) {
+function risPoblarSelectModalidades(selector, options = RIS_EXAM_MODALITY_OPTIONS) {
     const $sel = $(selector);
     if (!$sel.length) return;
     const selected = $sel.val();
     $sel.empty();
-    RIS_EXAM_MODALITY_OPTIONS.forEach((m) => {
+    options.forEach((m) => {
         $sel.append(`<option value="${m.value}">${m.label}</option>`);
     });
     if (selected) risAsegurarValorModalidad(selector, selected);
@@ -97,6 +106,7 @@ function initAdmin() {
     if (typeof applyLabProfileUI === 'function') applyLabProfileUI();
     risPoblarSelectModalidades('#catGrupo');
     risPoblarSelectModalidades('#tplGrupo');
+    risPoblarSelectModalidades('#salaGroup', RIS_MACHINE_MODALITY_OPTIONS);
     window.RIS = window.RIS || { users: [], personas: [], config: {} };
     renderListaUsuariosAdmin();
     renderListaInsumosAdmin();
@@ -1055,7 +1065,7 @@ async function renderListaSalasAdmin() {
             if (filtradas.length === 0) return tbody.append(`<tr><td colspan="4" class="text-center text-muted p-4">Sin equipos.</td></tr>`);
 
             filtradas.forEach(res => {
-                let badgeColor = (res.group === 'MRI') ? 'bg-danger' : (res.group === 'CT' ? 'bg-info text-dark' : 'bg-primary');
+                const badgeColor = risBadgeClassModalidad(res.group);
                 tbody.append(`
                     <tr>
                         <td class="fw-bold text-dark">
@@ -1064,8 +1074,8 @@ async function renderListaSalasAdmin() {
                         </td>
                         <td><span class="badge ${badgeColor} px-3 py-2">${res.group}</span></td>
                         <td class="text-center pe-4">
-                            <button class="btn btn-sm btn-outline-success fw-bold me-1" onclick="pingDicom('${res.id}')" title="Prueba TCP desde el servidor RIS al equipo (IP+puerto de la sala)">
-                                <i class="bi bi-wifi"></i> Ping
+                            <button class="btn btn-sm btn-outline-success fw-bold me-1" onclick="pingDicom('${res.id}')" title="Diagnóstico: PACS MWL (4242) + TCP al equipo Fuji (puede fallar y ser normal)">
+                                <i class="bi bi-wifi"></i> Red/MWL
                             </button>
                             <button class="btn btn-sm btn-outline-info fw-bold text-dark" onclick="cargarSala('${res.id}')">
                                 <i class="bi bi-pencil-square"></i> Editar
@@ -1088,7 +1098,7 @@ function cargarSala(id) {
         if (sala) {
             $("#salaId").val(sala.id);
             $("#salaName").val(sala.name);
-            $("#salaGroup").val(sala.group);
+            risAsegurarValorModalidad('#salaGroup', sala.group);
             $("#salaManufacturer").val(sala.manufacturer);
             $("#salaModel").val(sala.model_name);
             $("#salaDescription").val(sala.description);
@@ -3124,11 +3134,7 @@ async function pingDicom(id) {
     const sala = currentMachinesFromDB.find(s => String(s.id) === String(id));
     if (!sala) return;
 
-    if (!sala.ip_address || !sala.port) {
-        return showToast("Debe configurar la IP y el Puerto editando la sala primero.", "warning");
-    }
-
-    if (typeof showToast === 'function') showToast(`Testeando conexión con ${sala.ae_title || sala.name}...`, "info");
+    if (typeof showToast === 'function') showToast(`Diagnóstico MWL: ${sala.ae_title || sala.name}...`, "info");
 
     const token = localStorage.getItem('ris_token');
     const labId = localStorage.getItem('ris_lab_id');
@@ -3141,11 +3147,19 @@ async function pingDicom(id) {
 
         const data = await response.json();
 
-        if (response.ok && data.success) {
-            showAlert(data.message, "Conexión establecida", "success");
-        } else {
-            showAlert(data.message || "Error de red", "Error de conexión", "danger");
+        let title = "Revise configuración MWL en el FCR";
+        let type = "danger";
+        if (data.pacs_mwl?.cfind_ok) {
+            title = data.equipment_tcp?.ok ? "C-FIND OK — PACS y worklist" : "C-FIND OK (Fuji sin TCP entrante, normal)";
+            type = "success";
+        } else if (data.pacs_mwl?.cfind_failed) {
+            title = "C-FIND rechazado — revise Local AE en FCR Console";
+            type = "danger";
+        } else if (data.pacs_mwl?.ok) {
+            title = "PACS alcanzable pero sin worklist hoy";
+            type = "warning";
         }
+        showAlert(data.message || "Sin detalle", title, type);
     } catch (e) {
         showAlert("No se pudo contactar al servidor RIS.", "Error crítico", "danger");
     }

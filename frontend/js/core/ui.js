@@ -78,7 +78,10 @@ function showAlert(message, title = "Aviso", type = "info") {
     else if (type === "success") header.addClass("bg-success text-white");
     else if (type === "warning") header.addClass("bg-warning text-dark");
     else header.addClass("bg-primary text-white");
-    return openModal("risAlertModal");
+    risBoostModalStack(modalEl);
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+    return Promise.resolve(modal);
 }
 
 function showConfirm(message, options = {}) {
@@ -104,6 +107,7 @@ function showConfirm(message, options = {}) {
         $btn.addClass(dangerous ? "btn-danger" : `btn-${variant}`);
         $("#risConfirmCancelBtn").text(cancelText);
 
+        risBoostModalStack(modalEl);
         const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
 
         const cleanup = () => {
@@ -157,6 +161,7 @@ function showPrompt(message, options = {}) {
         $("#risPromptConfirmBtn").text(confirmText);
         $("#risPromptCancelBtn").text(cancelText);
 
+        risBoostModalStack(modalEl);
         const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
 
         const cleanup = () => {
@@ -193,17 +198,50 @@ function showPrompt(message, options = {}) {
     });
 }
 
+const RIS_SYSTEM_MODAL_IDS = ['risConfirmModal', 'risPromptModal', 'risAlertModal'];
+
 function risEnsureModalInBody(id) {
-    const el = document.getElementById(id);
-    if (el && el.parentElement && el.parentElement !== document.body) {
+    const el = typeof id === 'string' ? document.getElementById(id) : id;
+    if (el && el.parentElement !== document.body) {
         document.body.appendChild(el);
     }
+    return el;
+}
+
+/** Confirmación / alerta / prompt siempre encima de modales de página (ej. modalAtencion). */
+function risBoostModalStack(modalEl) {
+    if (!modalEl) return;
+    risEnsureModalInBody(modalEl);
+    modalEl.classList.add('ris-system-modal');
+
+    const adjustStack = () => {
+        let maxZ = 1055;
+        document.querySelectorAll('.modal.show').forEach((m) => {
+            if (m === modalEl) return;
+            const z = parseInt(window.getComputedStyle(m).zIndex, 10);
+            if (!Number.isNaN(z) && z >= maxZ) maxZ = z;
+        });
+        modalEl.style.zIndex = String(maxZ + 20);
+        const backdrops = document.querySelectorAll('.modal-backdrop.show');
+        if (backdrops.length) {
+            backdrops[backdrops.length - 1].style.zIndex = String(maxZ + 10);
+        }
+    };
+
+    modalEl.addEventListener('shown.bs.modal', adjustStack, { once: true });
+    modalEl.addEventListener('hidden.bs.modal', () => {
+        modalEl.style.zIndex = '';
+    }, { once: true });
+}
+
+function risInitSystemModals() {
+    RIS_SYSTEM_MODAL_IDS.forEach((id) => risEnsureModalInBody(id));
 }
 
 function openModal(id) {
     const el = document.getElementById(id);
     if (!el) return Promise.resolve();
-    risEnsureModalInBody(id);
+    risEnsureModalInBody(el);
     const modal = bootstrap.Modal.getOrCreateInstance(el);
     modal.show();
     return Promise.resolve(modal);
@@ -360,6 +398,7 @@ function limpiarFormulario(selector) {
 window.validarFormulario = validarFormulario;
 window.limpiarFormulario = limpiarFormulario;
 window.risEnsureModalInBody = risEnsureModalInBody;
+window.risBoostModalStack = risBoostModalStack;
 window.initAgendaWizard = initAgendaWizard;
 window.goAgendaWizardStep = goAgendaWizardStep;
 window.nextAgendaWizardStep = nextAgendaWizardStep;
@@ -367,6 +406,7 @@ window.prevAgendaWizardStep = prevAgendaWizardStep;
 window.updateAgendaWizardUI = updateAgendaWizardUI;
 
 $(document).ready(function () {
+    risInitSystemModals();
     initMobileSidebar();
     $(window).on("resize", initMobileSidebar);
 });
