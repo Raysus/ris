@@ -4,12 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Models\Appointment;
 use App\Services\OrthancStudyLookup;
+use App\Support\OrthancUrl;
 use Illuminate\Http\Request;
 
 class ViewerConfigController extends Controller
 {
     public function config(Request $request)
     {
+        $dicom = OrthancUrl::dicomTarget();
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -21,10 +24,10 @@ class ViewerConfigController extends Controller
                 'viewer_token' => env('VIEWER_TOKEN', ''),
                 'patient_portal_url' => rtrim(env('PATIENT_PORTAL_URL', 'https://portal.healthticloud.cl'), '/'),
                 'pacs_bridge_url' => env('PACS_BRIDGE_URL', 'http://localhost:8181/open-dicom'),
-                'pacs_ip' => env('PACS_DEFAULT_IP', '172.16.66.11'),
-                'pacs_port' => (int) env('PACS_DEFAULT_PORT', 4242),
-                'pacs_aet' => env('PACS_DEFAULT_AET', 'HealthTICloud'),
-                'orthanc_url' => \App\Support\OrthancUrl::base(),
+                'pacs_ip' => $dicom['host'] ?: env('PACS_DEFAULT_IP', '172.16.66.11'),
+                'pacs_port' => $dicom['port'] ?: (int) env('PACS_DEFAULT_PORT', 4242),
+                'pacs_aet' => $dicom['aet'],
+                'orthanc_url' => OrthancUrl::base(),
                 'viewer_custom_url' => env('VIEWER_CUSTOM_URL', ''),
             ],
         ]);

@@ -40,6 +40,44 @@ function configurarCamposPacienteAgenda() {
     });
 }
 
+/** Normaliza birth_date de la API (ISO) al formato YYYY-MM-DD del input date. */
+function risFormatBirthDateForInput(raw) {
+    if (raw == null || raw === '') return '';
+    if (typeof raw === 'string') {
+        const m = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+        if (m) return m[1];
+    }
+    try {
+        const d = new Date(raw);
+        if (!Number.isNaN(d.getTime())) {
+            const y = d.getUTCFullYear();
+            const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(d.getUTCDate()).padStart(2, '0');
+            return `${y}-${mo}-${day}`;
+        }
+    } catch (_) { /* ignore */ }
+    return '';
+}
+
+function risActualizarEdadPacienteAgenda() {
+    if (!validarFechaNacimientoAgenda()) {
+        $("#pAge").val('');
+        return;
+    }
+    const raw = $("#pBirthDate").val();
+    if (!raw) {
+        $("#pAge").val('');
+        return;
+    }
+    const bd = new Date(raw + 'T12:00:00');
+    const today = new Date();
+    let age = today.getFullYear() - bd.getFullYear();
+    if (today.getMonth() < bd.getMonth() || (today.getMonth() === bd.getMonth() && today.getDate() < bd.getDate())) {
+        age--;
+    }
+    $("#pAge").val(age >= 0 ? age : '');
+}
+
 function validarFechaNacimientoAgenda() {
     const raw = $("#pBirthDate").val();
     if (!raw) return true;
@@ -80,10 +118,35 @@ const AGENDA_ESTADO_COLORES = {
 };
 const AGENDA_ESTADO_TEXTO = '#ffffff';
 
-/** Minutos por modalidad/sala cuando no viene del servidor (evita fallo si RIS.tiemposPorGrupo no está inicializado). */
-const TIEMPOS_POR_GRUPO_DEFAULT = { RX: 15, TC: 30, RM: 45, US: 20, MG: 15, General: 15 };
+/** Estados que ya salieron de recepción → gris en calendario. */
+const AGENDA_ESTADOS_ATENDIDO = new Set([
+    'dicom_enviado',
+    'en_atencion',
+    'devuelto_worklist',
+    'en_informe',
+    'pendiente_radiologo',
+    'para_firma',
+    'entregable',
+    'entregado',
+    'atendido',
+]);
 
-/** Equivalencias de código de modalidad (sala ↔ prestación). */
+/** Clave visual para color de cita en la agenda. */
+function risNormalizarEstadoAgendaVisual(status) {
+    const s = String(status || '').trim().toLowerCase();
+    if (AGENDA_ESTADOS_ATENDIDO.has(s)) return 'atendido';
+    if (s.includes('pre')) return 'pre-agendado';
+    if (s.includes('anulado')) return 'anulado';
+    if (s.includes('espera')) return 'espera';
+    if (s.includes('confirmado')) return 'confirmado';
+    if (s.includes('agendado')) return 'agendado';
+    return 'agendado';
+}
+
+/** Minutos por modalidad/sala cuando no viene del servidor (evita fallo si RIS.tiemposPorGrupo no está inicializado). */
+const TIEMPOS_POR_GRUPO_DEFAULT = { CR: 15, DX: 15, RX: 15, CT: 30, MRI: 45, US: 20, MAMO: 15, General: 15 };
+
+/** Equivalencias de código de modalidad (sala ↔ prestación). CR y DX no se fusionan. */
 function risGrupoModalidadEquiv(code) {
     const c = String(code || '').toUpperCase().trim();
     const aliases = { ECO: 'US', SCANNER: 'CT', TC: 'CT', RM: 'MRI', MR: 'MRI', MG: 'MAMO', DENSITO: 'DEXA' };
@@ -91,6 +154,8 @@ function risGrupoModalidadEquiv(code) {
 }
 
 const RIS_MODALITY_LABELS = {
+    CR: 'Radiografía CR',
+    DX: 'Radiografía DX',
     RX: 'Radiografía (RX)',
     CT: 'Tomografía (CT)',
     MRI: 'Resonancia (MRI)',
@@ -102,10 +167,11 @@ const RIS_MODALITY_LABELS = {
     NM: 'Medicina nuclear (NM)',
     PT: 'PET (PT)',
     RF: 'Fluoroscopia (RF)',
+    XA: 'Angiografía (XA)',
     OT: 'Otro (OT)',
 };
 
-const RIS_MODALITY_ORDER = ['RX', 'CT', 'MRI', 'US', 'MAMO', 'DEXA', 'CBCT', 'IO', 'NM', 'PT', 'RF', 'OT'];
+const RIS_MODALITY_ORDER = ['CR', 'DX', 'RX', 'CT', 'MRI', 'US', 'MAMO', 'DEXA', 'CBCT', 'IO', 'NM', 'PT', 'RF', 'XA', 'OT'];
 
 /** Lista todos los exámenes del catálogo agrupados por modalidad (sin filtrar por sala). */
 function poblarSelectExamenesAgenda($examSelect, machineId) {
@@ -819,14 +885,7 @@ function getEventsFromRIS() {
     const colors = AGENDA_ESTADO_COLORES;
 
     return window.RIS.agenda.map(a => {
-        let estadoRaw = String(a.status).trim().toLowerCase();
-        let estadoLimpio = 'agendado';
-
-        if (estadoRaw.includes('pre')) estadoLimpio = 'pre-agendado';
-        else if (estadoRaw.includes('espera')) estadoLimpio = 'espera';
-        else if (estadoRaw.includes('confirmado')) estadoLimpio = 'confirmado';
-        else if (estadoRaw.includes('anulado')) estadoLimpio = 'anulado';
-        else if (estadoRaw.includes('agendado')) estadoLimpio = 'agendado';
+        const estadoVisual = risNormalizarEstadoAgendaVisual(a.statusRaw || a.status);
 
         return {
             id: a.id,
@@ -834,10 +893,15 @@ function getEventsFromRIS() {
             title: `${a.patient.lastName}, ${a.patient.name}`,
             start: a.start,
             end: a.end,
-            backgroundColor: colors[estadoLimpio],
-            borderColor: colors[estadoLimpio],
+            backgroundColor: colors[estadoVisual],
+            borderColor: colors[estadoVisual],
             textColor: AGENDA_ESTADO_TEXTO,
-            extendedProps: { patient: a.patient, status: estadoLimpio, needsReview: a.needsReview }
+            extendedProps: {
+                patient: a.patient,
+                status: estadoVisual,
+                statusRaw: a.statusRaw || a.status,
+                needsReview: a.needsReview,
+            },
         };
     });
 }
@@ -868,7 +932,8 @@ async function cargarAgendaDesdeServidor() {
                     resourceIds: salasUnicas,
                     start: app.start_time.split('.')[0],
                     end: app.end_time.split('.')[0],
-                    status: app.status || 'pre-agendado',
+                    statusRaw: app.status || 'pre-agendado',
+                    status: risNormalizarEstadoAgendaVisual(app.status || 'pre-agendado'),
                     needsReview: app.needs_review || false,
                     returnReason: app.return_reason || '',
                     title: `${p.names || 'Paciente'} ${p.last_name_1 || ''}`,
@@ -887,7 +952,7 @@ async function cargarAgendaDesdeServidor() {
                         lastName: p.last_name_1,
                         secondLastName: p.last_name_2,
                         sex: p.gender,
-                        birthDate: p.birth_date,
+                        birthDate: risFormatBirthDateForInput(p.birth_date),
                         email: p.email,
                         phone: p.phone,
                         insurance: app.insurance_id,
@@ -976,13 +1041,15 @@ function abrirModalCita(data) {
         $("#pLastName").val(capitalizarNombrePropio(p.lastName || ""));
         $("#pSecondLastName").val(capitalizarNombrePropio(p.secondLastName || ""));
         $("#pSex").val(p.sex || "M");
-        $("#pBirthDate").val(p.birthDate || "").trigger("change");
+        const birthVal = risFormatBirthDateForInput(p.birthDate);
+        $("#pBirthDate").val(birthVal);
+        risActualizarEdadPacienteAgenda();
         $("#pEmail").val(p.email || "");
         $("#pPhone").val(p.phone || "");
 
         setAgendaPrevision(p.insurance || null, p.plan || null);
 
-        $("#agendaStatus").val(data.status || "pre-agendado").trigger("change");
+        $("#agendaStatus").val(data.statusRaw || data.status || "pre-agendado").trigger("change");
         actualizarCtaAtencionSalas();
         $("#mTratante").val(data.mTratante || "");
         $("#mDestinado").val(data.mDestinado || "");
@@ -1345,7 +1412,7 @@ async function eliminarCita() {
 }
 
 function getHexColorEstado(status) {
-    const key = status ? String(status).trim().toLowerCase() : '';
+    const key = risNormalizarEstadoAgendaVisual(status);
     return AGENDA_ESTADO_COLORES[key] || '#7d2181';
 }
 
@@ -1588,16 +1655,7 @@ function setupProEventListeners() {
     });
 
     $("#pBirthDate").on("change", function () {
-        if (!validarFechaNacimientoAgenda()) {
-            $("#pAge").val('');
-            return;
-        }
-        const raw = $(this).val();
-        const bd = new Date(raw + 'T12:00:00');
-        const today = new Date();
-        let age = today.getFullYear() - bd.getFullYear();
-        if (today.getMonth() < bd.getMonth() || (today.getMonth() === bd.getMonth() && today.getDate() < bd.getDate())) age--;
-        $("#pAge").val(age);
+        risActualizarEdadPacienteAgenda();
     });
 
     $("#payMethod").on("change", function () {
@@ -1717,19 +1775,14 @@ function setupProEventListeners() {
                     return;
                 }
 
-                const birthRaw = persona.birth_date;
-                const birthVal =
-                    typeof birthRaw === "string"
-                        ? birthRaw.split("T")[0]
-                        : birthRaw || "";
-
                 $("#pName").val(capitalizarNombrePropio(persona.names || ""));
                 $("#pLastName").val(capitalizarNombrePropio(persona.last_name_1 || ""));
                 $("#pSecondLastName").val(capitalizarNombrePropio(persona.last_name_2 || ""));
                 $("#pSex").val(persona.gender || "M");
                 $("#pEmail").val(persona.email || "");
                 $("#pPhone").val(persona.phone || "");
-                $("#pBirthDate").val(birthVal).trigger("change");
+                $("#pBirthDate").val(risFormatBirthDateForInput(persona.birth_date));
+                risActualizarEdadPacienteAgenda();
 
                 setAgendaPrevision(
                     payload.insurance_id || null,

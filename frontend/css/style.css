@@ -226,6 +226,11 @@ body {
     padding: 2rem;
 }
 
+/* Confirmación / alerta / prompt del sistema: siempre sobre modales de módulo */
+.modal.ris-system-modal {
+    pointer-events: auto;
+}
+
 .skip-link:focus {
     position: fixed;
     top: 0.5rem;
@@ -1219,4 +1224,61 @@ body.recovery-page .modal-header.bg-primary {
 
 body.recovery-page .card-recovery .card-body {
     padding-top: 0.5rem;
+}
+
+/* Entrega — examenes con nombres largos */
+#tablaEntrega {
+    table-layout: fixed;
+    width: 100%;
+}
+
+#tablaEntrega .col-entrega-paciente {
+    width: 22%;
+}
+
+#tablaEntrega .col-entrega-acc {
+    width: 14%;
+}
+
+#tablaEntrega .col-entrega-exams {
+    width: 34%;
+}
+
+#tablaEntrega .col-entrega-estado {
+    width: 10%;
+}
+
+#tablaEntrega .col-entrega-acciones {
+    width: 20%;
+    white-space: nowrap;
+}
+
+#tablaEntrega .entrega-paciente-nombre {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#tablaEntrega .entrega-acc-cell {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#tablaEntrega .entrega-exam-item {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    line-height: 1.35;
+    word-break: break-word;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--primary);
+}
+
+#tablaEntrega .entrega-exam-item + .entrega-exam-item {
+    margin-top: 0.35rem;
+    padding-top: 0.35rem;
+    border-top: 1px dashed rgba(0, 0, 0, 0.08);
 }

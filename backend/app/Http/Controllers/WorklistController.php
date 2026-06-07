@@ -4,12 +4,15 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Appointment;
+use App\Models\AppointmentStudy;
+use App\Models\Machine;
 use App\Models\Supply;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use App\Services\DicomImportService;
+use App\Models\Persona;
 use App\Services\OrthancStudyLookup;
 use App\Support\ModalityCode;
 use App\Support\OrthancUrl;
@@ -37,6 +40,7 @@ class WorklistController extends Controller
         $query = $this->getSecureAppointmentQuery()
             ->with([
                 'studies.machine',
+                'studies.exam',
                 'patient.persona',
                 'machine',
             ])
@@ -56,6 +60,8 @@ class WorklistController extends Controller
                     'quantity' => $study->quantity,
                     'machine_id' => $study->machine_id,
                     'machine_name' => $study->machine?->name ?? $appointment->machine?->name ?? 'Sala Desconocida',
+                    'machine_group' => $study->machine?->group ?? $appointment->machine?->group,
+                    'machine_ae_title' => $study->machine?->ae_title ?? $appointment->machine?->ae_title,
                     'appointment' => [
                         'id' => $appointment->id,
                         'start_time' => $appointment->start_time?->format('Y-m-d\TH:i:s'),
@@ -80,7 +86,7 @@ class WorklistController extends Controller
         return response()->json(['success' => true, 'data' => $formattedData]);
     }
 
-    public function sendToDicom(Request $request, $appointmentId)
+    public function sendToDicom(Request $request, $appointmentId, DicomImportService $dicomImport)
     {
         $profile = LaboratoryProfileService::resolve();
         if (!($profile['uses_dicom_worklist'] ?? true)) {
@@ -91,59 +97,46 @@ class WorklistController extends Controller
         }
 
         $appointment = $this->getSecureAppointmentQuery()
-            ->with(['patient.persona', 'machine', 'studies.machine'])
+            ->with(['patient.persona', 'machine', 'studies.machine', 'studies.exam', 'laboratory'])
             ->findOrFail($appointmentId);
 
-        $machine = $appointment->studies->first(fn ($s) => $s->machine)?->machine
-            ?? $appointment->machine;
-
-        if (!$machine) {
+        $procedureSteps = $this->buildScheduledProcedureSteps($appointment);
+        if ($procedureSteps === []) {
             return response()->json([
                 'success' => false,
                 'message' => 'La cita no tiene sala/equipo asignado. Asigne la modalidad en Agenda antes de enviar la worklist.',
             ], 422);
         }
 
+        $primaryMachine = $this->resolveStudyMachine($appointment->studies->first(), $appointment)
+            ?? $appointment->machine;
+
         $isResend = filled($appointment->accession_number);
         $accessionNumber = $appointment->accession_number
-            ?: ('ACC-' . date('Ymd') . '-' . substr($appointment->id, 0, 5));
+            ?: $this->generateAccessionNumber($appointment);
 
         try {
             $orthancBase = OrthancUrl::base();
             $orthancUrl = $orthancBase . '/worklists/create';
 
-            $stationAeTitle = $machine->ae_title ?: ('SALA_' . $machine->id);
             $persona = $appointment->patient->persona;
+            $study = $appointment->studies->first();
+            $lab = $appointment->laboratory ?? LaboratoryProfileService::currentLaboratory();
 
-            $patientSex = match (strtoupper((string) ($persona->gender ?? ''))) {
-                'M', 'MALE', 'MASCULINO' => 'M',
-                'F', 'FEMALE', 'FEMENINO' => 'F',
-                default => 'O',
-            };
+            $tags = $this->buildWorklistTags(
+                $dicomImport,
+                $persona,
+                $accessionNumber,
+                $lab?->name ?? config('app.name', 'HealthTiCloud'),
+                $study?->exam_name ?? $study?->sub_exam_name
+            );
 
-            $patientBirthDate = $persona->birth_date
-                ? \Carbon\Carbon::parse($persona->birth_date)->format('Ymd')
-                : '';
+            $tags['ScheduledProcedureStepSequence'] = $procedureSteps;
+            $tags = $this->shapeWorklistForFujiCfind($tags, $procedureSteps, $accessionNumber);
 
-            // Formato Orthanc worklists plugin (Tags DICOM)
-            $dicomWorklistData = [
-                "Tags" => [
-                    "PatientName" => $persona->names . "^" . $persona->last_name_1,
-                    "PatientID" => $persona->rut,
-                    "PatientSex" => $patientSex,
-                    "PatientBirthDate" => $patientBirthDate,
-                    "AccessionNumber" => $accessionNumber,
-                    "ScheduledProcedureStepSequence" => [
-                        [
-                            "ScheduledStationAETitle" => $stationAeTitle,
-                            "ScheduledProcedureStepStartDate" => \Carbon\Carbon::parse($appointment->start_time)->format('Ymd'),
-                            "ScheduledProcedureStepStartTime" => \Carbon\Carbon::parse($appointment->start_time)->format('His'),
-                            "ScheduledProcedureStepID" => (string) $appointment->id,
-                            "Modality" => ModalityCode::forDicomWorklist($machine->group ?? 'US')
-                        ]
-                    ]
-                ]
-            ];
+            $this->purgeOrthancWorklistsForAccession($orthancBase, $accessionNumber);
+
+            $dicomWorklistData = ['Tags' => $tags];
 
             $response = Http::timeout(20)
                 ->acceptJson()
@@ -157,6 +150,14 @@ class WorklistController extends Controller
                 );
             }
 
+            if (!$this->verifyOrthancWorklistPresent($orthancBase, $accessionNumber)) {
+                throw new \Exception(
+                    'Orthanc aceptó la worklist pero ya no aparece en el PACS. '
+                    . 'Suele ocurrir si el PACS tiene «DeleteWorklistsOnStableStudy» o «DeleteWorklistsDelay» '
+                    . 'y el accession ya tiene estudio, o si la orden expiró. Pida a sistemas desactivar el borrado automático o reenvíe el mismo día del examen.'
+                );
+            }
+
             $appointment->status = 'dicom_enviado';
             $appointment->accession_number = $accessionNumber;
             $appointment->save();
@@ -165,7 +166,14 @@ class WorklistController extends Controller
             \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
 
             $dicom = OrthancUrl::dicomTarget();
-            $modality = ModalityCode::forDicomWorklist($machine->group ?? 'US');
+            $primaryStep = $procedureSteps[0];
+            $stationAeTitle = (string) ($primaryStep['ScheduledStationAETitle'] ?? '');
+            $modality = (string) ($primaryStep['Modality'] ?? 'OT');
+            $stepsSummary = collect($procedureSteps)->map(fn (array $step) => [
+                'station_ae' => $step['ScheduledStationAETitle'] ?? '',
+                'modality' => $step['Modality'] ?? '',
+                'procedure' => $step['RequestedProcedureDescription'] ?? null,
+            ])->values()->all();
 
             return response()->json([
                 'success' => true,
@@ -174,17 +182,14 @@ class WorklistController extends Controller
                 'worklist' => [
                     'scheduled_station_ae' => $stationAeTitle,
                     'modality' => $modality,
-                    'machine_name' => $machine->name,
+                    'machine_name' => $primaryMachine?->name,
+                    'steps' => $stepsSummary,
                     'pacs_http' => $orthancBase,
                     'pacs_dicom_host' => $dicom['host'],
                     'pacs_dicom_port' => $dicom['port'],
                     'pacs_dicom_aet' => $dicom['aet'],
                 ],
-                'modality_note' => 'La orden quedó en el PACS (vía web). Para verla en el equipo, el modalidad debe '
-                    . 'consultar la worklist DICOM (C-FIND MWL) al mismo PACS en '
-                    . $dicom['host'] . ':' . $dicom['port']
-                    . ' con AE destino «' . $dicom['aet'] . '» y filtro de estación «' . $stationAeTitle . '» (modalidad ' . $modality . '). '
-                    . 'Si el puerto ' . $dicom['port'] . ' no responde desde la LAN del centro, sistemas debe abrir ruta/VPN o un SCP local.',
+                'modality_note' => $this->buildWorklistModalityNote($dicom, $stationAeTitle, $modality, $procedureSteps),
             ]);
 
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
@@ -242,7 +247,8 @@ class WorklistController extends Controller
 
             $patientName = $dicomImport->formatPatientNameDicom(
                 (string) ($persona->names ?? ''),
-                (string) ($persona->last_name_1 ?? '')
+                (string) ($persona->last_name_1 ?? ''),
+                filled($persona->last_name_2) ? (string) $persona->last_name_2 : null
             );
 
             $result = $dicomImport->uploadAndTag(
@@ -447,5 +453,328 @@ class WorklistController extends Controller
                 'linea' => $e->getLine()
             ], 500);
         }
+    }
+
+    private function generateAccessionNumber(Appointment $appointment): string
+    {
+        $suffix = strtoupper(substr(str_replace('-', '', (string) $appointment->id), 0, 8));
+
+        return 'ACC-' . date('Ymd') . '-' . $suffix;
+    }
+
+    private function resolveStudyMachine(?AppointmentStudy $study, Appointment $appointment): ?Machine
+    {
+        if ($study?->machine) {
+            return $study->machine;
+        }
+
+        return $appointment->machine;
+    }
+
+    /**
+     * Modalidad DICOM para MWL: sala asignada al estudio; si la sala es RX legado, usa el catálogo del examen.
+     */
+    private function resolveWorklistModality(?AppointmentStudy $study, Machine $machine): string
+    {
+        $machineGroup = ModalityCode::normalizeGroup($machine->group);
+        $examGroup = ModalityCode::normalizeGroup($study?->exam?->group_code);
+
+        $group = match (true) {
+            in_array($machineGroup, ['CR', 'DX', 'CT', 'MRI', 'US', 'MAMO', 'DEXA', 'IO', 'CBCT', 'NM', 'PT', 'RF', 'XA'], true)
+                => $machineGroup,
+            $examGroup !== '' && !in_array($examGroup, ['RX', 'OT', 'GENERAL'], true) => $examGroup,
+            default => $machineGroup !== '' ? $machineGroup : ($examGroup !== '' ? $examGroup : 'US'),
+        };
+
+        return ModalityCode::forDicomWorklist($group, $machine->ae_title);
+    }
+
+    /**
+     * Un paso MWL por estudio, con la sala y modalidad actuales (CR, DX, MAMO→MG, etc.).
+     *
+     * @return list<array<string, string>>
+     */
+    private function buildScheduledProcedureSteps(Appointment $appointment): array
+    {
+        $dicomImport = app(DicomImportService::class);
+        $start = \Carbon\Carbon::parse($appointment->start_time)->timezone($this->worklistTimezone());
+        $startDate = $start->format('Ymd');
+        $startTime = $start->format('His');
+        $steps = [];
+
+        if ($appointment->studies->isEmpty()) {
+            if (!$appointment->machine) {
+                return [];
+            }
+
+            $stationAe = $appointment->machine->ae_title ?: ('SALA_' . $appointment->machine->id);
+            $modality = $this->resolveWorklistModality(null, $appointment->machine);
+
+            return [[
+                'ScheduledStationAETitle' => $stationAe,
+                'ScheduledStationName' => $this->truncateDicomShortString($stationAe, 16),
+                'ScheduledProcedureStepStartDate' => $startDate,
+                'ScheduledProcedureStepStartTime' => $startTime,
+                'ScheduledProcedureStepID' => $this->fujiScheduledProcedureStepId($appointment, (string) $appointment->id),
+                'ScheduledProcedureStepStatus' => 'SCHEDULED',
+                'Modality' => $modality,
+            ]];
+        }
+
+        foreach ($appointment->studies as $study) {
+            $machine = $this->resolveStudyMachine($study, $appointment);
+            if (!$machine) {
+                continue;
+            }
+
+            $procedureDesc = $dicomImport->toDicomAscii((string) ($study->exam_name ?? $study->sub_exam_name ?? ''));
+            $stationAe = $machine->ae_title ?: ('SALA_' . $machine->id);
+            $modality = $this->resolveWorklistModality($study, $machine);
+
+            $step = [
+                'ScheduledStationAETitle' => $stationAe,
+                'ScheduledStationName' => $this->truncateDicomShortString($stationAe, 16),
+                'ScheduledProcedureStepStartDate' => $startDate,
+                'ScheduledProcedureStepStartTime' => $startTime,
+                'ScheduledProcedureStepID' => $this->fujiScheduledProcedureStepId($appointment, (string) $study->id),
+                'ScheduledProcedureStepStatus' => 'SCHEDULED',
+                'Modality' => $modality,
+            ];
+
+            if ($procedureDesc !== '') {
+                $step['RequestedProcedureDescription'] = strtoupper($procedureDesc);
+            }
+
+            $steps[] = $step;
+        }
+
+        return $steps;
+    }
+
+    /**
+     * Tags DICOM para Orthanc /worklists/create.
+     *
+     * @return array<string, mixed>
+     */
+    private function buildWorklistTags(
+        DicomImportService $dicomImport,
+        Persona $persona,
+        string $accessionNumber,
+        string $institutionName,
+        ?string $procedureDescription = null
+    ): array {
+        $tags = [
+            'SpecificCharacterSet' => 'ISO_IR 100',
+            'PatientName' => $dicomImport->formatPatientNameDicomWorklist(
+                (string) ($persona->names ?? ''),
+                (string) ($persona->last_name_1 ?? ''),
+                filled($persona->last_name_2) ? (string) $persona->last_name_2 : null
+            ),
+            'PatientID' => $dicomImport->normalizePatientIdDicom((string) $persona->rut),
+            'AccessionNumber' => $accessionNumber,
+            'RequestedProcedureID' => $accessionNumber,
+        ];
+
+        $sex = $dicomImport->normalizePatientSex($persona->gender);
+        if ($sex !== '') {
+            $tags['PatientSex'] = $sex;
+        }
+
+        $birthDate = $dicomImport->formatPatientBirthDate($persona->birth_date);
+        if ($birthDate !== '') {
+            $tags['PatientBirthDate'] = $birthDate;
+        }
+
+        $institution = $dicomImport->toDicomAscii($institutionName);
+        if ($institution !== '') {
+            $tags['InstitutionName'] = $institution;
+        }
+
+        $procedure = $dicomImport->toDicomAscii((string) $procedureDescription);
+        if ($procedure !== '') {
+            $tags['RequestedProcedureDescription'] = $procedure;
+        }
+
+        return $tags;
+    }
+
+    /**
+     * Alinea tags MWL con el *Broad Query* del Fuji FCR (estación + modalidad + fecha).
+     * Orthanc solo matchea esos filtros planos si estación/fecha del paso van también a nivel raíz
+     * (además de ScheduledProcedureStepSequence); Modality/StudyDate en raíz ayudan al índice C-FIND.
+     *
+     * @param  list<array<string, string>>  $procedureSteps
+     * @return array<string, mixed>
+     */
+    private function shapeWorklistForFujiCfind(array $tags, array $procedureSteps, string $accessionNumber): array
+    {
+        if ($procedureSteps === []) {
+            return $tags;
+        }
+
+        $primary = $procedureSteps[0];
+        $stationAe = (string) ($primary['ScheduledStationAETitle'] ?? '');
+        $modality = (string) ($primary['Modality'] ?? 'OT');
+        $stepDate = (string) ($primary['ScheduledProcedureStepStartDate'] ?? '');
+        $stepTime = (string) ($primary['ScheduledProcedureStepStartTime'] ?? '');
+
+        unset($tags['StudyInstanceUID']);
+
+        $tags['Modality'] = $modality;
+        if ($stationAe !== '') {
+            $tags['ScheduledStationAETitle'] = $stationAe;
+        }
+        if ($stepDate !== '') {
+            $tags['StudyDate'] = $stepDate;
+            $tags['ScheduledProcedureStepStartDate'] = $stepDate;
+        }
+        if ($stepTime !== '') {
+            $tags['StudyTime'] = $stepTime;
+            $tags['ScheduledProcedureStepStartTime'] = $stepTime;
+        }
+
+        $tags['ScheduledProcedureStepSequence'] = array_map(
+            function (array $step) use ($accessionNumber, $modality): array {
+                $station = (string) ($step['ScheduledStationAETitle'] ?? '');
+                if ($station !== '') {
+                    $step['ScheduledStationName'] = $this->truncateDicomShortString($station, 16);
+                }
+
+                $step['ScheduledProcedureStepStatus'] = $step['ScheduledProcedureStepStatus'] ?? 'SCHEDULED';
+                $step['Modality'] = $step['Modality'] ?? $modality;
+
+                if ($this->isFujiFcrStation($station)) {
+                    $step['ScheduledProcedureStepID'] = $this->fujiScheduledProcedureStepIdFromAccession(
+                        $accessionNumber,
+                        (string) ($step['ScheduledProcedureStepID'] ?? '1')
+                    );
+                }
+
+                return $step;
+            },
+            $procedureSteps
+        );
+
+        if ($this->isFujiFcrStation($stationAe)) {
+            $tags['RequestedProcedureID'] = $this->truncateDicomShortString($accessionNumber, 16);
+        }
+
+        return $tags;
+    }
+
+    private function isFujiFcrStation(string $stationAe): bool
+    {
+        return str_starts_with(strtoupper(trim($stationAe)), 'FCR_');
+    }
+
+    private function fujiScheduledProcedureStepId(Appointment $appointment, string $fallbackId): string
+    {
+        $accession = (string) ($appointment->accession_number ?? '');
+
+        return $accession !== ''
+            ? $this->fujiScheduledProcedureStepIdFromAccession($accession, $fallbackId)
+            : $this->truncateDicomShortString($fallbackId, 16);
+    }
+
+    private function fujiScheduledProcedureStepIdFromAccession(string $accessionNumber, string $fallbackId): string
+    {
+        $compact = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $accessionNumber) ?? '');
+
+        if ($compact !== '') {
+            return $this->truncateDicomShortString($compact, 16);
+        }
+
+        return $this->truncateDicomShortString($fallbackId, 16);
+    }
+
+    private function truncateDicomShortString(string $value, int $maxLength): string
+    {
+        $trimmed = trim($value);
+
+        return $trimmed === '' ? '' : substr($trimmed, 0, $maxLength);
+    }
+
+    private function purgeOrthancWorklistsForAccession(string $orthancBase, string $accessionNumber): void
+    {
+        try {
+            $response = Http::timeout(15)->acceptJson()->get($orthancBase . '/worklists');
+            if (!$response->successful()) {
+                return;
+            }
+
+            foreach ($response->json() as $item) {
+                $existingAccession = (string) ($item['Tags']['AccessionNumber'] ?? '');
+                if ($existingAccession !== $accessionNumber || empty($item['ID'])) {
+                    continue;
+                }
+
+                Http::timeout(10)->acceptJson()->delete($orthancBase . '/worklists/' . $item['ID']);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo purgar worklist previa en Orthanc: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * @param  array{host: string, port: int, aet: string, http_host?: string}  $dicom
+     * @param  list<array<string, string>>  $procedureSteps
+     */
+    private function buildWorklistModalityNote(array $dicom, string $stationAe, string $modality, array $procedureSteps): string
+    {
+        $httpHost = $dicom['http_host'] ?? $dicom['host'];
+        $dicomHost = $dicom['host'];
+        $hostHint = $dicomHost !== $httpHost
+            ? "Use la IP DICOM «{$dicomHost}» (no «{$httpHost}») en el FCR Console."
+            : "Host DICOM del FCR Console: «{$dicomHost}».";
+
+        $dateHint = $procedureSteps[0]['ScheduledProcedureStepStartDate'] ?? '';
+        $dateDisplay = $dateHint !== ''
+            ? \Carbon\Carbon::createFromFormat('Ymd', $dateHint, $this->worklistTimezone())->format('d/m/Y')
+            : '';
+        $todayHint = \Carbon\Carbon::now($this->worklistTimezone())->format('Ymd');
+        $todayDisplay = \Carbon\Carbon::now($this->worklistTimezone())->format('d/m/Y');
+        $dateWarning = $dateHint !== '' && $dateHint !== $todayHint
+            ? " Hoy en el centro es {$todayDisplay}: el FCR Console suele consultar la fecha del día; si no cambia la fecha en el equipo, no verá citas del {$dateDisplay}."
+            : '';
+
+        $fcrHint = $this->isFujiFcrStation($stationAe)
+            ? ' CRÍTICO FCR Console: Local AE Title = «' . $stationAe . '» exacto (si el equipo tiene otro AE, ej. FCR, el PACS rechaza con Find Failed). '
+                . 'Remote AE (called) = «' . $dicom['aet'] . '». Broad Query: fecha «' . $dateHint . '», modalidad «' . $modality . '», estación «' . $stationAe . '». '
+                . 'Alternativa: Patient ID + Accession en el FCR.'
+            : '';
+
+        return 'La orden quedó en el PACS. El Fuji FCR Console la baja por DICOM MWL (C-FIND), no por la web. '
+            . "{$hostHint} Puerto {$dicom['port']}, AE destino «{$dicom['aet']}». "
+            . "Filtros MWL: estación «{$stationAe}», modalidad «{$modality}», fecha «{$dateHint}» ({$dateDisplay})."
+            . $dateWarning
+            . $fcrHint
+            . ' Reenvíe la worklist el mismo día del examen si el PACS borra órdenes antiguas.';
+    }
+
+    private function worklistTimezone(): string
+    {
+        return (string) config('app.worklist_timezone', 'America/Santiago');
+    }
+
+    private function verifyOrthancWorklistPresent(string $orthancBase, string $accessionNumber): bool
+    {
+        try {
+            $response = Http::timeout(10)->acceptJson()->get($orthancBase . '/worklists');
+            if (!$response->successful()) {
+                return true;
+            }
+
+            foreach ($response->json() ?? [] as $item) {
+                if ((string) ($item['Tags']['AccessionNumber'] ?? '') === $accessionNumber) {
+                    return true;
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo verificar worklist en Orthanc: ' . $e->getMessage());
+
+            return true;
+        }
+
+        return false;
     }
 }

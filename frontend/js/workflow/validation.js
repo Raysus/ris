@@ -170,10 +170,17 @@ async function firmarInforme() {
         try {
             btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Firmando...');
 
-            const paqueteInformes = currentValidationChain.studies.map(s => ({
-                id: s.study_id,
-                text: s.reportText
-            }));
+            const paqueteInformes = (currentValidationChain.studies || [])
+                .filter(s => s && s.study_id)
+                .map(s => ({
+                    id: String(s.study_id),
+                    text: s.reportText ?? ''
+                }));
+
+            if (paqueteInformes.length === 0) {
+                if (typeof showToast === 'function') showToast("No hay exámenes válidos para firmar.", "warning");
+                return;
+            }
 
             const response = await fetch(`${API_URL}/radiologist/appointments/${currentValidationChain.id}/sign`, {
                 method: 'POST',
@@ -184,15 +191,20 @@ async function firmarInforme() {
                 })
             });
 
-            if (response.ok) {
+            const data = await response.json().catch(() => ({}));
+
+            if (response.ok && data.success !== false) {
                 if (typeof showToast === 'function') showToast("✅ Informes firmados y liberados.", "success");
                 limpiarPantallaValidacion();
                 cargarListaValidacion();
             } else {
-                throw new Error("Error en servidor");
+                const detalle = data.message
+                    || (data.errors ? Object.values(data.errors).flat().join(' ') : '')
+                    || `Error en el servidor (${response.status})`;
+                if (typeof showToast === 'function') showToast(`❌ Error al firmar: ${detalle}`, "danger");
             }
         } catch (e) {
-            if (typeof showToast === 'function') showToast("❌ Error al firmar", "danger");
+            if (typeof showToast === 'function') showToast("❌ Error al firmar: no se pudo contactar al servidor.", "danger");
         } finally {
             btn.prop('disabled', false).html('<i class="bi bi-pen-fill me-1"></i> APROBAR Y FIRMAR INFORME');
         }

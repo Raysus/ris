@@ -57,16 +57,91 @@ class DicomImportService
         ];
     }
 
-    public function formatPatientNameDicom(string $names, string $lastName): string
+    /** PatientID DICOM sin puntuación (RUT → 181977876). */
+    public function normalizePatientIdDicom(string $patientId): string
     {
-        $n = strtoupper(trim(preg_replace('/\s+/', ' ', $names)));
-        $a = strtoupper(trim(preg_replace('/\s+/', ' ', $lastName)));
+        return strtoupper(str_replace(['.', '-', ' '], '', trim($patientId)));
+    }
 
-        if ($a !== '' && $n !== '') {
-            return "{$a}^{$n}";
+    /**
+     * Texto seguro para equipos legacy (Fuji FCR): ASCII + ISO_IR 100.
+     * Elimina tildes y caracteres fuera de Latin-1 básico.
+     */
+    public function toDicomAscii(string $text): string
+    {
+        $text = trim($text);
+        if ($text === '') {
+            return '';
         }
 
-        return strtoupper(trim("{$n} {$a}"));
+        $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $text);
+        if ($ascii === false || $ascii === '') {
+            $ascii = preg_replace('/[^\x20-\x7E]/', '', $text) ?? '';
+        }
+
+        return strtoupper(preg_replace('/\s+/', ' ', $ascii));
+    }
+
+    /**
+     * PN DICOM: «ApellidoPaterno ApellidoMaterno^nombres» (Family^Given).
+     * El apellido materno va en el mismo componente Family, separado por espacio.
+     */
+    public function formatPatientNameDicom(string $names, string $lastName1, ?string $lastName2 = null): string
+    {
+        $family = strtoupper(trim(preg_replace('/\s+/', ' ', $lastName1)));
+        $given = strtoupper(trim(preg_replace('/\s+/', ' ', $names)));
+        $maternal = strtoupper(trim(preg_replace('/\s+/', ' ', (string) $lastName2)));
+
+        if ($maternal !== '') {
+            $family = trim($family === '' ? $maternal : "{$family} {$maternal}");
+        }
+
+        if ($family !== '' && $given !== '') {
+            return "{$family}^{$given}";
+        }
+
+        if ($family !== '') {
+            return $family;
+        }
+
+        if ($given !== '') {
+            return $given;
+        }
+
+        return strtoupper(trim("{$names} {$lastName1} {$lastName2}"));
+    }
+
+    /** PN para MWL en consolas Fuji FCR (ISO_IR 100, sin tildes). */
+    public function formatPatientNameDicomWorklist(string $names, string $lastName1, ?string $lastName2 = null): string
+    {
+        $raw = $this->formatPatientNameDicom($names, $lastName1, $lastName2);
+        $parts = explode('^', $raw);
+
+        return implode('^', array_map(fn (string $part): string => $this->toDicomAscii($part), $parts));
+    }
+
+    /** Sexo DICOM (0010,0040): M, F u omitir si no se conoce. */
+    public function normalizePatientSex(mixed $gender): string
+    {
+        return match (strtoupper(trim((string) $gender))) {
+            'M', 'MALE', 'MASCULINO', 'H', 'HOMBRE' => 'M',
+            'F', 'FEMALE', 'FEMENINO', 'MUJER' => 'F',
+            default => '',
+        };
+    }
+
+    /** Fecha nacimiento DICOM (0010,0030) YYYYMMDD. */
+    public function formatPatientBirthDate(mixed $birthDate): string
+    {
+        if ($birthDate === null || $birthDate === '') {
+            return '';
+        }
+
+        try {
+            return \Carbon\Carbon::parse($birthDate)->format('Ymd');
+        } catch (\Throwable) {
+            return '';
+        }
     }
 
     /** @return list<string> Orthanc study IDs */

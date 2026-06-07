@@ -6,6 +6,21 @@ let currentDeliveryData = [];
 let citaIdParaEntrega = null;
 let colorInformeGlobalDelivery = "#333333";
 
+function escapeHtmlEntrega(text) {
+    return String(text ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function formatExamenesEntrega(studies) {
+    return (studies || []).map(s => {
+        const exam = escapeHtmlEntrega(s.exam || 'Sin nombre');
+        return `<div class="entrega-exam-item" title="${exam}">${exam}</div>`;
+    }).join('');
+}
+
 function initEntrega() {
     cargarAjustesVisualesEntrega();
     cargarListaEntrega();
@@ -85,18 +100,23 @@ function renderTablaEntrega() {
             ? `${btnEntregar} ${btnEmail} ${btnImprimir}`
             : `${btnEmail} ${btnImprimir} ${btnRevertir}`;
 
-        const examenesStr = item.studies.map(s => s.exam).join("<br>");
+        const nombrePaciente = escapeHtmlEntrega(
+            `${item.patient.lastName} ${item.patient.secondLastName || ''}, ${item.patient.name}`.trim()
+        );
+        const rutPaciente = escapeHtmlEntrega(item.patient.rut);
+        const accession = escapeHtmlEntrega(item.accessionNumber);
+        const examenesHtml = formatExamenesEntrega(item.studies);
 
         tbody.append(`
             <tr>
-                <td>
-                    <div class="fw-bold text-dark">${item.patient.lastName} ${item.patient.secondLastName || ''}, ${item.patient.name}</div>
-                    <div class="small text-muted">RUT: ${item.patient.rut}</div>
+                <td class="col-entrega-paciente">
+                    <div class="fw-bold text-dark entrega-paciente-nombre" title="${nombrePaciente}">${nombrePaciente}</div>
+                    <div class="small text-muted">RUT: ${rutPaciente}</div>
                 </td>
-                <td class="font-monospace text-secondary small fw-bold">${item.accessionNumber}</td>
-                <td class="small fw-bold text-primary">${examenesStr}</td>
-                <td>${badgeEstado}</td>
-                <td>${acciones}</td>
+                <td class="col-entrega-acc font-monospace text-secondary small fw-bold entrega-acc-cell" title="${accession}">${accession}</td>
+                <td class="col-entrega-exams">${examenesHtml}</td>
+                <td class="col-entrega-estado">${badgeEstado}</td>
+                <td class="col-entrega-acciones text-center pe-4">${acciones}</td>
             </tr>
         `);
     });
@@ -142,14 +162,16 @@ async function procesarEntrega() {
     const btn = $("#btnConfirmarEntrega");
     btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Guardando...');
 
-    await ejecutarLlamadaEntrega(citaIdParaEntrega, 'deliver', datosRecepcion);
+    const ok = await ejecutarLlamadaEntrega(citaIdParaEntrega, 'deliver', datosRecepcion);
 
-    const modalElement = document.getElementById('modalEntrega');
-    const modalInstance = bootstrap.Modal.getInstance(modalElement);
-    if (modalInstance) modalInstance.hide();
+    if (ok) {
+        const modalElement = document.getElementById('modalEntrega');
+        const modalInstance = bootstrap.Modal.getInstance(modalElement);
+        if (modalInstance) modalInstance.hide();
+        citaIdParaEntrega = null;
+    }
 
     btn.prop('disabled', false).html('<i class="bi bi-check2-circle me-1"></i> Confirmar Entrega');
-    citaIdParaEntrega = null;
 }
 
 async function ejecutarLlamadaEntrega(id, action, bodyData = {}) {
@@ -162,15 +184,26 @@ async function ejecutarLlamadaEntrega(id, action, bodyData = {}) {
             body: JSON.stringify(bodyData)
         });
 
-        if (response.ok) {
-            if (typeof showToast === 'function') showToast(action === 'deliver' ? "✅ Resultados entregados y registrados." : "⚠️ Entrega revertida.", action === 'deliver' ? "success" : "warning");
+        const data = await response.json().catch(() => ({}));
+
+        if (response.ok && data.success !== false) {
+            const msg = data.already_delivered
+                ? "La entrega ya estaba registrada."
+                : (action === 'deliver' ? "✅ Resultados entregados y registrados." : "⚠️ Entrega revertida.");
+            if (typeof showToast === 'function') showToast(msg, action === 'deliver' ? "success" : "warning");
             cargarListaEntrega();
-        } else {
-            if (typeof showToast === 'function') showToast("Error al actualizar el estado en el servidor.", "danger");
+            return true;
         }
+
+        const detalle = data.message
+            || (data.errors ? Object.values(data.errors).flat().join(' ') : '')
+            || `Error en el servidor (${response.status})`;
+        if (typeof showToast === 'function') showToast(`❌ ${detalle}`, "danger");
+        return false;
     } catch (e) {
         console.error(e);
         if (typeof showToast === 'function') showToast("Error de conexión al registrar la entrega.", "danger");
+        return false;
     }
 }
 

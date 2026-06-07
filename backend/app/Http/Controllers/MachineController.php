@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Machine;
 use App\Support\ModalityCode;
+use App\Support\PacsMwlProbe;
 use Illuminate\Http\Request;
 
 class MachineController extends Controller
@@ -51,27 +52,21 @@ class MachineController extends Controller
         $labId = $request->header('X-Lab-Id') ?: config('app.current_lab_id');
         $group = ModalityCode::normalizeGroup($validated['group']);
 
-        $color = '#3788d8';
-        switch ($group) {
-            case 'RX':
-                $color = '#4CAF50';
-                break;
-            case 'SCANNER':
-                $color = '#FF9800';
-                break;
-            case 'US':
-                $color = '#9C27B0';
-                break;
-            case 'RM':
-                $color = '#E91E63';
-                break;
-            case 'MAMO':
-                $color = '#00BCD4';
-                break;
-            case 'DENSITO':
-                $color = '#795548';
-                break;
-        }
+        $color = match ($group) {
+            'CR' => '#43A047',
+            'DX' => '#2E7D32',
+            'RX' => '#66BB6A',
+            'CT', 'CBCT' => '#FF9800',
+            'MRI' => '#E91E63',
+            'US' => '#9C27B0',
+            'MAMO' => '#00BCD4',
+            'DEXA' => '#795548',
+            'IO' => '#5C6BC0',
+            'NM', 'PT' => '#37474F',
+            'RF', 'XA' => '#607D8B',
+            'OT' => '#78909C',
+            default => '#3788d8',
+        };
 
         if (!empty($validated['id'])) {
             $machine = $this->getSecureMachineQuery()->findOrFail($validated['id']);
@@ -124,53 +119,99 @@ class MachineController extends Controller
     }
 
     /**
-     * Prueba TCP desde el servidor RIS hacia el equipo adquisidor (IP + puerto de la sala).
-     * No es un C-ECHO DICOM completo. No valida ORTHANC_URL del .env (PACS en nube es otro destino).
+     * Diagnóstico de red para salas DICOM.
+     * 1) TCP al equipo en LAN (opcional; Fuji FCR suele no aceptar TCP entrante).
+     * 2) TCP al PACS MWL (C-FIND) — lo que el FCR debe alcanzar en :4242.
      */
     public function pingDicom($id)
     {
         $machine = $this->getSecureMachineQuery()->findOrFail($id);
 
-        if (empty($machine->ip_address) || empty($machine->port)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Falta configurar la IP o el Puerto en esta máquina.'
-            ], 400);
+        $host = trim((string) ($machine->ip_address ?? ''));
+        $port = (int) ($machine->port ?? 0);
+        $stationAe = $machine->ae_title ?: ('SALA_' . $machine->id);
+        $modality = ModalityCode::forDicomWorklist($machine->group ?? 'US', $stationAe);
+        $isCrFamily = in_array(
+            ModalityCode::normalizeGroup($machine->group),
+            ['CR', 'DX', 'MAMO', 'RX'],
+            true
+        );
+
+        $equipmentTcp = ['ok' => false, 'host' => $host, 'port' => $port, 'detail' => ''];
+        if ($host !== '' && $port >= 1 && $port <= 65535) {
+            $errCode = 0;
+            $errStr = '';
+            $fp = @fsockopen($host, $port, $errCode, $errStr, 3);
+            if ($fp) {
+                fclose($fp);
+                $equipmentTcp['ok'] = true;
+                $equipmentTcp['detail'] = "TCP abierto en {$host}:{$port}.";
+            } else {
+                $equipmentTcp['detail'] = $isCrFamily
+                    ? "Sin TCP entrante en {$host}:{$port} ({$errStr}). En Fuji FCR es habitual: el equipo solo consulta MWL al PACS, no recibe conexiones del RIS."
+                    : "Sin TCP en {$host}:{$port} ({$errStr}).";
+            }
+        } else {
+            $equipmentTcp['detail'] = 'IP/puerto de la sala no configurados (no afecta MWL si el FCR alcanza el PACS).';
         }
 
-        $host = trim((string) $machine->ip_address);
-        $port = (int) $machine->port;
-
-        if ($port < 1 || $port > 65535) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Puerto inválido. Use el puerto DICOM del equipo (p. ej. 104, 4242), no la URL web del PACS.',
-            ], 400);
+        $pacs = \App\Support\OrthancUrl::dicomTarget();
+        $pacsErr = '';
+        $pacsFp = @fsockopen($pacs['host'], $pacs['port'], $pacsCode, $pacsErr, 3);
+        $pacsOk = (bool) $pacsFp;
+        if ($pacsFp) {
+            fclose($pacsFp);
         }
 
-        $errCode = 0;
-        $errStr = '';
-        $fp = @fsockopen($host, $port, $errCode, $errStr, 3);
+        $httpHost = parse_url(\App\Support\OrthancUrl::base(), PHP_URL_HOST) ?: '';
+        $pacsDetail = $pacsOk
+            ? "PACS MWL alcanzable en {$pacs['host']}:{$pacs['port']} (AE destino «{$pacs['aet']}»)."
+            : "PACS MWL NO alcanzable en {$pacs['host']}:{$pacs['port']} ({$pacsErr}). "
+                . ($httpHost !== '' && $httpHost !== $pacs['host']
+                    ? "No use «{$httpHost}:4242» en el FCR; use la IP DICOM «{$pacs['host']}»."
+                    : 'Revise firewall y PACS_DICOM_HOST en .env.');
 
-        if ($fp) {
-            fclose($fp);
+        $cfind = $pacsOk
+            ? PacsMwlProbe::run($stationAe, $modality)
+            : ['ok' => false, 'pending' => false, 'failed' => true, 'output' => '', 'calling_ae' => $stationAe, 'station_ae' => $stationAe, 'modality' => $modality, 'date' => date('Ymd')];
 
-            return response()->json([
-                'success' => true,
-                'message' => "Puerto TCP abierto en {$host}:{$port} ({$machine->ae_title}). "
-                    . 'El equipo acepta conexiones; esto no garantiza C-ECHO DICOM.',
-            ]);
+        $cfindDetail = '';
+        if ($pacsOk) {
+            if ($cfind['ok']) {
+                $cfindDetail = "C-FIND OK con AE «{$stationAe}» (hay worklist para hoy «{$cfind['date']}»).";
+            } elseif ($cfind['failed']) {
+                $cfindDetail = "C-FIND RECHAZADO (Find Failed) con AE «{$stationAe}». El PACS exige que el Local AE del FCR Console sea exactamente «{$stationAe}».";
+            } else {
+                $cfindDetail = "C-FIND sin resultados para hoy «{$cfind['date']}» con estación «{$stationAe}» y modalidad «{$modality}». Reenvíe la worklist o ajuste la fecha en el FCR.";
+            }
         }
 
-        $hint = match (true) {
-            in_array($port, [80, 443, 8042], true) => ' El PACS en la nube se configura en ORTHANC_URL del .env, no en la IP de la sala.',
-            $errCode === 111 => ' Connection refused: no hay servicio escuchando en ese puerto o el equipo está apagado.',
-            default => ' Revise que el servidor RIS alcance esa red (misma VLAN), firewall y el puerto DICOM correcto.',
-        };
+        $today = (new \DateTimeImmutable('now', new \DateTimeZone('America/Santiago')))->format('d/m/Y');
+        $fcrHint = "FCR Console: remoto «{$pacs['host']}»:{$pacs['port']}, AE destino (called) «{$pacs['aet']}», "
+            . "AE local (calling) OBLIGATORIO «{$stationAe}» (si el FCR tiene otro AE, el PACS rechaza la consulta). "
+            . "Modalidad «{$modality}», fecha hoy {$today} o la de la cita. "
+            . 'Alternativa: búsqueda por Patient ID + Accession en el FCR.';
+
+        $message = trim($equipmentTcp['detail'] . ' ' . $pacsDetail . ' ' . $cfindDetail . ' ' . $fcrHint);
 
         return response()->json([
-            'success' => false,
-            'message' => "Sin conexión TCP a {$host}:{$port} ({$errStr}).{$hint}",
-        ], 408);
+            'success' => $pacsOk && ($cfind['ok'] || !$cfind['failed']),
+            'equipment_tcp' => $equipmentTcp,
+            'pacs_mwl' => [
+                'ok' => $pacsOk,
+                'host' => $pacs['host'],
+                'port' => $pacs['port'],
+                'aet' => $pacs['aet'],
+                'detail' => $pacsDetail,
+                'cfind_ok' => $cfind['ok'],
+                'cfind_failed' => $cfind['failed'],
+                'cfind_pending' => $cfind['pending'],
+                'cfind_date' => $cfind['date'],
+                'cfind_detail' => $cfindDetail,
+            ],
+            'station_ae' => $stationAe,
+            'modality' => $modality,
+            'message' => $message,
+        ], $pacsOk ? 200 : 408);
     }
 }

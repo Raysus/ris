@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 use App\Models\Appointment;
 use App\Services\AppointmentNotificationService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class DeliveryController extends Controller
 {
@@ -86,10 +88,31 @@ class DeliveryController extends Controller
 
         $userId = $request->user()->id;
 
-        DB::beginTransaction();
         try {
             $appointment = $this->getSecureAppointmentQuery()->findOrFail($id);
 
+            if ($appointment->status === 'entregado') {
+                return response()->json([
+                    'success' => true,
+                    'already_delivered' => true,
+                    'message' => 'La entrega ya estaba registrada.',
+                ]);
+            }
+
+            if ($appointment->status !== 'entregable') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'La cita no está lista para entrega (estado: ' . $appointment->status . ').',
+                ], 422);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('deliver: cita no encontrada', ['appointment_id' => $id, 'error' => $e->getMessage()]);
+
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 404);
+        }
+
+        DB::beginTransaction();
+        try {
             $appointment->status = 'entregado';
             $appointment->save();
 
@@ -106,24 +129,44 @@ class DeliveryController extends Controller
                 'delivery_method' => $request->delivery_method,
             ]);
 
-            \App\Models\AppointmentLog::create([
+            DB::table('appointment_logs')->insert([
+                'id' => (string) Str::orderedUuid(),
                 'appointment_id' => $appointment->id,
                 'user_id' => $userId,
                 'action' => 'DELIVERED_TO_PATIENT',
-                'details' => [
+                'details' => json_encode([
                     'receptor' => $request->receiver_name,
-                    'parentesco' => $request->relationship
-                ],
+                    'parentesco' => $request->relationship,
+                    'metodo' => $request->delivery_method,
+                ]),
                 'ip_address' => $request->ip(),
+                'created_at' => now(),
+                'updated_at' => now(),
             ]);
-            $appointment->load(['patient.persona', 'studies', 'supplies']);
-            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+
             DB::commit();
-            return response()->json(['success' => true]);
         } catch (\Throwable $e) {
             DB::rollBack();
+            Log::warning('deliver falló', [
+                'appointment_id' => $id,
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
+
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
+
+        try {
+            $appointment->load(['patient.persona', 'studies', 'supplies']);
+            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+        } catch (\Throwable $e) {
+            Log::warning('deliver: sync nube post-entrega omitido', [
+                'appointment_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return response()->json(['success' => true]);
     }
 
     public function revert(Request $request, $id)
@@ -148,21 +191,38 @@ class DeliveryController extends Controller
                 ->update(['status' => $newStatus, 'updated_at' => now()]);
 
             DB::table('appointment_logs')->insert([
+                'id' => (string) Str::orderedUuid(),
                 'appointment_id' => $appointment->id,
                 'user_id' => $userId,
                 'action' => $logAction,
                 'details' => json_encode(['mensaje' => "Estado cambiado a: $newStatus"]),
                 'ip_address' => $request->ip(),
-                'created_at' => now()
+                'created_at' => now(),
+                'updated_at' => now(),
             ]);
-            $appointment->load(['patient.persona', 'studies', 'supplies']);
-            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+
             DB::commit();
-            return response()->json(['success' => true]);
         } catch (\Throwable $e) {
             DB::rollBack();
-            return response()->json(['success' => false, 'message' => 'Error en servidor', 'error' => $e->getMessage()], 500);
+            Log::warning('updateDeliveryStatus falló', [
+                'appointment_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
+
+        try {
+            $appointment->load(['patient.persona', 'studies', 'supplies']);
+            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+        } catch (\Throwable $e) {
+            Log::warning('updateDeliveryStatus: sync nube omitido', [
+                'appointment_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return response()->json(['success' => true]);
     }
 
     public function sendEmail(Request $request, $id, AppointmentNotificationService $notifications)
