@@ -9,6 +9,7 @@ use App\Models\Paciente;
 use App\Models\Persona;
 use App\Models\Supply;
 use App\Services\KeycloakService;
+use App\Support\LabTimezone;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -108,8 +109,8 @@ class AppointmentController extends Controller
                 $data = json_decode($request->input('data'), true);
 
                 // === 1. VALIDACIÓN DE CHOQUE DE HORARIOS EN BACKEND ===
-                $start = \Carbon\Carbon::parse($data['start_time']);
-                $end = \Carbon\Carbon::parse($data['end_time']);
+                $start = LabTimezone::parseScheduleTime($data['start_time']);
+                $end = LabTimezone::parseScheduleTime($data['end_time']);
 
                 $choque = Appointment::where('machine_id', $data['machine_id'])
                     ->whereIn('status', ['agendado', 'confirmado', 'espera'])
@@ -233,8 +234,8 @@ class AppointmentController extends Controller
             if ($request->has('is_drag_and_drop')) {
                 $appointment->update([
                     'machine_id' => $request->machine_id ?? $request->machine,
-                    'start_time' => \Carbon\Carbon::parse($request->start_time ?? $request->start),
-                    'end_time' => \Carbon\Carbon::parse($request->end_time ?? $request->end),
+                    'start_time' => LabTimezone::parseScheduleTime((string) ($request->start_time ?? $request->start)),
+                    'end_time' => LabTimezone::parseScheduleTime((string) ($request->end_time ?? $request->end)),
                 ]);
 
                 $appointment->studies()->update(['machine_id' => $request->machine_id ?? $request->machine]);
@@ -267,8 +268,8 @@ class AppointmentController extends Controller
 
             $appointment->update([
                 'machine_id' => $data['machine_id'],
-                'start_time' => \Carbon\Carbon::parse($data['start_time']),
-                'end_time' => \Carbon\Carbon::parse($data['end_time']),
+                'start_time' => LabTimezone::parseScheduleTime($data['start_time']),
+                'end_time' => LabTimezone::parseScheduleTime($data['end_time']),
                 'status' => strtolower($data['status']),
                 'referring_doctor_id' => $this->nullableUuid($data['referring_doctor_id'] ?? null),
                 'destination_doctor_id' => $this->nullableUuid($data['destination_doctor_id'] ?? null),

@@ -12,8 +12,11 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use App\Services\DicomImportService;
+use App\Services\LocalMwlFileWriter;
+use App\Services\WorklistTagNormalizer;
 use App\Models\Persona;
 use App\Services\OrthancStudyLookup;
+use App\Support\LabTimezone;
 use App\Support\ModalityCode;
 use App\Support\OrthancUrl;
 use App\Services\LaboratoryProfileService;
@@ -116,9 +119,6 @@ class WorklistController extends Controller
             ?: $this->generateAccessionNumber($appointment);
 
         try {
-            $orthancBase = OrthancUrl::base();
-            $orthancUrl = $orthancBase . '/worklists/create';
-
             $persona = $appointment->patient->persona;
             $study = $appointment->studies->first();
             $lab = $appointment->laboratory ?? LaboratoryProfileService::currentLaboratory();
@@ -130,39 +130,55 @@ class WorklistController extends Controller
                 $lab?->name ?? config('app.name', 'HealthTiCloud'),
                 $study?->exam_name ?? $study?->sub_exam_name
             );
+            $tags['StudyInstanceUID'] = $this->resolveMwlStudyInstanceUid($appointment, $accessionNumber);
 
-            $tags['ScheduledProcedureStepSequence'] = $procedureSteps;
-            $tags = $this->shapeWorklistForFujiCfind($tags, $procedureSteps, $accessionNumber);
+            $tags = app(WorklistTagNormalizer::class)->normalize($tags, $procedureSteps, $accessionNumber);
 
+            $mwlProvider = OrthancUrl::worklistProvider();
             $primaryStep = $procedureSteps[0];
             $stationAe = (string) ($primaryStep['ScheduledStationAETitle'] ?? '');
-            $stepDate = (string) ($primaryStep['ScheduledProcedureStepStartDate'] ?? '');
-            if ($this->isFujiFcrStation($stationAe)) {
-                $this->purgeOrthancWorklistsForStation($orthancBase, $stationAe, $accessionNumber, $stepDate);
+            if ($mwlProvider !== 'wlmscpfs') {
+                $tags = $this->shapeWorklistForFujiCfind($tags, $procedureSteps, $accessionNumber);
+            }
+            $orthancBase = $mwlProvider === 'wlmscpfs'
+                ? 'wlmscpfs://local'
+                : OrthancUrl::worklistBase();
+
+            if ($mwlProvider === 'wlmscpfs') {
+                app(LocalMwlFileWriter::class)->write($tags, $accessionNumber);
+                if (!app(LocalMwlFileWriter::class)->verifyPresent($accessionNumber)) {
+                    throw new \Exception('No se pudo escribir la worklist local (.wl) para wlmscpfs.');
+                }
             } else {
-                $this->purgeOrthancWorklistsForAccession($orthancBase, $accessionNumber);
-            }
+                $orthancUrl = $orthancBase . '/worklists/create';
+                $primaryStep = $procedureSteps[0];
+                $stationAe = (string) ($primaryStep['ScheduledStationAETitle'] ?? '');
+                $stepDate = (string) ($primaryStep['ScheduledProcedureStepStartDate'] ?? '');
+                if ($this->isFujiFcrStation($stationAe)) {
+                    $this->purgeOrthancWorklistsForStation($orthancBase, $stationAe, $accessionNumber, $stepDate);
+                } else {
+                    $this->purgeOrthancWorklistsForAccession($orthancBase, $accessionNumber);
+                }
 
-            $dicomWorklistData = ['Tags' => $tags];
+                $response = Http::timeout(20)
+                    ->acceptJson()
+                    ->asJson()
+                    ->post($orthancUrl, ['Tags' => $tags]);
 
-            $response = Http::timeout(20)
-                ->acceptJson()
-                ->asJson()
-                ->post($orthancUrl, $dicomWorklistData);
+                if (!$response->successful()) {
+                    throw new \Exception(
+                        'Orthanc Worklist falló (' . $response->status() . ') en ' . $orthancBase . ': '
+                        . $response->body()
+                    );
+                }
 
-            if (!$response->successful()) {
-                throw new \Exception(
-                    'Orthanc Worklist falló (' . $response->status() . ') en ' . $orthancBase . ': '
-                    . $response->body()
-                );
-            }
-
-            if (!$this->verifyOrthancWorklistPresent($orthancBase, $accessionNumber)) {
-                throw new \Exception(
-                    'Orthanc aceptó la worklist pero ya no aparece en el PACS. '
-                    . 'Suele ocurrir si el PACS tiene «DeleteWorklistsOnStableStudy» o «DeleteWorklistsDelay» '
-                    . 'y el accession ya tiene estudio, o si la orden expiró. Pida a sistemas desactivar el borrado automático o reenvíe el mismo día del examen.'
-                );
+                if (!$this->verifyOrthancWorklistPresent($orthancBase, $accessionNumber)) {
+                    throw new \Exception(
+                        'Orthanc aceptó la worklist pero ya no aparece en el PACS. '
+                        . 'Suele ocurrir si el PACS tiene «DeleteWorklistsOnStableStudy» o «DeleteWorklistsDelay» '
+                        . 'y el accession ya tiene estudio, o si la orden expiró. Pida a sistemas desactivar el borrado automático o reenvíe el mismo día del examen.'
+                    );
+                }
             }
 
             $appointment->status = 'dicom_enviado';
@@ -172,7 +188,7 @@ class WorklistController extends Controller
             $appointment->load(['patient.persona', 'studies', 'supplies']);
             \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
 
-            $dicom = OrthancUrl::dicomTarget();
+            $dicom = OrthancUrl::worklistDicomTarget();
             $primaryStep = $procedureSteps[0];
             $stationAeTitle = (string) ($primaryStep['ScheduledStationAETitle'] ?? '');
             $modality = (string) ($primaryStep['Modality'] ?? 'OT');
@@ -504,7 +520,7 @@ class WorklistController extends Controller
     private function buildScheduledProcedureSteps(Appointment $appointment): array
     {
         $dicomImport = app(DicomImportService::class);
-        $start = \Carbon\Carbon::parse($appointment->start_time)->timezone($this->worklistTimezone());
+        $start = $appointment->start_time->copy()->timezone(LabTimezone::name());
         $startDate = $start->format('Ymd');
         $startTime = $start->format('His');
         $steps = [];
@@ -606,9 +622,25 @@ class WorklistController extends Controller
     }
 
     /**
-     * Alinea tags MWL con el *Broad Query* del Fuji FCR (estación + modalidad + fecha).
-     * Orthanc solo matchea esos filtros planos si estación/fecha del paso van también a nivel raíz
-     * (además de ScheduledProcedureStepSequence); Modality/StudyDate en raíz ayudan al índice C-FIND.
+     * Fuji FCR error 21054: la worklist MWM debe incluir StudyInstanceUID (0020,000D).
+     */
+    private function resolveMwlStudyInstanceUid(Appointment $appointment, string $accessionNumber): string
+    {
+        $existing = trim((string) ($appointment->study_instance_uid ?? ''));
+        if ($existing !== '') {
+            return $existing;
+        }
+
+        $seed = strtoupper(preg_replace('/[^A-Z0-9]/', '', $accessionNumber) ?: (string) $appointment->id);
+        $a = sprintf('%u', crc32($seed));
+        $b = sprintf('%u', crc32($seed . 'MWL'));
+
+        return "1.2.840.{$a}.{$b}";
+    }
+
+    /**
+     * Tags extra para Orthanc/PACS nube (Broad Query Fuji FCR).
+     * No aplicar con wlmscpfs: modalidad/estación/fecha deben ir solo en el paso programado.
      *
      * @param  list<array<string, string>>  $procedureSteps
      * @return array<string, mixed>
@@ -787,23 +819,34 @@ class WorklistController extends Controller
 
         $dateHint = $procedureSteps[0]['ScheduledProcedureStepStartDate'] ?? '';
         $dateDisplay = $dateHint !== ''
-            ? \Carbon\Carbon::createFromFormat('Ymd', $dateHint, $this->worklistTimezone())->format('d/m/Y')
+            ? \Carbon\Carbon::createFromFormat('Ymd', $dateHint, LabTimezone::name())->format('d.m.Y')
             : '';
-        $todayHint = \Carbon\Carbon::now($this->worklistTimezone())->format('Ymd');
-        $todayDisplay = \Carbon\Carbon::now($this->worklistTimezone())->format('d/m/Y');
+        $todayHint = \Carbon\Carbon::now(LabTimezone::name())->format('Ymd');
+        $todayDisplay = \Carbon\Carbon::now(LabTimezone::name())->format('d.m.Y');
         $dateWarning = $dateHint !== '' && $dateHint !== $todayHint
-            ? " Hoy en el centro es {$todayDisplay}: el FCR Console suele consultar la fecha del día; si no cambia la fecha en el equipo, no verá citas del {$dateDisplay}."
+            ? " Hoy en el centro es {$todayDisplay}: el FCR Console suele consultar la fecha del día; en el Fuji ingrésela como {$todayDisplay} (día.mes.año); si no la cambia, no verá citas del {$dateDisplay}."
             : '';
 
+        $mwlLocal = !empty($dicom['local']);
+        $provider = OrthancUrl::worklistProvider();
         $fcrHint = $this->isFujiFcrStation($stationAe)
-            ? ' CRÍTICO FCR Console: Local AE Title = «' . $stationAe . '» exacto (si el equipo tiene otro AE, ej. FCR, el PACS rechaza con Find Failed). '
-                . 'Remote AE (called) = «' . $dicom['aet'] . '». Broad Query: fecha «' . $dateHint . '», modalidad «' . $modality . '», estación «' . $stationAe . '». '
-                . 'Alternativa: Patient ID + Accession en el FCR.'
+            ? ($mwlLocal
+                ? ($provider === 'wlmscpfs'
+                    ? ' MWL local DCMTK (wlmscpfs): FCR Console → worklist «' . $dicom['host'] . '»:' . $dicom['port'] . ', AE destino «' . $dicom['aet'] . '». Local AE = «' . $stationAe . '». Broad Query OBLIGATORIO: estación «' . $stationAe . '», modalidad «' . $modality . '», fecha «' . ($dateDisplay !== '' ? $dateDisplay : $dateHint) . '» (día.mes.año). Si el paciente tiene otro examen el mismo día (mamo/eco), sin esos filtros el FCR recibe el estudio equivocado primero. Alternativa: Accession «' . ($procedureSteps[0]['ScheduledProcedureStepID'] ?? '') . '» o Patient ID en el FCR.'
+                    : ' MWL local Orthanc LAN: worklist «' . $dicom['host'] . '»:' . $dicom['port'] . ', AE «' . $dicom['aet'] . '». Imágenes al PACS nube (HEALTHTICLOUD).')
+                : ' CRÍTICO FCR Console: Local AE Title = «' . $stationAe . '» exacto (si el equipo tiene otro AE, ej. FCR, el PACS nube rechaza con Find Failed). '
+                    . 'Remote AE (called) = «' . $dicom['aet'] . '». Broad Query: fecha «' . ($dateDisplay !== '' ? $dateDisplay : $dateHint) . '» (día.mes.año), modalidad «' . $modality . '», estación «' . $stationAe . '». '
+                    . 'Alternativa: Patient ID + Accession en el FCR.')
             : '';
 
-        return 'La orden quedó en el PACS. El Fuji FCR Console la baja por DICOM MWL (C-FIND), no por la web. '
+        return ($mwlLocal
+            ? ($provider === 'wlmscpfs'
+                ? 'La orden quedó en el servidor MWL local (DCMTK wlmscpfs). '
+                : 'La orden quedó en el servidor MWL local (Orthanc LAN). ')
+            : 'La orden quedó en el PACS. ')
+            . 'El Fuji FCR Console la baja por DICOM MWL (C-FIND), no por la web. '
             . "{$hostHint} Puerto {$dicom['port']}, AE destino «{$dicom['aet']}». "
-            . "Filtros MWL: estación «{$stationAe}», modalidad «{$modality}», fecha «{$dateHint}» ({$dateDisplay})."
+            . "Filtros MWL: estación «{$stationAe}», modalidad «{$modality}», fecha «" . ($dateDisplay !== '' ? $dateDisplay : $dateHint) . "» (día.mes.año en FCR; DICOM «{$dateHint}»)."
             . $dateWarning
             . $fcrHint
             . ' Reenvíe la worklist el mismo día del examen si el PACS borra órdenes antiguas.';
@@ -811,7 +854,7 @@ class WorklistController extends Controller
 
     private function worklistTimezone(): string
     {
-        return (string) config('app.worklist_timezone', 'America/Santiago');
+        return LabTimezone::name();
     }
 
     private function verifyOrthancWorklistPresent(string $orthancBase, string $accessionNumber): bool

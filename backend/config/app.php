@@ -67,6 +67,10 @@ return [
 
     'timezone' => 'UTC',
 
+    /** Zona horaria del centro para agenda y worklist DICOM (ej. America/Santiago). */
+    'lab_timezone' => env('APP_LAB_TIMEZONE', 'America/Santiago'),
+    'worklist_timezone' => env('WORKLIST_TIMEZONE', 'America/Santiago'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Locale Configuration

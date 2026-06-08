@@ -537,7 +537,7 @@ Si la orden **sí aparece en el explorador web del PACS** pero **no en el FCR**:
 2. En el FCR, host MWL = **IP** (no URL web), puerto **4242**, AE destino correcto.
 3. AE de estación en el FCR = mismo valor que Admin → Salas → AE Title.
 4. Modalidad en el FCR = `CR` o `MG` según el equipo (no `DX` si la sala es CR Fuji).
-5. **Fecha en el FCR** = fecha de la cita en agenda (`YYYYMMDD`). Si el FCR consulta solo «hoy» y la cita es mañana, la lista sale vacía.
+5. **Fecha en el FCR** = fecha de la cita en pantalla Fuji como **día.mes.año** (ej. `08.06.2026` para el 8 de junio). Internamente el equipo envía DICOM `YYYYMMDD` (`20260608`). Si el FCR consulta solo «hoy» y la cita es otro día, la lista sale vacía.
 6. **Reenvíe la worklist** desde el RIS tras actualizar el sistema o cambiar sala/paciente (el RIS envía nombres en **ISO_IR 100**, sin tildes).
 7. Orthanc (PACS) exige que `ScheduledStationAETitle` y `ScheduledProcedureStepStartDate` estén también a **nivel raíz** de la worklist para el *broad query* plano del Fuji; el RIS las duplica al reenviar.
 8. En el FCR Console → **DICOM Setup**: **Local AE Title** = **exactamente** el mismo valor que Admin → Salas (ej. `FCR_PANO`). **No** use `FCR`, `CONSOLE` ni el hostname: el PACS (Orthanc con `FilterIssuerAet`) **rechaza** el C-FIND si el AE local no coincide → el Fuji queda sin lista aunque la orden exista en el PACS. **Remote AE Title** = `HEALTHTICLOUD`.
@@ -559,6 +559,57 @@ En el PACS (Orthanc), sistemas debe tener el plugin Worklists con `FilterIssuerA
 estación en la consulta (comportamiento habitual en equipos legacy), y **C-FIND habilitado** en el puerto 4242.
 
 El laboratorio **no** necesita Tailscale en cada PC si el PACS DICOM es alcanzable por la red del centro.
+
+### MWL local open source (DCMTK wlmscpfs — recomendado si el Fuji no ve la nube)
+
+Si el **FCR Console** no alcanza el PACS nube (`170.246.172.84:4242`) o el PACS rechaza el AE local (`FilterIssuerAet`), levante un **servidor MWL DCMTK** (`wlmscpfs`) en el mismo servidor del RIS (LAN). Es open source puro, sin REST ni plugin Orthanc.
+
+**Arquitectura:**
+
+| Servicio | Dónde | Uso |
+|----------|-------|-----|
+| **MWL local** | `192.168.x.x:4242` AE `SIRESA_MWL` | Fuji FCR consulta worklist (C-FIND) |
+| **PACS nube** | `170.246.172.84:4242` AE `HEALTHTICLOUD` | Fuji envía imágenes (C-STORE) |
+
+**Activación:**
+
+```bash
+cd /opt/RIS/backend
+# En .env:
+# MWL_PROVIDER=wlmscpfs
+# MWL_DICOM_HOST=192.168.0.131   ← hostname -I | awk '{print $1}'
+# MWL_AET=SIRESA_MWL
+# MWL_FILES_PATH=/var/www/html/storage/app/mwl-worklists
+
+docker compose -f docker-compose.lan.yml --profile mwl up -d mwl
+docker compose -f docker-compose.lan.yml up -d --build api
+php artisan config:clear
+```
+
+El RIS escribe archivos `.wl` en `mwl-worklists/SIRESA_MWL/` (volumen compartido con el contenedor `mwl`).
+
+**FCR Console (solo worklist):**
+
+| Campo | Valor |
+|-------|-------|
+| Remote Host | IP LAN del servidor RIS (ej. `192.168.0.131` — ver `hostname -I`) |
+| Remote Port | `4242` |
+| Remote AE | `SIRESA_MWL` |
+| Local AE | Cualquiera (ej. `FCR` o `FCR_PANO`) — wlmscpfs no filtra calling AE |
+| Modalidad | `CR` |
+| **Consulta** | Broad Query (estación + modalidad CR + fecha del día) o Patient Based Query (RUT + Accession) |
+
+El almacenamiento de imágenes se configura **aparte** en el FCR apuntando al PACS nube.
+
+**Prueba C-FIND desde el servidor:**
+
+```bash
+php artisan pacs:probe-mwl --station=FCR_PANO --modality=CR --date=$(date +%Y%m%d) --calling=FCR
+```
+
+**Alternativa Orthanc local:** `MWL_PROVIDER=orthanc` + `MWL_ORTHANC_URL=http://mwl:8042` (requiere plugin Worklists con REST; la imagen `orthancteam/orthanc` trae un sample legacy que no sirve MWL por DICOM).
+
+**Foros útiles:** [Orthanc + Fuji CR](https://groups.google.com/g/orthanc-users/c/BBlJd_o7864), [FilterIssuerAet](https://orthanc.uclouvain.be/book/plugins/worklists-plugin-new.html), [IncomingWorklistRequestFilter Lua](https://orthanc.uclouvain.be/book/users/lua.html).
 
 ---
 
