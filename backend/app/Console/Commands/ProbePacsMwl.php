@@ -15,7 +15,7 @@ class ProbePacsMwl extends Command
                             {--date= : Fecha YYYYMMDD. Por defecto hoy}
                             {--calling= : Calling AE Title. Por defecto igual que --station}';
 
-    protected $description = 'Prueba C-FIND worklist contra el PACS DICOM (requiere docker + imagen darthunix/dcmtk en el host)';
+    protected $description = 'Prueba C-FIND worklist contra el PACS DICOM (findscu en PATH o docker darthunix/dcmtk)';
 
     public function handle(): int
     {
