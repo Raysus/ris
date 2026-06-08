@@ -134,7 +134,14 @@ class WorklistController extends Controller
             $tags['ScheduledProcedureStepSequence'] = $procedureSteps;
             $tags = $this->shapeWorklistForFujiCfind($tags, $procedureSteps, $accessionNumber);
 
-            $this->purgeOrthancWorklistsForAccession($orthancBase, $accessionNumber);
+            $primaryStep = $procedureSteps[0];
+            $stationAe = (string) ($primaryStep['ScheduledStationAETitle'] ?? '');
+            $stepDate = (string) ($primaryStep['ScheduledProcedureStepStartDate'] ?? '');
+            if ($this->isFujiFcrStation($stationAe)) {
+                $this->purgeOrthancWorklistsForStation($orthancBase, $stationAe, $accessionNumber, $stepDate);
+            } else {
+                $this->purgeOrthancWorklistsForAccession($orthancBase, $accessionNumber);
+            }
 
             $dicomWorklistData = ['Tags' => $tags];
 
@@ -712,6 +719,57 @@ class WorklistController extends Controller
             }
         } catch (\Throwable $e) {
             Log::warning('No se pudo purgar worklist previa en Orthanc: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Elimina worklists previas de la misma estación Fuji FCR.
+     * Orthanc/Fuji CR suele devolver solo el primer Pending; entradas viejas bloquean la lista.
+     *
+     * @see https://groups.google.com/g/orthanc-users/c/BBlJd_o7864
+     */
+    private function purgeOrthancWorklistsForStation(
+        string $orthancBase,
+        string $stationAe,
+        string $keepAccession,
+        string $stepDate
+    ): void {
+        try {
+            $response = Http::timeout(15)->acceptJson()->get($orthancBase . '/worklists');
+            if (!$response->successful()) {
+                return;
+            }
+
+            $station = strtoupper(trim($stationAe));
+            foreach ($response->json() as $item) {
+                if (empty($item['ID'])) {
+                    continue;
+                }
+
+                $tags = $item['Tags'] ?? [];
+                $existingAccession = (string) ($tags['AccessionNumber'] ?? '');
+                $existingStation = strtoupper(trim((string) ($tags['ScheduledStationAETitle'] ?? '')));
+                if ($existingStation === '' && !empty($tags['ScheduledProcedureStepSequence'][0])) {
+                    $existingStation = strtoupper(trim((string) ($tags['ScheduledProcedureStepSequence'][0]['ScheduledStationAETitle'] ?? '')));
+                }
+                $existingDate = (string) ($tags['ScheduledProcedureStepStartDate'] ?? '');
+                if ($existingDate === '' && !empty($tags['ScheduledProcedureStepSequence'][0])) {
+                    $existingDate = (string) ($tags['ScheduledProcedureStepSequence'][0]['ScheduledProcedureStepStartDate'] ?? '');
+                }
+
+                if ($existingStation !== $station) {
+                    continue;
+                }
+
+                $isCurrent = $existingAccession === $keepAccession && $existingDate === $stepDate;
+                if ($isCurrent) {
+                    continue;
+                }
+
+                Http::timeout(10)->acceptJson()->delete($orthancBase . '/worklists/' . $item['ID']);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo purgar worklists de estación en Orthanc: ' . $e->getMessage());
         }
     }
 

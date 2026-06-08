@@ -544,6 +544,8 @@ Si la orden **sí aparece en el explorador web del PACS** pero **no en el FCR**:
 9. Si la orden **ya no aparece en** `https://pacs…/worklists` (lista vacía), el PACS la borró (`DeleteWorklistsDelay` / estudio estable). **Reenvíe desde el RIS el mismo día del examen**.
 10. Si el broad query no trae nada: en el FCR busque por **RUT (Patient ID)** y **Accession** de la cita.
 
+**Foro Orthanc + Fuji CR:** algunos FCR Console solo procesan el **primer** registro Pending; si quedan worklists viejas de días anteriores, el Fuji puede mostrar un paciente antiguo o lista vacía. El RIS purga entradas previas de la misma estación al reenviar. Si persiste, pida a sistemas revisar logs Orthanc (`IncomingWorklistRequestFilter`, `FilterIssuerAet`, `DeleteWorklistsOnStableStudy`).
+
 Comprobación **C-FIND** desde el servidor del lab (no basta con TCP :4242):
 
 ```bash
