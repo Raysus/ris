@@ -104,11 +104,13 @@ class CloudEntitySyncService
             return false;
         }
 
+        $attrs = $this->prepareCatalogAttributes($class, $attrs);
+
         foreach ($attrs as $key => $value) {
             if (in_array($key, ['created_at', 'updated_at', 'deleted_at'], true)) {
                 continue;
             }
-            if ($this->catalogValuesDiffer($record->getAttribute($key), $value)) {
+            if ($this->catalogValuesDiffer($record->getAttribute($key), $value, $key, $class)) {
                 return false;
             }
         }
@@ -118,6 +120,7 @@ class CloudEntitySyncService
 
     private function upsertCatalogEntity(string $class, string $incomingId, array $attrs): void
     {
+        $attrs = $this->prepareCatalogAttributes($class, $attrs);
         $record = $this->findCatalogRecord($class, $attrs, $incomingId);
 
         if ($record) {
@@ -194,9 +197,7 @@ class CloudEntitySyncService
             ], fn ($q, $labId, $name) => $q->where('laboratory_id', $labId)
                 ->whereRaw('LOWER(TRIM(name)) = ?', [$name])),
 
-            ReferringDoctor::class => filled($attrs['rut'] ?? null)
-                ? $query->where('rut', Persona::normalizeRut((string) $attrs['rut']))->first()
-                : null,
+            ReferringDoctor::class => ReferringDoctor::findByRut($attrs['rut'] ?? null),
 
             Insurance::class => filled($attrs['name'] ?? null)
                 ? $query->when(
@@ -242,8 +243,21 @@ class CloudEntitySyncService
         return mb_strtolower(trim($value));
     }
 
-    private function catalogValuesDiffer(mixed $current, mixed $incoming): bool
+    private function prepareCatalogAttributes(string $class, array $attrs): array
     {
+        if ($class === ReferringDoctor::class && filled($attrs['rut'] ?? null)) {
+            $attrs['rut'] = ReferringDoctor::normalizeRut((string) $attrs['rut']);
+        }
+
+        return $attrs;
+    }
+
+    private function catalogValuesDiffer(mixed $current, mixed $incoming, ?string $field = null, ?string $class = null): bool
+    {
+        if ($field === 'rut' && $class === ReferringDoctor::class) {
+            return ReferringDoctor::normalizeRut((string) $current) !== ReferringDoctor::normalizeRut((string) $incoming);
+        }
+
         if (is_array($current) || is_array($incoming)) {
             return json_encode($this->normalizeComparableValue($current))
                 !== json_encode($this->normalizeComparableValue($incoming));
