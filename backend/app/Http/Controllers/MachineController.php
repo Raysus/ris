@@ -59,7 +59,7 @@ class MachineController extends Controller
             'CT', 'CBCT' => '#FF9800',
             'MRI' => '#E91E63',
             'US' => '#9C27B0',
-            'MAMO' => '#00BCD4',
+            'MAMO' => '#FFC0CB',
             'DEXA' => '#795548',
             'IO' => '#5C6BC0',
             'NM', 'PT' => '#37474F',
@@ -155,7 +155,7 @@ class MachineController extends Controller
             $equipmentTcp['detail'] = 'IP/puerto de la sala no configurados (no afecta MWL si el FCR alcanza el PACS).';
         }
 
-        $pacs = \App\Support\OrthancUrl::dicomTarget();
+        $pacs = \App\Support\OrthancUrl::worklistDicomTarget();
         $pacsErr = '';
         $pacsFp = @fsockopen($pacs['host'], $pacs['port'], $pacsCode, $pacsErr, 3);
         $pacsOk = (bool) $pacsFp;
@@ -163,7 +163,7 @@ class MachineController extends Controller
             fclose($pacsFp);
         }
 
-        $httpHost = parse_url(\App\Support\OrthancUrl::base(), PHP_URL_HOST) ?: '';
+        $httpHost = parse_url(\App\Support\OrthancUrl::worklistBase(), PHP_URL_HOST) ?: '';
         $pacsDetail = $pacsOk
             ? "PACS MWL alcanzable en {$pacs['host']}:{$pacs['port']} (AE destino «{$pacs['aet']}»)."
             : "PACS MWL NO alcanzable en {$pacs['host']}:{$pacs['port']} ({$pacsErr}). "
@@ -186,10 +186,10 @@ class MachineController extends Controller
             }
         }
 
-        $today = (new \DateTimeImmutable('now', new \DateTimeZone('America/Santiago')))->format('d/m/Y');
+        $today = (new \DateTimeImmutable('now', new \DateTimeZone('America/Santiago')))->format('d.m.Y');
         $fcrHint = "FCR Console: remoto «{$pacs['host']}»:{$pacs['port']}, AE destino (called) «{$pacs['aet']}», "
             . "AE local (calling) OBLIGATORIO «{$stationAe}» (si el FCR tiene otro AE, el PACS rechaza la consulta). "
-            . "Modalidad «{$modality}», fecha hoy {$today} o la de la cita. "
+            . "Modalidad «{$modality}», fecha hoy {$today} (día.mes.año en pantalla Fuji) o la de la cita. "
             . 'Alternativa: búsqueda por Patient ID + Accession en el FCR.';
 
         $message = trim($equipmentTcp['detail'] . ' ' . $pacsDetail . ' ' . $cfindDetail . ' ' . $fcrHint);

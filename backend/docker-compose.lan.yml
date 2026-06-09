@@ -43,6 +43,20 @@ services:
   # PACS/Orthanc y visor: en la NUBE (no se levantan aquí).
   #   ORTHANC_URL y VIEWER_URL en .env (URL/IP que entregue sistemas).
 
+  # MWL local open source (DCMTK wlmscpfs) — opcional, perfil --profile mwl.
+  # Activar en .env: MWL_PROVIDER=wlmscpfs, MWL_DICOM_HOST=<IP LAN>, MWL_AET=SIRESA_MWL
+  mwl:
+    image: darthunix/dcmtk
+    restart: unless-stopped
+    profiles:
+      - mwl
+    # -nse: no expandir secuencias vacías del query en la respuesta (Fuji FCR rechaza WarningUnsupportedOptionalKeys).
+    command: ["wlmscpfs", "-v", "-nse", "-dfp", "/data", "-dfr", "4242"]
+    ports:
+      - "4242:4242"
+    volumes:
+      - ris-mwl-files:/data
+
   api:
     build:
       context: .
@@ -62,6 +76,9 @@ services:
         condition: service_healthy
     volumes:
       - ris-storage:/var/www/html/storage/app
+      - ris-mwl-files:/var/www/html/storage/app/mwl-worklists
+
+  # Perfil mwl: docker compose -f docker-compose.lan.yml --profile mwl up -d mwl api
 
   queue:
     build:
@@ -105,3 +122,4 @@ volumes:
   ris-db:
   ris-redis:
   ris-storage:
+  ris-mwl-files:

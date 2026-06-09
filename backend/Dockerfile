@@ -2,7 +2,7 @@
 FROM php:8.5.4-cli
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        git unzip zip libpq-dev libzip-dev libonig-dev postgresql-client \
+        git unzip zip libpq-dev libzip-dev libonig-dev postgresql-client dcmtk \
     && docker-php-ext-install pdo_pgsql bcmath zip mbstring \
     && rm -rf /var/lib/apt/lists/*
 

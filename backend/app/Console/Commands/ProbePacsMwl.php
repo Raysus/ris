@@ -15,11 +15,13 @@ class ProbePacsMwl extends Command
                             {--date= : Fecha YYYYMMDD. Por defecto hoy}
                             {--calling= : Calling AE Title. Por defecto igual que --station}';
 
-    protected $description = 'Prueba C-FIND worklist contra el PACS DICOM (requiere docker + imagen darthunix/dcmtk en el host)';
+    protected $description = 'Prueba C-FIND worklist contra el PACS DICOM (findscu en PATH o docker darthunix/dcmtk)';
 
     public function handle(): int
     {
-        $pacs = OrthancUrl::dicomTarget();
+        $pacs = OrthancUrl::usesLocalWorklist()
+            ? OrthancUrl::worklistDicomTarget()
+            : OrthancUrl::dicomTarget();
         $station = strtoupper(trim((string) $this->option('station')));
         if ($station === '') {
             $this->error('Indique --station= (ej. FCR_PANO).');
@@ -50,7 +52,13 @@ class ProbePacsMwl extends Command
         $this->line($text);
 
         if ($result['failed']) {
-            $this->error('C-FIND rechazado por el PACS (Find Failed).');
+            if (str_contains($text, 'findscu/dump2dcm no disponibles')) {
+                $this->error('No hay findscu/dump2dcm en PATH ni docker.sock accesible.');
+            } elseif (str_contains($text, 'Find SCP Failed') || str_contains($text, 'dataset is empty')) {
+                $this->error('C-FIND falló en el PACS (consulta mal formada o demasiados resultados).');
+            } else {
+                $this->error('C-FIND rechazado por el PACS (Find Failed).');
+            }
             if (strtoupper($calling) !== strtoupper($station)) {
                 $this->line("Probó calling «{$calling}» con estación «{$station}»: deben ser iguales (FilterIssuerAet en Orthanc).");
             }
@@ -66,7 +74,12 @@ class ProbePacsMwl extends Command
         }
 
         if ($result['pending']) {
-            $this->info('C-FIND devolvió worklist(s) con estos filtros (el Fuji debería verlas si su Local AE = «' . $station . '»).');
+            $patient = $result['patient_name'] ?? null;
+            if ($patient !== null && $patient !== '') {
+                $this->info("C-FIND devolvió worklist: paciente «{$patient}» (Local AE = «{$station}»).");
+            } else {
+                $this->info('C-FIND devolvió worklist(s) con estos filtros (el Fuji debería verlas si su Local AE = «' . $station . '»).');
+            }
 
             return self::SUCCESS;
         }
