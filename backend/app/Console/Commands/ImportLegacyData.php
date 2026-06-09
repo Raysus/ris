@@ -47,18 +47,25 @@ class ImportLegacyData extends Command
 
                     // Usamos el Nombre y Primer Apellido como llave de búsqueda para evitar duplicados.
                     // El ID lo generará Laravel automáticamente en formato UUID.
-                    ReferringDoctor::updateOrCreate(
-                        [
-                            'names' => $nombres,
-                            'last_name_1' => $apellido1
-                        ],
-                        [
-                            'rut' => $rut,
-                            'last_name_2' => $data[4] === 'NULL' ? null : $data[4],
-                            'phone' => $data[5] === 'NULL' ? null : $data[5],
-                            'email' => $data[7] === 'NULL' ? null : $data[7],
-                        ]
-                    );
+                    $normalizedRut = ReferringDoctor::normalizeRut($rut);
+                    $doctor = $normalizedRut
+                        ? ReferringDoctor::findByRut($normalizedRut)
+                        : null;
+
+                    $attrs = [
+                        'names' => $nombres,
+                        'last_name_1' => $apellido1,
+                        'last_name_2' => $data[4] === 'NULL' ? null : $data[4],
+                        'phone' => $data[5] === 'NULL' ? null : $data[5],
+                        'email' => $data[7] === 'NULL' ? null : $data[7],
+                        'rut' => $normalizedRut,
+                    ];
+
+                    if ($doctor) {
+                        $doctor->fill($attrs)->save();
+                    } else {
+                        ReferringDoctor::create($attrs);
+                    }
                     $countDoctores++;
                 }
             }
