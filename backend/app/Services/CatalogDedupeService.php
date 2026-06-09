@@ -11,6 +11,7 @@ use App\Models\ReferringDoctor;
 use App\Models\Service;
 use App\Models\Supply;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class CatalogDedupeService
 {
@@ -72,7 +73,13 @@ class CatalogDedupeService
                 continue;
             }
 
-            $reassigned += $this->reassignAppointments($duplicateIds, (string) $keeper->id, $dryRun);
+            $reassigned += $this->reassignColumn(
+                'appointments',
+                'referring_doctor_id',
+                $duplicateIds,
+                (string) $keeper->id,
+                $dryRun
+            );
             $removed += $this->deleteIds(ReferringDoctor::class, $duplicateIds, $dryRun);
         }
 
@@ -150,6 +157,7 @@ class CatalogDedupeService
     {
         $removed = 0;
         $groupCount = 0;
+        $reassigned = 0;
 
         foreach ($groups as $duplicates) {
             if (count($duplicates) < 2) {
@@ -164,10 +172,28 @@ class CatalogDedupeService
                 ->values()
                 ->all();
 
+            if ($modelClass === Insurance::class) {
+                $reassigned += $this->reassignColumn('appointments', 'insurance_id', $duplicateIds, (string) $keeper->id, $dryRun);
+                $reassigned += $this->reassignColumn('insurance_plans', 'insurance_id', $duplicateIds, (string) $keeper->id, $dryRun);
+            } elseif ($modelClass === InsurancePlan::class) {
+                $reassigned += $this->reassignColumn('appointments', 'insurance_plan_id', $duplicateIds, (string) $keeper->id, $dryRun);
+                $reassigned += $this->reassignColumn('tariffs', 'insurance_plan_id', $duplicateIds, (string) $keeper->id, $dryRun);
+            } elseif ($modelClass === Exam::class) {
+                $reassigned += $this->reassignColumn('appointment_studies', 'exam_id', $duplicateIds, (string) $keeper->id, $dryRun);
+                $reassigned += $this->reassignColumn('appointment_studies', 'sub_exam_id', $duplicateIds, (string) $keeper->id, $dryRun);
+                $reassigned += $this->reassignColumn('tariffs', 'exam_id', $duplicateIds, (string) $keeper->id, $dryRun);
+            } elseif ($modelClass === Machine::class) {
+                $reassigned += $this->reassignColumn('appointments', 'machine_id', $duplicateIds, (string) $keeper->id, $dryRun);
+                $reassigned += $this->reassignColumn('appointment_studies', 'machine_id', $duplicateIds, (string) $keeper->id, $dryRun);
+            } elseif ($modelClass === Supply::class) {
+                $reassigned += $this->reassignColumn('appointment_supplies', 'supply_id', $duplicateIds, (string) $keeper->id, $dryRun);
+                $reassigned += $this->reassignColumn('supply_pack_items', 'supply_id', $duplicateIds, (string) $keeper->id, $dryRun);
+            }
+
             $removed += $this->deleteIds($modelClass, $duplicateIds, $dryRun);
         }
 
-        return ['groups' => $groupCount, 'removed' => $removed, 'reassigned' => 0];
+        return ['groups' => $groupCount, 'removed' => $removed, 'reassigned' => $reassigned];
     }
 
     private function normalizeReferringDoctorRuts(bool $dryRun): void
@@ -218,22 +244,16 @@ class CatalogDedupeService
     /**
      * @param  list<string>  $fromIds
      */
-    private function reassignAppointments(array $fromIds, string $toId, bool $dryRun): int
+    private function reassignColumn(string $table, string $column, array $fromIds, string $toId, bool $dryRun): int
     {
-        if ($fromIds === []) {
+        if ($fromIds === [] || !Schema::hasTable($table) || !Schema::hasColumn($table, $column)) {
             return 0;
         }
 
-        $count = Appointment::query()
-            ->whereIn('referring_doctor_id', $fromIds)
-            ->count();
+        $count = (int) DB::table($table)->whereIn($column, $fromIds)->count();
 
         if ($count > 0 && !$dryRun) {
-            Appointment::withoutEvents(function () use ($fromIds, $toId) {
-                Appointment::query()
-                    ->whereIn('referring_doctor_id', $fromIds)
-                    ->update(['referring_doctor_id' => $toId]);
-            });
+            DB::table($table)->whereIn($column, $fromIds)->update([$column => $toId]);
         }
 
         return $count;
