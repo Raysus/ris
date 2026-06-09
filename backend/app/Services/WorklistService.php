@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Appointment;
+use App\Support\LabTimezone;
 use Illuminate\Support\Facades\Log;
 
 class WorklistService
@@ -41,6 +42,8 @@ class WorklistService
                 '[#Time#]'
             ];
 
+            $wlDateTime = LabTimezone::worklistDateTime($appointment->start_time);
+
             $replace = [
                 '[' . $appointment->accession_number . ']',
                 '[' . $nombreDicom . ']',
@@ -51,8 +54,8 @@ class WorklistService
                 '[' . strtoupper($appointment->exam_name ?? 'ESTUDIO') . ']',
                 '[' . ($appointment->modality ?? 'DX') . ']', // DX (Rayos), CT (Scanner), etc.
                 '[ORTHANC]', // AE Title (debe coincidir con la config del equipo)
-                '[' . \Carbon\Carbon::parse($appointment->start_time)->format('Ymd') . ']',
-                '[' . \Carbon\Carbon::parse($appointment->start_time)->format('His') . ']'
+                '[' . $wlDateTime['date'] . ']',
+                '[' . $wlDateTime['time'] . ']'
             ];
 
             $dumpContent = str_replace($search, $replace, $template);

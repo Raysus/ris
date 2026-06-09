@@ -1,0 +1,24 @@
+{
+  "Name": "SIRESA-MWL",
+  "DicomAet": "SIRESA_MWL",
+  "DicomCheckCalledAet": false,
+  "DicomCheckCallingAet": false,
+  "DicomServerEnabled": true,
+  "DicomPort": 4242,
+  "HttpPort": 8042,
+  "RemoteAccessAllowed": true,
+  "AuthenticationEnabled": false,
+  "RegisteredUsers": {},
+  "StorageDirectory": "/var/lib/orthanc/db",
+  "IndexDirectory": "/var/lib/orthanc/db",
+  "Worklists": {
+    "Enable": true,
+    "FilterIssuerAet": false,
+    "LimitAnswers": 0,
+    "SaveInOrthancDatabase": true,
+    "SetStudyInstanceUidIfMissing": false,
+    "DeleteWorklistsOnStableStudy": false,
+    "DeleteWorklistsDelay": 0,
+    "HousekeepingInterval": 3600
+  }
+}
