@@ -34,7 +34,7 @@ if (!$appointment) {
     exit(1);
 }
 
-config(['app.allowed_lab_ids' => 'ALL']);
+config(['app.allowed_lab_ids' => ['*']]);
 
 $controller = app(WorklistController::class);
 $response = $controller->sendToDicom(new Request(), $appointment->id, app(DicomImportService::class));
