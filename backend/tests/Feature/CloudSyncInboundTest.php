@@ -122,6 +122,70 @@ class CloudSyncInboundTest extends TestCase
         $this->assertDatabaseHas('appointments', ['id' => $appointmentId, 'patient_id' => $pacienteId]);
     }
 
+    public function test_inbound_referring_doctor_updates_existing_row_by_rut_instead_of_duplicate(): void
+    {
+        $existingId = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
+        $incomingId = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+
+        ReferringDoctor::create([
+            'id' => $existingId,
+            'rut' => '12345678-9',
+            'names' => 'Medico',
+            'last_name_1' => 'Local',
+        ]);
+
+        $this->withToken('test-sync-secret')
+            ->postJson('/api/integrations/cloud-sync/inbound', [
+                'model' => 'ReferringDoctor',
+                'action' => 'updated',
+                'data' => [
+                    'id' => $incomingId,
+                    'rut' => '12.345.678-9',
+                    'names' => 'Medico',
+                    'last_name_1' => 'Nube',
+                    'phone' => '900000001',
+                    'email' => 'nube@test.cl',
+                ],
+            ])
+            ->assertOk();
+
+        $this->assertSame(1, ReferringDoctor::query()->count());
+        $this->assertDatabaseHas('referring_doctors', [
+            'id' => $existingId,
+            'rut' => '12345678-9',
+            'last_name_1' => 'Nube',
+            'email' => 'nube@test.cl',
+        ]);
+        $this->assertDatabaseMissing('referring_doctors', ['id' => $incomingId]);
+    }
+
+    public function test_pull_catalog_skips_unchanged_referring_doctors_with_different_rut_format(): void
+    {
+        $doctor = ReferringDoctor::create([
+            'id' => 'ffffffff-ffff-ffff-ffff-ffffffffffff',
+            'rut' => '11111111-1',
+            'names' => 'Doctor',
+            'last_name_1' => 'Sync',
+        ]);
+
+        $payload = [
+            'referring_doctors' => [[
+                ...$doctor->fresh()->toArray(),
+                'rut' => '11.111.111-1',
+            ]],
+        ];
+
+        $pull = app(CloudCatalogPullService::class);
+        $first = $pull->pull(null, false, $payload);
+        $second = $pull->pull(null, false, $payload);
+
+        $this->assertSame(0, $first['counts']['referring_doctors']);
+        $this->assertSame(1, $first['counts']['referring_doctors_skipped']);
+        $this->assertSame(0, $second['counts']['referring_doctors']);
+        $this->assertSame(1, $second['counts']['referring_doctors_skipped']);
+        $this->assertSame(1, ReferringDoctor::query()->count());
+    }
+
     public function test_inbound_exam_updates_existing_row_by_business_key_instead_of_duplicate(): void
     {
         $lab = $this->risLab;

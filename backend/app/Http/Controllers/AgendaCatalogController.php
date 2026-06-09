@@ -110,16 +110,26 @@ class AgendaCatalogController extends Controller
             'email' => 'nullable|email'
         ]);
 
-        $cleanRut = strtoupper(str_replace(['.', ' '], '', $request->rut));
+        $cleanRut = ReferringDoctor::normalizeRut($request->rut);
 
-        // 1. Guardar en Base de Datos Local
-        $doctor = ReferringDoctor::create([
-            'rut' => $cleanRut,
-            'names' => $request->names,
-            'last_name_1' => $request->last_name_1,
-            'last_name_2' => $request->last_name_2 ?? null,
-            'email' => $request->email
-        ]);
+        // 1. Guardar en Base de Datos Local (un médico por RUT)
+        $doctor = ReferringDoctor::findByRut($cleanRut);
+        if ($doctor) {
+            $doctor->fill([
+                'names' => $request->names,
+                'last_name_1' => $request->last_name_1,
+                'last_name_2' => $request->last_name_2 ?? null,
+                'email' => $request->email,
+            ])->save();
+        } else {
+            $doctor = ReferringDoctor::create([
+                'rut' => $cleanRut,
+                'names' => $request->names,
+                'last_name_1' => $request->last_name_1,
+                'last_name_2' => $request->last_name_2 ?? null,
+                'email' => $request->email,
+            ]);
+        }
 
         // 2. Crear cuenta en Keycloak para que el médico vea sus pacientes
         try {
