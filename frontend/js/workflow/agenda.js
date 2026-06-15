@@ -270,11 +270,25 @@ function toLocalISOString(date) {
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:00`;
 }
 
-/** Valor para input datetime-local (sin desfase UTC). */
+/**
+ * Laravel devuelve UTC con microsegundos (ej. 2026-06-15T14:00:00.000000Z).
+ * split('.')[0] pierde la Z y el navegador interpreta la hora como local (+4 h en Chile).
+ */
+function normalizeApiDateTime(value) {
+    if (!value) return "";
+    let s = String(value).trim().replace(" ", "T");
+    const zMatch = s.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.\d+Z$/i);
+    if (zMatch) return `${zMatch[1]}Z`;
+    const offsetMatch = s.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.\d+([+-]\d{2}:?\d{2})$/);
+    if (offsetMatch) return `${offsetMatch[1]}${offsetMatch[2]}`;
+    if (s.includes(".")) s = s.split(".")[0];
+    return s;
+}
+
+/** Valor para input datetime-local (hora local del navegador, sin desfase UTC). */
 function formatDateTimeLocal(value) {
     if (!value) return "";
-    const normalized = typeof value === "string" ? value.replace(" ", "T").split(".")[0] : value;
-    const d = normalized instanceof Date ? normalized : new Date(normalized);
+    const d = value instanceof Date ? value : new Date(normalizeApiDateTime(value));
     if (Number.isNaN(d.getTime())) return "";
     const pad = (n) => String(n).padStart(2, "0");
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -298,7 +312,7 @@ function formatearHoraLegible(timeStr) {
 
 function redondearDatetimeAlIntervalo(value, intervalo) {
     const mins = intervaloAMinutos(intervalo);
-    const d = value instanceof Date ? new Date(value) : new Date(value);
+    const d = value instanceof Date ? new Date(value) : new Date(normalizeApiDateTime(value));
     if (Number.isNaN(d.getTime()) || mins <= 0) return d;
     const total = d.getHours() * 60 + d.getMinutes();
     const redondeado = Math.round(total / mins) * mins;
@@ -930,8 +944,8 @@ async function cargarAgendaDesdeServidor() {
                     id: String(app.id),
                     machine: String(app.machine_id),
                     resourceIds: salasUnicas,
-                    start: app.start_time.split('.')[0],
-                    end: app.end_time.split('.')[0],
+                    start: normalizeApiDateTime(app.start_time),
+                    end: normalizeApiDateTime(app.end_time),
                     statusRaw: app.status || 'pre-agendado',
                     status: risNormalizarEstadoAgendaVisual(app.status || 'pre-agendado'),
                     needsReview: app.needs_review || false,
