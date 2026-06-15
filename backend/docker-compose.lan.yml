@@ -43,14 +43,30 @@ services:
   # PACS/Orthanc y visor: en la NUBE (no se levantan aquí).
   #   ORTHANC_URL y VIEWER_URL en .env (URL/IP que entregue sistemas).
 
-  # MWL local open source (DCMTK wlmscpfs) — opcional, perfil --profile mwl.
-  # Activar en .env: MWL_PROVIDER=wlmscpfs, MWL_DICOM_HOST=<IP LAN>, MWL_AET=SIRESA_MWL
+  # MWL local — Orthanc (recomendado Fuji FCR Broad Query / Refresh en laboratorios).
+  # .env: MWL_PROVIDER=orthanc, MWL_ORTHANC_URL=http://mwl:8042, MWL_DICOM_HOST=<IP LAN>, MWL_AET=SIRESA_MWL
   mwl:
-    image: darthunix/dcmtk
+    image: jodogne/orthanc-plugins
     restart: unless-stopped
     profiles:
       - mwl
-    # -nse: no expandir secuencias vacías del query en la respuesta (Fuji FCR rechaza WarningUnsupportedOptionalKeys).
+    ports:
+      - "4242:4242"
+    expose:
+      - "8042"
+    volumes:
+      - ./orthanc.mwl.json:/etc/orthanc/orthanc.json:ro
+      - ./orthanc-fuji-mwl.lua:/etc/orthanc/fuji-mwl.lua:ro
+      - ris-mwl-orthanc:/var/lib/orthanc/db
+      - ris-mwl-files:/var/lib/orthanc/worklists
+
+  # Alternativa DCMTK wlmscpfs (NO soporta Refresh plano Fuji FCR; solo búsqueda anidada/RUT).
+  # Perfil: --profile mwl-dcmtk (no levantar junto con mwl: ambos usan :4242).
+  mwl-dcmtk:
+    image: darthunix/dcmtk
+    restart: unless-stopped
+    profiles:
+      - mwl-dcmtk
     command: ["wlmscpfs", "-v", "-nse", "-dfp", "/data", "-dfr", "4242"]
     ports:
       - "4242:4242"
@@ -123,3 +139,4 @@ volumes:
   ris-redis:
   ris-storage:
   ris-mwl-files:
+  ris-mwl-orthanc:
