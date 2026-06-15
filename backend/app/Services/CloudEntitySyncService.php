@@ -484,21 +484,6 @@ class CloudEntitySyncService
 
         $appointment = Appointment::withTrashed()->find($id);
 
-        if (!$appointment && !empty($attrs['accession_number']) && !empty($attrs['laboratory_id'])) {
-            $duplicate = Appointment::query()
-                ->where('laboratory_id', $attrs['laboratory_id'])
-                ->where('accession_number', $attrs['accession_number'])
-                ->where('id', '!=', $id)
-                ->first();
-
-            if ($duplicate) {
-                AppointmentStudy::query()->where('appointment_id', $duplicate->id)->delete();
-                $duplicate->delete();
-            }
-        }
-
-        $appointment = Appointment::withTrashed()->find($id);
-
         if ($appointment) {
             if ($appointment->trashed()) {
                 $appointment->restore();
@@ -509,14 +494,6 @@ class CloudEntitySyncService
             }
         } else {
             $appointment = $this->saveWithIncomingId(Appointment::class, $id, $attrs);
-        }
-
-        if (!empty($attrs['accession_number']) && !empty($attrs['laboratory_id'])) {
-            Appointment::query()
-                ->where('laboratory_id', $attrs['laboratory_id'])
-                ->where('accession_number', $attrs['accession_number'])
-                ->where('id', '!=', $appointment->id)
-                ->delete();
         }
 
         if (is_array($studies)) {

@@ -153,7 +153,7 @@ class CloudSyncInboundTest extends TestCase
         ]);
     }
 
-    public function test_inbound_appointment_sync_is_idempotent_by_uuid_and_accession(): void
+    public function test_inbound_appointment_sync_is_idempotent_by_uuid(): void
     {
         $lab = $this->risLab;
         $machine = Machine::where('laboratory_id', $lab->id)->firstOrFail();
@@ -205,13 +205,7 @@ class CloudSyncInboundTest extends TestCase
                 ->assertOk();
         }
 
-        $this->assertSame(
-            1,
-            Appointment::query()
-                ->where('laboratory_id', $lab->id)
-                ->where('accession_number', 'ACC-SYNC-IDEMPOTENT')
-                ->count()
-        );
+        $this->assertSame(1, Appointment::query()->where('id', $appointmentId)->count());
         $this->assertDatabaseHas('appointments', ['id' => $appointmentId]);
         $this->assertSame(1, \App\Models\AppointmentStudy::query()->where('appointment_id', $appointmentId)->count());
     }
