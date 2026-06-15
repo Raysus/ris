@@ -165,8 +165,24 @@ function abrirTranscripcion(id) {
     $("#btnPlantillaTrans").prop("disabled", false);
 }
 
+function persistTranscripcionActualEnMemoria() {
+    if (!currentTransStudy) return;
+    const txt = $("#textoTranscripcion").val();
+    currentTransStudy.reportText = txt;
+}
+
+function construirPayloadInformesTranscripcion() {
+    persistTranscripcionActualEnMemoria();
+    return (currentTranscriptionChain?.studies || []).map(s => ({
+        id: s.study_id,
+        text: s.reportText || ''
+    }));
+}
+
 function cargarEstudioTranscripcion(studyId) {
     if (!currentTranscriptionChain) return;
+
+    persistTranscripcionActualEnMemoria();
 
     const study = currentTranscriptionChain.studies.find(s => s.study_id == studyId);
     if (!study) return;
@@ -361,15 +377,19 @@ async function enviarAValidacion() {
     if (!currentTranscriptionChain) return;
 
     const btn = $("#btnEnviarValidacion");
+    const reports = construirPayloadInformesTranscripcion();
 
-    // Construcción exacta del payload: 
-    // El backend espera un array llamado 'reports'
-    const payload = {
-        reports: currentTranscriptionChain.studies.map(s => ({
-            id: s.study_id,
-            text: s.reportText || '' // Asegura que no sea null
-        }))
-    };
+    if (reports.length === 0) {
+        if (typeof showToast === 'function') showToast("No hay exámenes para enviar.", "warning");
+        return;
+    }
+
+    if (reports.every(r => !String(r.text || '').trim())) {
+        if (typeof showToast === 'function') showToast("Escriba el informe antes de enviar a validación.", "warning");
+        return;
+    }
+
+    const payload = { reports };
 
     try {
         btn.prop('disabled', true).html('Enviando...');

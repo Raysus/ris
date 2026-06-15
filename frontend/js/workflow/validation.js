@@ -246,7 +246,10 @@ function cargarEstudioValidacion(studyId) {
     actualizarCabeceraInformeValidacion(currentValidationChain, currentValStudy);
 
     // Colocar texto y asegurar que esté deshabilitado por defecto
-    $valRoot().find("#finalReportText").val(currentValStudy.reportText || "").prop("disabled", true);
+    const reportText = (currentValStudy.reportText || "").trim();
+    $valRoot().find("#finalReportText")
+        .val(reportText || "Sin texto de informe registrado. Devuelva a transcripción para completar el dictado.")
+        .prop("disabled", true);
 
     // Resetear estilos de edición si quedaron activos de otro examen
     $valRoot().find("#finalReportText").removeClass("border border-warning border-2 bg-warning-subtle shadow-sm");
@@ -262,6 +265,10 @@ async function firmarInforme() {
 
         try {
             btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Firmando...');
+
+            if (currentValStudy) {
+                currentValStudy.reportText = $valRoot().find("#finalReportText").val();
+            }
 
             const paqueteInformes = (currentValidationChain.studies || [])
                 .filter(s => s && s.study_id)
