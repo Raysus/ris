@@ -354,36 +354,54 @@ class AppointmentController extends Controller
 
     public function destroy($id)
     {
-        return DB::transaction(function () use ($id) {
-            // Usa tu propia función o Appointment::findOrFail
-            $appointment = Appointment::with('supplies')->findOrFail($id);
+        $userId = auth()->id();
+        if (!$userId) {
+            return response()->json(['success' => false, 'message' => 'Sesión no válida.'], 401);
+        }
 
-            foreach ($appointment->supplies as $supply) {
-                $supply->increment('stock', $supply->pivot->quantity);
-            }
+        try {
+            return DB::transaction(function () use ($id, $userId) {
+                $appointment = $this->getSecureQuery()
+                    ->with('supplies')
+                    ->findOrFail($id);
 
-            \App\Models\AppointmentLog::create([
-                'appointment_id' => $appointment->id,
-                'user_id' => auth()->id(),
-                'action' => 'anulado',
-                'ip_address' => request()->ip()
-            ]);
+                $estadosAnulables = ['pre-agendado', 'agendado', 'confirmado', 'espera'];
+                if (!in_array(strtolower((string) $appointment->status), $estadosAnulables, true)) {
+                    throw new \Exception('Esta cita ya ingresó al flujo clínico y no puede anularse desde Recepción.');
+                }
 
-            \App\Services\AuditLogger::record(
-                'appointment.cancelled',
-                'Appointment',
-                $appointment->id,
-                ['status' => $appointment->status],
-            );
+                foreach ($appointment->supplies as $supply) {
+                    $qty = (int) ($supply->pivot->quantity ?? 0);
+                    if ($qty > 0) {
+                        $supply->increment('stock', $qty);
+                    }
+                }
 
-            $appointment->status = 'anulado';
-            $appointment->save();
-            $appointment->delete();
+                \App\Models\AppointmentLog::create([
+                    'appointment_id' => $appointment->id,
+                    'user_id' => $userId,
+                    'action' => 'anulado',
+                    'ip_address' => request()->ip(),
+                ]);
 
-            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'deleted', ['id' => $id]);
+                \App\Services\AuditLogger::record(
+                    'appointment.cancelled',
+                    'Appointment',
+                    $appointment->id,
+                    ['status' => $appointment->status],
+                );
 
-            return response()->json(['success' => true]);
-        });
+                $appointment->status = 'anulado';
+                $appointment->save();
+                $appointment->delete();
+
+                return response()->json(['success' => true]);
+            });
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json(['success' => false, 'message' => 'Cita no encontrada o sin permisos.'], 404);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
     }
 
     private function saveBase64Document($base64String, $folder = 'documents')
