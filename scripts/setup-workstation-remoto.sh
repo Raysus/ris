@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Configuración completa: git + Tailscale + sync nube + deploy.
+# Ejecute los pasos en orden (algunos requieren sudo o token).
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+echo "╔══════════════════════════════════════════════════════════════╗"
+echo "║  RIS — estación de trabajo remota (git, Tailscale, deploy)   ║"
+echo "╚══════════════════════════════════════════════════════════════╝"
+echo ""
+echo "PASO 1 — Token GitHub (pull/push laboratorios)"
+echo "  export GITHUB_TOKEN='github_pat_...'"
+echo "  bash $ROOT/scripts/configurar-git-github.sh"
+echo "  bash $ROOT/scripts/git-pull.sh laboratorios"
+echo ""
+echo "PASO 2 — Tailscale + SSH (sudo)"
+echo "  sudo bash $ROOT/scripts/setup-tailscale.sh"
+echo "  sudo tailscale up    # o --auth-key=tskey-auth-..."
+echo "  tailscale ip -4      # anote IP 100.x"
+echo ""
+echo "PASO 3 — Sync datos lab → nube (CLOUD_SYNC_SECRET de sistemas)"
+echo "  export CLOUD_SYNC_SECRET='...'"
+echo "  bash $ROOT/scripts/setup-cloud-sync.sh"
+echo ""
+echo "PASO 4 — Deploy código a nube y/o Siresa (Tailscale + SSH)"
+echo "  # Registre su clave SSH en nube (userit) y Siresa (siresa-centro-servidor)"
+echo "  bash $ROOT/scripts/deploy-desde-aqui.sh"
+echo ""
+echo "Destinos Envoy (backend/Envoy.blade.php):"
+echo "  nube:          userit@100.104.4.114"
+echo "  siresa_centro: siresa-centro-servidor@100.103.135.42 → /opt/RIS"
+echo ""

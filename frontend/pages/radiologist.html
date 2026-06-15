@@ -141,13 +141,32 @@
                                         tenía permiso). Luego texto verde «Conectado: …». Si no sale nada: use Chrome/Edge + HTTPS.
                                     </p>
 
-                                    <div class="d-flex justify-content-center align-items-center gap-2">
+                                    <div class="d-flex flex-column justify-content-center align-items-center gap-2 w-100">
                                         <div id="recordingPulse" class="d-none text-danger fw-bold small">
                                             <span class="spinner-grow spinner-grow-sm me-1"></span> Grabando <span
                                                 id="audioTimer">00:00</span>
                                         </div>
-                                        <audio id="audioPreview" controls class="d-none w-100"
-                                            style="height: 30px;"></audio>
+                                        <div id="audioPreviewWrap" class="d-none w-100">
+                                            <div class="d-flex justify-content-center align-items-center gap-1 mb-1 flex-wrap">
+                                                <button type="button" id="btnAudioRewind"
+                                                    class="btn btn-sm btn-outline-secondary"
+                                                    title="Retroceder 5 segundos (SpeechMike: ◀◀)">
+                                                    <i class="bi bi-skip-backward-fill"></i> -5s
+                                                </button>
+                                                <button type="button" id="btnAudioPlayPause"
+                                                    class="btn btn-sm btn-outline-primary px-3"
+                                                    title="Reproducir / pausar (SpeechMike: ▶)">
+                                                    <i class="bi bi-play-fill" id="iconAudioPlayPause"></i>
+                                                </button>
+                                                <button type="button" id="btnAudioForward"
+                                                    class="btn btn-sm btn-outline-secondary"
+                                                    title="Adelantar 5 segundos (SpeechMike: ▶▶)">
+                                                    <i class="bi bi-skip-forward-fill"></i> +5s
+                                                </button>
+                                            </div>
+                                            <audio id="audioPreview" controls class="w-100"
+                                                style="height: 30px;"></audio>
+                                        </div>
                                         <button id="btnRecord" class="btn btn-sm btn-danger fw-bold w-100" disabled>
                                             <i class="bi bi-mic me-1"></i> GRABAR AUDIO
                                         </button>

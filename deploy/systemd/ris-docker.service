@@ -1,0 +1,18 @@
+[Unit]
+Description=HealthTiCloud RIS (Docker LAN)
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/home/raul/Escritorio/RIS/backend
+EnvironmentFile=-/home/raul/Escritorio/RIS/backend/.env
+ExecStart=/usr/bin/docker compose -f docker-compose.lan.yml up -d
+ExecStop=/usr/bin/docker compose -f docker-compose.lan.yml down
+User=raul
+Group=docker
+
+[Install]
+WantedBy=multi-user.target

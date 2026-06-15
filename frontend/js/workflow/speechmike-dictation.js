@@ -323,6 +323,86 @@ function executeSpeechMikeRecordingAction(action) {
     }
 }
 
+function dispatchSpeechMikeAudioAction(action) {
+    if (typeof executeSpeechMikeAudioAction !== "function") {
+        return false;
+    }
+    return executeSpeechMikeAudioAction(action);
+}
+
+function resolveSpeechMikeHidAction(newlyPressed, session, preview) {
+    const BE = DictationSupport.ButtonEvent;
+    const fastForward = BE.FAST_FORWARD || 0;
+    const scanBegin = BE.SCAN_BEGIN || 0;
+
+    if (newlyPressed & BE.REWIND) {
+        return preview && !session ? { type: "audio", action: "seek_back" } : null;
+    }
+
+    if (newlyPressed & (BE.FORWARD | fastForward)) {
+        return preview && !session ? { type: "audio", action: "seek_forward" } : null;
+    }
+
+    if (newlyPressed & BE.PLAY) {
+        if (preview && !session) {
+            return { type: "audio", action: "toggle_play" };
+        }
+        if (session) {
+            return { type: "rec", action: isRecordingPaused() ? "resume" : "pause" };
+        }
+        return null;
+    }
+
+    const stopBits =
+        BE.STOP | BE.SCAN_END | BE.SCAN_SUCCESS | BE.EOL_PRIO | BE.COMMAND;
+    if (newlyPressed & stopBits) {
+        if (session) {
+            return { type: "rec", action: "stop" };
+        }
+        if (preview) {
+            return { type: "audio", action: "pause" };
+        }
+        return null;
+    }
+
+    const recordBits = BE.RECORD | BE.INSTR | BE.INS_OVR | BE.F4_D;
+    if (newlyPressed & recordBits) {
+        if (preview && !session) {
+            dispatchSpeechMikeAudioAction("pause");
+        }
+        return { type: "rec", action: session ? "stop" : "start" };
+    }
+
+    if (newlyPressed & BE.F1_A) {
+        if (preview && !session) {
+            return { type: "audio", action: "seek_back_long" };
+        }
+        return { type: "rec", action: "toggle" };
+    }
+
+    if (newlyPressed & BE.F2_B) {
+        if (preview && !session) {
+            return { type: "audio", action: "toggle_play" };
+        }
+        return { type: "rec", action: "toggle" };
+    }
+
+    if (newlyPressed & BE.F3_C) {
+        if (preview && !session) {
+            return { type: "audio", action: "seek_forward_long" };
+        }
+        return { type: "rec", action: "toggle" };
+    }
+
+    if (scanBegin && (newlyPressed & scanBegin)) {
+        if (preview && !session) {
+            return { type: "audio", action: "seek_back" };
+        }
+    }
+
+    return null;
+}
+
 function speechMikeMaskToNames(bitMask) {
     const BE = DictationSupport.ButtonEvent;
     const names = [];
@@ -336,7 +416,6 @@ function speechMikeMaskToNames(bitMask) {
 }
 
 function handleSpeechMikeHidButton(device, bitMask) {
-    const BE = DictationSupport.ButtonEvent;
     const newlyPressed = bitMask & ~_speechMikeLastButtonMask;
     _speechMikeLastButtonMask = bitMask;
 
@@ -356,37 +435,30 @@ function handleSpeechMikeHidButton(device, bitMask) {
         return;
     }
 
-    const stopBits =
-        BE.STOP | BE.SCAN_END | BE.SCAN_SUCCESS | BE.EOL_PRIO | BE.COMMAND;
-    const recordBits = BE.RECORD | BE.INSTR | BE.INS_OVR | BE.F4_D;
-    const playBits = BE.PLAY | BE.FORWARD | BE.REWIND;
+    const session = typeof isRecordingSessionActive === "function" && isRecordingSessionActive();
+    const preview =
+        typeof isAudioPreviewListeningMode === "function" && isAudioPreviewListeningMode();
+    const resolved = resolveSpeechMikeHidAction(newlyPressed, session, preview);
 
-    if (newlyPressed & stopBits) {
-        executeSpeechMikeRecordingAction("stop");
+    if (!resolved) {
+        if (localStorage.getItem("ris_debug_speechmike") === "1") {
+            console.info("[SpeechMike HID] botón sin acción asignada", speechMikeMaskToNames(newlyPressed));
+        }
         return;
     }
 
-    if (newlyPressed & recordBits) {
-        executeSpeechMikeRecordingAction(isRecordingSessionActive() ? "stop" : "start");
+    if (resolved.type === "audio") {
+        dispatchSpeechMikeAudioAction(resolved.action);
         return;
     }
 
-    if (newlyPressed & playBits) {
-        executeSpeechMikeRecordingAction(
-            isRecordingPaused() ? "resume" : isRecordingActive() ? "pause" : "start"
-        );
-        return;
-    }
-
-    if (newlyPressed & (BE.F1_A | BE.F2_B | BE.F3_C)) {
-        executeSpeechMikeRecordingAction("toggle");
-    }
+    executeSpeechMikeRecordingAction(resolved.action);
 }
 
 function onSpeechMikeHidConnected() {
     updateSpeechMikeConnectUi();
     if (typeof showToast === "function") {
-        showToast("SpeechMike listo. Pulse «Probar teclas» si los botones no responden.", "success");
+        showToast("SpeechMike listo. En reproducción: ◀◀/▶▶ adelantan/retroceden; ▶ pausa. «Probar teclas» = diagnóstico.", "success");
     }
 }
 
