@@ -40,6 +40,13 @@ return [
             : []
     ),
 
+    /** Nube → lab: estado clínico de citas (opcional; si falta, se deriva de LAB_MWL_RELAY_URLS). */
+    'lab_sync_relay_urls' => array_filter(
+        is_array($decoded = json_decode((string) env('LAB_SYNC_RELAY_URLS', '{}'), true))
+            ? $decoded
+            : []
+    ),
+
     'catalog_entities' => [
         'laboratories',
         'referring_doctors',
