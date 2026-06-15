@@ -29,6 +29,17 @@ return [
 
     'inbound_enabled' => filter_var(env('CLOUD_INBOUND_ENABLED', true), FILTER_VALIDATE_BOOL),
 
+    /**
+     * Nube → MWL local por laboratorio (JSON). Clave = laboratory_id UUID.
+     * Ej.: {"ef633609-...":"http://100.103.135.42/api/integrations/local-mwl/relay"}
+     * Alternativa: laboratories.settings.local_mwl_relay_url por sede.
+     */
+    'lab_mwl_relay_urls' => array_filter(
+        is_array($decoded = json_decode((string) env('LAB_MWL_RELAY_URLS', '{}'), true))
+            ? $decoded
+            : []
+    ),
+
     'catalog_entities' => [
         'laboratories',
         'referring_doctors',
