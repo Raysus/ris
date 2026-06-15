@@ -16,6 +16,8 @@ use App\Services\LocalMwlFileWriter;
 use App\Services\WorklistTagNormalizer;
 use App\Models\Persona;
 use App\Services\OrthancStudyLookup;
+use App\Jobs\RelayWorklistToLocalLab;
+use App\Support\LaboratoryMwlRelay;
 use App\Support\LabTimezone;
 use App\Support\ModalityCode;
 use App\Support\OrthancUrl;
@@ -190,6 +192,10 @@ class WorklistController extends Controller
 
             $appointment->load(['patient.persona', 'studies', 'supplies']);
             \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+
+            if (LaboratoryMwlRelay::shouldRelayFromCloud($appointment->laboratory)) {
+                RelayWorklistToLocalLab::dispatch($appointment->id);
+            }
 
             $dicom = OrthancUrl::worklistDicomTarget();
             $primaryStep = $procedureSteps[0];
