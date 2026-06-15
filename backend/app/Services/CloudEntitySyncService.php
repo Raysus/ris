@@ -231,7 +231,13 @@ class CloudEntitySyncService
             }
         }
 
-        return $callback($query, ...array_values($fields));
+        $result = $callback($query, ...array_values($fields));
+
+        if ($result instanceof Model) {
+            return $result;
+        }
+
+        return $result?->first();
     }
 
     private function normalizeCatalogText(?string $value): ?string
