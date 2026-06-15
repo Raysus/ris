@@ -1,0 +1,142 @@
+# =====================================================================
+# HealthTiCloud RIS — Stack para despliegue en LAN (Ubuntu + Docker Engine
+#   o Windows + Docker Desktop)
+#
+#   PACS/Orthanc y visor OHIF NO se levantan en local: la API usa ORTHANC_URL
+#   y VIEWER_URL de la nube (ver docs/GUIA_INSTALACION_LABORATORIO.md).
+#   Tailscale: solo en el PC de quien despliega/soporta por SSH (Envoy).
+#
+#   API/queue/scheduler: imagen PHP 8.5.4 (ver Dockerfile; igual que composer.json ^8.5).
+#
+#   Uso:
+#     cp .env.lan.example .env   (editar IP LAN + ORTHANC_URL nube)
+#     docker compose -f docker-compose.lan.yml up -d --build
+#
+#   Detalle: docs/GUIA_INSTALACION_LABORATORIO.md
+# =====================================================================
+
+services:
+  pgsql:
+    image: postgres:15
+    restart: unless-stopped
+    # Solo localhost: permite php artisan / composer en el host (DB_HOST=127.0.0.1 en .env)
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-ris_db}
+      POSTGRES_USER: ${DB_USERNAME:-risuserdb}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-GHeaO9jCWHO9LulGk8vbetnB}
+    volumes:
+      - ris-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-risuserdb} -d ${DB_DATABASE:-ris_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:alpine
+    restart: unless-stopped
+    volumes:
+      - ris-redis:/data
+
+  # PACS/Orthanc y visor: en la NUBE (no se levantan aquí).
+  #   ORTHANC_URL y VIEWER_URL en .env (URL/IP que entregue sistemas).
+
+  # MWL local — Orthanc (recomendado Fuji FCR Broad Query / Refresh en laboratorios).
+  # .env: MWL_PROVIDER=orthanc, MWL_ORTHANC_URL=http://mwl:8042, MWL_DICOM_HOST=<IP LAN>, MWL_AET=SIRESA_MWL
+  mwl:
+    image: jodogne/orthanc-plugins
+    restart: unless-stopped
+    profiles:
+      - mwl
+    ports:
+      - "4242:4242"
+    expose:
+      - "8042"
+    volumes:
+      - ./orthanc.mwl.json:/etc/orthanc/orthanc.json:ro
+      - ./orthanc-fuji-mwl.lua:/etc/orthanc/fuji-mwl.lua:ro
+      - ris-mwl-orthanc:/var/lib/orthanc/db
+      - ris-mwl-files:/var/lib/orthanc/worklists
+
+  # Alternativa DCMTK wlmscpfs (NO soporta Refresh plano Fuji FCR; solo búsqueda anidada/RUT).
+  # Perfil: --profile mwl-dcmtk (no levantar junto con mwl: ambos usan :4242).
+  mwl-dcmtk:
+    image: darthunix/dcmtk
+    restart: unless-stopped
+    profiles:
+      - mwl-dcmtk
+    command: ["wlmscpfs", "-v", "-nse", "-dfp", "/data", "-dfr", "4242"]
+    ports:
+      - "4242:4242"
+    volumes:
+      - ris-mwl-files:/data
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_HOST: pgsql
+      REDIS_HOST: redis
+      RIS_CLOUD_ROLE: local
+      CLOUD_API_BASE: https://api.healthticloud.cl/api
+    command: serve
+    ports:
+      - "8000:8000"
+    depends_on:
+      pgsql:
+        condition: service_healthy
+    volumes:
+      - ris-storage:/var/www/html/storage/app
+      - ris-mwl-files:/var/www/html/storage/app/mwl-worklists
+
+  # Perfil mwl: docker compose -f docker-compose.lan.yml --profile mwl up -d mwl api
+
+  queue:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_HOST: pgsql
+      REDIS_HOST: redis
+      RIS_CLOUD_ROLE: local
+      CLOUD_API_BASE: https://api.healthticloud.cl/api
+    command: queue
+    depends_on:
+      - api
+    volumes:
+      - ris-storage:/var/www/html/storage/app
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    command: scheduler
+    depends_on:
+      - api
+
+  web:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    volumes:
+      - ../frontend:/usr/share/nginx/html:ro
+      - ./docker/frontend.nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+volumes:
+  ris-db:
+  ris-redis:
+  ris-storage:
+  ris-mwl-files:
+  ris-mwl-orthanc:
