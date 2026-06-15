@@ -6,6 +6,7 @@ use App\Models\Appointment;
 use App\Services\CloudSyncLogger;
 use App\Support\CloudSyncMode;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Contracts\Queue\ShouldQueueAfterCommit;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -16,7 +17,7 @@ use Illuminate\Support\Facades\Http;
 /**
  * Envía persona → paciente → cita a la nube en un solo job (orden garantizado).
  */
-class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommit
+class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommit, ShouldBeUnique
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -26,11 +27,18 @@ class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommi
 
     public ?string $syncLogId = null;
 
+    public int $uniqueFor = 120;
+
     public function __construct(string $appointmentId, string $action = 'created', ?string $syncLogId = null)
     {
         $this->appointmentId = $appointmentId;
         $this->action = $action;
         $this->syncLogId = $syncLogId;
+    }
+
+    public function uniqueId(): string
+    {
+        return 'appointment-bundle:' . $this->action . ':' . $this->appointmentId;
     }
 
     public function handle(): void
@@ -39,7 +47,16 @@ class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommi
             return;
         }
 
-        $appointment = Appointment::with(['patient.persona', 'studies', 'supplies'])->find($this->appointmentId);
+        $appointment = Appointment::with([
+            'patient.persona',
+            'studies.exam',
+            'studies.machine',
+            'supplies',
+            'machine',
+            'referringDoctor',
+            'insurance',
+            'insurancePlan',
+        ])->find($this->appointmentId);
         if (!$appointment?->patient?->persona) {
             return;
         }
@@ -68,14 +85,50 @@ class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommi
         $paciente = $appointment->patient->toArray();
         $paciente['persona'] = $persona;
 
+        $chunks = [
+            ['model' => 'App\Models\Persona', 'action' => 'updated', 'data' => $persona],
+            ['model' => 'App\Models\Paciente', 'action' => 'updated', 'data' => $paciente],
+        ];
+
+        $seen = [];
+        $pushCatalog = function (string $model, array $data) use (&$chunks, &$seen): void {
+            $id = (string) ($data['id'] ?? '');
+            if ($id === '' || isset($seen[$model . ':' . $id])) {
+                return;
+            }
+            $seen[$model . ':' . $id] = true;
+            $chunks[] = ['model' => $model, 'action' => 'updated', 'data' => $data];
+        };
+
+        if ($appointment->insurance) {
+            $pushCatalog('Insurance', $appointment->insurance->toArray());
+        }
+        if ($appointment->insurancePlan) {
+            $pushCatalog('InsurancePlan', $appointment->insurancePlan->toArray());
+        }
+        if ($appointment->referringDoctor) {
+            $pushCatalog('ReferringDoctor', $appointment->referringDoctor->toArray());
+        }
+        if ($appointment->machine) {
+            $pushCatalog('Machine', $appointment->machine->toArray());
+        }
+        foreach ($appointment->studies as $study) {
+            if ($study->exam) {
+                $pushCatalog('Exam', $study->exam->toArray());
+            }
+            if ($study->machine) {
+                $pushCatalog('Machine', $study->machine->toArray());
+            }
+        }
+
+        $chunks[] = [
+            'model' => 'App\Models\Appointment',
+            'action' => $this->action,
+            'data' => $payload,
+        ];
+
         try {
-            foreach (
-                [
-                    ['model' => 'App\Models\Persona', 'action' => 'updated', 'data' => $persona],
-                    ['model' => 'App\Models\Paciente', 'action' => 'updated', 'data' => $paciente],
-                    ['model' => 'App\Models\Appointment', 'action' => $this->action, 'data' => $payload],
-                ] as $chunk
-            ) {
+            foreach ($chunks as $chunk) {
                 $response = $http->withHeaders($headers)->post($cloudUrl, $chunk);
                 if ($response->failed()) {
                     throw new \RuntimeException(

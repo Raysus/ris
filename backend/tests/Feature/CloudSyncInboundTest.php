@@ -122,6 +122,94 @@ class CloudSyncInboundTest extends TestCase
         $this->assertDatabaseHas('appointments', ['id' => $appointmentId, 'patient_id' => $pacienteId]);
     }
 
+    public function test_inbound_machine_sync_is_idempotent_by_uuid(): void
+    {
+        $lab = $this->risLab;
+        $machineId = '66666666-6666-6666-6666-666666666666';
+        $payload = [
+            'id' => $machineId,
+            'laboratory_id' => $lab->id,
+            'name' => 'Sala Sync Test',
+            'group' => 'CR',
+            'ae_title' => 'SYNC_TEST',
+            'event_color' => '#3788d8',
+            'is_active' => true,
+        ];
+
+        foreach ([1, 2] as $attempt) {
+            $this->withToken('test-sync-secret')
+                ->postJson('/api/integrations/cloud-sync/inbound', [
+                    'model' => 'Machine',
+                    'action' => 'updated',
+                    'data' => array_merge($payload, ['name' => 'Sala Sync Test ' . $attempt]),
+                ])
+                ->assertOk();
+        }
+
+        $this->assertSame(1, Machine::query()->where('laboratory_id', $lab->id)->where('ae_title', 'SYNC_TEST')->count());
+        $this->assertDatabaseHas('machines', [
+            'id' => $machineId,
+            'name' => 'Sala Sync Test 2',
+        ]);
+    }
+
+    public function test_inbound_appointment_sync_is_idempotent_by_uuid(): void
+    {
+        $lab = $this->risLab;
+        $machine = Machine::where('laboratory_id', $lab->id)->firstOrFail();
+        $personaId = '77777777-7777-7777-7777-777777777777';
+        $pacienteId = '88888888-8888-8888-8888-888888888888';
+        $appointmentId = '99999999-9999-9999-9999-999999999999';
+        $studyId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+        $start = now()->addDays(7);
+        $payload = [
+            'id' => $appointmentId,
+            'laboratory_id' => $lab->id,
+            'patient_id' => $pacienteId,
+            'machine_id' => $machine->id,
+            'accession_number' => 'ACC-SYNC-IDEMPOTENT',
+            'start_time' => $start->toIso8601String(),
+            'end_time' => $start->copy()->addMinutes(30)->toIso8601String(),
+            'status' => 'confirmado',
+            'payment_status' => 'Pendiente',
+            'origin' => 'Ambulatorio',
+            'patient' => [
+                'id' => $pacienteId,
+                'laboratory_id' => $lab->id,
+                'persona_id' => $personaId,
+                'persona' => [
+                    'id' => $personaId,
+                    'rut' => '19.876.543-2',
+                    'names' => 'Idempotent',
+                    'last_name_1' => 'Sync',
+                ],
+            ],
+            'studies' => [[
+                'id' => $studyId,
+                'appointment_id' => $appointmentId,
+                'machine_id' => $machine->id,
+                'exam_name' => 'Rx Test',
+                'quantity' => 1,
+                'price' => 1000,
+                'status' => 'espera',
+            ]],
+        ];
+
+        foreach (range(1, 2) as $attempt) {
+            $this->withToken('test-sync-secret')
+                ->postJson('/api/integrations/cloud-sync/inbound', [
+                    'model' => 'App\Models\Appointment',
+                    'action' => 'updated',
+                    'data' => $payload,
+                ])
+                ->assertOk();
+        }
+
+        $this->assertSame(1, Appointment::query()->where('id', $appointmentId)->count());
+        $this->assertDatabaseHas('appointments', ['id' => $appointmentId]);
+        $this->assertSame(1, \App\Models\AppointmentStudy::query()->where('appointment_id', $appointmentId)->count());
+    }
+
     public function test_inbound_referring_doctor_updates_existing_row_by_rut_instead_of_duplicate(): void
     {
         $existingId = 'dddddddd-dddd-dddd-dddd-dddddddddddd';

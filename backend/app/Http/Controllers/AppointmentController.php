@@ -113,14 +113,15 @@ class AppointmentController extends Controller
                 $start = LabTimezone::parseScheduleTime($data['start_time']);
                 $end = LabTimezone::parseScheduleTime($data['end_time']);
 
-                $choque = Appointment::where('machine_id', $data['machine_id'])
-                    ->whereIn('status', ['agendado', 'confirmado', 'espera'])
-                    ->where(function ($q) use ($start, $end) {
-                        $q->where('start_time', '<', $end)->where('end_time', '>', $start);
-                    })->exists();
+                $machineIds = collect($data['studies'] ?? [])
+                    ->pluck('machine_id')
+                    ->filter()
+                    ->push($data['machine_id'])
+                    ->unique()
+                    ->values();
 
-                if ($choque) {
-                    throw new \Exception("La sala ya tiene una reserva confirmada en ese horario. Por favor actualice su calendario.");
+                foreach ($machineIds as $machineId) {
+                    $this->assertNoScheduleOverlap((string) $machineId, $start, $end);
                 }
 
                 $patientData = $data['patient'];
@@ -248,7 +249,6 @@ class AppointmentController extends Controller
                     'ip_address' => request()->ip()
                 ]);
 
-                \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
                 return response()->json(['success' => true]);
             }
 
@@ -345,8 +345,6 @@ class AppointmentController extends Controller
             ]);
 
             $appointment->load(['patient.persona', 'studies', 'supplies']);
-            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Persona', 'updated', $appointment->patient->persona->toArray());
-            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
 
             return response()->json(['success' => true]);
         });
@@ -451,9 +449,6 @@ class AppointmentController extends Controller
         $appointment->return_reason = null;
         $appointment->save();
 
-        // ☁️ Sincronizar el cambio rápido a la nube
-        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
-
         return response()->json(['success' => true]);
     }
 
@@ -465,5 +460,27 @@ class AppointmentController extends Controller
         }
 
         return (string) $value;
+    }
+
+    private function assertNoScheduleOverlap(
+        string $machineId,
+        \DateTimeInterface $start,
+        \DateTimeInterface $end,
+        ?string $excludeAppointmentId = null,
+    ): void {
+        $query = Appointment::query()
+            ->where('machine_id', $machineId)
+            ->whereIn('status', ['agendado', 'confirmado', 'espera'])
+            ->where(function ($q) use ($start, $end) {
+                $q->where('start_time', '<', $end)->where('end_time', '>', $start);
+            });
+
+        if ($excludeAppointmentId) {
+            $query->where('id', '!=', $excludeAppointmentId);
+        }
+
+        if ($query->lockForUpdate()->exists()) {
+            throw new \Exception('La sala ya tiene una reserva confirmada en ese horario. Por favor actualice su calendario.');
+        }
     }
 }

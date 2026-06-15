@@ -2,9 +2,13 @@
 
 namespace App\Observers;
 
+use App\Jobs\RelayAppointmentToLocalLab;
 use App\Jobs\SyncAppointmentBundleToCloud;
 use App\Jobs\SyncEntityToCloud;
 use App\Models\Appointment;
+use App\Services\CloudEntitySyncService;
+use App\Support\CloudSyncMode;
+use App\Support\LaboratorySyncRelay;
 
 class AppointmentObserver
 {
@@ -23,16 +27,35 @@ class AppointmentObserver
 
     public function deleted(Appointment $appointment): void
     {
-        SyncEntityToCloud::dispatch('App\Models\Appointment', 'deleted', ['id' => $appointment->id]);
+        $this->dispatchSyncChain($appointment, 'deleted');
     }
 
     private function dispatchSyncChain(Appointment $appointment, string $action): void
     {
-        if ($action === 'deleted') {
-            SyncEntityToCloud::dispatch('App\Models\Appointment', 'deleted', ['id' => $appointment->id]);
+        if (CloudEntitySyncService::$applying) {
             return;
         }
 
-        SyncAppointmentBundleToCloud::dispatch($appointment->id, $action)->afterCommit();
+        if (CloudSyncMode::isCloud()) {
+            $appointment->loadMissing('laboratory');
+            if (LaboratorySyncRelay::shouldRelayFromCloud($appointment->laboratory)) {
+                $appointmentId = $appointment->id;
+                \Illuminate\Support\Facades\DB::afterCommit(
+                    fn () => RelayAppointmentToLocalLab::dispatchSync($appointmentId, $action)
+                );
+            }
+
+            return;
+        }
+
+        if ($action === 'deleted') {
+            SyncEntityToCloud::dispatch('App\Models\Appointment', 'deleted', ['id' => $appointment->id]);
+
+            return;
+        }
+
+        if (CloudSyncMode::canPushToCloud()) {
+            SyncAppointmentBundleToCloud::dispatch($appointment->id, $action)->afterCommit();
+        }
     }
 }
