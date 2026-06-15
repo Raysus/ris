@@ -502,18 +502,34 @@ async function initAgenda() {
 
 function ensureAgendaModalsAnchored() {
     ['appointmentModal', 'modalNuevoMedico'].forEach((id) => {
-        if (typeof risEnsureModalInBody === 'function') {
-            risEnsureModalInBody(id);
+        const inApp = document.querySelector(`#appContent #${id}`);
+        const inBody = document.body.querySelector(`:scope > #${id}`);
+        if (inApp && inBody && inApp !== inBody) {
+            inBody.remove();
+        }
+        const el = inApp || document.getElementById(id);
+        if (el && typeof risEnsureModalInBody === 'function') {
+            risEnsureModalInBody(el);
         }
     });
 }
 
 function bindAgendaModalWizardEvents() {
-    const modalEl = document.getElementById('appointmentModal');
-    if (!modalEl || modalEl.dataset.risWizardBound === '1') return;
-    modalEl.dataset.risWizardBound = '1';
-    modalEl.addEventListener('shown.bs.modal', () => {
+    const modalEl = document.querySelector('#appContent #appointmentModal')
+        || document.getElementById('appointmentModal');
+    if (!modalEl) return;
+
+    $(modalEl).off('shown.bs.modal.risWizard').on('shown.bs.modal.risWizard', () => {
         if (typeof updateAgendaWizardUI === 'function') updateAgendaWizardUI();
+    });
+
+    $('#btnEliminarCita').off('click.risAnular').on('click.risAnular', (e) => {
+        e.preventDefault();
+        eliminarCita();
+    });
+    $('#btnGuardarCita').off('click.risGuardar').on('click.risGuardar', (e) => {
+        e.preventDefault();
+        guardarCita();
     });
 }
 async function cargarCatalogosDesdeBD() {
@@ -1402,27 +1418,52 @@ function imprimirComprobantePaciente(data) {
     printWindow.document.close();
 }
 async function eliminarCita() {
-    const id = $("#appointmentId").val();
-    if (!id || String(id).startsWith('APP-')) return;
+    const id = String($("#appointmentId").val() || '').trim();
+    if (!id || id.startsWith('APP-')) {
+        showToast("No hay una cita seleccionada para anular.", "warning");
+        return;
+    }
 
-    if (!(await showConfirm("¿Estás seguro de anular esta cita? Quedará registro en la auditoría.", { title: "Anular cita", dangerous: true, confirmText: "Anular" }))) return;
+    if (!(await showConfirm(
+        "¿Estás seguro de anular esta cita? Quedará registro en la auditoría.",
+        { title: "Anular cita", dangerous: true, confirmText: "Anular", nested: true }
+    ))) {
+        return;
+    }
 
-        const token = localStorage.getItem('ris_token');
-        const labId = localStorage.getItem('ris_lab_id');
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+    const $btn = $("#btnEliminarCita");
+    const btnHtml = $btn.html();
+    $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>Anulando...');
+
+    try {
+        const response = await fetch(`${API_URL}/appointments/${id}`, {
+            method: 'DELETE',
+            headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        });
+
+        let data = {};
         try {
-            const response = await fetch(`${API_URL}/appointments/${id}`, {
-                method: 'DELETE',
-                headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
-            });
-
-            if (response.ok) {
-                closeModal("appointmentModal");
-                showToast("Cita anulada correctamente.", "warning");
-                cargarAgendaDesdeServidor();
-            }
+            data = await response.json();
         } catch (e) {
-            showToast("Error al intentar anular la cita", "danger");
+            data = {};
         }
+
+        if (!response.ok) {
+            const msg = data.message || data.error || `No se pudo anular la cita (HTTP ${response.status}).`;
+            showToast(msg, "danger");
+            return;
+        }
+
+        closeModal("appointmentModal");
+        showToast("Cita anulada correctamente.", "warning");
+        cargarAgendaDesdeServidor();
+    } catch (e) {
+        showToast(`Error al intentar anular la cita: ${e.message}`, "danger");
+    } finally {
+        $btn.prop('disabled', false).html(btnHtml);
+    }
 }
 
 function getHexColorEstado(status) {
@@ -2119,3 +2160,8 @@ function validarDocumentoAgenda() {
     if (tipo === "PASAPORTE" && doc.length < 4) return false;
     return true;
 }
+
+window.initAgenda = initAgenda;
+window.abrirModalCita = abrirModalCita;
+window.guardarCita = guardarCita;
+window.eliminarCita = eliminarCita;
