@@ -7,8 +7,8 @@
 <body style="font-family: Arial, sans-serif; color: #333; line-height: 1.5;">
 @php
     $p = $appointment->patient?->persona;
-    $fecha = $appointment->start_time?->timezone(config('app.timezone'))->format('d/m/Y');
-    $hora = $appointment->start_time?->timezone(config('app.timezone'))->format('H:i');
+    $fecha = $appointment->start_time?->timezone(\App\Support\LabTimezone::name())->format('d/m/Y');
+    $hora = $appointment->start_time?->timezone(\App\Support\LabTimezone::name())->format('H:i');
 @endphp
 <h2 style="color: #5b4a82;">Cita confirmada</h2>
 <p>Hola {{ trim(($p->names ?? '') . ' ' . ($p->last_name_1 ?? '')) }},</p>
