@@ -6,6 +6,50 @@ let currentValidationData = [];
 let currentValidationChain = null;
 let currentValStudy = null;
 let colorInformeGlobalValidation = "#333333";
+let labInfoValidacion = { name: '', address: '', city: '' };
+
+function formatearNombrePacienteValidacion(patient) {
+    if (!patient) return 'Sin datos de paciente';
+    return `${patient.name || ''} ${patient.lastName || ''} ${patient.secondLastName || ''}`.trim() || 'Sin nombre';
+}
+
+function formatearFechaValidacion(dateStr) {
+    if (!dateStr) return '—';
+    const d = new Date(dateStr);
+    return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('es-CL');
+}
+
+function actualizarDocClinicaValidacion() {
+    const nombre = labInfoValidacion.name || localStorage.getItem('ris_lab_name') || 'HealthTiCloud RIS';
+    const dirParts = [labInfoValidacion.address, labInfoValidacion.city].filter(Boolean);
+    $("#docClinicaNombre").text(nombre);
+    $("#docClinicaDireccion").html(
+        dirParts.length
+            ? `<i class="bi bi-geo-alt-fill me-1"></i>${dirParts.join(', ')}`
+            : '<i class="bi bi-geo-alt-fill me-1"></i>Dirección del Centro'
+    );
+}
+
+function actualizarCabeceraInformeValidacion(chain, study) {
+    if (!chain) return;
+
+    actualizarDocClinicaValidacion();
+
+    const patient = chain.patient || {};
+    $("#docPaciente").text(formatearNombrePacienteValidacion(patient));
+    $("#docRut").text(patient.rut || '—');
+    $("#docEdad").text(patient.age ?? '—');
+    $("#docFecha").text(formatearFechaValidacion(chain.start_time));
+    $("#docDerivante").text(chain.referringDoctorName || 'No registrado');
+
+    const examLabel = study
+        ? (study.subExam ? `${study.exam} - ${study.subExam}` : (study.exam || '—'))
+        : '—';
+    $("#docExamen").text(examLabel);
+    $("#docIdCita").text(
+        chain.accessionNumber ? `Accession: ${chain.accessionNumber}` : `ID: ${chain.id}`
+    );
+}
 
 function initValidation() {
     cargarAjustesVisualesValidacion();
@@ -27,9 +71,18 @@ async function cargarAjustesVisualesValidacion() {
         });
         const data = await response.json();
 
-        if (response.ok && data.success && data.data && data.data.settings && data.data.settings.colorInforme) {
-            colorInformeGlobalValidation = data.data.settings.colorInforme;
-            $("#finalReportText").css("color", colorInformeGlobalValidation);
+        if (response.ok && data.success && data.data) {
+            const lab = data.data;
+            if (lab.settings && lab.settings.colorInforme) {
+                colorInformeGlobalValidation = lab.settings.colorInforme;
+                $("#finalReportText").css("color", colorInformeGlobalValidation);
+            }
+            labInfoValidacion = {
+                name: lab.name || localStorage.getItem('ris_lab_name') || '',
+                address: lab.address || '',
+                city: lab.city || '',
+            };
+            actualizarDocClinicaValidacion();
         }
     } catch (e) { console.error("Error cargando ajustes visuales:", e); }
 }
@@ -80,11 +133,16 @@ function renderValidationStudies() {
 
         const estudios = Array.isArray(cadena.studies) ? cadena.studies : [];
         const nombresExamenes = estudios.map(s => s.exam).filter(Boolean).join(" + ") || 'Sin examen';
+        const patient = cadena.patient || {};
+        const apellidos = `${patient.lastName || ''} ${patient.secondLastName || ''}`.trim();
+        const nombreLista = apellidos
+            ? `${apellidos}, ${patient.name || 'Sin nombre'}`
+            : (patient.name || 'Sin nombre');
 
         lista.append(`
             <button type="button" class="list-group-item list-group-item-action ${isActive} p-3 border-bottom" onclick="abrirValidacion('${cadena.id}')">
                 <div class="d-flex justify-content-between align-items-center mb-1">
-                    <strong class="text-truncate">${cadena.patient.lastName} ${cadena.patient.secondLastName || ''}, ${cadena.patient.name}</strong>
+                    <strong class="text-truncate">${nombreLista}</strong>
                 </div>
                 <div class="small ${mutedColor} mb-2">A.N.: ${cadena.accessionNumber}</div>
                 <div class="small fw-bold ${textColor} text-truncate"><i class="bi bi-file-medical me-1"></i>${nombresExamenes}</div>
@@ -116,9 +174,10 @@ function abrirValidacion(citaId) {
     $("#placeholderValidacion").addClass("d-none");
     $("#infoPacienteValidacion").removeClass("d-none");
 
-    $("#valPatientName").text(`${currentValidationChain.patient.name} ${currentValidationChain.patient.lastName} ${currentValidationChain.patient.secondLastName || ''}`);
-    $("#valPatientRut").text(currentValidationChain.patient.rut);
-    $("#valPatientAcc").text(currentValidationChain.accessionNumber);
+    const patient = currentValidationChain.patient || {};
+    $("#valPatientName").text(formatearNombrePacienteValidacion(patient));
+    $("#valPatientRut").text(patient.rut || '—');
+    $("#valPatientAcc").text(currentValidationChain.accessionNumber || '—');
 
     $("#docHeader, #firmaFalsa").removeClass("d-none");
 
@@ -147,10 +206,15 @@ function abrirValidacion(citaId) {
 }
 
 function cargarEstudioValidacion(studyId) {
+    if (!currentValidationChain) return;
+
     currentValStudy = currentValidationChain.studies.find(s => String(s.study_id) === String(studyId));
+    if (!currentValStudy) return;
 
     $(".study-tab-btn-val").removeClass("bg-primary text-white").addClass("btn-outline-primary");
     $(`#tab-val-${studyId}`).removeClass("btn-outline-primary").addClass("bg-primary text-white");
+
+    actualizarCabeceraInformeValidacion(currentValidationChain, currentValStudy);
 
     // Colocar texto y asegurar que esté deshabilitado por defecto
     $("#finalReportText").val(currentValStudy.reportText || "").prop("disabled", true);
