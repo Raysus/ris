@@ -1007,11 +1007,33 @@ async function cargarAgendaDesdeServidor() {
                     const colorEstado = getHexColorEstado(item.status);
 
                     return {
-                        ...item,
+                        id: item.id,
                         resourceId: String(item.machine),
+                        title: item.title,
+                        start: item.start,
+                        end: item.end,
                         color: colorEstado,
                         display: 'block',
-                        textColor: AGENDA_ESTADO_TEXTO
+                        textColor: AGENDA_ESTADO_TEXTO,
+                        extendedProps: {
+                            patient: item.patient,
+                            status: item.status,
+                            statusRaw: item.statusRaw,
+                            needsReview: item.needsReview,
+                            returnReason: item.returnReason,
+                            machine: item.machine,
+                            resourceIds: item.resourceIds,
+                            mTratante: item.mTratante,
+                            mDestinado: item.mDestinado,
+                            priority: item.priority,
+                            procedencia: item.procedencia,
+                            payMethod: item.payMethod,
+                            paymentStatus: item.paymentStatus,
+                            transactionCode: item.transactionCode,
+                            tipoBono: item.tipoBono,
+                            entidadPagadora: item.entidadPagadora,
+                            studies: item.studies,
+                        },
                     };
                 });
 
@@ -1165,6 +1187,13 @@ async function guardarNuevoMedico() {
 }
 
 async function guardarCita() {
+    if (window._risGuardandoCita) {
+        return;
+    }
+    window._risGuardandoCita = true;
+    const btnGuardar = $("#btnGuardarCita");
+
+    try {
     const idOriginal = $("#appointmentId").val();
     const rut = $("#pRut").val();
     const statusSeleccionado = $("#agendaStatus").val();
@@ -1313,7 +1342,6 @@ async function guardarCita() {
     const fileEncuesta = $('#fileEncuesta')[0].files[0];
     if (fileEncuesta) formData.append('survey_file', fileEncuesta);
 
-    const btnGuardar = $("#btnGuardarCita");
     btnGuardar.prop('disabled', true);
 
     const token = localStorage.getItem('ris_token');
@@ -1328,7 +1356,6 @@ async function guardarCita() {
         formData.append('_method', 'PUT');
     }
 
-    try {
         const response = await fetch(url, {
             method: method,
             headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
@@ -1381,6 +1408,7 @@ async function guardarCita() {
     } catch (error) {
         showToast(`Error al guardar: ${error.message}`, "danger");
     } finally {
+        window._risGuardandoCita = false;
         btnGuardar.prop('disabled', false);
     }
 }
