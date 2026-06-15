@@ -39,7 +39,16 @@ class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommi
             return;
         }
 
-        $appointment = Appointment::with(['patient.persona', 'studies', 'supplies', 'machine'])->find($this->appointmentId);
+        $appointment = Appointment::with([
+            'patient.persona',
+            'studies.exam',
+            'studies.machine',
+            'supplies',
+            'machine',
+            'referringDoctor',
+            'insurance',
+            'insurancePlan',
+        ])->find($this->appointmentId);
         if (!$appointment?->patient?->persona) {
             return;
         }
@@ -73,12 +82,35 @@ class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommi
             ['model' => 'App\Models\Paciente', 'action' => 'updated', 'data' => $paciente],
         ];
 
+        $seen = [];
+        $pushCatalog = function (string $model, array $data) use (&$chunks, &$seen): void {
+            $id = (string) ($data['id'] ?? '');
+            if ($id === '' || isset($seen[$model . ':' . $id])) {
+                return;
+            }
+            $seen[$model . ':' . $id] = true;
+            $chunks[] = ['model' => $model, 'action' => 'updated', 'data' => $data];
+        };
+
+        if ($appointment->insurance) {
+            $pushCatalog('Insurance', $appointment->insurance->toArray());
+        }
+        if ($appointment->insurancePlan) {
+            $pushCatalog('InsurancePlan', $appointment->insurancePlan->toArray());
+        }
+        if ($appointment->referringDoctor) {
+            $pushCatalog('ReferringDoctor', $appointment->referringDoctor->toArray());
+        }
         if ($appointment->machine) {
-            $chunks[] = [
-                'model' => 'Machine',
-                'action' => 'updated',
-                'data' => $appointment->machine->toArray(),
-            ];
+            $pushCatalog('Machine', $appointment->machine->toArray());
+        }
+        foreach ($appointment->studies as $study) {
+            if ($study->exam) {
+                $pushCatalog('Exam', $study->exam->toArray());
+            }
+            if ($study->machine) {
+                $pushCatalog('Machine', $study->machine->toArray());
+            }
         }
 
         $chunks[] = [
