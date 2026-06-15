@@ -8,6 +8,10 @@ let currentValStudy = null;
 let colorInformeGlobalValidation = "#333333";
 let labInfoValidacion = { name: '', address: '', city: '' };
 
+function $valRoot() {
+    return $("#appContent");
+}
+
 function formatearNombrePacienteValidacion(patient) {
     if (!patient) return 'Sin datos de paciente';
     return `${patient.name || ''} ${patient.lastName || ''} ${patient.secondLastName || ''}`.trim() || 'Sin nombre';
@@ -20,10 +24,12 @@ function formatearFechaValidacion(dateStr) {
 }
 
 function actualizarDocClinicaValidacion() {
-    const nombre = labInfoValidacion.name || localStorage.getItem('ris_lab_name') || 'HealthTiCloud RIS';
+    const nombre = labInfoValidacion.name
+        || localStorage.getItem('ris_lab_name')
+        || 'HealthTiCloud RIS';
     const dirParts = [labInfoValidacion.address, labInfoValidacion.city].filter(Boolean);
-    $("#docClinicaNombre").text(nombre);
-    $("#docClinicaDireccion").html(
+    $valRoot().find("#docClinicaNombre").text(nombre);
+    $valRoot().find("#docClinicaDireccion").html(
         dirParts.length
             ? `<i class="bi bi-geo-alt-fill me-1"></i>${dirParts.join(', ')}`
             : '<i class="bi bi-geo-alt-fill me-1"></i>Dirección del Centro'
@@ -36,27 +42,35 @@ function actualizarCabeceraInformeValidacion(chain, study) {
     actualizarDocClinicaValidacion();
 
     const patient = chain.patient || {};
-    $("#docPaciente").text(formatearNombrePacienteValidacion(patient));
-    $("#docRut").text(patient.rut || '—');
-    $("#docEdad").text(patient.age ?? '—');
-    $("#docFecha").text(formatearFechaValidacion(chain.start_time));
-    $("#docDerivante").text(chain.referringDoctorName || 'No registrado');
+    $valRoot().find("#docPaciente").text(formatearNombrePacienteValidacion(patient));
+    $valRoot().find("#docRut").text(patient.rut || '—');
+    $valRoot().find("#docEdad").text(patient.age ?? '—');
+    $valRoot().find("#docFecha").text(formatearFechaValidacion(chain.start_time));
+    $valRoot().find("#docDerivante").text(chain.referringDoctorName || 'No registrado');
 
     const examLabel = study
         ? (study.subExam ? `${study.exam} - ${study.subExam}` : (study.exam || '—'))
         : '—';
-    $("#docExamen").text(examLabel);
-    $("#docIdCita").text(
+    $valRoot().find("#docExamen").text(examLabel);
+    $valRoot().find("#docIdCita").text(
         chain.accessionNumber ? `Accession: ${chain.accessionNumber}` : `ID: ${chain.id}`
     );
+}
+
+function actualizarHeaderPacienteValidacion(chain) {
+    if (!chain) return;
+
+    const patient = chain.patient || {};
+    $valRoot().find("#valPatientName").text(formatearNombrePacienteValidacion(patient));
+    $valRoot().find("#valPatientRut").text(patient.rut || '—');
+    $valRoot().find("#valPatientAcc").text(chain.accessionNumber || '—');
 }
 
 function initValidation() {
     cargarAjustesVisualesValidacion();
     cargarListaValidacion();
     setInterval(() => {
-        if (currentValidationChain || currentValStudy || $("#finalReportText").is(":visible")) {
-            console.log("🔄 Refresco de validación omitido: Validando informe.");
+        if (currentValidationChain || currentValStudy) {
             return;
         }
         cargarListaValidacion();
@@ -75,7 +89,7 @@ async function cargarAjustesVisualesValidacion() {
             const lab = data.data;
             if (lab.settings && lab.settings.colorInforme) {
                 colorInformeGlobalValidation = lab.settings.colorInforme;
-                $("#finalReportText").css("color", colorInformeGlobalValidation);
+                $valRoot().find("#finalReportText").css("color", colorInformeGlobalValidation);
             }
             labInfoValidacion = {
                 name: lab.name || localStorage.getItem('ris_lab_name') || '',
@@ -155,6 +169,10 @@ function abrirValidacion(citaId) {
     currentValidationChain = currentValidationData.find(c => String(c.id) === String(citaId));
     if (!currentValidationChain) return;
 
+    const studies = Array.isArray(currentValidationChain.studies)
+        ? currentValidationChain.studies
+        : [];
+
     if (
         currentValidationChain.accessionNumber &&
         typeof prefetchPacsStudy === "function"
@@ -171,57 +189,68 @@ function abrirValidacion(citaId) {
 
     renderValidationStudies();
 
-    $("#placeholderValidacion").addClass("d-none");
-    $("#infoPacienteValidacion").removeClass("d-none");
+    $valRoot().find("#placeholderValidacion").addClass("d-none");
+    $valRoot().find("#infoPacienteValidacion").removeClass("d-none");
 
-    const patient = currentValidationChain.patient || {};
-    $("#valPatientName").text(formatearNombrePacienteValidacion(patient));
-    $("#valPatientRut").text(patient.rut || '—');
-    $("#valPatientAcc").text(currentValidationChain.accessionNumber || '—');
+    if (!labInfoValidacion.name) {
+        cargarAjustesVisualesValidacion().finally(() => {
+            if (currentValidationChain?.id === citaId) {
+                actualizarHeaderPacienteValidacion(currentValidationChain);
+                actualizarCabeceraInformeValidacion(currentValidationChain, currentValStudy || studies[0] || null);
+            }
+        });
+    }
 
-    $("#docHeader, #firmaFalsa").removeClass("d-none");
+    actualizarHeaderPacienteValidacion(currentValidationChain);
+
+    $valRoot().find("#docHeader, #firmaFalsa").removeClass("d-none");
 
     if (currentValidationChain.firmaUrl) {
-        $("#firmaNombre").html(`<img src="${currentValidationChain.firmaUrl}" style="max-height: 60px; max-width: 150px; margin-bottom: 5px;"><br>Dr(a). ${currentValidationChain.destinationDoctorName}`);
+        $valRoot().find("#firmaNombre").html(`<img src="${currentValidationChain.firmaUrl}" style="max-height: 60px; max-width: 150px; margin-bottom: 5px;"><br>Dr(a). ${currentValidationChain.destinationDoctorName}`);
     } else {
-        $("#firmaNombre").text(`Dr(a). ${currentValidationChain.destinationDoctorName || 'Radiólogo'}`);
+        $valRoot().find("#firmaNombre").text(`Dr(a). ${currentValidationChain.destinationDoctorName || 'Radiólogo'}`);
     }
 
     let tabsHtml = '<div class="d-flex gap-2 flex-wrap mb-3">';
-    currentValidationChain.studies.forEach((study, index) => {
+    studies.forEach((study, index) => {
         const btnClass = index === 0 ? 'bg-primary text-white' : 'btn-outline-primary';
         tabsHtml += `<button id="tab-val-${study.study_id}" class="study-tab-btn-val btn btn-sm ${btnClass} fw-bold shadow-sm" onclick="cargarEstudioValidacion('${study.study_id}')">
             <i class="bi bi-file-medical me-1"></i>${study.exam}</button>`;
     });
     tabsHtml += '</div>';
-    $("#examenesValidacion").html(tabsHtml);
+    $valRoot().find("#examenesValidacion").html(tabsHtml);
 
-    if (currentValidationChain.studies.length > 0) {
-        cargarEstudioValidacion(currentValidationChain.studies[0].study_id);
+    if (studies.length > 0) {
+        cargarEstudioValidacion(studies[0].study_id);
+    } else {
+        actualizarCabeceraInformeValidacion(currentValidationChain, null);
     }
 
     // === ACTIVAR BOTONES DE HERRAMIENTAS ENTERPRISE ===
-    $("#toolbarValidacion").attr("style", "display: flex !important;");
-    $("#btnRechazar, #btnAprobar, #btnPreview, #btnVisorPacsValidacion, #btnVisorOhifValidacion, #btnEditarValidacion").prop("disabled", false);
+    $valRoot().find("#toolbarValidacion").attr("style", "display: flex !important;");
+    $valRoot().find("#btnRechazar, #btnAprobar, #btnPreview, #btnVisorPacsValidacion, #btnVisorOhifValidacion, #btnEditarValidacion").prop("disabled", false);
 }
 
 function cargarEstudioValidacion(studyId) {
     if (!currentValidationChain) return;
 
-    currentValStudy = currentValidationChain.studies.find(s => String(s.study_id) === String(studyId));
+    const studies = Array.isArray(currentValidationChain.studies)
+        ? currentValidationChain.studies
+        : [];
+    currentValStudy = studies.find(s => String(s.study_id) === String(studyId));
     if (!currentValStudy) return;
 
-    $(".study-tab-btn-val").removeClass("bg-primary text-white").addClass("btn-outline-primary");
-    $(`#tab-val-${studyId}`).removeClass("btn-outline-primary").addClass("bg-primary text-white");
+    $valRoot().find(".study-tab-btn-val").removeClass("bg-primary text-white").addClass("btn-outline-primary");
+    $valRoot().find(`#tab-val-${studyId}`).removeClass("btn-outline-primary").addClass("bg-primary text-white");
 
     actualizarCabeceraInformeValidacion(currentValidationChain, currentValStudy);
 
     // Colocar texto y asegurar que esté deshabilitado por defecto
-    $("#finalReportText").val(currentValStudy.reportText || "").prop("disabled", true);
+    $valRoot().find("#finalReportText").val(currentValStudy.reportText || "").prop("disabled", true);
 
     // Resetear estilos de edición si quedaron activos de otro examen
-    $("#finalReportText").removeClass("border border-warning border-2 bg-warning-subtle shadow-sm");
-    $("#btnEditarValidacion").html('<i class="bi bi-pencil-square me-1"></i> CORREGIR TYPO').removeClass("btn-warning").addClass("btn-outline-warning");
+    $valRoot().find("#finalReportText").removeClass("border border-warning border-2 bg-warning-subtle shadow-sm");
+    $valRoot().find("#btnEditarValidacion").html('<i class="bi bi-pencil-square me-1"></i> CORREGIR TYPO').removeClass("btn-warning").addClass("btn-outline-warning");
 }
 
 async function firmarInforme() {
@@ -310,19 +339,19 @@ function limpiarPantallaValidacion() {
     currentValidationChain = null;
     currentValStudy = null;
 
-    $("#placeholderValidacion").removeClass("d-none");
-    $("#infoPacienteValidacion").addClass("d-none");
-    $("#docHeader, #firmaFalsa").addClass("d-none");
-    $("#examenesValidacion").empty();
-    $("#finalReportText").val("").prop("disabled", true);
+    $valRoot().find("#placeholderValidacion").removeClass("d-none");
+    $valRoot().find("#infoPacienteValidacion").addClass("d-none");
+    $valRoot().find("#docHeader, #firmaFalsa").addClass("d-none");
+    $valRoot().find("#examenesValidacion").empty();
+    $valRoot().find("#finalReportText").val("").prop("disabled", true);
 
     // Desactivar herramientas Enterprise
-    $("#toolbarValidacion").attr("style", "display: none !important;");
-    $("#btnRechazar, #btnAprobar, #btnPreview, #btnVisorPacsValidacion, #btnVisorOhifValidacion, #btnEditarValidacion").prop("disabled", true);
+    $valRoot().find("#toolbarValidacion").attr("style", "display: none !important;");
+    $valRoot().find("#btnRechazar, #btnAprobar, #btnPreview, #btnVisorPacsValidacion, #btnVisorOhifValidacion, #btnEditarValidacion").prop("disabled", true);
 
     // Limpiar estilos si quedó editando
-    $("#finalReportText").removeClass("border border-warning border-2 bg-warning-subtle shadow-sm");
-    $("#btnEditarValidacion").html('<i class="bi bi-pencil-square me-1"></i> CORREGIR TYPO').removeClass("btn-warning").addClass("btn-outline-warning");
+    $valRoot().find("#finalReportText").removeClass("border border-warning border-2 bg-warning-subtle shadow-sm");
+    $valRoot().find("#btnEditarValidacion").html('<i class="bi bi-pencil-square me-1"></i> CORREGIR TYPO').removeClass("btn-warning").addClass("btn-outline-warning");
 
     renderValidationStudies();
 }
