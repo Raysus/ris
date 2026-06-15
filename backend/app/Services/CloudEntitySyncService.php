@@ -122,13 +122,14 @@ class CloudEntitySyncService
     private function upsertCatalogEntity(string $class, string $incomingId, array $attrs): void
     {
         $attrs = $this->prepareCatalogAttributes($class, $attrs);
-        $record = CloudSyncMode::acceptsInbound()
-            ? $this->findCatalogRecordById($class, $incomingId)
-            : $this->findCatalogRecord($class, $attrs, $incomingId);
+        $record = $this->resolveInboundCatalogRecord($class, $incomingId, $attrs);
 
         if ($record) {
             if ($this->usesSoftDeletes($class) && $record->trashed()) {
                 $record->restore();
+            }
+            if ($this->catalogEntityIsUnchanged($record, $attrs, $class)) {
+                return;
             }
             $record->fill($attrs);
             $record->save();
@@ -144,11 +145,67 @@ class CloudEntitySyncService
             return;
         }
 
-        /** @var Model $record */
-        $record = new $class();
-        $record->setAttribute($record->getKeyName(), $incomingId);
+        $this->saveWithIncomingId($class, $incomingId, $attrs);
+    }
+
+    /**
+     * Push inbound (nube): prioriza UUID del laboratorio; ReferringDoctor también deduplica por RUT.
+     */
+    private function resolveInboundCatalogRecord(string $class, string $incomingId, array $attrs): ?Model
+    {
+        if (CloudSyncMode::acceptsInbound()) {
+            $record = $this->findCatalogRecordById($class, $incomingId);
+            if ($record || $class !== ReferringDoctor::class) {
+                return $record;
+            }
+
+            return $this->findCatalogByBusinessKey($class, $attrs);
+        }
+
+        return $this->findCatalogRecord($class, $attrs, $incomingId);
+    }
+
+    private function catalogEntityIsUnchanged(Model $record, array $attrs, string $class): bool
+    {
+        foreach ($attrs as $key => $value) {
+            if (in_array($key, ['created_at', 'updated_at', 'deleted_at'], true)) {
+                continue;
+            }
+            if ($this->catalogValuesDiffer($record->getAttribute($key), $value, $key, $class)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Crea o actualiza respetando el UUID entrante (HasUuids no debe regenerarlo).
+     *
+     * @param  class-string<Model>  $class
+     */
+    private function saveWithIncomingId(string $class, string $incomingId, array $attrs): Model
+    {
+        $attrs = $this->prepareCatalogAttributes($class, $attrs);
+        $query = $this->usesSoftDeletes($class)
+            ? $class::withTrashed()
+            : $class::query();
+
+        /** @var Model|null $record */
+        $record = (clone $query)->find($incomingId);
+        if ($record) {
+            if ($this->usesSoftDeletes($class) && $record->trashed()) {
+                $record->restore();
+            }
+        } else {
+            $record = new $class();
+            $record->setAttribute($record->getKeyName(), $incomingId);
+        }
+
         $record->fill($attrs);
         $record->save();
+
+        return $record;
     }
 
     private function findCatalogRecordById(string $class, string $incomingId): ?Model
@@ -390,32 +447,67 @@ class CloudEntitySyncService
         unset($data['studies'], $data['patient'], $data['machine'], $data['laboratory'], $data['supplies']);
 
         $attrs = $this->filterAttributes(Appointment::class, $data);
-        $id = $attrs['id'] ?? $data['id'] ?? null;
-        if (!$id) {
+        $id = (string) ($attrs['id'] ?? $data['id'] ?? '');
+        if ($id === '') {
             return;
         }
         unset($attrs['id']);
 
-        $appointment = Appointment::find($id);
+        $appointment = Appointment::withTrashed()->find($id);
+        if (!$appointment && !empty($attrs['accession_number']) && !empty($attrs['laboratory_id'])) {
+            $appointment = Appointment::query()
+                ->where('laboratory_id', $attrs['laboratory_id'])
+                ->where('accession_number', $attrs['accession_number'])
+                ->first();
+        }
+
         if ($appointment) {
-            $appointment->fill($attrs);
-            $appointment->save();
+            if ($this->catalogEntityIsUnchanged($appointment, $attrs, Appointment::class)) {
+                // Continuar con estudios por si cambiaron aunque la cita no.
+            } else {
+                $appointment->fill($attrs);
+                $appointment->save();
+            }
         } else {
-            $appointment = Appointment::create(array_merge(['id' => $id], $attrs));
+            $appointment = $this->saveWithIncomingId(Appointment::class, $id, $attrs);
+        }
+
+        if (!empty($attrs['accession_number']) && !empty($attrs['laboratory_id'])) {
+            Appointment::query()
+                ->where('laboratory_id', $attrs['laboratory_id'])
+                ->where('accession_number', $attrs['accession_number'])
+                ->where('id', '!=', $appointment->id)
+                ->delete();
         }
 
         if (is_array($studies)) {
+            $syncedStudyIds = [];
             foreach ($studies as $row) {
                 if (empty($row['id'])) {
                     continue;
                 }
                 $studyAttrs = $this->filterAttributes(AppointmentStudy::class, $row);
-                $studyId = $studyAttrs['id'] ?? $row['id'];
+                $studyId = (string) ($studyAttrs['id'] ?? $row['id']);
                 unset($studyAttrs['id']);
-                AppointmentStudy::updateOrCreate(
-                    ['id' => $studyId],
-                    array_merge($studyAttrs, ['appointment_id' => $appointment->id])
-                );
+                $studyAttrs['appointment_id'] = $appointment->id;
+
+                $existingStudy = AppointmentStudy::find($studyId);
+                if ($existingStudy) {
+                    if (!$this->catalogEntityIsUnchanged($existingStudy, $studyAttrs, AppointmentStudy::class)) {
+                        $existingStudy->fill($studyAttrs);
+                        $existingStudy->save();
+                    }
+                } else {
+                    $this->saveWithIncomingId(AppointmentStudy::class, $studyId, $studyAttrs);
+                }
+                $syncedStudyIds[] = $studyId;
+            }
+
+            if ($syncedStudyIds !== []) {
+                AppointmentStudy::query()
+                    ->where('appointment_id', $appointment->id)
+                    ->whereNotIn('id', $syncedStudyIds)
+                    ->delete();
             }
         }
     }
