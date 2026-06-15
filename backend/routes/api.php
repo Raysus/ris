@@ -28,6 +28,7 @@ use App\Http\Controllers\HealthController;
 use App\Http\Controllers\ViewerConfigController;
 use App\Http\Controllers\CloudSyncController;
 use App\Http\Controllers\CloudSyncInboundController;
+use App\Http\Controllers\LocalMwlRelayController;
 use App\Http\Controllers\Hl7Controller;
 use App\Http\Controllers\FonasaController;
 use App\Http\Controllers\BillingController;
@@ -41,6 +42,7 @@ Route::post('/hl7/inbound', [Hl7Controller::class, 'inbound']);
 Route::middleware('cloud.sync')->group(function () {
     Route::post('/integrations/cloud-sync/inbound', [CloudSyncInboundController::class, 'receive']);
     Route::get('/integrations/cloud-sync/export', [CloudSyncInboundController::class, 'export']);
+    Route::post('/integrations/local-mwl/relay', [LocalMwlRelayController::class, 'receive']);
 });
 
 Route::get('/fhir/metadata', [FhirController::class, 'metadata']);
