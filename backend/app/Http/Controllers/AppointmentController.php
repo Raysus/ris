@@ -9,6 +9,7 @@ use App\Models\Paciente;
 use App\Models\Persona;
 use App\Models\Supply;
 use App\Services\KeycloakService;
+use App\Support\AppointmentApiSerializer;
 use App\Support\LabTimezone;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -68,7 +69,7 @@ class AppointmentController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $appointments
+            'data' => AppointmentApiSerializer::collection($appointments),
         ]);
     }
 
@@ -91,7 +92,7 @@ class AppointmentController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $appointment,
+            'data' => AppointmentApiSerializer::toArray($appointment),
         ]);
     }
 
@@ -212,7 +213,7 @@ class AppointmentController extends Controller
 
                 return response()->json([
                     'success' => true,
-                    'appointment' => $appointment,
+                    'appointment' => AppointmentApiSerializer::toArray($appointment),
                     'instructions_email' => $mailResult,
                     'confirmation_email' => $confirmationResult,
                 ], 201);

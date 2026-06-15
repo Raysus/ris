@@ -43,6 +43,23 @@ class LabTimezone
     }
 
     /**
+     * Hora de agenda para respuestas JSON (sin offset).
+     * El frontend y FullCalendar interpretan estos valores como hora local del centro.
+     */
+    public static function formatScheduleForApi(Carbon|string|null $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $instant = $value instanceof Carbon
+            ? $value->copy()
+            : Carbon::parse($value);
+
+        return $instant->timezone(self::name())->format('Y-m-d\TH:i:s');
+    }
+
+    /**
      * @return array{date: string, time: string}
      */
     public static function worklistDateTime(Carbon|string $startTime): array

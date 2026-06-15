@@ -36,4 +36,13 @@ class LabTimezoneTest extends TestCase
 
         $this->assertSame('170000', LabTimezone::worklistDateTime($stored)['time']);
     }
+
+    public function test_format_schedule_for_api_returns_lab_local_without_offset(): void
+    {
+        config(['app.lab_timezone' => 'America/Santiago']);
+
+        $stored = Carbon::parse('2026-06-15 14:45:00', 'UTC');
+
+        $this->assertSame('2026-06-15T10:45:00', LabTimezone::formatScheduleForApi($stored));
+    }
 }
