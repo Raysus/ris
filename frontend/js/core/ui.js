@@ -90,7 +90,8 @@ function showConfirm(message, options = {}) {
         confirmText = "Confirmar",
         cancelText = "Cancelar",
         variant = "primary",
-        dangerous = false
+        dangerous = false,
+        nested = false,
     } = options;
 
     return new Promise((resolve) => {
@@ -108,7 +109,16 @@ function showConfirm(message, options = {}) {
         $("#risConfirmCancelBtn").text(cancelText);
 
         risBoostModalStack(modalEl);
-        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+        const parentModalOpen = nested || !!document.querySelector('.modal.show:not(.ris-system-modal)');
+        const previousInstance = bootstrap.Modal.getInstance(modalEl);
+        if (previousInstance) {
+            previousInstance.dispose();
+        }
+        const modal = new bootstrap.Modal(modalEl, {
+            backdrop: parentModalOpen ? false : true,
+            focus: true,
+        });
 
         const cleanup = () => {
             $btn.off("click.risConfirm");
