@@ -144,7 +144,11 @@ class CloudEntitySyncService
             return;
         }
 
-        $class::create(array_merge(['id' => $incomingId], $attrs));
+        /** @var Model $record */
+        $record = new $class();
+        $record->setAttribute($record->getKeyName(), $incomingId);
+        $record->fill($attrs);
+        $record->save();
     }
 
     private function findCatalogRecordById(string $class, string $incomingId): ?Model
