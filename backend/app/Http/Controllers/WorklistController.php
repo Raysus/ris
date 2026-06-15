@@ -69,7 +69,7 @@ class WorklistController extends Controller
                     'machine_ae_title' => $study->machine?->ae_title ?? $appointment->machine?->ae_title,
                     'appointment' => [
                         'id' => $appointment->id,
-                        'start_time' => $appointment->start_time?->format('Y-m-d\TH:i:s'),
+                        'start_time' => LabTimezone::formatScheduleForApi($appointment->start_time),
                         'status' => strtolower($appointment->status),
                         'priority' => $appointment->priority,
                         'accession_number' => $appointment->accession_number,
