@@ -61,6 +61,8 @@ return [
         'port' => (int) env('MWL_PORT', 4242),
         'aet' => env('MWL_AET', 'SIRESA_MWL'),
         'files_path' => env('MWL_FILES_PATH', storage_path('app/mwl-worklists')),
+        /** orthanc local: files (.wl + ModalityWorklists) | rest (/worklists/create, plugin nuevo). */
+        'orthanc_mode' => env('MWL_ORTHANC_MODE', 'files'),
         /** Alias ORTHANC en .wl local: solo si el FCR consulta con estación legacy ORTHANC (desactivado por defecto). */
         'fuji_orthanc_alias' => filter_var(env('MWL_FUJI_ORTHANC_ALIAS', false), FILTER_VALIDATE_BOOL),
     ],

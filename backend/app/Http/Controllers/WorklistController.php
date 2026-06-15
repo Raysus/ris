@@ -103,7 +103,11 @@ class WorklistController extends Controller
             ->with(['patient.persona', 'machine', 'studies.machine', 'studies.exam', 'laboratory'])
             ->findOrFail($appointmentId);
 
-        $procedureSteps = $this->buildScheduledProcedureSteps($appointment);
+        $isResend = filled($appointment->accession_number);
+        $accessionNumber = $appointment->accession_number
+            ?: $this->generateAccessionNumber($appointment);
+
+        $procedureSteps = $this->buildScheduledProcedureSteps($appointment, $accessionNumber);
         if ($procedureSteps === []) {
             return response()->json([
                 'success' => false,
@@ -113,10 +117,6 @@ class WorklistController extends Controller
 
         $primaryMachine = $this->resolveStudyMachine($appointment->studies->first(), $appointment)
             ?? $appointment->machine;
-
-        $isResend = filled($appointment->accession_number);
-        $accessionNumber = $appointment->accession_number
-            ?: $this->generateAccessionNumber($appointment);
 
         try {
             $persona = $appointment->patient->persona;
@@ -131,23 +131,26 @@ class WorklistController extends Controller
                 $study?->exam_name ?? $study?->sub_exam_name
             );
             $tags['StudyInstanceUID'] = $this->resolveMwlStudyInstanceUid($appointment, $accessionNumber);
+            $appointment->study_instance_uid = $tags['StudyInstanceUID'];
 
-            $tags = app(WorklistTagNormalizer::class)->normalize($tags, $procedureSteps, $accessionNumber);
+            $tags = app(WorklistTagNormalizer::class)->normalize(
+                $tags,
+                $procedureSteps,
+                $accessionNumber,
+                OrthancUrl::worklistProvider(),
+                OrthancUrl::orthancUsesFiles(),
+            );
 
             $mwlProvider = OrthancUrl::worklistProvider();
-            $primaryStep = $procedureSteps[0];
-            $stationAe = (string) ($primaryStep['ScheduledStationAETitle'] ?? '');
-            if ($mwlProvider !== 'wlmscpfs') {
-                $tags = $this->shapeWorklistForFujiCfind($tags, $procedureSteps, $accessionNumber);
-            }
-            $orthancBase = $mwlProvider === 'wlmscpfs'
-                ? 'wlmscpfs://local'
+            $usesLocalFiles = $mwlProvider === 'wlmscpfs' || OrthancUrl::orthancUsesFiles();
+            $orthancBase = $usesLocalFiles
+                ? ($mwlProvider === 'wlmscpfs' ? 'wlmscpfs://local' : 'orthanc-files://local')
                 : OrthancUrl::worklistBase();
 
-            if ($mwlProvider === 'wlmscpfs') {
+            if ($usesLocalFiles) {
                 app(LocalMwlFileWriter::class)->write($tags, $accessionNumber);
                 if (!app(LocalMwlFileWriter::class)->verifyPresent($accessionNumber)) {
-                    throw new \Exception('No se pudo escribir la worklist local (.wl) para wlmscpfs.');
+                    throw new \Exception('No se pudo escribir la worklist local (.wl).');
                 }
             } else {
                 $orthancUrl = $orthancBase . '/worklists/create';
@@ -517,7 +520,7 @@ class WorklistController extends Controller
      *
      * @return list<array<string, string>>
      */
-    private function buildScheduledProcedureSteps(Appointment $appointment): array
+    private function buildScheduledProcedureSteps(Appointment $appointment, string $accessionNumber): array
     {
         $dicomImport = app(DicomImportService::class);
         $start = $appointment->start_time->copy()->timezone(LabTimezone::name());
@@ -538,7 +541,7 @@ class WorklistController extends Controller
                 'ScheduledStationName' => $this->truncateDicomShortString($stationAe, 16),
                 'ScheduledProcedureStepStartDate' => $startDate,
                 'ScheduledProcedureStepStartTime' => $startTime,
-                'ScheduledProcedureStepID' => $this->fujiScheduledProcedureStepId($appointment, (string) $appointment->id),
+                'ScheduledProcedureStepID' => WorklistTagNormalizer::compactStepId($accessionNumber, (string) $appointment->id),
                 'ScheduledProcedureStepStatus' => 'SCHEDULED',
                 'Modality' => $modality,
             ]];
@@ -559,7 +562,7 @@ class WorklistController extends Controller
                 'ScheduledStationName' => $this->truncateDicomShortString($stationAe, 16),
                 'ScheduledProcedureStepStartDate' => $startDate,
                 'ScheduledProcedureStepStartTime' => $startTime,
-                'ScheduledProcedureStepID' => $this->fujiScheduledProcedureStepId($appointment, (string) $study->id),
+                'ScheduledProcedureStepID' => WorklistTagNormalizer::compactStepId($accessionNumber, (string) $study->id),
                 'ScheduledProcedureStepStatus' => 'SCHEDULED',
                 'Modality' => $modality,
             ];
@@ -622,83 +625,22 @@ class WorklistController extends Controller
     }
 
     /**
-     * Fuji FCR error 21054: la worklist MWM debe incluir StudyInstanceUID (0020,000D).
+     * StudyInstanceUID estable para MWL (consolas legacy exigen UID válido con último componente impar).
      */
     private function resolveMwlStudyInstanceUid(Appointment $appointment, string $accessionNumber): string
     {
         $existing = trim((string) ($appointment->study_instance_uid ?? ''));
-        if ($existing !== '') {
+        if ($existing !== '' && preg_match('/^1\.2\./', $existing) === 1) {
             return $existing;
         }
 
         $seed = strtoupper(preg_replace('/[^A-Z0-9]/', '', $accessionNumber) ?: (string) $appointment->id);
-        $a = sprintf('%u', crc32($seed));
-        $b = sprintf('%u', crc32($seed . 'MWL'));
-
-        return "1.2.840.{$a}.{$b}";
-    }
-
-    /**
-     * Tags extra para Orthanc/PACS nube (Broad Query Fuji FCR).
-     * No aplicar con wlmscpfs: modalidad/estación/fecha deben ir solo en el paso programado.
-     *
-     * @param  list<array<string, string>>  $procedureSteps
-     * @return array<string, mixed>
-     */
-    private function shapeWorklistForFujiCfind(array $tags, array $procedureSteps, string $accessionNumber): array
-    {
-        if ($procedureSteps === []) {
-            return $tags;
+        $suffix = (int) sprintf('%u', crc32($seed . 'MWL'));
+        if ($suffix % 2 === 0) {
+            $suffix++;
         }
 
-        $primary = $procedureSteps[0];
-        $stationAe = (string) ($primary['ScheduledStationAETitle'] ?? '');
-        $modality = (string) ($primary['Modality'] ?? 'OT');
-        $stepDate = (string) ($primary['ScheduledProcedureStepStartDate'] ?? '');
-        $stepTime = (string) ($primary['ScheduledProcedureStepStartTime'] ?? '');
-
-        unset($tags['StudyInstanceUID']);
-
-        $tags['Modality'] = $modality;
-        if ($stationAe !== '') {
-            $tags['ScheduledStationAETitle'] = $stationAe;
-        }
-        if ($stepDate !== '') {
-            $tags['StudyDate'] = $stepDate;
-            $tags['ScheduledProcedureStepStartDate'] = $stepDate;
-        }
-        if ($stepTime !== '') {
-            $tags['StudyTime'] = $stepTime;
-            $tags['ScheduledProcedureStepStartTime'] = $stepTime;
-        }
-
-        $tags['ScheduledProcedureStepSequence'] = array_map(
-            function (array $step) use ($accessionNumber, $modality): array {
-                $station = (string) ($step['ScheduledStationAETitle'] ?? '');
-                if ($station !== '') {
-                    $step['ScheduledStationName'] = $this->truncateDicomShortString($station, 16);
-                }
-
-                $step['ScheduledProcedureStepStatus'] = $step['ScheduledProcedureStepStatus'] ?? 'SCHEDULED';
-                $step['Modality'] = $step['Modality'] ?? $modality;
-
-                if ($this->isFujiFcrStation($station)) {
-                    $step['ScheduledProcedureStepID'] = $this->fujiScheduledProcedureStepIdFromAccession(
-                        $accessionNumber,
-                        (string) ($step['ScheduledProcedureStepID'] ?? '1')
-                    );
-                }
-
-                return $step;
-            },
-            $procedureSteps
-        );
-
-        if ($this->isFujiFcrStation($stationAe)) {
-            $tags['RequestedProcedureID'] = $this->truncateDicomShortString($accessionNumber, 16);
-        }
-
-        return $tags;
+        return "1.2.826.0.1.3680043.8.498.{$suffix}";
     }
 
     private function isFujiFcrStation(string $stationAe): bool
@@ -706,31 +648,19 @@ class WorklistController extends Controller
         return str_starts_with(strtoupper(trim($stationAe)), 'FCR_');
     }
 
-    private function fujiScheduledProcedureStepId(Appointment $appointment, string $fallbackId): string
-    {
-        $accession = (string) ($appointment->accession_number ?? '');
-
-        return $accession !== ''
-            ? $this->fujiScheduledProcedureStepIdFromAccession($accession, $fallbackId)
-            : $this->truncateDicomShortString($fallbackId, 16);
-    }
-
-    private function fujiScheduledProcedureStepIdFromAccession(string $accessionNumber, string $fallbackId): string
-    {
-        $compact = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $accessionNumber) ?? '');
-
-        if ($compact !== '') {
-            return $this->truncateDicomShortString($compact, 16);
-        }
-
-        return $this->truncateDicomShortString($fallbackId, 16);
-    }
-
     private function truncateDicomShortString(string $value, int $maxLength): string
     {
         $trimmed = trim($value);
 
         return $trimmed === '' ? '' : substr($trimmed, 0, $maxLength);
+    }
+
+    private function mwlAccessionMatches(string $storedAccession, string $fullAccession): bool
+    {
+        $stored = trim($storedAccession);
+        $full = trim($fullAccession);
+
+        return $stored !== '' && ($stored === $full || $stored === WorklistTagNormalizer::compactAccession($full));
     }
 
     private function purgeOrthancWorklistsForAccession(string $orthancBase, string $accessionNumber): void
@@ -743,7 +673,7 @@ class WorklistController extends Controller
 
             foreach ($response->json() as $item) {
                 $existingAccession = (string) ($item['Tags']['AccessionNumber'] ?? '');
-                if ($existingAccession !== $accessionNumber || empty($item['ID'])) {
+                if (!$this->mwlAccessionMatches($existingAccession, $accessionNumber) || empty($item['ID'])) {
                     continue;
                 }
 
@@ -793,7 +723,7 @@ class WorklistController extends Controller
                     continue;
                 }
 
-                $isCurrent = $existingAccession === $keepAccession && $existingDate === $stepDate;
+                $isCurrent = $this->mwlAccessionMatches($existingAccession, $keepAccession) && $existingDate === $stepDate;
                 if ($isCurrent) {
                     continue;
                 }
@@ -866,7 +796,7 @@ class WorklistController extends Controller
             }
 
             foreach ($response->json() ?? [] as $item) {
-                if ((string) ($item['Tags']['AccessionNumber'] ?? '') === $accessionNumber) {
+                if ($this->mwlAccessionMatches((string) ($item['Tags']['AccessionNumber'] ?? ''), $accessionNumber)) {
                     return true;
                 }
             }

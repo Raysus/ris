@@ -79,8 +79,8 @@ class OrthancUrl
     /** HTTP para crear/borrar worklists (local MWL o PACS nube si no hay MWL local). */
     public static function worklistBase(): string
     {
-        if (self::worklistProvider() === 'wlmscpfs') {
-            throw new \LogicException('MWL wlmscpfs no usa HTTP; escriba archivos .wl.');
+        if (self::worklistProvider() === 'wlmscpfs' || self::orthancUsesFiles()) {
+            throw new \LogicException('MWL local por archivos no usa HTTP; escriba archivos .wl.');
         }
 
         $mwlUrl = trim((string) config('services.mwl.url', ''));
@@ -91,13 +91,23 @@ class OrthancUrl
         return self::base();
     }
 
+    /** Orthanc local con plugin legacy ModalityWorklists (archivos .wl), no REST /worklists/create. */
+    public static function orthancUsesFiles(): bool
+    {
+        if (self::worklistProvider() !== 'orthanc') {
+            return false;
+        }
+
+        return strtolower(trim((string) config('services.mwl.orthanc_mode', 'files'))) === 'files';
+    }
+
     public static function resolveWorklistDicomAet(): string
     {
         if (!self::usesLocalWorklist()) {
             return self::resolveDicomAet();
         }
 
-        if (self::worklistProvider() === 'wlmscpfs') {
+        if (self::worklistProvider() === 'wlmscpfs' || self::orthancUsesFiles()) {
             $configured = trim((string) config('services.mwl.aet', ''));
 
             return $configured !== '' ? $configured : 'SIRESA_MWL';
@@ -129,12 +139,12 @@ class OrthancUrl
             return self::dicomTarget();
         }
 
-        if (self::worklistProvider() === 'wlmscpfs') {
+        if (self::worklistProvider() === 'wlmscpfs' || self::orthancUsesFiles()) {
             return [
                 'host' => trim((string) config('services.mwl.dicom_host', '')),
                 'port' => (int) config('services.mwl.port', 4242),
                 'aet' => self::resolveWorklistDicomAet(),
-                'http_host' => null,
+                'http_host' => trim((string) (parse_url((string) config('services.mwl.url', ''), PHP_URL_HOST) ?: '')) ?: null,
                 'local' => true,
             ];
         }
