@@ -33,6 +33,8 @@ class Appointment extends Model
         'entidad_pagadora',
         'accession_number',
         'study_instance_uid',
+        'needs_review',
+        'return_reason',
         'reminder_sent_at',
         'images_received_at',
     ];
