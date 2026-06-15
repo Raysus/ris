@@ -207,6 +207,11 @@
     echo "🐳 Lab {{ $lab }}: reconstruyendo y levantando contenedores..."
     cd {{ $backend_dir }}
 
+    if [ "{{ $lab }}" = "siresa_centro" ] && [ -f orthanc.mwl.siresa.json ]; then
+        echo "📡 MWL: aplicando orthanc.mwl.siresa.json (IPs solo SIRESA)..."
+        cp orthanc.mwl.siresa.json orthanc.mwl.json
+    fi
+
     {{ $compose }} up -d --build
 
     echo "🗃️  Aplicando migraciones..."
