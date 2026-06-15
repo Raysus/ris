@@ -6,6 +6,7 @@ use App\Models\Appointment;
 use App\Services\CloudSyncLogger;
 use App\Support\CloudSyncMode;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Contracts\Queue\ShouldQueueAfterCommit;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -16,7 +17,7 @@ use Illuminate\Support\Facades\Http;
 /**
  * Envía persona → paciente → cita a la nube en un solo job (orden garantizado).
  */
-class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommit
+class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommit, ShouldBeUnique
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -26,11 +27,18 @@ class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommi
 
     public ?string $syncLogId = null;
 
+    public int $uniqueFor = 120;
+
     public function __construct(string $appointmentId, string $action = 'created', ?string $syncLogId = null)
     {
         $this->appointmentId = $appointmentId;
         $this->action = $action;
         $this->syncLogId = $syncLogId;
+    }
+
+    public function uniqueId(): string
+    {
+        return 'appointment-bundle:' . $this->action . ':' . $this->appointmentId;
     }
 
     public function handle(): void
