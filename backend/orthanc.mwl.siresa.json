@@ -1,0 +1,36 @@
+{
+  "Name": "SIRESA-MWL",
+  "DicomAet": "SIRESA_MWL",
+  "DicomCheckCalledAet": false,
+  "DicomCheckCallingAet": false,
+  "DicomCheckModalityHost": false,
+  "DicomModalities": {
+    "fcr_pano": ["FCR_PANO", "192.168.0.128", 11112],
+    "fcr_mamo": ["FCR_MAMO", "192.168.0.103", 11112],
+    "fcr_pacs": ["PACS", "192.168.0.102", 11112],
+    "fcr_pacs_console": ["FCR_PACS", "192.168.0.102", 11112],
+    "hdi5000_108": ["HDI5000", "192.168.0.108", 11112],
+    "hdi5000_107": ["HDI5000", "192.168.0.107", 11112],
+    "findscu": ["FINDSCU", "127.0.0.1", 11112]
+  },
+  "DicomServerEnabled": true,
+  "DicomPort": 4242,
+  "HttpPort": 8042,
+  "RemoteAccessAllowed": true,
+  "AuthenticationEnabled": false,
+  "RegisteredUsers": {},
+  "StorageDirectory": "/var/lib/orthanc/db",
+  "IndexDirectory": "/var/lib/orthanc/db",
+  "Plugins": [
+    "/usr/local/share/orthanc/plugins/libModalityWorklists.so"
+  ],
+  "LuaScripts": [
+    "/etc/orthanc/fuji-mwl.lua"
+  ],
+  "Worklists": {
+    "Enable": true,
+    "FilterIssuerAet": false,
+    "LimitAnswers": 0,
+    "Database": "/var/lib/orthanc/worklists/SIRESA_MWL"
+  }
+}
