@@ -152,6 +152,9 @@ function getSpeechMikeActionFromCustomKeymap(event) {
     }
 
     if (map.pause && eventMatchesSpeechMikeCode(event, map.pause)) {
+        if (isAudioPreviewListeningMode() && !session) {
+            return "preview_toggle";
+        }
         if (!session) {
             return null;
         }
@@ -588,7 +591,9 @@ function cargarEstudioEnEditor(studyId) {
         .prop("disabled", false);
 
     audioBlob = null;
-    $("#audioPreview").addClass("d-none").attr("src", "");
+    $("#audioPreview").attr("src", "");
+    $("#audioPreviewWrap").addClass("d-none");
+    updateAudioPreviewControlsUi();
     $("#btnRecord").removeClass("d-none").prop("disabled", false).html('<i class="bi bi-mic me-1"></i> GRABAR AUDIO');
     $("#btnStop").addClass("d-none");
     $("#recordingPulse").addClass("d-none");
@@ -766,7 +771,138 @@ function canHandleSpeechMikeHotkey() {
     if (isRecordingSessionActive()) {
         return true;
     }
+    if (isAudioPreviewListeningMode()) {
+        return true;
+    }
     return canControlAudioRecording();
+}
+
+const AUDIO_PREVIEW_SEEK_STEP = 5;
+const AUDIO_PREVIEW_SEEK_STEP_LONG = 15;
+
+function getAudioPreviewElement() {
+    return document.getElementById("audioPreview");
+}
+
+function hasAudioPreviewSource() {
+    const el = getAudioPreviewElement();
+    return !!(audioBlob || (el && el.src && el.src !== "" && el.src !== window.location.href));
+}
+
+function isAudioPreviewListeningMode() {
+    if (isRecordingSessionActive()) {
+        return false;
+    }
+    if (!hasAudioPreviewSource()) {
+        return false;
+    }
+    if ($("#audioPreviewWrap").length) {
+        return !$("#audioPreviewWrap").hasClass("d-none");
+    }
+    return !$("#audioPreview").hasClass("d-none");
+}
+
+function syncAudioPlayPauseIcon() {
+    const el = getAudioPreviewElement();
+    const playing = !!(el && !el.paused && !el.ended);
+    $("#iconAudioPlayPause")
+        .removeClass("bi-play-fill bi-pause-fill")
+        .addClass(playing ? "bi-pause-fill" : "bi-play-fill");
+    $("#btnAudioPlayPause").attr("title", playing ? "Pausar" : "Reproducir");
+}
+
+function updateAudioPreviewControlsUi() {
+    const show = hasAudioPreviewSource() && !isRecordingSessionActive();
+    if ($("#audioPreviewWrap").length) {
+        $("#audioPreviewWrap").toggleClass("d-none", !show);
+    } else {
+        $("#audioPreview").toggleClass("d-none", !show);
+    }
+    $("#btnAudioRewind, #btnAudioForward, #btnAudioPlayPause").prop("disabled", !show);
+    if (show) {
+        syncAudioPlayPauseIcon();
+    }
+}
+
+function clampAudioPreviewTime(el, seconds) {
+    const max = Number.isFinite(el.duration) ? el.duration : 0;
+    if (max > 0) {
+        return Math.max(0, Math.min(seconds, max));
+    }
+    return Math.max(0, seconds);
+}
+
+function seekAudioPreview(deltaSeconds) {
+    const el = getAudioPreviewElement();
+    if (!el || !hasAudioPreviewSource()) {
+        return false;
+    }
+
+    const applySeek = () => {
+        el.currentTime = clampAudioPreviewTime(el, (el.currentTime || 0) + deltaSeconds);
+    };
+
+    if (!Number.isFinite(el.duration) && el.readyState < 1) {
+        el.addEventListener("loadedmetadata", applySeek, { once: true });
+        return true;
+    }
+
+    applySeek();
+    return true;
+}
+
+function toggleAudioPreviewPlayback() {
+    const el = getAudioPreviewElement();
+    if (!el || !hasAudioPreviewSource()) {
+        return false;
+    }
+
+    if (el.paused || el.ended) {
+        el.play().catch(() => {});
+    } else {
+        el.pause();
+    }
+    syncAudioPlayPauseIcon();
+    return true;
+}
+
+function pauseAudioPreview() {
+    const el = getAudioPreviewElement();
+    if (!el) {
+        return false;
+    }
+    el.pause();
+    syncAudioPlayPauseIcon();
+    return true;
+}
+
+function executeSpeechMikeAudioAction(action) {
+    switch (action) {
+        case "seek_back":
+            return seekAudioPreview(-AUDIO_PREVIEW_SEEK_STEP);
+        case "seek_back_long":
+            return seekAudioPreview(-AUDIO_PREVIEW_SEEK_STEP_LONG);
+        case "seek_forward":
+            return seekAudioPreview(AUDIO_PREVIEW_SEEK_STEP);
+        case "seek_forward_long":
+            return seekAudioPreview(AUDIO_PREVIEW_SEEK_STEP_LONG);
+        case "toggle_play":
+            return toggleAudioPreviewPlayback();
+        case "pause":
+            return pauseAudioPreview();
+        case "restart": {
+            const el = getAudioPreviewElement();
+            if (!el) {
+                return false;
+            }
+            el.currentTime = 0;
+            el.pause();
+            syncAudioPlayPauseIcon();
+            return true;
+        }
+        default:
+            return false;
+    }
 }
 
 function updateRecordingUi(mode) {
@@ -777,6 +913,7 @@ function updateRecordingUi(mode) {
         $("#btnRecord").addClass("d-none");
         $("#btnStop").removeClass("d-none");
         $("#recordingPulse").removeClass("d-none");
+        $("#audioPreviewWrap").addClass("d-none");
         $("#audioPreview").addClass("d-none");
 
         if (paused) {
@@ -796,9 +933,7 @@ function updateRecordingUi(mode) {
         $("#btnStop").addClass("d-none");
         $("#btnRecord").removeClass("d-none");
         $("#recordingPulse").addClass("d-none");
-        if (audioBlob) {
-            $("#audioPreview").removeClass("d-none");
-        }
+        updateAudioPreviewControlsUi();
     }
 }
 
@@ -862,10 +997,10 @@ async function startAudioRecording() {
             clearInterval(recordingInterval);
             audioBlob = new Blob(audioChunks, { type: "audio/webm" });
             $("#audioPreview")
-                .removeClass("d-none")
                 .attr("src", URL.createObjectURL(audioBlob));
             releaseRecordingStream();
             updateRecordingUi(false);
+            updateAudioPreviewControlsUi();
             $("#btnRecord").html('<i class="bi bi-mic me-1"></i> REGRABAR (Sobrescribe)');
             if (typeof trySetSpeechMikeRecordingLed === "function") {
                 trySetSpeechMikeRecordingLed(false);
@@ -969,8 +1104,34 @@ function getSpeechMikeRecordingAction(event) {
     const code = event.code || "";
     const loc = event.location;
     const session = isRecordingSessionActive();
+    const preview = isAudioPreviewListeningMode();
 
     const matches = (codes, keys) => codes.has(code) || keys.has(key);
+
+    if (preview && !session) {
+        const rewindCodes = new Set([
+            "ArrowLeft", "MediaTrackPrevious", "MediaRewind", "Numpad4", "PageUp",
+        ]);
+        const forwardCodes = new Set([
+            "ArrowRight", "MediaTrackNext", "MediaFastForward", "Numpad6", "PageDown",
+        ]);
+        const playCodes = new Set(["MediaPlayPause", "Numpad5", "Play"]);
+        const rewindKeys = new Set(["ArrowLeft"]);
+        const forwardKeys = new Set(["ArrowRight"]);
+
+        if (matches(rewindCodes, rewindKeys)) {
+            return "seek_back";
+        }
+        if (matches(forwardCodes, forwardKeys)) {
+            return "seek_forward";
+        }
+        if (matches(playCodes, new Set([" "])) && code === "Space" && !event.ctrlKey && !event.altKey) {
+            return "preview_toggle";
+        }
+        if (code === "MediaPlayPause" || code === "Numpad5" || code === "Play") {
+            return "preview_toggle";
+        }
+    }
 
     const stopCodes = new Set([
         "F4", "F5", "F6", "F10", "Escape", "End", "Delete", "MediaStop",
@@ -1176,6 +1337,15 @@ function handleSpeechMikeRecordingShortcut(event) {
         case "resume":
             resumeAudioRecording();
             break;
+        case "seek_back":
+            executeSpeechMikeAudioAction("seek_back");
+            break;
+        case "seek_forward":
+            executeSpeechMikeAudioAction("seek_forward");
+            break;
+        case "preview_toggle":
+            executeSpeechMikeAudioAction("toggle_play");
+            break;
         default:
             break;
     }
@@ -1200,6 +1370,26 @@ function setupAudioEvents() {
     $("#btnStop").click(function () {
         stopAudioRecording();
     });
+
+    $("#btnAudioRewind").click(function () {
+        seekAudioPreview(-AUDIO_PREVIEW_SEEK_STEP);
+    });
+
+    $("#btnAudioForward").click(function () {
+        seekAudioPreview(AUDIO_PREVIEW_SEEK_STEP);
+    });
+
+    $("#btnAudioPlayPause").click(function () {
+        toggleAudioPreviewPlayback();
+    });
+
+    const previewEl = getAudioPreviewElement();
+    if (previewEl && !previewEl.dataset.risPreviewBound) {
+        previewEl.dataset.risPreviewBound = "1";
+        previewEl.addEventListener("play", syncAudioPlayPauseIcon);
+        previewEl.addEventListener("pause", syncAudioPlayPauseIcon);
+        previewEl.addEventListener("ended", syncAudioPlayPauseIcon);
+    }
 }
 
 function limpiarPantallaRadiologo() {
@@ -1219,7 +1409,9 @@ function limpiarPantallaRadiologo() {
     $("#textoInforme").val("").prop("disabled", true);
     $("#btnPlantilla, #btnDevolver, #btnGrabarAudio, #btnFirmarDirecto, #btnHistorialPaciente, #btnAdenda").prop("disabled", true);
     audioBlob = null;
-    $("#audioPreview").addClass("d-none").attr("src", "");
+    $("#audioPreview").attr("src", "");
+    $("#audioPreviewWrap").addClass("d-none");
+    updateAudioPreviewControlsUi();
     $("#btnRecord").removeClass("d-none").prop("disabled", true).html('<i class="bi bi-mic me-1"></i> GRABAR AUDIO');
     $("#btnStop").addClass("d-none");
     $("#recordingPulse").addClass("d-none");
@@ -1304,3 +1496,7 @@ function abrirVisorDicomSoloOhif() {
 
 window.toggleSpeechMikeDebug = toggleSpeechMikeDebug;
 window.activarDragon = activarDragon;
+window.isAudioPreviewListeningMode = isAudioPreviewListeningMode;
+window.executeSpeechMikeAudioAction = executeSpeechMikeAudioAction;
+window.seekAudioPreview = seekAudioPreview;
+window.toggleAudioPreviewPlayback = toggleAudioPreviewPlayback;
