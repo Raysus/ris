@@ -18,7 +18,12 @@ class AppointmentStudy extends Model
         'fonasa_code',
         'quantity',
         'price',
+        'price_charged',
         'status',
+        'anamnesis',
+        'report',
+        'dictation_method',
+        'audio_path',
     ];
     public function appointment()
     {

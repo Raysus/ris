@@ -420,6 +420,11 @@ async function devolverAudioAlMedico() {
             if (typeof showToast === 'function') showToast("Audio devuelto a la bandeja del Radiólogo.", "warning");
             limpiarPantallaTranscripcion();
             cargarListaTranscripcion();
+        } else {
+            let data = {};
+            try { data = await response.json(); } catch (e) { /* ignore */ }
+            const msg = data.message || data.error || `Error ${response.status} al devolver al radiólogo.`;
+            if (typeof showToast === 'function') showToast(msg, "danger");
         }
     } catch (e) {
         console.error(e);
