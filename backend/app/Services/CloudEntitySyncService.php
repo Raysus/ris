@@ -142,10 +142,39 @@ class CloudEntitySyncService
                 ]);
             }
 
+            if (CloudSyncMode::acceptsInbound() && $class === Machine::class) {
+                $this->dedupeInboundMachines((string) $record->id, $attrs);
+            }
+
             return;
         }
 
         $this->saveWithIncomingId($class, $incomingId, $attrs);
+
+        if (CloudSyncMode::acceptsInbound() && $class === Machine::class) {
+            $this->dedupeInboundMachines($incomingId, $attrs);
+        }
+    }
+
+    private function dedupeInboundMachines(string $keepId, array $attrs): void
+    {
+        $labId = $attrs['laboratory_id'] ?? null;
+        $aeTitle = $attrs['ae_title'] ?? null;
+        if (!$labId || !$aeTitle) {
+            return;
+        }
+
+        $usedIds = Appointment::query()
+            ->where('laboratory_id', $labId)
+            ->whereNotNull('machine_id')
+            ->pluck('machine_id');
+
+        Machine::query()
+            ->where('laboratory_id', $labId)
+            ->where('ae_title', $aeTitle)
+            ->where('id', '!=', $keepId)
+            ->when($usedIds->isNotEmpty(), fn ($q) => $q->whereNotIn('id', $usedIds))
+            ->delete();
     }
 
     /**
@@ -454,17 +483,27 @@ class CloudEntitySyncService
         unset($attrs['id']);
 
         $appointment = Appointment::withTrashed()->find($id);
+
         if (!$appointment && !empty($attrs['accession_number']) && !empty($attrs['laboratory_id'])) {
-            $appointment = Appointment::query()
+            $duplicate = Appointment::query()
                 ->where('laboratory_id', $attrs['laboratory_id'])
                 ->where('accession_number', $attrs['accession_number'])
+                ->where('id', '!=', $id)
                 ->first();
+
+            if ($duplicate) {
+                AppointmentStudy::query()->where('appointment_id', $duplicate->id)->delete();
+                $duplicate->delete();
+            }
         }
 
+        $appointment = Appointment::withTrashed()->find($id);
+
         if ($appointment) {
-            if ($this->catalogEntityIsUnchanged($appointment, $attrs, Appointment::class)) {
-                // Continuar con estudios por si cambiaron aunque la cita no.
-            } else {
+            if ($appointment->trashed()) {
+                $appointment->restore();
+            }
+            if (!$this->catalogEntityIsUnchanged($appointment, $attrs, Appointment::class)) {
                 $appointment->fill($attrs);
                 $appointment->save();
             }
