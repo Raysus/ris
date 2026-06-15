@@ -15,6 +15,7 @@ use App\Models\ReferringDoctor;
 use App\Models\ReportTemplate;
 use App\Models\Service;
 use App\Models\Supply;
+use App\Support\CloudSyncMode;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\QueryException;
@@ -121,7 +122,9 @@ class CloudEntitySyncService
     private function upsertCatalogEntity(string $class, string $incomingId, array $attrs): void
     {
         $attrs = $this->prepareCatalogAttributes($class, $attrs);
-        $record = $this->findCatalogRecord($class, $attrs, $incomingId);
+        $record = CloudSyncMode::acceptsInbound()
+            ? $this->findCatalogRecordById($class, $incomingId)
+            : $this->findCatalogRecord($class, $attrs, $incomingId);
 
         if ($record) {
             if ($this->usesSoftDeletes($class) && $record->trashed()) {
@@ -142,6 +145,15 @@ class CloudEntitySyncService
         }
 
         $class::create(array_merge(['id' => $incomingId], $attrs));
+    }
+
+    private function findCatalogRecordById(string $class, string $incomingId): ?Model
+    {
+        $query = $this->usesSoftDeletes($class)
+            ? $class::withTrashed()
+            : $class::query();
+
+        return (clone $query)->find($incomingId);
     }
 
     private function findCatalogRecord(string $class, array $attrs, string $incomingId): ?Model
