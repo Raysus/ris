@@ -84,6 +84,31 @@ function showAlert(message, title = "Aviso", type = "info") {
     return Promise.resolve(modal);
 }
 
+function risCleanupModalState() {
+    const openModals = document.querySelectorAll('.modal.show');
+    const backdrops = document.querySelectorAll('.modal-backdrop');
+
+    if (openModals.length === 0) {
+        backdrops.forEach((el) => el.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('overflow');
+        document.body.style.removeProperty('padding-right');
+    } else if (backdrops.length > openModals.length) {
+        for (let i = backdrops.length - 1; i >= openModals.length; i -= 1) {
+            backdrops[i]?.remove();
+        }
+    }
+
+    document.querySelectorAll('.modal-backdrop').forEach((el) => {
+        el.style.removeProperty('z-index');
+    });
+    document.querySelectorAll('.ris-system-modal').forEach((el) => {
+        if (!el.classList.contains('show')) {
+            el.style.removeProperty('z-index');
+        }
+    });
+}
+
 function showConfirm(message, options = {}) {
     const {
         title = "Confirmar acción",
@@ -120,27 +145,35 @@ function showConfirm(message, options = {}) {
             focus: true,
         });
 
+        let confirmed = false;
+        let settled = false;
+
         const cleanup = () => {
             $btn.off("click.risConfirm");
             $("#risConfirmCancelBtn").off("click.risConfirm");
             modalEl.removeEventListener("hidden.bs.modal", onHidden);
         };
 
-        const onHidden = () => {
+        const finish = (value) => {
+            if (settled) return;
+            settled = true;
             cleanup();
-            resolve(false);
+            risCleanupModalState();
+            resolve(value);
+        };
+
+        const onHidden = () => {
+            finish(confirmed);
         };
 
         $btn.off("click.risConfirm").on("click.risConfirm", () => {
-            cleanup();
+            confirmed = true;
             modal.hide();
-            resolve(true);
         });
 
         $("#risConfirmCancelBtn").off("click.risConfirm").on("click.risConfirm", () => {
-            cleanup();
+            confirmed = false;
             modal.hide();
-            resolve(false);
         });
 
         modalEl.addEventListener("hidden.bs.modal", onHidden, { once: true });
@@ -252,6 +285,11 @@ function openModal(id) {
     const el = document.getElementById(id);
     if (!el) return Promise.resolve();
     risEnsureModalInBody(el);
+
+    if (!document.querySelector('.modal.show') && document.querySelector('.modal-backdrop')) {
+        risCleanupModalState();
+    }
+
     const modal = bootstrap.Modal.getOrCreateInstance(el);
     modal.show();
     return Promise.resolve(modal);
@@ -260,8 +298,22 @@ function openModal(id) {
 function closeModal(id) {
     const el = document.getElementById(id);
     if (!el) return;
+
+    const finishClose = () => {
+        el.classList.remove('show');
+        el.setAttribute('aria-hidden', 'true');
+        el.style.removeProperty('display');
+        risCleanupModalState();
+    };
+
     const modal = bootstrap.Modal.getInstance(el);
-    if (modal) modal.hide();
+    if (!modal) {
+        finishClose();
+        return;
+    }
+
+    el.addEventListener('hidden.bs.modal', finishClose, { once: true });
+    modal.hide();
 }
 
 function notify(title, message, type = "info") {
@@ -409,6 +461,7 @@ window.validarFormulario = validarFormulario;
 window.limpiarFormulario = limpiarFormulario;
 window.risEnsureModalInBody = risEnsureModalInBody;
 window.risBoostModalStack = risBoostModalStack;
+window.risCleanupModalState = risCleanupModalState;
 window.initAgendaWizard = initAgendaWizard;
 window.goAgendaWizardStep = goAgendaWizardStep;
 window.nextAgendaWizardStep = nextAgendaWizardStep;
