@@ -194,7 +194,7 @@ class WorklistController extends Controller
             \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
 
             if (LaboratoryMwlRelay::shouldRelayFromCloud($appointment->laboratory)) {
-                RelayWorklistToLocalLab::dispatch($appointment->id);
+                RelayWorklistToLocalLab::dispatchSync($appointment->id);
             }
 
             $dicom = OrthancUrl::worklistDicomTarget();
