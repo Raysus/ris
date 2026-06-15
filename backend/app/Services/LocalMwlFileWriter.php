@@ -8,8 +8,7 @@ use Illuminate\Support\Facades\Log;
 /**
  * Escribe entradas MWL como archivos .wl para wlmscpfs (DCMTK, open source).
  *
- * Formato genérico: compatible con Fuji FCR, ecógrafos (Sonoscape/Mindray) y otras modalidades.
- * Modalidad, estación y fecha van solo dentro de ScheduledProcedureStepSequence (no en raíz).
+ * Formato MWL genérico: límites SH/PN aplicados en WorklistTagNormalizer antes de escribir.
  *
  * @see https://support.dcmtk.org/docs/wlmscpfs.html
  */
@@ -176,12 +175,31 @@ class LocalMwlFileWriter
 
         $lines[] = $this->dumpTag('0020,000d', 'UI', $studyUid);
 
+        $primaryStep = $steps[0];
+        $rootDate = (string) ($primaryStep['ScheduledProcedureStepStartDate'] ?? '');
+        $rootTime = (string) ($primaryStep['ScheduledProcedureStepStartTime'] ?? '000000');
+        if ($rootDate !== '') {
+            $lines[] = $this->dumpTag('0008,0020', 'DA', $rootDate);
+        }
+        if ($rootTime !== '') {
+            $lines[] = $this->dumpTag('0008,0030', 'TM', $rootTime);
+        }
+        $studyId = substr(preg_replace('/[^A-Za-z0-9_-]+/', '', (string) ($tags['AccessionNumber'] ?? '')) ?: 'STUDY', 0, 16);
+        $lines[] = $this->dumpTag('0020,0010', 'SH', $studyId);
+
         if (!empty($tags['RequestedProcedureDescription'])) {
             $lines[] = $this->dumpTag('0032,1060', 'LO', (string) $tags['RequestedProcedureDescription']);
         }
 
-        foreach ($this->procedureCodeSequenceLines($tags) as $line) {
-            $lines[] = $line;
+        $rootModality = (string) ($primaryStep['Modality'] ?? $tags['Modality'] ?? 'CR');
+        $rootStation = (string) ($primaryStep['ScheduledStationAETitle'] ?? '');
+        // Fuji FCR Broad Query consulta modalidad/estación/fecha a nivel raíz.
+        $lines[] = $this->dumpTag('0008,0060', 'CS', $rootModality);
+        if ($rootStation !== '') {
+            $lines[] = $this->dumpTag('0040,0001', 'AE', $rootStation);
+        }
+        if ($rootDate !== '') {
+            $lines[] = $this->dumpTag('0040,0002', 'DA', $rootDate);
         }
 
         $lines[] = $this->dumpTag('0040,1001', 'SH', $requestedProcedureId);
