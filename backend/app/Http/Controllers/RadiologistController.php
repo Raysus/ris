@@ -303,7 +303,7 @@ class RadiologistController extends Controller
         $appointments = $this->getSecureAppointmentQuery()
             ->with([
                 'patient.persona',
-                'studies',
+                'studies.report',
                 'destinationDoctor.persona',
                 'referringDoctor',
             ])

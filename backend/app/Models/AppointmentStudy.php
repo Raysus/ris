@@ -47,7 +47,16 @@ class AppointmentStudy extends Model
     /** Texto en columna appointment_studies.report (evita colisión con relación report()). */
     public function getStoredReportText(): string
     {
-        return (string) ($this->attributes['report'] ?? '');
+        $columnText = trim((string) ($this->attributes['report'] ?? ''));
+        if ($columnText !== '') {
+            return $columnText;
+        }
+
+        $medicalReport = $this->relationLoaded('report')
+            ? $this->getRelation('report')
+            : $this->report()->first();
+
+        return trim((string) ($medicalReport->report_text ?? ''));
     }
 
     public function radiologist()
