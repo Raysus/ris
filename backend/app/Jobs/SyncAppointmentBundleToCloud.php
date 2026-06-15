@@ -39,7 +39,7 @@ class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommi
             return;
         }
 
-        $appointment = Appointment::with(['patient.persona', 'studies', 'supplies'])->find($this->appointmentId);
+        $appointment = Appointment::with(['patient.persona', 'studies', 'supplies', 'machine'])->find($this->appointmentId);
         if (!$appointment?->patient?->persona) {
             return;
         }
@@ -68,14 +68,27 @@ class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommi
         $paciente = $appointment->patient->toArray();
         $paciente['persona'] = $persona;
 
+        $chunks = [
+            ['model' => 'App\Models\Persona', 'action' => 'updated', 'data' => $persona],
+            ['model' => 'App\Models\Paciente', 'action' => 'updated', 'data' => $paciente],
+        ];
+
+        if ($appointment->machine) {
+            $chunks[] = [
+                'model' => 'Machine',
+                'action' => 'updated',
+                'data' => $appointment->machine->toArray(),
+            ];
+        }
+
+        $chunks[] = [
+            'model' => 'App\Models\Appointment',
+            'action' => $this->action,
+            'data' => $payload,
+        ];
+
         try {
-            foreach (
-                [
-                    ['model' => 'App\Models\Persona', 'action' => 'updated', 'data' => $persona],
-                    ['model' => 'App\Models\Paciente', 'action' => 'updated', 'data' => $paciente],
-                    ['model' => 'App\Models\Appointment', 'action' => $this->action, 'data' => $payload],
-                ] as $chunk
-            ) {
+            foreach ($chunks as $chunk) {
                 $response = $http->withHeaders($headers)->post($cloudUrl, $chunk);
                 if ($response->failed()) {
                     throw new \RuntimeException(
