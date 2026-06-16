@@ -78,14 +78,50 @@ function reassignMachine(string $fromId, string $toId): int
     return $n;
 }
 
+/** HasUuids ignora id explícito en create; usar DB directo para UUIDs canónicos. */
+function upsertMachine(array $row, string $labId): void
+{
+    $now = now();
+    $payload = $row + [
+        'laboratory_id' => $labId,
+        'is_active' => true,
+        'updated_at' => $now,
+    ];
+
+    if (DB::table('machines')->where('id', $row['id'])->exists()) {
+        DB::table('machines')->where('id', $row['id'])->update($payload);
+
+        return;
+    }
+
+    DB::table('machines')->insert($payload + [
+        'created_at' => $now,
+        'event_color' => '#3788d8',
+    ]);
+}
+
 echo "=== Alinear máquinas Siresa en nube ===\n";
 
 foreach ($machines as $row) {
-    Machine::updateOrCreate(
-        ['id' => $row['id']],
-        $row + ['laboratory_id' => $labId, 'is_active' => true]
-    );
-    echo "  OK {$row['name']} ({$row['ae_title']})\n";
+    upsertMachine($row, $labId);
+    echo "  OK {$row['name']} ({$row['ae_title']}) → {$row['id']}\n";
+}
+
+$canonicalNames = array_column($machines, 'name');
+$wrongIds = Machine::query()
+    ->where('laboratory_id', $labId)
+    ->whereIn('name', $canonicalNames)
+    ->whereNotIn('id', array_column($machines, 'id'))
+    ->pluck('id', 'name');
+
+foreach ($machines as $row) {
+    $wrongId = $wrongIds[$row['name']] ?? null;
+    if (!$wrongId) {
+        continue;
+    }
+    $moved = reassignMachine((string) $wrongId, $row['id']);
+    Machine::where('id', $wrongId)->delete();
+    echo "  Migrado {$row['name']} alias {$wrongId} → {$row['id']} ({$moved} refs)\n";
 }
 
 $migrations = [
@@ -119,11 +155,9 @@ foreach ($extras as $extra) {
 }
 
 $dedupe = app(CatalogDedupeService::class);
-$mStats = $dedupe->dedupeByLabAndName(Machine::class, false);
 $eStats = $dedupe->dedupeByLabAndName(\App\Models\Exam::class, false);
 
-echo "\nDedupe máquinas: {$mStats['removed']} eliminadas, {$mStats['reassigned']} reasignadas\n";
-echo "Dedupe exámenes: {$eStats['removed']} eliminados, {$eStats['reassigned']} reasignados\n";
+echo "\nDedupe exámenes: {$eStats['removed']} eliminados, {$eStats['reassigned']} reasignados\n";
 
 $count = Machine::where('laboratory_id', $labId)->where('is_active', true)->count();
 $exams = \App\Models\Exam::where('laboratory_id', $labId)->where('is_active', true)->count();
