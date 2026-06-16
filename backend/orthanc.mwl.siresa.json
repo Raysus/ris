@@ -29,7 +29,7 @@
   ],
   "Worklists": {
     "Enable": true,
-    "FilterIssuerAet": false,
+    "FilterIssuerAet": true,
     "LimitAnswers": 0,
     "Database": "/var/lib/orthanc/worklists/SIRESA_MWL"
   }
