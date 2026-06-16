@@ -10,7 +10,7 @@
     "fcr_pacs": ["PACS", "192.168.0.102", 11112],
     "fcr_pacs_console": ["FCR_PACS", "192.168.0.102", 11112],
     "eco_mindray": ["ECO_MINDRAY", "192.168.0.108", 11112],
-    "eco_sonoscape": ["ECO_SONOSCAPE", "192.168.0.107", 11112],
+    "hdi5000_107": ["HDI5000", "192.168.0.107", 11112],
     "findscu": ["FINDSCU", "127.0.0.1", 11112]
   },
   "DicomServerEnabled": true,
