@@ -13,8 +13,8 @@ class WorklistTagNormalizerTest extends TestCase
         $b = WorklistTagNormalizer::compactAccession('ACC-20260616-019ED258');
 
         $this->assertNotSame($a, $b);
-        $this->assertSame('60616019ED251', $a);
-        $this->assertSame('60616019ED258', $b);
+        $this->assertSame('20260616019ED251', $a);
+        $this->assertSame('20260616019ED258', $b);
         $this->assertLessThanOrEqual(WorklistTagNormalizer::SH_MAX, strlen($a));
     }
 }
