@@ -77,11 +77,11 @@ class PacsMwlProbe
 
     /**
      * Desde contenedores Docker la IP LAN (MWL_DICOM_HOST) puede no enrutar;
-     * el servicio compose «mwl» sí alcanza wlmscpfs en la misma red.
+     * el servicio compose «mwl» sí alcanza el MWL local en la misma red.
      */
     private static function resolveProbeHost(string $configuredHost): string
     {
-        if (! OrthancUrl::usesLocalWorklist() || OrthancUrl::worklistProvider() !== 'wlmscpfs') {
+        if (! OrthancUrl::usesLocalWorklist()) {
             return $configuredHost;
         }
 
