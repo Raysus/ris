@@ -18,7 +18,6 @@ class AppointmentStudy extends Model
         'fonasa_code',
         'quantity',
         'price',
-        'price_charged',
         'status',
         'anamnesis',
         'report',
@@ -62,5 +61,11 @@ class AppointmentStudy extends Model
     public function radiologist()
     {
         return $this->belongsTo(User::class, 'radiologist_user_id');
+    }
+
+    /** Alias de lectura: la columna en BD es `price`. */
+    public function getPriceChargedAttribute(): float
+    {
+        return (float) ($this->attributes['price'] ?? 0);
     }
 }
