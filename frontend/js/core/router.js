@@ -3,19 +3,19 @@
    ========================================= */
 
 const RIS_MODULE_SCRIPTS = {
-    agenda: "js/workflow/agenda.js",
-    worklist: ["js/workflow/atencionTecnica.js", "js/workflow/worklist.js"],
-    atencion: ["js/workflow/atencionTecnica.js", "js/workflow/atencion.js"],
+    agenda: "/js/workflow/agenda.js",
+    worklist: ["/js/workflow/atencionTecnica.js", "/js/workflow/worklist.js"],
+    atencion: ["/js/workflow/atencionTecnica.js", "/js/workflow/atencion.js"],
     radiologist: [
-        "js/workflow/browser-dictation.js",
-        "js/workflow/speechmike-dictation.js",
-        "js/workflow/radiologist.js",
+        "/js/workflow/browser-dictation.js",
+        "/js/workflow/speechmike-dictation.js",
+        "/js/workflow/radiologist.js",
     ],
-    transcription: "js/workflow/transcription.js",
-    validation: "js/workflow/validation.js",
-    entrega: "js/workflow/entrega.js",
-    dashboard: "js/dashboard/dashboard.js",
-    admin: "js/admin/admin.js",
+    transcription: "/js/workflow/transcription.js",
+    validation: "/js/workflow/validation.js",
+    entrega: "/js/workflow/entrega.js",
+    dashboard: "/js/dashboard/dashboard.js",
+    admin: "/js/admin/admin.js",
 };
 
 const RIS_MODULE_INIT = {
@@ -33,27 +33,38 @@ const RIS_MODULE_INIT = {
 const _loadedScriptBases = new Set();
 let _loadedScriptBuild = null;
 
+function risScriptPath(path) {
+    const clean = String(path || "").replace(/\?.*$/, "");
+    return clean.startsWith("/") ? clean : `/${clean}`;
+}
+
 function risInvalidateModuleScriptsIfBuildChanged() {
-    const build = String(window.RIS_BUILD || '');
+    const build = String(window.RIS_BUILD || "");
     if (_loadedScriptBuild === build) return;
+
+    const previousBuild = _loadedScriptBuild;
+    _loadedScriptBuild = build;
+
+    // Primera carga de la sesión: no borrar scripts ya incluidos en layout.html.
+    if (previousBuild === null) return;
+
     _loadedScriptBases.clear();
-    document.querySelectorAll('script[src]').forEach((el) => {
-        const src = el.getAttribute('src') || '';
+    document.querySelectorAll("script[src]").forEach((el) => {
+        const src = el.getAttribute("src") || "";
         if (/\/js\/(workflow|admin|dashboard)\//.test(src)) {
             el.remove();
         }
     });
-    _loadedScriptBuild = build;
 }
 
 function risAssetUrl(path) {
     const v = window.RIS_BUILD || Date.now();
-    const sep = path.includes("?") ? "&" : "?";
-    return `${path}${sep}v=${encodeURIComponent(v)}`;
+    const normalized = risScriptPath(path);
+    return `${normalized}?v=${encodeURIComponent(v)}`;
 }
 
 function scriptBasePath(src) {
-    return String(src || "").replace(/\?.*$/, "");
+    return risScriptPath(src);
 }
 
 function isBrowserDictationScriptReady() {
@@ -65,30 +76,36 @@ function isBrowserDictationScriptReady() {
 
 function purgeBrokenBrowserDictationScripts() {
     document.querySelectorAll('script[src*="browser-dictation"]').forEach((el) => el.remove());
-    _loadedScriptBases.delete("js/workflow/browser-dictation.js");
+    _loadedScriptBases.delete("/js/workflow/browser-dictation.js");
     window.__risBrowserDictationInstalled = false;
+}
+
+function scriptAlreadyInDom(base) {
+    return Array.from(document.querySelectorAll("script[src]")).some((el) => {
+        const attr = scriptBasePath(el.getAttribute("src") || "");
+        return attr === base;
+    });
 }
 
 function loadScriptOnce(src) {
     risInvalidateModuleScriptsIfBuildChanged();
     const base = scriptBasePath(src);
-    const versionedSrc = risAssetUrl(src);
+    const versionedSrc = risAssetUrl(base);
     const isDictation = base.includes("browser-dictation");
 
     return new Promise((resolve, reject) => {
-        if (_loadedScriptBases.has(base)) {
+        if (_loadedScriptBases.has(base) && scriptAlreadyInDom(base)) {
             if (isDictation && !isBrowserDictationScriptReady()) {
                 purgeBrokenBrowserDictationScripts();
             } else {
                 resolve();
                 return;
             }
+        } else if (_loadedScriptBases.has(base)) {
+            _loadedScriptBases.delete(base);
         }
-        const existing = Array.from(document.querySelectorAll("script[src]")).find((el) => {
-            const attr = el.getAttribute("src") || "";
-            return scriptBasePath(attr) === base || scriptBasePath(attr).endsWith(base);
-        });
-        if (existing) {
+
+        if (scriptAlreadyInDom(base)) {
             if (isDictation && !isBrowserDictationScriptReady()) {
                 purgeBrokenBrowserDictationScripts();
             } else {
@@ -97,6 +114,7 @@ function loadScriptOnce(src) {
                 return;
             }
         }
+
         const script = document.createElement("script");
         script.src = versionedSrc;
         script.async = false;
@@ -104,7 +122,10 @@ function loadScriptOnce(src) {
             _loadedScriptBases.add(base);
             resolve();
         };
-        script.onerror = () => reject(new Error(`No se pudo cargar ${versionedSrc}`));
+        script.onerror = () => {
+            const abs = new URL(versionedSrc, window.location.href).href;
+            reject(new Error(`No se pudo cargar ${abs}`));
+        };
         document.body.appendChild(script);
     });
 }
@@ -123,7 +144,7 @@ async function ensureModuleLoaded(page) {
             throw err;
         }
     }
-    if (page === "agenda") await loadScriptOnce("js/workflow/payments.js");
+    if (page === "agenda") await loadScriptOnce("/js/workflow/payments.js");
 }
 
 function loadPage(page) {
@@ -148,13 +169,13 @@ function loadPage(page) {
                     return;
                 }
 
-                if (typeof applyLabProfileUI === 'function') {
-                    applyLabProfileUI(document.getElementById('appContent') || document);
+                if (typeof applyLabProfileUI === "function") {
+                    applyLabProfileUI(document.getElementById("appContent") || document);
                 }
 
                 const initFn = RIS_MODULE_INIT[page];
                 if (initFn && typeof window[initFn] === "function") {
-                    if (typeof risGuardConcreteLabForModule === 'function' && !risGuardConcreteLabForModule(page)) {
+                    if (typeof risGuardConcreteLabForModule === "function" && !risGuardConcreteLabForModule(page)) {
                         $("#appContent").prepend(
                             `<div class="alert alert-warning m-4 fw-bold" role="alert">
                                 <i class="bi bi-building me-2"></i>
@@ -165,7 +186,7 @@ function loadPage(page) {
                     }
                     Promise.resolve(window[initFn]()).catch((err) => {
                         console.error(`Error en ${initFn}:`, err);
-                        showToast(`Error al iniciar ${page}: ${err.message}`, 'danger');
+                        showToast(`Error al iniciar ${page}: ${err.message}`, "danger");
                     });
                 }
             });
