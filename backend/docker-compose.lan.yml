@@ -84,6 +84,8 @@ services:
       REDIS_HOST: redis
       RIS_CLOUD_ROLE: local
       CLOUD_API_BASE: https://api.healthticloud.cl/api
+    extra_hosts:
+      - "api.healthticloud.cl:100.104.4.114"
     command: serve
     ports:
       - "8000:8000"
@@ -107,6 +109,8 @@ services:
       REDIS_HOST: redis
       RIS_CLOUD_ROLE: local
       CLOUD_API_BASE: https://api.healthticloud.cl/api
+    extra_hosts:
+      - "api.healthticloud.cl:100.104.4.114"
     command: queue
     depends_on:
       - api
@@ -119,6 +123,8 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     env_file: .env
+    extra_hosts:
+      - "api.healthticloud.cl:100.104.4.114"
     command: scheduler
     depends_on:
       - api
