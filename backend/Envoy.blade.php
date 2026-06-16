@@ -231,8 +231,8 @@
     echo "⚙️  Optimizando..."
     {{ $compose }} exec -T api php artisan optimize
 
-    echo "🔁 Reiniciando colas..."
-    {{ $compose }} restart queue scheduler
+    echo "🔁 Reiniciando colas y nginx..."
+    {{ $compose }} restart queue scheduler web
 
     echo "🧹 Limpiando imágenes Docker antiguas..."
     docker image prune -f >/dev/null 2>&1 || true
