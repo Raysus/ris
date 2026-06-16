@@ -220,6 +220,16 @@ const RIS_MODALITY_LABELS = {
 
 const RIS_MODALITY_ORDER = ['CR', 'DX', 'RX', 'CT', 'MRI', 'US', 'MAMO', 'DEXA', 'CBCT', 'IO', 'NM', 'PT', 'RF', 'XA', 'OT'];
 
+function risDedupeExamenesCatalogo(exams) {
+    const seen = new Map();
+    for (const exam of exams) {
+        const group = risGrupoModalidadEquiv(exam.group_code || exam.group) || 'OT';
+        const key = `${exam.laboratory_id || ''}|${group}|${String(exam.name || '').trim().toLowerCase()}`;
+        if (!seen.has(key)) seen.set(key, exam);
+    }
+    return [...seen.values()];
+}
+
 /** Exámenes del catálogo agrupados por modalidad, filtrados por grupo de la sala seleccionada. */
 function poblarSelectExamenesAgenda($examSelect, machineId) {
     if (!$examSelect || !$examSelect.length) return;
@@ -238,7 +248,8 @@ function poblarSelectExamenesAgenda($examSelect, machineId) {
         return;
     }
 
-    const exams = (catalogosAgenda.exams || []).filter((e) => risExamenCompatibleConSala(e, machineGroup));
+    const exams = risDedupeExamenesCatalogo(catalogosAgenda.exams || [])
+        .filter((e) => risExamenCompatibleConSala(e, machineGroup));
     if (!exams.length) {
         const salaLabel = RIS_MODALITY_LABELS[risGrupoModalidadEquiv(machineGroup)] || machineGroup || 'sala';
         $examSelect.append(`<option value="">-- Sin exámenes para ${salaLabel} --</option>`);

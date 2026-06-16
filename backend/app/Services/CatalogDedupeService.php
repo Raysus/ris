@@ -134,14 +134,22 @@ class CatalogDedupeService
      */
     public function dedupeByLabAndName(string $modelClass, bool $dryRun = false): array
     {
+        $select = ['id', 'laboratory_id', 'name', 'created_at'];
+        if ($modelClass === Exam::class) {
+            $select[] = 'group_code';
+        }
+
         $rows = $modelClass::query()
-            ->select('id', 'laboratory_id', 'name', 'created_at')
+            ->select($select)
             ->orderBy('created_at')
             ->get();
 
         $groups = [];
         foreach ($rows as $row) {
-            $key = $row->laboratory_id . '|' . mb_strtolower(trim((string) $row->name));
+            $key = ($row->laboratory_id ?? '') . '|' . mb_strtolower(trim((string) $row->name));
+            if ($modelClass === Exam::class) {
+                $key .= '|' . strtoupper(trim((string) ($row->group_code ?? '')));
+            }
             $groups[$key][] = $row;
         }
 
@@ -230,6 +238,24 @@ class CatalogDedupeService
             return $rows->sort(function ($a, $b) use ($appointmentCounts) {
                 $countA = (int) ($appointmentCounts[$a->id] ?? 0);
                 $countB = (int) ($appointmentCounts[$b->id] ?? 0);
+                if ($countA !== $countB) {
+                    return $countB <=> $countA;
+                }
+
+                return $a->created_at <=> $b->created_at;
+            })->first();
+        }
+
+        if ($modelClass === Exam::class) {
+            $studyCounts = DB::table('appointment_studies')
+                ->select('exam_id', DB::raw('COUNT(*) as total'))
+                ->whereIn('exam_id', $rows->pluck('id'))
+                ->groupBy('exam_id')
+                ->pluck('total', 'exam_id');
+
+            return $rows->sort(function ($a, $b) use ($studyCounts) {
+                $countA = (int) ($studyCounts[$a->id] ?? 0);
+                $countB = (int) ($studyCounts[$b->id] ?? 0);
                 if ($countA !== $countB) {
                     return $countB <=> $countA;
                 }

@@ -87,7 +87,7 @@ class AgendaCatalogController extends Controller
                 'referring_doctors' => $refDoctorsQuery->get(),
                 'destination_doctors' => $destDoctorsQuery->get(),
                 'insurances' => $insurancesQuery->get(),
-                'exams' => $examsQuery->get(),
+                'exams' => $this->dedupeExamsForAgenda($examsQuery->get()),
                 'supplies' => $suppliesQuery->get(),
                 'supply_packs' => $supplyPacksQuery->get(),
                 'machines' => $machinesQuery->get(),
@@ -99,6 +99,26 @@ class AgendaCatalogController extends Controller
                 ],
             ],
         ]);
+    }
+
+    /**
+     * Evita duplicados en el selector de agenda (mismo nombre+grupo en un laboratorio).
+     *
+     * @param  \Illuminate\Support\Collection<int, Exam>  $exams
+     * @return \Illuminate\Support\Collection<int, Exam>
+     */
+    private function dedupeExamsForAgenda($exams)
+    {
+        return $exams
+            ->sortByDesc('created_at')
+            ->unique(function (Exam $exam) {
+                $lab = (string) ($exam->laboratory_id ?? '');
+                $group = strtoupper(trim((string) ($exam->group_code ?? '')));
+                $name = mb_strtolower(trim((string) $exam->name));
+
+                return "{$lab}|{$group}|{$name}";
+            })
+            ->values();
     }
 
     public function storeReferringDoctor(Request $request)
