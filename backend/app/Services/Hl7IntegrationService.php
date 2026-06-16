@@ -208,7 +208,7 @@ class Hl7IntegrationService
             'exam_name' => $exam?->name ?? ($order['service_name'] ?: 'Orden HL7'),
             'fonasa_code' => $exam?->fonasa_code ?? $order['service_code'],
             'quantity' => 1,
-            'price_charged' => $exam?->price ?? 0,
+            'price' => $exam?->price ?? 0,
             'status' => 'agendado',
         ]);
 

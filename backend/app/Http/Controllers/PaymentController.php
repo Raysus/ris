@@ -369,7 +369,7 @@ class PaymentController extends Controller
             ->with(['patient.persona', 'studies.exam'])
             ->get()
             ->map(function ($app) {
-                $total = $app->studies->sum(fn ($s) => ($s->price_charged ?? 0) * ($s->quantity ?? 1));
+                $total = $app->studies->sum(fn ($s) => ($s->price_charged ?? $s->price ?? 0) * ($s->quantity ?? 1));
 
                 return [
                     'appointment_id' => $app->id,

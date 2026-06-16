@@ -187,7 +187,7 @@ class AppointmentController extends Controller
                             'sub_exam_name' => $studyData['sub_exam_name'] ?? null,
                             'fonasa_code' => $studyData['fonasa_code'] ?? null,
                             'quantity' => $studyData['quantity'] ?? 1,
-                            'price_charged' => $studyData['price'] ?? 0,
+                            'price' => $studyData['price'] ?? 0,
                             'status' => strtolower($data['status'])
                         ]);
                     }
@@ -300,7 +300,7 @@ class AppointmentController extends Controller
                         'sub_exam_name' => $studyData['sub_exam_name'] ?? null,
                         'fonasa_code' => $studyData['fonasa_code'] ?? null,
                         'quantity' => $studyData['quantity'] ?? 1,
-                        'price_charged' => $studyData['price'] ?? 0,
+                        'price' => $studyData['price'] ?? 0,
                         'status' => strtolower($data['status'])
                     ]);
                 }
