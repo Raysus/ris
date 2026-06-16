@@ -45,7 +45,7 @@ class LocalMwlFileWriter
         $dir = $this->storageAreaDirectory();
         $stationAe = $this->resolveStationAe($tags);
 
-        $this->purgeStationFiles($dir, $stationAe, $accessionNumber);
+        $this->purgeAccessionFile($dir, $stationAe, $accessionNumber);
 
         $wlPath = $this->wlPath($dir, $stationAe, $accessionNumber);
         $dumpPath = $wlPath . '.dump';
@@ -103,21 +103,12 @@ class LocalMwlFileWriter
         return $station !== '' ? $station : 'STATION';
     }
 
-    private function purgeStationFiles(string $dir, string $stationAe, string $keepAccession): void
+    /** Solo reemplaza la misma cita (mismo accession); no borra otros pacientes en la estación. */
+    private function purgeAccessionFile(string $dir, string $stationAe, string $accessionNumber): void
     {
-        // ORTHANC es alias legacy compartido entre salas FCR_*: no borrar otros pacientes.
-        if (strtoupper($stationAe) === 'ORTHANC') {
-            return;
-        }
-
-        $prefix = $this->safeFilename($stationAe) . '__';
-        $keepBase = $prefix . $this->safeFilename($keepAccession);
-
-        foreach (glob($dir . '/' . $prefix . '*.wl') ?: [] as $file) {
-            if (basename($file, '.wl') === $keepBase) {
-                continue;
-            }
-            @unlink($file);
+        $path = $this->wlPath($dir, $stationAe, $accessionNumber);
+        if (is_file($path)) {
+            @unlink($path);
         }
     }
 
@@ -417,7 +408,7 @@ class LocalMwlFileWriter
         $steps[0]['ScheduledStationName'] = $legacyAe;
         $aliasTags['ScheduledProcedureStepSequence'] = $steps;
 
-        $this->purgeStationFiles($dir, $legacyAe, $accessionNumber);
+        $this->purgeAccessionFile($dir, $legacyAe, $accessionNumber);
 
         $wlPath = $this->wlPath($dir, $legacyAe, $accessionNumber);
         $dumpPath = $wlPath . '.dump';
