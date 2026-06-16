@@ -22,6 +22,11 @@ function isLocalLabHostname(host) {
     return /^lab[a-z0-9-]*\.healthticloud\.cl$/i.test(host);
 }
 
+/** *.healthticloud.cl de producción (nube), no alias LAN del laboratorio. */
+function isCloudHealthticloudHost(host) {
+    return /\.healthticloud\.cl$/i.test(host) && !isLocalLabHostname(host);
+}
+
 function isStandardWebPort(port) {
     return !port || port === '80' || port === '443';
 }
@@ -44,8 +49,8 @@ function resolveRisApiUrl() {
         return 'http://127.0.0.1:8000/api';
     }
 
-    // RIS en nube (producción HTTPS)
-    if (host === 'ris.healthticloud.cl') {
+    // Frontend nube y otros *.healthticloud.cl (excepto alias LAN de laboratorios)
+    if (isCloudHealthticloudHost(host)) {
         return 'https://api.healthticloud.cl/api';
     }
 
@@ -66,4 +71,4 @@ var API_URL = resolveRisApiUrl();
 window.API_URL = API_URL;
 
 /** Incrementar al desplegar frontend para evitar HTML/JS en caché del navegador */
-window.RIS_BUILD = '20260616c';
+window.RIS_BUILD = '20260616d';
