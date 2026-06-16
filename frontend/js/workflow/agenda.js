@@ -153,6 +153,27 @@ function risGrupoModalidadEquiv(code) {
     return aliases[c] || c;
 }
 
+function risGrupoSalaDesdeMaquina(machineId) {
+    if (!machineId) return null;
+
+    const fromResource = (window.RIS?.resources || []).find((r) => String(r.id) === String(machineId));
+    if (fromResource?.group) return fromResource.group;
+
+    const fromCatalog = (catalogosAgenda.machines || []).find((m) => String(m.id) === String(machineId));
+    return fromCatalog?.group_code || fromCatalog?.group || null;
+}
+
+/** ¿El examen corresponde al grupo/modalidad de la sala? */
+function risExamenCompatibleConSala(exam, machineGroup) {
+    if (!machineGroup) return true;
+
+    const salaGroup = risGrupoModalidadEquiv(machineGroup);
+    if (!salaGroup || salaGroup === 'GENERAL') return true;
+
+    const examGroup = risGrupoModalidadEquiv(exam.group_code || exam.group) || 'OT';
+    return examGroup === salaGroup;
+}
+
 const RIS_MODALITY_LABELS = {
     CR: 'Radiografía CR',
     DX: 'Radiografía DX',
@@ -173,15 +194,27 @@ const RIS_MODALITY_LABELS = {
 
 const RIS_MODALITY_ORDER = ['CR', 'DX', 'RX', 'CT', 'MRI', 'US', 'MAMO', 'DEXA', 'CBCT', 'IO', 'NM', 'PT', 'RF', 'XA', 'OT'];
 
-/** Lista todos los exámenes del catálogo agrupados por modalidad (sin filtrar por sala). */
+/** Exámenes del catálogo agrupados por modalidad, filtrados por grupo de la sala seleccionada. */
 function poblarSelectExamenesAgenda($examSelect, machineId) {
     if (!$examSelect || !$examSelect.length) return;
 
     const prev = $examSelect.val();
-    $examSelect.empty().append('<option value="">-- Seleccione examen --</option>');
+    $examSelect.empty();
 
-    const exams = catalogosAgenda.exams || [];
-    if (!exams.length) return;
+    const machineGroup = risGrupoSalaDesdeMaquina(machineId);
+    if (!machineId) {
+        $examSelect.append('<option value="">-- Seleccione sala primero --</option>');
+        return;
+    }
+
+    const exams = (catalogosAgenda.exams || []).filter((e) => risExamenCompatibleConSala(e, machineGroup));
+    if (!exams.length) {
+        const salaLabel = RIS_MODALITY_LABELS[risGrupoModalidadEquiv(machineGroup)] || machineGroup || 'sala';
+        $examSelect.append(`<option value="">-- Sin exámenes para ${salaLabel} --</option>`);
+        return;
+    }
+
+    $examSelect.append('<option value="">-- Seleccione examen --</option>');
 
     const byGroup = {};
     exams.forEach((e) => {
@@ -206,7 +239,9 @@ function poblarSelectExamenesAgenda($examSelect, machineId) {
         $examSelect.append($og);
     });
 
-    if (prev) $examSelect.val(prev);
+    if (prev && $examSelect.find(`option[value="${prev}"]`).length) {
+        $examSelect.val(prev);
+    }
 }
 
 const AGENDA_LEYENDA_ITEMS = [
