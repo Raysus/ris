@@ -31,6 +31,20 @@ const RIS_MODULE_INIT = {
 };
 
 const _loadedScriptBases = new Set();
+let _loadedScriptBuild = null;
+
+function risInvalidateModuleScriptsIfBuildChanged() {
+    const build = String(window.RIS_BUILD || '');
+    if (_loadedScriptBuild === build) return;
+    _loadedScriptBases.clear();
+    document.querySelectorAll('script[src]').forEach((el) => {
+        const src = el.getAttribute('src') || '';
+        if (/\/js\/(workflow|admin|dashboard)\//.test(src)) {
+            el.remove();
+        }
+    });
+    _loadedScriptBuild = build;
+}
 
 function risAssetUrl(path) {
     const v = window.RIS_BUILD || Date.now();
@@ -56,6 +70,7 @@ function purgeBrokenBrowserDictationScripts() {
 }
 
 function loadScriptOnce(src) {
+    risInvalidateModuleScriptsIfBuildChanged();
     const base = scriptBasePath(src);
     const versionedSrc = risAssetUrl(src);
     const isDictation = base.includes("browser-dictation");

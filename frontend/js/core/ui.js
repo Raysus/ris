@@ -357,6 +357,9 @@ function goAgendaWizardStep(step) {
     if (step > _agendaWizardStep && !validateAgendaWizardStep(_agendaWizardStep)) return;
     _agendaWizardStep = step;
     updateAgendaWizardUI();
+    if (step === 3 && typeof window.refreshAgendaExamSelects === 'function') {
+        window.refreshAgendaExamSelects();
+    }
 }
 
 function nextAgendaWizardStep() {

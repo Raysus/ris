@@ -153,25 +153,51 @@ function risGrupoModalidadEquiv(code) {
     return aliases[c] || c;
 }
 
+/** Grupos de examen compatibles con cada sala (catálogo usa RX; salas CR/DX). */
+const RIS_SALA_EXAM_COMPAT = {
+    CR: ['CR', 'RX', 'DX'],
+    DX: ['CR', 'RX', 'DX'],
+    RX: ['CR', 'RX', 'DX'],
+    MAMO: ['MAMO', 'MG'],
+    US: ['US', 'ECO'],
+    CT: ['CT', 'SCANNER', 'TC'],
+    MRI: ['MRI', 'MR', 'RM'],
+    DEXA: ['DEXA', 'DENSITO'],
+    CBCT: ['CBCT'],
+    IO: ['IO'],
+    NM: ['NM'],
+    PT: ['PT'],
+    RF: ['RF'],
+    XA: ['XA'],
+};
+
+function risGruposExamenPermitidosParaSala(machineGroup) {
+    const salaGroup = risGrupoModalidadEquiv(machineGroup);
+    if (!salaGroup || salaGroup === 'GENERAL' || salaGroup === 'OT') return null;
+    return RIS_SALA_EXAM_COMPAT[salaGroup] || [salaGroup];
+}
+
 function risGrupoSalaDesdeMaquina(machineId) {
     if (!machineId) return null;
 
     const fromResource = (window.RIS?.resources || []).find((r) => String(r.id) === String(machineId));
-    if (fromResource?.group) return fromResource.group;
+    const resourceGroup = String(fromResource?.group || '').trim();
+    if (resourceGroup && resourceGroup.toUpperCase() !== 'GENERAL') return resourceGroup;
 
     const fromCatalog = (catalogosAgenda.machines || []).find((m) => String(m.id) === String(machineId));
-    return fromCatalog?.group_code || fromCatalog?.group || null;
+    const catalogGroup = String(fromCatalog?.group_code || fromCatalog?.group || '').trim();
+    return catalogGroup || null;
 }
 
 /** ¿El examen corresponde al grupo/modalidad de la sala? */
 function risExamenCompatibleConSala(exam, machineGroup) {
-    if (!machineGroup) return true;
+    if (!machineGroup) return false;
 
-    const salaGroup = risGrupoModalidadEquiv(machineGroup);
-    if (!salaGroup || salaGroup === 'GENERAL') return true;
+    const allowed = risGruposExamenPermitidosParaSala(machineGroup);
+    if (!allowed) return true;
 
     const examGroup = risGrupoModalidadEquiv(exam.group_code || exam.group) || 'OT';
-    return examGroup === salaGroup;
+    return allowed.includes(examGroup);
 }
 
 const RIS_MODALITY_LABELS = {
@@ -201,9 +227,14 @@ function poblarSelectExamenesAgenda($examSelect, machineId) {
     const prev = $examSelect.val();
     $examSelect.empty();
 
-    const machineGroup = risGrupoSalaDesdeMaquina(machineId);
     if (!machineId) {
         $examSelect.append('<option value="">-- Seleccione sala primero --</option>');
+        return;
+    }
+
+    const machineGroup = risGrupoSalaDesdeMaquina(machineId);
+    if (!machineGroup) {
+        $examSelect.append('<option value="">-- Sala sin grupo (configurar en admin) --</option>');
         return;
     }
 
@@ -587,7 +618,7 @@ async function cargarCatalogosDesdeBD() {
             window.RIS.resources = (catalogosAgenda.machines || []).map(m => ({
                 id: String(m.id),
                 title: m.name,
-                group: m.group_code || m.group || 'General'
+                group: String(m.group_code || m.group || '').trim()
             }));
 
             window.RIS.supplies = catalogosAgenda.supplies || [];
@@ -2224,7 +2255,15 @@ function validarDocumentoAgenda() {
     return true;
 }
 
+function refreshAgendaExamSelects() {
+    $("#studyBody tr.study-entry").each(function () {
+        const $row = $(this);
+        poblarSelectExamenesAgenda($row.find(".eExam"), $row.find(".eMachine").val());
+    });
+}
+
 window.initAgenda = initAgenda;
 window.abrirModalCita = abrirModalCita;
 window.guardarCita = guardarCita;
 window.eliminarCita = eliminarCita;
+window.refreshAgendaExamSelects = refreshAgendaExamSelects;
