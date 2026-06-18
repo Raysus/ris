@@ -15,6 +15,7 @@ use App\Models\ReferringDoctor;
 use App\Models\ReportTemplate;
 use App\Models\Service;
 use App\Models\Supply;
+use App\Models\User;
 use App\Support\CloudSyncMode;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -482,6 +483,8 @@ class CloudEntitySyncService
         }
         unset($attrs['id']);
 
+        $this->sanitizeAppointmentForeignKeys($attrs);
+
         $appointment = Appointment::withTrashed()->find($id);
 
         if ($appointment) {
@@ -506,6 +509,7 @@ class CloudEntitySyncService
                 $studyId = (string) ($studyAttrs['id'] ?? $row['id']);
                 unset($studyAttrs['id']);
                 $studyAttrs['appointment_id'] = $appointment->id;
+                $this->sanitizeAppointmentStudyForeignKeys($studyAttrs);
 
                 $existingStudy = AppointmentStudy::find($studyId);
                 if ($existingStudy) {
@@ -570,6 +574,67 @@ class CloudEntitySyncService
     /**
      * Crea/actualiza persona y paciente antes de la cita (evita FK patient_id en nube).
      */
+    /**
+     * Omite FK opcionales que aún no existen en el lab destino (catálogo desalineado).
+     *
+     * @param  array<string, mixed>  $attrs
+     */
+    private function sanitizeAppointmentForeignKeys(array &$attrs): void
+    {
+        $optional = [
+            'insurance_id' => Insurance::class,
+            'insurance_plan_id' => InsurancePlan::class,
+            'referring_doctor_id' => ReferringDoctor::class,
+            'destination_doctor_id' => User::class,
+        ];
+
+        foreach ($optional as $column => $class) {
+            $fk = $attrs[$column] ?? null;
+            if (!$fk || $class::query()->whereKey($fk)->exists()) {
+                continue;
+            }
+
+            Log::warning('cloud sync appointment: FK opcional omitido (no existe en destino)', [
+                'column' => $column,
+                'id' => $fk,
+            ]);
+            $attrs[$column] = null;
+        }
+
+        $machineId = $attrs['machine_id'] ?? null;
+        if ($machineId && !Machine::query()->whereKey($machineId)->exists()) {
+            throw new \RuntimeException(
+                'machine_id de la cita no existe en el laboratorio destino (' . $machineId . '). Sincronice el catálogo de salas.'
+            );
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $attrs
+     */
+    private function sanitizeAppointmentStudyForeignKeys(array &$attrs): void
+    {
+        $optional = [
+            'exam_id' => Exam::class,
+            'machine_id' => Machine::class,
+            'radiologist_user_id' => User::class,
+            'sub_exam_id' => \App\Models\SubExam::class,
+        ];
+
+        foreach ($optional as $column => $class) {
+            $fk = $attrs[$column] ?? null;
+            if (!$fk || $class::query()->whereKey($fk)->exists()) {
+                continue;
+            }
+
+            Log::warning('cloud sync appointment study: FK opcional omitido', [
+                'column' => $column,
+                'id' => $fk,
+            ]);
+            $attrs[$column] = null;
+        }
+    }
+
     private function ensurePatientForAppointment(array $patient, ?string $laboratoryId): void
     {
         $personaData = $patient['persona'] ?? null;

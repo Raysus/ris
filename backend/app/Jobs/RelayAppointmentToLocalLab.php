@@ -74,10 +74,62 @@ class RelayAppointmentToLocalLab implements ShouldQueue, ShouldBeUnique
         $paciente = $appointment->patient->toArray();
         $paciente['persona'] = $persona;
 
-        $this->postToLab($appointment, $appointment->toArray(), $persona, $paciente);
+        $catalog = $this->buildCatalogChunks($appointment);
+
+        $this->postToLab($appointment, $appointment->toArray(), $persona, $paciente, $catalog);
     }
 
-    private function postToLab(Appointment $appointment, array $appointmentPayload, ?array $persona = null, ?array $paciente = null): void
+    /**
+     * @return list<array{model: string, data: array<string, mixed>}>
+     */
+    private function buildCatalogChunks(Appointment $appointment): array
+    {
+        $chunks = [];
+        $seen = [];
+
+        $push = function (string $model, ?array $data) use (&$chunks, &$seen): void {
+            if (!$data) {
+                return;
+            }
+            $id = (string) ($data['id'] ?? '');
+            if ($id === '' || isset($seen[$model . ':' . $id])) {
+                return;
+            }
+            $seen[$model . ':' . $id] = true;
+            $chunks[] = ['model' => $model, 'data' => $data];
+        };
+
+        if ($appointment->insurance) {
+            $push('Insurance', $appointment->insurance->toArray());
+        }
+        if ($appointment->insurancePlan) {
+            $push('InsurancePlan', $appointment->insurancePlan->toArray());
+        }
+        if ($appointment->referringDoctor) {
+            $push('ReferringDoctor', $appointment->referringDoctor->toArray());
+        }
+        if ($appointment->machine) {
+            $push('Machine', $appointment->machine->toArray());
+        }
+        foreach ($appointment->studies as $study) {
+            if ($study->exam) {
+                $push('Exam', $study->exam->toArray());
+            }
+            if ($study->machine) {
+                $push('Machine', $study->machine->toArray());
+            }
+        }
+
+        return $chunks;
+    }
+
+    private function postToLab(
+        Appointment $appointment,
+        array $appointmentPayload,
+        ?array $persona = null,
+        ?array $paciente = null,
+        array $catalog = [],
+    ): void
     {
         $relayUrl = LaboratorySyncRelay::resolveUrl($appointment->laboratory);
         if ($relayUrl === null) {
@@ -104,6 +156,10 @@ class RelayAppointmentToLocalLab implements ShouldQueue, ShouldBeUnique
         if ($persona !== null && $paciente !== null) {
             $body['persona'] = $persona;
             $body['paciente'] = $paciente;
+        }
+
+        if ($catalog !== []) {
+            $body['catalog'] = $catalog;
         }
 
         $response = $http->post($relayUrl, $body);
