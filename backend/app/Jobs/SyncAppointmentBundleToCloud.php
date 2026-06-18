@@ -3,8 +3,10 @@
 namespace App\Jobs;
 
 use App\Models\Appointment;
+use App\Models\CloudSyncLog;
 use App\Services\CloudSyncLogger;
 use App\Support\CloudSyncMode;
+use App\Support\CloudSyncTransport;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -13,6 +15,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Envía persona → paciente → cita a la nube en un solo job (orden garantizado).
@@ -26,6 +29,8 @@ class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommi
     public string $action;
 
     public ?string $syncLogId = null;
+
+    public int $tries = 3;
 
     public int $uniqueFor = 120;
 
@@ -71,7 +76,7 @@ class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommi
         $cloudUrl = config('cloud_sync.inbound_url');
         $secret = config('cloud_sync.secret');
 
-        $http = Http::timeout(20)->withToken($secret)->acceptJson()->asJson();
+        $http = Http::timeout(CloudSyncTransport::defaultTimeout())->withToken($secret)->acceptJson()->asJson();
         if (app()->environment('local', 'testing')) {
             $http = $http->withoutVerifying();
         }
@@ -131,9 +136,16 @@ class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommi
             foreach ($chunks as $chunk) {
                 $response = $http->withHeaders($headers)->post($cloudUrl, $chunk);
                 if ($response->failed()) {
-                    throw new \RuntimeException(
-                        'Sync bundle falló en ' . $chunk['model'] . ': ' . $response->body()
+                    $error = CloudSyncTransport::exceptionFromResponse(
+                        $response,
+                        'Sync bundle falló en ' . $chunk['model']
                     );
+
+                    if ($this->deferTransientFailure($error, $response->status())) {
+                        return;
+                    }
+
+                    throw $error;
                 }
             }
 
@@ -141,10 +153,59 @@ class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommi
                 CloudSyncLogger::markSuccess($this->syncLogId);
             }
         } catch (\Throwable $e) {
+            if ($this->deferTransientFailure($e)) {
+                return;
+            }
+
             if ($this->syncLogId) {
                 CloudSyncLogger::markFailed($this->syncLogId, $e);
             }
             throw $e;
         }
+    }
+
+    public function failed(\Throwable $exception): void
+    {
+        if ($this->syncLogId && CloudSyncTransport::isTransient($exception)) {
+            CloudSyncLogger::markDeferred($this->syncLogId, $exception);
+
+            return;
+        }
+
+        if ($this->syncLogId) {
+            CloudSyncLogger::markFailed($this->syncLogId, $exception);
+        }
+    }
+
+    private function deferTransientFailure(\Throwable $e, ?int $httpStatus = null): bool
+    {
+        $transient = $httpStatus !== null
+            ? CloudSyncTransport::isTransientHttpStatus($httpStatus)
+            : CloudSyncTransport::isTransient($e);
+
+        if (!$transient || CloudSyncTransport::isPermanentHttpStatus($httpStatus)) {
+            return false;
+        }
+
+        if ($this->syncLogId) {
+            CloudSyncLogger::markDeferred($this->syncLogId, $e);
+        }
+
+        $attempts = $this->syncLogId
+            ? (int) CloudSyncLog::whereKey($this->syncLogId)->value('attempts')
+            : $this->attempts();
+
+        $delay = CloudSyncTransport::releaseDelaySeconds($attempts);
+
+        Log::info('Cloud sync bundle diferido (sin conectividad o nube no disponible)', [
+            'appointment_id' => $this->appointmentId,
+            'sync_log_id' => $this->syncLogId,
+            'delay_seconds' => $delay,
+            'error' => $e->getMessage(),
+        ]);
+
+        $this->release($delay);
+
+        return true;
     }
 }
