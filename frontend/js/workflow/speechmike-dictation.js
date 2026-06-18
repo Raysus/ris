@@ -362,6 +362,9 @@ function resolveSpeechMikeHidAction(newlyPressed, session, preview) {
         if (preview) {
             return { type: "audio", action: "pause" };
         }
+        if (newlyPressed & (BE.EOL_PRIO | BE.COMMAND | BE.SCAN_END | BE.SCAN_SUCCESS)) {
+            return { type: "sign", action: "firmar" };
+        }
         return null;
     }
 
@@ -449,6 +452,13 @@ function handleSpeechMikeHidButton(device, bitMask) {
 
     if (resolved.type === "audio") {
         dispatchSpeechMikeAudioAction(resolved.action);
+        return;
+    }
+
+    if (resolved.type === "sign") {
+        if (typeof window.firmarDirecto === "function") {
+            window.firmarDirecto();
+        }
         return;
     }
 
