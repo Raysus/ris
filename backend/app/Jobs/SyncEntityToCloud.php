@@ -6,6 +6,7 @@ use App\Models\CloudSyncLog;
 use App\Services\CloudEntitySyncService;
 use App\Services\CloudSyncLogger;
 use App\Support\CloudSyncMode;
+use App\Support\CloudSyncTransport;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -25,7 +26,8 @@ class SyncEntityToCloud implements ShouldQueue, ShouldBeUnique
     public $payload;
     public ?string $syncLogId;
 
-    public $tries = 5;
+    /** Reintentos solo para errores permanentes; los de red usan release(). */
+    public $tries = 3;
     public $backoff = 30;
     public int $uniqueFor = 120;
 
@@ -79,7 +81,7 @@ class SyncEntityToCloud implements ShouldQueue, ShouldBeUnique
 
         $this->packFiles();
 
-        $http = Http::timeout(15);
+        $http = Http::timeout(CloudSyncTransport::defaultTimeout());
 
         if (app()->environment('local', 'testing')) {
             $http = $http->withoutVerifying();
@@ -101,15 +103,26 @@ class SyncEntityToCloud implements ShouldQueue, ShouldBeUnique
                 ]);
 
             if ($response->failed()) {
-                throw new \Exception(
-                    "Fallo al sincronizar {$this->entityType}. Nube respondió: " . $response->body()
+                $error = CloudSyncTransport::exceptionFromResponse(
+                    $response,
+                    "Fallo al sincronizar {$this->entityType}"
                 );
+
+                if ($this->deferTransientFailure($error, $response->status())) {
+                    return;
+                }
+
+                throw $error;
             }
 
             if ($this->syncLogId) {
                 CloudSyncLogger::markSuccess($this->syncLogId);
             }
         } catch (\Throwable $e) {
+            if ($this->deferTransientFailure($e)) {
+                return;
+            }
+
             if ($this->syncLogId) {
                 CloudSyncLogger::markFailed($this->syncLogId, $e);
             }
@@ -119,9 +132,48 @@ class SyncEntityToCloud implements ShouldQueue, ShouldBeUnique
 
     public function failed(\Throwable $exception): void
     {
+        if ($this->syncLogId && CloudSyncTransport::isTransient($exception)) {
+            CloudSyncLogger::markDeferred($this->syncLogId, $exception);
+
+            return;
+        }
+
         if ($this->syncLogId) {
             CloudSyncLogger::markFailed($this->syncLogId, $exception);
         }
+    }
+
+    private function deferTransientFailure(\Throwable $e, ?int $httpStatus = null): bool
+    {
+        $transient = $httpStatus !== null
+            ? CloudSyncTransport::isTransientHttpStatus($httpStatus)
+            : CloudSyncTransport::isTransient($e);
+
+        if (!$transient || CloudSyncTransport::isPermanentHttpStatus($httpStatus)) {
+            return false;
+        }
+
+        if ($this->syncLogId) {
+            CloudSyncLogger::markDeferred($this->syncLogId, $e);
+        }
+
+        $attempts = $this->syncLogId
+            ? (int) CloudSyncLog::whereKey($this->syncLogId)->value('attempts')
+            : $this->attempts();
+
+        $delay = CloudSyncTransport::releaseDelaySeconds($attempts);
+
+        Log::info('Cloud sync diferido (sin conectividad o nube no disponible)', [
+            'entity_type' => $this->entityType,
+            'action' => $this->action,
+            'sync_log_id' => $this->syncLogId,
+            'delay_seconds' => $delay,
+            'error' => $e->getMessage(),
+        ]);
+
+        $this->release($delay);
+
+        return true;
     }
 
     private function packFiles(): void

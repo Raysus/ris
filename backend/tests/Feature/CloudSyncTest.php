@@ -4,6 +4,9 @@ namespace Tests\Feature;
 
 use App\Jobs\SyncEntityToCloud;
 use App\Models\CloudSyncLog;
+use App\Services\CloudSyncLogger;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Tests\Concerns\InteractsWithRis;
 use Tests\TestCase;
@@ -37,6 +40,41 @@ class CloudSyncTest extends TestCase
 
         $log->refresh();
         $this->assertEquals('skipped', $log->status);
+    }
+
+    public function test_sync_stays_pending_on_connection_error(): void
+    {
+        config([
+            'cloud_sync.role' => 'local',
+            'cloud_sync.secret' => 'test-secret',
+            'cloud_sync.inbound_url' => 'https://cloud.test/integrations/cloud-sync/inbound',
+        ]);
+
+        Http::fake(function () {
+            throw new ConnectionException('cURL error 7: Failed to connect');
+        });
+
+        $log = CloudSyncLogger::startPending('TestEntity', 'updated', [
+            'id' => 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        ]);
+
+        $job = new class('TestEntity', 'updated', ['id' => 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'], $log->id) extends SyncEntityToCloud {
+            public ?int $releasedAfter = null;
+
+            public function release($delay = 0)
+            {
+                $this->releasedAfter = $delay;
+
+                return $this;
+            }
+        };
+
+        $job->handle();
+
+        $log->refresh();
+        $this->assertSame('pending', $log->status);
+        $this->assertNotNull($log->last_error);
+        $this->assertNotNull($job->releasedAfter);
     }
 
     public function test_admin_can_list_and_retry_cloud_sync(): void

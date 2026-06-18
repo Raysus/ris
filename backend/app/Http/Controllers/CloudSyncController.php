@@ -4,9 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Jobs\SyncAppointmentBundleToCloud;
 use App\Jobs\SyncEntityToCloud;
-use App\Models\Appointment;
 use App\Models\CloudSyncLog;
 use App\Services\CloudCatalogPullService;
+use App\Services\CloudSyncRetryService;
 use App\Support\CloudSyncMode;
 use Illuminate\Http\Request;
 
@@ -129,8 +129,9 @@ class CloudSyncController extends Controller
             ->get();
 
         $queued = 0;
+        $retry = app(CloudSyncRetryService::class);
         foreach ($logs as $log) {
-            $payload = $this->payloadForRetry($log);
+            $payload = $retry->payloadForRetry($log);
             if (!$payload) {
                 continue;
             }
@@ -164,7 +165,8 @@ class CloudSyncController extends Controller
             ], 400);
         }
 
-        $payload = $this->payloadForRetry($log);
+        $retry = app(CloudSyncRetryService::class);
+        $payload = $retry->payloadForRetry($log);
         if (!$payload) {
             return response()->json([
                 'success' => false,
@@ -190,25 +192,5 @@ class CloudSyncController extends Controller
             'success' => true,
             'message' => 'Reintento de sincronización encolado.',
         ]);
-    }
-
-    private function payloadForRetry(CloudSyncLog $log): ?array
-    {
-        $payload = $log->payload;
-        if (!is_array($payload)) {
-            return null;
-        }
-
-        $type = $log->entity_type ?? '';
-        $appointmentId = $payload['id'] ?? $log->entity_id ?? null;
-
-        if ($appointmentId && str_contains($type, 'Appointment')) {
-            $appointment = Appointment::with(['patient.persona', 'studies', 'supplies'])->find($appointmentId);
-            if ($appointment) {
-                return $appointment->toArray();
-            }
-        }
-
-        return $payload;
     }
 }
