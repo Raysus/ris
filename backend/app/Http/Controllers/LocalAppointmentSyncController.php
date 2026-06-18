@@ -22,6 +22,9 @@ class LocalAppointmentSyncController extends Controller
             'persona' => 'required_unless:action,deleted|array',
             'paciente' => 'required_unless:action,deleted|array',
             'appointment' => 'required|array',
+            'catalog' => 'sometimes|array',
+            'catalog.*.model' => 'required_with:catalog|string|max:120',
+            'catalog.*.data' => 'required_with:catalog|array',
         ]);
 
         $action = $validated['action'] ?? 'updated';
@@ -30,6 +33,9 @@ class LocalAppointmentSyncController extends Controller
             if ($action === 'deleted') {
                 $sync->apply('App\Models\Appointment', 'deleted', $validated['appointment']);
             } else {
+                foreach ($validated['catalog'] ?? [] as $chunk) {
+                    $sync->apply($chunk['model'], 'updated', $chunk['data']);
+                }
                 $sync->apply('App\Models\Persona', 'updated', $validated['persona']);
                 $sync->apply('App\Models\Paciente', 'updated', $validated['paciente']);
                 $sync->apply('App\Models\Appointment', $action, $validated['appointment']);
