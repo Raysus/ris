@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Appointment;
 use App\Models\CloudSyncLog;
+use App\Models\User;
 
 class CloudSyncRetryService
 {
@@ -15,12 +16,22 @@ class CloudSyncRetryService
         }
 
         $type = $log->entity_type ?? '';
-        $appointmentId = $payload['id'] ?? $log->entity_id ?? null;
+        $entityId = $payload['id'] ?? $log->entity_id ?? null;
 
-        if ($appointmentId && str_contains($type, 'Appointment')) {
-            $appointment = Appointment::with(['patient.persona', 'studies', 'supplies'])->find($appointmentId);
+        if ($entityId && str_contains($type, 'Appointment')) {
+            $appointment = Appointment::with(['patient.persona', 'studies', 'supplies'])->find($entityId);
             if ($appointment) {
                 return $appointment->toArray();
+            }
+        }
+
+        if ($entityId && str_contains($type, 'User')) {
+            $user = User::with(['persona', 'tipoUsuario', 'laboratories'])->find($entityId);
+            if ($user?->persona) {
+                $userData = $user->makeVisible(['password'])->toArray();
+                $userData['persona'] = $user->persona->toArray();
+
+                return $userData;
             }
         }
 

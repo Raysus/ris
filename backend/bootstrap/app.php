@@ -5,6 +5,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Validation\ValidationException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -32,5 +33,27 @@ return Application::configure(basePath: dirname(__DIR__))
                     'message' => 'No autenticado.'
                 ], 401);
             }
+        });
+
+        $exceptions->render(function (ValidationException $e, Request $request) {
+            if (!$request->is('api/*')) {
+                return null;
+            }
+
+            $errors = $e->errors();
+            $first = collect($errors)->flatten()->first() ?? 'Datos inválidos.';
+            if (is_string($first) && str_starts_with($first, 'validation.')) {
+                $first = match ($first) {
+                    'validation.min.string' => 'Uno de los campos de texto es demasiado corto.',
+                    'validation.required' => 'Faltan campos obligatorios.',
+                    default => 'Datos inválidos. Revise el formulario.',
+                };
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => $first,
+                'errors' => $errors,
+            ], 422);
         });
     })->create();

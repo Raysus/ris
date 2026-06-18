@@ -77,6 +77,12 @@ class CloudEntitySyncService
 
                 if ($class === \App\Models\User::class) {
                     unset($attrs['remember_token']);
+                    if (!empty($data['persona']) && is_array($data['persona'])) {
+                        $resolvedPersonaId = $this->syncPersona($data['persona']);
+                        if ($resolvedPersonaId) {
+                            $attrs['persona_id'] = $resolvedPersonaId;
+                        }
+                    }
                     if (empty($attrs['password'])) {
                         unset($attrs['password']);
                     }

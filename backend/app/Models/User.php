@@ -54,6 +54,7 @@ class User extends Authenticatable
     public function laboratories()
     {
         return $this->belongsToMany(Laboratory::class)
+            ->using(LaboratoryUser::class)
             ->withPivot('is_primary')
             ->withTimestamps();
     }

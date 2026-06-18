@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Jobs\SyncAppointmentBundleToCloud;
 use App\Jobs\SyncEntityToCloud;
+use App\Jobs\SyncUserBundleToCloud;
 use App\Models\CloudSyncLog;
 use App\Services\CloudSyncRetryService;
 use App\Support\CloudSyncMode;
@@ -91,6 +92,8 @@ class FlushCloudSyncPending extends Command
         $appointmentId = $payload['id'] ?? $log->entity_id;
         if ($appointmentId && str_contains((string) $log->entity_type, 'Appointment')) {
             SyncAppointmentBundleToCloud::dispatch($appointmentId, $log->action ?? 'updated', $log->id);
+        } elseif ($log->entity_id && str_contains((string) $log->entity_type, 'User')) {
+            SyncUserBundleToCloud::dispatch($log->entity_id, $log->action ?? 'updated', $log->id);
         } else {
             SyncEntityToCloud::dispatch(
                 $log->entity_type,

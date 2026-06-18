@@ -481,4 +481,49 @@ class CloudSyncInboundTest extends TestCase
 
         $this->assertTrue(CloudSyncMode::acceptsInbound());
     }
+
+    public function test_inbound_user_creates_persona_then_user_with_rut_collision(): void
+    {
+        $existingPersonaId = '11111111-1111-1111-1111-111111111112';
+        $incomingPersonaId = '11111111-1111-1111-1111-111111111113';
+        $userId = '11111111-1111-1111-1111-111111111114';
+        $tipoId = \App\Models\TipoUsuario::query()->value('id');
+
+        Persona::create([
+            'id' => $existingPersonaId,
+            'rut' => '15.555.555-5',
+            'names' => 'Persona',
+            'last_name_1' => 'Nube',
+        ]);
+
+        $this->withToken('test-sync-secret')
+            ->postJson('/api/integrations/cloud-sync/inbound', [
+                'model' => 'App\Models\User',
+                'action' => 'created',
+                'data' => [
+                    'id' => $userId,
+                    'persona_id' => $incomingPersonaId,
+                    'tipo_usuario_id' => $tipoId,
+                    'username' => 'sync_user_test',
+                    'password' => bcrypt('secret'),
+                    'settings' => ['roles' => ['secretaria']],
+                    'is_active' => true,
+                    'persona' => [
+                        'id' => $incomingPersonaId,
+                        'rut' => '15.555.555-5',
+                        'names' => 'Persona',
+                        'last_name_1' => 'Lab',
+                    ],
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->assertDatabaseHas('users', [
+            'id' => $userId,
+            'username' => 'sync_user_test',
+            'persona_id' => $existingPersonaId,
+        ]);
+        $this->assertDatabaseMissing('personas', ['id' => $incomingPersonaId]);
+    }
 }

@@ -352,9 +352,14 @@ function initAgendaWizard() {
     updateAgendaWizardUI();
 }
 
-function goAgendaWizardStep(step) {
+async function goAgendaWizardStep(step) {
     if (step < 1 || step > AGENDA_WIZARD_MAX) return;
-    if (step > _agendaWizardStep && !validateAgendaWizardStep(_agendaWizardStep)) return;
+    if (step > _agendaWizardStep) {
+        if (_agendaWizardStep === 1 && typeof window.ensureAgendaPacienteCargado === 'function') {
+            await window.ensureAgendaPacienteCargado();
+        }
+        if (!validateAgendaWizardStep(_agendaWizardStep)) return;
+    }
     _agendaWizardStep = step;
     updateAgendaWizardUI();
     if (step === 3 && typeof window.refreshAgendaExamSelects === 'function') {
@@ -362,7 +367,10 @@ function goAgendaWizardStep(step) {
     }
 }
 
-function nextAgendaWizardStep() {
+async function nextAgendaWizardStep() {
+    if (_agendaWizardStep === 1 && typeof window.ensureAgendaPacienteCargado === 'function') {
+        await window.ensureAgendaPacienteCargado();
+    }
     if (!validateAgendaWizardStep(_agendaWizardStep)) return;
     if (_agendaWizardStep < AGENDA_WIZARD_MAX) {
         _agendaWizardStep++;
