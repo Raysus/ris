@@ -1354,7 +1354,17 @@ async function guardarConfigCentroAdmin() {
             headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' },
             body: formData
         });
-        if (response.ok) showToast("✅ Matriz actualizada.", "success");
+        if (response.ok) {
+            window.RIS = window.RIS || {};
+            window.RIS.config = { ...(window.RIS.config || {}), ...settings };
+            if (typeof window.aplicarConfigAgendaHorario === 'function') {
+                window.aplicarConfigAgendaHorario(settings);
+            }
+            showToast("✅ Matriz actualizada.", "success");
+        } else {
+            const data = await response.json().catch(() => ({}));
+            showToast(`❌ ${data.message || 'No se pudo guardar la configuración.'}`, "danger");
+        }
     } catch (e) { showToast("Error al guardar", "danger"); }
 }
 

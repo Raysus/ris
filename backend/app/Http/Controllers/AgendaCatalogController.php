@@ -71,15 +71,11 @@ class AgendaCatalogController extends Controller
 
         $labId = config('app.current_lab_id');
         $lab = $labId ? Laboratory::find($labId) : null;
-        $scheduleDefaults = [
+        $schedule = $lab ? $lab->resolveScheduleSettings() : [
             'horaInicio' => '08:00:00',
             'horaFin' => '20:00:00',
             'intervalo' => '00:15:00',
         ];
-        $schedule = array_merge(
-            $scheduleDefaults,
-            is_array($lab?->settings) ? $lab->settings : []
-        );
 
         return response()->json([
             'success' => true,
@@ -92,11 +88,7 @@ class AgendaCatalogController extends Controller
                 'supply_packs' => $supplyPacksQuery->get(),
                 'machines' => $machinesQuery->get(),
                 'lab_profile' => $labProfile,
-                'schedule' => [
-                    'horaInicio' => $schedule['horaInicio'] ?? $scheduleDefaults['horaInicio'],
-                    'horaFin' => $schedule['horaFin'] ?? $scheduleDefaults['horaFin'],
-                    'intervalo' => $schedule['intervalo'] ?? $scheduleDefaults['intervalo'],
-                ],
+                'schedule' => $schedule,
             ],
         ]);
     }

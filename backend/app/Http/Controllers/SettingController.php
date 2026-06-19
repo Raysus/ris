@@ -107,7 +107,16 @@ class SettingController extends Controller
         }
 
         if ($request->has('settings')) {
-            $lab->settings = $request->settings;
+            $settings = $request->input('settings');
+            if (is_string($settings)) {
+                $decoded = json_decode($settings, true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    $settings = $decoded;
+                }
+            }
+            if (is_array($settings)) {
+                $lab->settings = $settings;
+            }
         }
 
         $lab->save();

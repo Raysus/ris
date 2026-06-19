@@ -120,6 +120,42 @@ class Laboratory extends Model
      *
      * @return list<string>|array{0: '*'}
      */
+    /**
+     * Horario de agenda: valores propios o, en sucursales, heredados de la matriz.
+     *
+     * @return array{horaInicio: string, horaFin: string, intervalo: string}
+     */
+    public function resolveScheduleSettings(): array
+    {
+        $defaults = [
+            'horaInicio' => '08:00:00',
+            'horaFin' => '20:00:00',
+            'intervalo' => '00:15:00',
+        ];
+
+        $keys = ['horaInicio', 'horaFin', 'intervalo'];
+        $own = is_array($this->settings) ? $this->settings : [];
+        $parent = [];
+
+        if ($this->parent_id) {
+            $this->loadMissing('parent');
+            $parent = is_array($this->parent?->settings) ? $this->parent->settings : [];
+        }
+
+        $resolved = $defaults;
+        foreach ($keys as $key) {
+            $ownVal = $own[$key] ?? null;
+            $parentVal = $parent[$key] ?? null;
+            if (is_string($ownVal) && $ownVal !== '') {
+                $resolved[$key] = $ownVal;
+            } elseif (is_string($parentVal) && $parentVal !== '') {
+                $resolved[$key] = $parentVal;
+            }
+        }
+
+        return $resolved;
+    }
+
     public static function resolveAllowedLabIdsForUser(User $user): array
     {
         $user->loadMissing('tipoUsuario');

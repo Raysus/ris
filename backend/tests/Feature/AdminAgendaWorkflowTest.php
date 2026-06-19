@@ -334,4 +334,60 @@ class AdminAgendaWorkflowTest extends TestCase
         ])->assertStatus(400)
             ->assertJsonPath('success', false);
     }
+
+    public function test_agenda_catalog_inherits_schedule_interval_from_parent_lab(): void
+    {
+        $this->risLab->settings = [
+            'horaInicio' => '07:30:00',
+            'horaFin' => '21:00:00',
+            'intervalo' => '00:30:00',
+        ];
+        $this->risLab->save();
+
+        $branch = Laboratory::create([
+            'parent_id' => $this->risLab->id,
+            'name' => 'Sucursal Test Horario',
+            'laboratory_type_id' => $this->risLab->laboratory_type_id,
+            'settings' => [],
+            'is_active' => true,
+        ]);
+
+        $response = $this->withHeaders($this->authHeaders($branch->id))
+            ->getJson('/api/agenda-catalogs');
+
+        $response->assertOk()
+            ->assertJsonPath('data.schedule.intervalo', '00:30:00')
+            ->assertJsonPath('data.schedule.horaInicio', '07:30:00')
+            ->assertJsonPath('data.schedule.horaFin', '21:00:00');
+    }
+
+    public function test_settings_update_persists_json_schedule_from_form_data(): void
+    {
+        $headers = $this->authHeaders();
+        unset($headers['Content-Type']);
+
+        $payload = [
+            'settings' => json_encode([
+                'horaInicio' => '09:00',
+                'horaFin' => '18:00',
+                'intervalo' => '00:20:00',
+                'colorInforme' => '#112233',
+            ]),
+        ];
+
+        $this->withHeaders($headers)
+            ->post('/api/settings', $payload)
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->risLab->refresh();
+        $this->assertSame('00:20:00', $this->risLab->settings['intervalo'] ?? null);
+        $this->assertSame('09:00', $this->risLab->settings['horaInicio'] ?? null);
+
+        $catalog = $this->withHeaders($this->authHeaders())
+            ->getJson('/api/agenda-catalogs')
+            ->assertOk();
+
+        $catalog->assertJsonPath('data.schedule.intervalo', '00:20:00');
+    }
 }

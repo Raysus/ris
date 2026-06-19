@@ -944,6 +944,11 @@ function aplicarConfigAgendaHorario(schedule) {
     calendar.setOption('views', buildAgendaCalendarViews(schedule));
     calendar.setOption('slotDuration', slotDur);
     calendar.setOption('slotLabelInterval', '01:00:00');
+    try {
+        calendar.render();
+    } catch (e) {
+        /* vista aún no lista */
+    }
 }
 
 function actualizarPanelAyudaAgenda() {
@@ -1102,6 +1107,7 @@ async function initAgenda() {
     }
 
     setupCalendar(calendarEl);
+    aplicarConfigAgendaHorario(getAgendaScheduleConfig());
     await cargarAgendaDesdeServidor();
 
     ensureAgendaModalsAnchored();
@@ -1180,7 +1186,8 @@ async function cargarCatalogosDesdeBD() {
             }
 
             if (catalogosAgenda.schedule) {
-                aplicarConfigAgendaHorario(catalogosAgenda.schedule);
+                window.RIS.config = { ...(window.RIS.config || {}), ...catalogosAgenda.schedule };
+                actualizarPanelAyudaAgenda();
             } else {
                 actualizarPanelAyudaAgenda();
             }
@@ -1646,7 +1653,7 @@ function setupCalendar(el) {
             }
             let startSel = info.start;
             abrirModalCita({
-                start: formatDateTimeLocal(redondearDatetimeAlIntervalo(startSel, configRIS.intervalo)),
+                start: formatDateTimeLocal(redondearDatetimeAlIntervalo(startSel, getAgendaScheduleConfig().intervalo)),
                 machine: info.resource ? info.resource.id : null,
             });
         },
@@ -3272,6 +3279,7 @@ function refreshAgendaExamSelects() {
 }
 
 window.initAgenda = initAgenda;
+window.aplicarConfigAgendaHorario = aplicarConfigAgendaHorario;
 window.abrirModalCita = abrirModalCita;
 window.guardarCita = guardarCita;
 window.eliminarCita = eliminarCita;
