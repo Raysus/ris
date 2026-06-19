@@ -378,13 +378,18 @@ function risObtenerVariantesExamen(exam, machineId = null) {
     return [];
 }
 
+function risObtenerExamenCatalogo(examId) {
+    if (!examId) return null;
+    return (catalogosAgenda?.exams || []).find((e) => String(e.id) === String(examId)) || null;
+}
+
 function risPoblarVariantesEnFila($row, examData) {
     const subSelect = $row.find('.eSubExam');
     subSelect.empty().append('<option value="">Sin variante</option>');
-    if (!examData) return;
+    if (!examData) return 0;
 
     const variantes = risObtenerVariantesExamen(examData, $row.find('.eMachine').val());
-    if (!variantes.length) return;
+    if (!variantes.length) return 0;
 
     variantes.forEach((v) => {
         const val = v.isSibling ? `sibling:${v.examId}` : (v.subExamId ? String(v.subExamId) : '');
@@ -393,6 +398,31 @@ function risPoblarVariantesEnFila($row, examData) {
             `<option value="${val}" data-exam-id="${v.examId}" data-sibling="${v.isSibling ? '1' : '0'}">${v.label}</option>`
         );
     });
+    return variantes.length;
+}
+
+function risMostrarVariantesEnFila($row) {
+    if (!$row || !$row.length) return;
+    const examId = $row.find('.eExam').val();
+    if (!examId) {
+        showToast('Seleccione un examen antes de ver variantes.', 'warning');
+        return;
+    }
+    const examData = risObtenerExamenCatalogo(examId);
+    if (!examData) {
+        showToast('No se encontró el examen en el catálogo. Recargue la página.', 'warning');
+        return;
+    }
+    const count = risPoblarVariantesEnFila($row, examData);
+    const $sub = $row.find('.eSubExam');
+    if (count <= 0) {
+        showToast('Este examen no tiene variantes / sub-exámenes configurados.', 'info');
+        return;
+    }
+    $sub.trigger('focus');
+    if (typeof $sub[0]?.showPicker === 'function') {
+        try { $sub[0].showPicker(); } catch (e) { /* navegador */ }
+    }
 }
 
 function risConstruirFilasBusquedaExamenes(machineId, filter = '') {
@@ -2563,7 +2593,14 @@ function addStudyRow(relationType = 'primo', existingData = null) {
                 <input type="text" class="form-control form-control-sm eExamQuery d-none" placeholder="Código o nombre..." autocomplete="off" aria-hidden="true" tabindex="-1">
                 <select class="form-select form-select-sm eExam" title="Seleccionar examen"><option value="">Seleccione examen...</option></select>
             </td>
-            <td class="col-variante"><select class="form-select form-select-sm eSubExam"><option value="">Sin variante</option></select></td>
+            <td class="col-variante">
+                <div class="d-flex gap-1 align-items-center agenda-variante-cell">
+                    <select class="form-select form-select-sm eSubExam flex-grow-1"><option value="">Sin variante</option></select>
+                    <button type="button" class="btn btn-outline-secondary btn-sm eSubExamBtn flex-shrink-0" title="Ver variantes">
+                        <i class="bi bi-list-ul"></i>
+                    </button>
+                </div>
+            </td>
             <td class="col-cant"><input type="number" class="form-control form-control-sm eQty text-center" value="${existingData ? existingData.qty || 1 : 1}" min="1"></td>
             <td class="col-code"><input type="text" class="form-control form-control-sm eCode text-center font-monospace" value="${existingData ? existingData.code || '' : ''}" placeholder="Cód." autocomplete="off" aria-label="Código de prestación"></td>
             <td class="col-valor">
@@ -3028,7 +3065,7 @@ function setupProEventListeners() {
             return;
         }
 
-        const examData = catalogosAgenda.exams.find(e => String(e.id) === String(examId));
+        const examData = risObtenerExamenCatalogo(examId);
         if (examData) {
             row.find(".ePrice").val(examData.price || 0);
             row.find(".eCode").val(examData.fonasa_code || '');
@@ -3037,6 +3074,11 @@ function setupProEventListeners() {
         }
         calculateTotal();
         actualizarTerminoEstimadoDesdeExamenes();
+    });
+
+    $(document).on('click', '.eSubExamBtn', function (e) {
+        e.preventDefault();
+        risMostrarVariantesEnFila($(this).closest('tr'));
     });
 
     $(document).on('change', '.eSubExam', function () {

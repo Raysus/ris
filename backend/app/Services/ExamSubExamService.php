@@ -51,6 +51,35 @@ class ExamSubExamService
                 'Columna cervical frontal',
                 'Columna cervical lateral',
             ],
+            '0401062' => [
+                'Hombro derecho — proyección oblicua',
+                'Hombro izquierdo — proyección oblicua',
+                'Brazo derecho — proyección oblicua',
+                'Brazo izquierdo — proyección oblicua',
+                'Codo derecho — proyección oblicua',
+                'Codo izquierdo — proyección oblicua',
+                'Rodilla derecha — proyección oblicua',
+                'Rodilla izquierda — proyección oblicua',
+                'Rótula derecha — axial',
+                'Rótula izquierda — axial',
+                'Axial de ambas rótulas',
+                'Sesamoideo pie derecho',
+                'Sesamoideo pie izquierdo',
+            ],
+            '0401063' => [
+                'Radio-carpiano derecho',
+                'Radio-carpiano izquierdo',
+                'Túnel intercondíleo rodilla derecha',
+                'Túnel intercondíleo rodilla izquierda',
+            ],
+            '0401043' => [
+                'Columna cervical oblicua derecha',
+                'Columna cervical oblicua izquierda',
+            ],
+            '0401044' => [
+                'Columna cervical dinámica flexión',
+                'Columna cervical dinámica extensión',
+            ],
         ];
     }
 
