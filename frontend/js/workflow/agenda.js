@@ -541,9 +541,24 @@ function abrirModalBuscarExamenes(machineId, filter = '', targetRow = null) {
     }, 200);
 }
 
+/** Primera fila de exámenes sin prestación seleccionada (p. ej. la que crea el modal al abrir). */
+function risObtenerFilaExamenVacia() {
+    let $empty = null;
+    $('#studyBody tr.study-entry').each(function () {
+        if (!$(this).find('.eExam').val()) {
+            $empty = $(this);
+            return false;
+        }
+    });
+    return $empty;
+}
+
 function risAgregarFilaExamen(machineId, examId, subExamId = null, opts = {}) {
-    addStudyRow('primo');
-    const $row = $('#studyBody tr.study-entry').last();
+    let $row = risObtenerFilaExamenVacia();
+    if (!$row || !$row.length) {
+        addStudyRow('primo');
+        $row = $('#studyBody tr.study-entry').last();
+    }
     $row.find('.eMachine').val(machineId);
     risSeleccionarExamenEnFila($row, examId);
     const examData = (catalogosAgenda.exams || []).find((e) => String(e.id) === String(examId));
