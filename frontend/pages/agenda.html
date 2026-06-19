@@ -23,10 +23,10 @@
                         <div>
                             <h6 class="fw-bold mb-2 text-dark">Cómo leer el calendario</h6>
                             <ul class="small text-muted mb-0 ps-3 agenda-ayuda-list">
-                                <li>Cada <strong>bloque vertical</strong> en vista Día/Semana equivale a <strong id="agendaIntervaloTexto">15 minutos</strong>.</li>
-                                <li>Las <strong>etiquetas de hora</strong> (08:00, 09:00…) marcan el inicio de cada hora; entre medias hay bloques de 15 min sin número.</li>
-                                <li><strong>Clic en un espacio libre</strong> → nueva cita. <strong>Clic en una cita</strong> → editar (si no está bloqueada).</li>
-                                <li>Vista <strong>Mes</strong>: un bloque por día y sala (sin detalle horario).</li>
+                                <li>Vista <strong>Día</strong>: timeline — cada fila es una sala; arriba van las horas (<strong id="agendaIntervaloTexto">15 min</strong> por bloque).</li>
+                                <li>Vista <strong>Semana</strong>: grilla clásica — reloj a la izquierda, columnas por día, filas por sala.</li>
+                                <li>Vista <strong>Mes</strong>: un bloque por día con todas sus citas; días sin citas quedan vacíos. Clic en el día para agendar.</li>
+                                <li><strong>Clic en espacio libre</strong> → nueva cita. <strong>Clic en cita</strong> → editar (si no está bloqueada).</li>
                             </ul>
                         </div>
                     </div>
@@ -45,7 +45,11 @@
         </div>
     </div>
 
-    <div id="calendar" class="agenda-calendar shadow-sm border rounded bg-white"></div>
+    <p id="agendaVistaContexto" class="small text-primary fw-semibold mb-2 px-1" aria-live="polite"></p>
+    <div class="agenda-cal-wrap">
+        <div id="calendar" class="agenda-calendar shadow-sm border rounded bg-white"></div>
+        <div id="agendaMesPanel" class="agenda-mes-panel shadow-sm border rounded bg-white d-none" aria-label="Agenda mensual por días"></div>
+    </div>
 </div>
 
 <div class="modal fade" id="appointmentModal" tabindex="-1" data-bs-backdrop="static" aria-labelledby="modalTitle" aria-hidden="true">

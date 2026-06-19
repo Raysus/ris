@@ -22,7 +22,10 @@ return [
      */
     'role' => env('RIS_CLOUD_ROLE', 'auto'),
 
-    'secret' => env('CLOUD_SYNC_SECRET'),
+    // Sin comillas en .env; trim evita espacios al copiar/pegar desde Docker o editores.
+    'secret' => ($s = trim((string) env('CLOUD_SYNC_SECRET', ''))) !== ''
+        ? trim($s, " \t\n\r\0\x0B\"'")
+        : null,
 
     'inbound_url' => $inboundUrl ?: null,
     'export_url' => $exportUrl ?: null,

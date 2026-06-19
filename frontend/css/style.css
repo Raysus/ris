@@ -525,17 +525,101 @@ body {
     border-color: #dc3545;
 }
 
-/* Vista mes: columnas por día, eventos más compactos */
-.fc-agendaMes-view .fc-event-main,
-.fc-agendaMes-view .fc-event,
-.fc-resourceTimelineMonth-view .fc-event-main,
-.fc-resourceTimelineMonth-view .fc-event {
-    font-size: 0.7rem !important;
+/* Vista semana: grilla horaria (horas a la izquierda, días arriba) */
+.fc-resourceTimeGridWeek-view .fc-timegrid-axis,
+.fc-resourceTimeGridWeek-view .fc-timegrid-slot-label {
+    font-weight: 700;
+    font-size: 0.78rem;
 }
 
-.fc-agendaMes-view .fc-timeline-slot,
-.fc-resourceTimelineMonth-view .fc-timeline-slot {
-    min-width: 28px;
+.fc-resourceTimeGridWeek-view .fc-col-header-cell-cushion {
+    font-weight: 700;
+    font-size: 0.8rem;
+}
+
+.fc-resourceTimeGridWeek-view .fc-timegrid-col.fc-day-today {
+    background: rgba(125, 33, 129, 0.06);
+}
+
+.fc-resourceTimeGridWeek-view .fc-datagrid-cell-main {
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+/* Vista mes: lista por día */
+.fc-agendaMes-view.fc-list {
+    border: none;
+}
+
+.fc-agendaMes-view .fc-list-day-cushion {
+    background: linear-gradient(90deg, rgba(125, 33, 129, 0.12), rgba(125, 33, 129, 0.04));
+    padding: 0.55rem 0.85rem;
+    font-weight: 700;
+    font-size: 0.92rem;
+    color: var(--text-main);
+    cursor: pointer;
+}
+
+.fc-agendaMes-view .fc-list-day-cushion:hover {
+    background: rgba(125, 33, 129, 0.16);
+}
+
+.fc-agendaMes-view .fc-list-day.fc-day-today .fc-list-day-cushion {
+    background: rgba(125, 33, 129, 0.2);
+    color: var(--htc-purple, #7d2181);
+}
+
+.fc-agendaMes-view .fc-list-event {
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.fc-agendaMes-view .fc-list-event:hover {
+    background: rgba(125, 33, 129, 0.06);
+}
+
+.fc-agendaMes-view .fc-list-event-dot {
+    border-width: 8px;
+}
+
+.fc-agendaMes-view .fc-list-event-time {
+    display: none;
+}
+
+.fc-agendaMes-view .fc-list-event-title {
+    width: 100%;
+    padding: 0.15rem 0;
+}
+
+.fc-agendaMes-view .fc-list-empty {
+    padding: 0.35rem 1rem;
+    font-size: 0.85rem;
+    color: #888;
+    font-style: italic;
+}
+
+.agenda-lista-mes-hora {
+    font-size: 0.78rem;
+    min-width: 6.5rem;
+    text-align: center;
+}
+
+.agenda-lista-mes-sala {
+    font-size: 0.82rem;
+    min-width: 7rem;
+}
+
+.agenda-lista-mes-paciente {
+    font-size: 0.88rem;
+}
+
+.agenda-lista-mes-rut {
+    font-size: 0.78rem;
+    color: #666;
+}
+
+#agendaVistaContexto:empty {
+    display: none;
 }
 
 .fc-event {

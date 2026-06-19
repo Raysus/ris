@@ -13,13 +13,14 @@ use App\Models\ReferringDoctor;
 use App\Models\ReportTemplate;
 use App\Models\Service;
 use App\Models\Supply;
+use App\Models\User;
 
 class CloudCatalogExportService
 {
     /**
      * @return array<string, mixed>
      */
-    public function export(?string $laboratoryId, bool $includePatients = false): array
+    public function export(?string $laboratoryId, bool $includePatients = false, bool $includeUsers = false): array
     {
         $labIds = $this->resolveLaboratoryScope($laboratoryId);
 
@@ -75,6 +76,35 @@ class CloudCatalogExportService
                 $p->toArray(),
                 ['persona' => $p->persona?->toArray()]
             ))->values()->all();
+        }
+
+        if ($includeUsers && $labIds !== null) {
+            $userIds = \Illuminate\Support\Facades\DB::table('laboratory_user')
+                ->whereIn('laboratory_id', $labIds)
+                ->pluck('user_id')
+                ->unique()
+                ->values()
+                ->all();
+
+            $users = User::query()
+                ->with(['persona', 'tipoUsuario'])
+                ->whereIn('id', $userIds)
+                ->get();
+
+            $payload['users'] = $users->map(function (User $user) {
+                $row = $user->makeVisible(['password'])->toArray();
+                $row['persona'] = $user->persona?->toArray();
+
+                return $row;
+            })->values()->all();
+
+            $payload['laboratory_users'] = \Illuminate\Support\Facades\DB::table('laboratory_user')
+                ->whereIn('laboratory_id', $labIds)
+                ->whereIn('user_id', $userIds)
+                ->get()
+                ->map(fn ($row) => (array) $row)
+                ->values()
+                ->all();
         }
 
         return $payload;

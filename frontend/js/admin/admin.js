@@ -356,17 +356,18 @@ async function cargarCloudSyncLogs() {
     }
 }
 
-async function pullCatalogoDesdeNube(includePatients) {
+async function pullCatalogoDesdeNube(includePatients, includeUsers = true) {
     const labId = typeof risRequireConcreteLabId === 'function'
         ? risRequireConcreteLabId()
         : (localStorage.getItem('ris_lab_id') || '');
     if (!labId) {
         return;
     }
+    const parts = ['catálogo'];
+    if (includeUsers) parts.push('usuarios de la sede');
+    if (includePatients) parts.push('pacientes');
     if (!(await showConfirm(
-        includePatients
-            ? '¿Importar catálogo y pacientes de esta sede desde la nube?'
-            : '¿Importar catálogo (exámenes, máquinas, médicos solicitantes, etc.) desde la nube?',
+        `¿Importar ${parts.join(', ')} desde la nube?`,
         { title: 'Sincronizar desde nube', confirmText: 'Importar' }
     ))) {
         return;
@@ -378,6 +379,7 @@ async function pullCatalogoDesdeNube(includePatients) {
             body: JSON.stringify({
                 laboratory_id: labId,
                 include_patients: !!includePatients,
+                include_users: !!includeUsers,
             }),
         });
         const json = await res.json();
