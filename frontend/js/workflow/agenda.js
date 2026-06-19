@@ -648,7 +648,6 @@ async function initAgenda() {
     }
 
     setupCalendar(calendarEl);
-    initAgendaMesPanelEvents();
     await cargarAgendaDesdeServidor();
 
     ensureAgendaModalsAnchored();
@@ -916,169 +915,26 @@ function buildAgendaCalendarViews(config) {
             allDaySlot: false,
         },
         agendaMes: {
-            type: 'list',
+            type: 'resourceTimeGrid',
             duration: { months: 1 },
-            listDayFormat: { weekday: 'long', day: 'numeric', month: 'long' },
-            listDaySideFormat: false,
-            eventOrder: 'start',
-            navLinks: false,
+            slotDuration: slotDur,
+            slotMinTime: horaInicio,
+            slotMaxTime: horaFin,
+            slotLabelInterval: '01:00:00',
+            slotLabelFormat: {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false,
+            },
+            dayHeaderFormat: {
+                weekday: 'short',
+                day: 'numeric',
+                omitCommas: true,
+            },
+            dayMinWidth: 44,
+            allDaySlot: false,
         },
     };
-}
-
-function nombreSalaPorEvento(event) {
-    const rid = event.getResources?.()[0]?.id || event._def?.resourceIds?.[0];
-    if (rid) {
-        const sala = (window.RIS?.resources || []).find((r) => String(r.id) === String(rid));
-        if (sala) return sala.title || sala.name;
-    }
-    const appt = window.RIS?.agenda?.find((a) => String(a.id) === String(event.id));
-    if (appt?.machine) {
-        const sala = (window.RIS?.resources || []).find((r) => String(r.id) === String(appt.machine));
-        return sala?.title || appt.machine;
-    }
-    return 'Sala';
-}
-
-function isAgendaVistaResumenMes(viewType) {
-    return viewType === 'agendaMes';
-}
-
-function formatDateKey(date) {
-    const d = date instanceof Date ? new Date(date) : new Date(normalizeApiDateTime(date));
-    if (Number.isNaN(d.getTime())) return '';
-    const pad = (n) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-function esMismaFechaLocal(a, b) {
-    return formatDateKey(a) === formatDateKey(b);
-}
-
-function nombreSalaPorItem(item) {
-    const sala = (window.RIS?.resources || []).find((r) => String(r.id) === String(item.machine));
-    return sala?.title || sala?.name || 'Sala';
-}
-
-function togglePanelMes(activo) {
-    const cal = document.getElementById('calendar');
-    const panel = document.getElementById('agendaMesPanel');
-    if (cal) cal.classList.toggle('agenda-mes-activo', !!activo);
-    if (panel) panel.classList.toggle('d-none', !activo);
-}
-
-function renderAgendaMesBloques(rangeStart, rangeEnd, searchTerm) {
-    const panel = document.getElementById('agendaMesPanel');
-    if (!panel) return;
-
-    const items = filtrarAgendaItems(window.RIS?.agenda || [], searchTerm);
-    const hoy = formatDateKey(new Date());
-
-    const days = [];
-    const cursor = new Date(rangeStart);
-    cursor.setHours(0, 0, 0, 0);
-    const end = new Date(rangeEnd);
-    while (cursor < end) {
-        days.push(new Date(cursor));
-        cursor.setDate(cursor.getDate() + 1);
-    }
-
-    const html = days.map((day) => {
-        const key = formatDateKey(day);
-        const citas = items
-            .filter((item) => esMismaFechaLocal(item.start, day))
-            .sort(
-                (a, b) => new Date(normalizeApiDateTime(a.start)) - new Date(normalizeApiDateTime(b.start))
-            );
-
-        const label = day.toLocaleDateString('es-CL', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-        });
-        const hoyCls = key === hoy ? ' agenda-mes-dia--hoy' : '';
-        const badge = citas.length
-            ? `<span class="badge bg-primary-subtle text-primary ms-2">${citas.length}</span>`
-            : '';
-
-        const filas = citas.map((c) => {
-            const color = getHexColorEstado(c.status);
-            const hora = formatearRangoHoraEvento(
-                new Date(normalizeApiDateTime(c.start)),
-                c.end ? new Date(normalizeApiDateTime(c.end)) : null
-            );
-            const estadosIniciales = ['pre-agendado', 'agendado', 'confirmado', 'espera'];
-            const locked = !estadosIniciales.includes(c.status);
-            const lock = locked ? '<i class="bi bi-lock-fill ms-1" aria-hidden="true"></i>' : '';
-            const alert = c.needsReview ? '<span class="badge bg-danger rounded-pill ms-1">!</span>' : '';
-            const titulo = c.title
-                || `${c.patient?.lastName || ''}, ${c.patient?.name || ''}`.replace(/^,\s*/, '');
-            const rut = c.patient?.rut
-                ? `<span class="agenda-mes-cita-rut">${c.patient.rut}</span>`
-                : '';
-
-            return `
-                <button type="button" class="agenda-mes-cita" data-cita-id="${c.id}" style="--cita-color:${color}">
-                    <span class="agenda-mes-cita-hora">${hora}</span>
-                    <span class="agenda-mes-cita-sala"><i class="bi bi-door-open me-1"></i>${nombreSalaPorItem(c)}</span>
-                    <span class="agenda-mes-cita-paciente">${titulo}${lock}${alert}</span>
-                    ${rut}
-                </button>`;
-        }).join('');
-
-        return `
-            <section class="agenda-mes-dia${hoyCls}" data-fecha="${key}">
-                <header class="agenda-mes-dia-header">
-                    <button type="button" class="agenda-mes-dia-titulo" data-fecha="${key}">
-                        <span class="agenda-mes-dia-fecha">${label}</span>${badge}
-                    </button>
-                </header>
-                <div class="agenda-mes-dia-cuerpo">${filas}</div>
-            </section>`;
-    }).join('');
-
-    panel.innerHTML = `<div class="agenda-mes-bloques">${html}</div>`;
-}
-
-function initAgendaMesPanelEvents() {
-    const panel = document.getElementById('agendaMesPanel');
-    if (!panel || panel.dataset.bound === '1') return;
-    panel.dataset.bound = '1';
-
-    panel.addEventListener('click', (e) => {
-        const citaBtn = e.target.closest('[data-cita-id]');
-        if (citaBtn) {
-            const appt = window.RIS?.agenda?.find((a) => String(a.id) === String(citaBtn.dataset.citaId));
-            if (!appt) return;
-            const estadosIniciales = ['pre-agendado', 'agendado', 'confirmado', 'espera'];
-            if (!estadosIniciales.includes(appt.status)) {
-                showToast('🔒 Esta cita ya ingresó al flujo clínico y no puede ser modificada desde Recepción.', 'warning');
-                return;
-            }
-            abrirModalCita(appt);
-            return;
-        }
-
-        const dayBtn = e.target.closest('.agenda-mes-dia-titulo');
-        if (!dayBtn) return;
-        if (typeof risRequireConcreteLabId === 'function' ? !risRequireConcreteLabId() : !localStorage.getItem('ris_lab_id')) {
-            return;
-        }
-        const cfg = getAgendaScheduleConfig();
-        const horaLab = (cfg.horaInicio || '08:00:00').split(':');
-        const parts = String(dayBtn.dataset.fecha || '').split('-');
-        if (parts.length < 3) return;
-        const startSel = new Date(
-            parseInt(parts[0], 10),
-            parseInt(parts[1], 10) - 1,
-            parseInt(parts[2], 10)
-        );
-        startSel.setHours(parseInt(horaLab[0], 10) || 8, parseInt(horaLab[1], 10) || 0, 0, 0);
-        abrirModalCita({
-            start: formatDateTimeLocal(redondearDatetimeAlIntervalo(startSel, cfg.intervalo)),
-            machine: null,
-        });
-    });
 }
 
 function actualizarContextoVistaAgenda(view) {
@@ -1087,7 +943,7 @@ function actualizarContextoVistaAgenda(view) {
     const hints = {
         resourceTimelineDay: 'Día: filas = salas · columnas = horas del laboratorio (de izquierda a derecha).',
         resourceTimeGridWeek: 'Semana: filas = salas · columnas = días · reloj a la izquierda indica la hora de cada cita.',
-        agendaMes: 'Mes: un bloque por día del mes. Dentro van todas las citas (hora, sala, paciente). Día vacío = sin citas. Clic en la fecha para agendar.',
+        agendaMes: 'Mes: misma grilla que Semana — horas a la izquierda, un día por columna (desplácese horizontalmente). Filas = salas.',
     };
     el.textContent = hints[view.type] || '';
 }
@@ -1128,16 +984,7 @@ function setupCalendar(el) {
         datesSet: function (arg) {
             montarUiInternaCalendario();
             actualizarContextoVistaAgenda(arg.view);
-            const esMes = isAgendaVistaResumenMes(arg.view.type);
-            calendar.setOption('editable', !esMes);
-            calendar.setOption('eventResourceEditable', !esMes);
-            calendar.setOption('selectable', !esMes);
-            togglePanelMes(esMes);
-            if (esMes) {
-                renderAgendaMesBloques(arg.view.currentStart, arg.view.currentEnd, $('#searchAgenda').val() || '');
-            } else {
-                refrescarEventosCalendario($('#searchAgenda').val() || '');
-            }
+            refrescarEventosCalendario($('#searchAgenda').val() || '');
         },
         views: buildAgendaCalendarViews(configRIS),
         resourceAreaWidth: '18%',
@@ -1162,9 +1009,6 @@ function setupCalendar(el) {
         eventResourceEditable: true,
         droppable: true,
         select: function (info) {
-            if (isAgendaVistaResumenMes(info.view.type)) {
-                return;
-            }
             if (typeof risRequireConcreteLabId === 'function' ? !risRequireConcreteLabId() : !localStorage.getItem("ris_lab_id")) {
                 return;
             }
@@ -1173,11 +1017,6 @@ function setupCalendar(el) {
                 start: formatDateTimeLocal(redondearDatetimeAlIntervalo(startSel, configRIS.intervalo)),
                 machine: info.resource ? info.resource.id : null,
             });
-        },
-        dateClick: function (info) {
-            if (isAgendaVistaResumenMes(info.view.type)) {
-                return;
-            }
         },
         eventClick: function (info) {
             const estadosIniciales = ['pre-agendado', 'agendado', 'confirmado', 'espera'];
@@ -1194,10 +1033,6 @@ function setupCalendar(el) {
         },
 
         eventDrop: async function (info) {
-            if (isAgendaVistaResumenMes(info.view.type)) {
-                info.revert();
-                return;
-            }
             const id = info.event.id;
             const newStart = info.event.start;
             const duracionActual = info.event.end ? (info.event.end.getTime() - info.oldEvent.start.getTime()) : (15 * 60000);
@@ -1241,7 +1076,15 @@ function setupCalendar(el) {
             const isLocked = !estadosIniciales.includes(props.status);
             const lockIcon = isLocked ? '<i class="bi bi-lock-fill text-white me-1"></i>' : '';
 
-            const bgColor = arg.event.backgroundColor || '#7d2181';
+            const bgColor = arg.event.backgroundColor || arg.event.borderColor || '#7d2181';
+
+            if (arg.view.type === 'agendaMes') {
+                const alert = needsReview ? '<span class="badge bg-danger rounded-pill ms-1" style="font-size:8px">!</span>' : '';
+                const rangoHora = formatearRangoHoraEvento(arg.event.start, arg.event.end);
+                return {
+                    html: `<div class="agenda-evento-mes-grilla px-1 py-0 text-white text-truncate fw-semibold" style="font-size:0.62rem;line-height:1.2;background:${bgColor};border-radius:3px;">${lockIcon}${rangoHora} ${arg.event.title}${alert}</div>`,
+                };
+            }
 
             if (!patient) return { html: `<div class="p-1" style="background-color:${bgColor}; color:white; border-radius:3px;">${lockIcon}${arg.event.title}</div>` };
 
@@ -1298,9 +1141,8 @@ function filtrarAgendaItems(agenda, termRaw) {
     });
 }
 
-/** Scheduler oculta citas con resourceId en vista lista; en Mes no asignamos sala al objeto FC. */
+/** Mapea citas RIS → eventos FullCalendar (siempre con resourceId si hay sala). */
 function mapearEventosCalendario(agendaItems, viewType) {
-    const esMes = viewType === 'agendaMes';
     return (agendaItems || []).map((item) => {
         const colorEstado = getHexColorEstado(item.status);
         const titulo = item.title
@@ -1312,7 +1154,7 @@ function mapearEventosCalendario(agendaItems, viewType) {
             end: item.end,
             color: colorEstado,
             textColor: AGENDA_ESTADO_TEXTO,
-            display: esMes ? 'auto' : 'block',
+            display: 'block',
             extendedProps: {
                 patient: item.patient,
                 status: item.status,
@@ -1333,7 +1175,7 @@ function mapearEventosCalendario(agendaItems, viewType) {
                 studies: item.studies,
             },
         };
-        if (!esMes && item.machine) {
+        if (item.machine) {
             ev.resourceId = String(item.machine);
         }
         return ev;
@@ -1343,10 +1185,6 @@ function mapearEventosCalendario(agendaItems, viewType) {
 function refrescarEventosCalendario(searchTerm) {
     if (!calendar || !window.RIS?.agenda) return;
     const viewType = calendar.view?.type || 'resourceTimelineDay';
-    if (viewType === 'agendaMes') {
-        renderAgendaMesBloques(calendar.view.currentStart, calendar.view.currentEnd, searchTerm);
-        return;
-    }
     const items = filtrarAgendaItems(window.RIS.agenda, searchTerm);
     calendar.getEventSources().forEach((src) => src.remove());
     calendar.addEventSource(mapearEventosCalendario(items, viewType));
