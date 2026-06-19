@@ -87,7 +87,7 @@ class AgendaCatalogController extends Controller
                 'referring_doctors' => $refDoctorsQuery->get(),
                 'destination_doctors' => $destDoctorsQuery->get(),
                 'insurances' => $insurancesQuery->get(),
-                'exams' => $this->dedupeExamsForAgenda($examsQuery->get()),
+                'exams' => $this->serializeExamsForAgenda($examsQuery->get()),
                 'supplies' => $suppliesQuery->get(),
                 'supply_packs' => $supplyPacksQuery->get(),
                 'machines' => $machinesQuery->get(),
@@ -119,6 +119,37 @@ class AgendaCatalogController extends Controller
                 return "{$lab}|{$group}|{$name}";
             })
             ->values();
+    }
+
+    /**
+     * La columna JSON sub_exams y la relación subExams comparten clave en JSON;
+     * unificamos variantes para la agenda.
+     *
+     * @param  \Illuminate\Support\Collection<int, Exam>  $exams
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    private function serializeExamsForAgenda($exams)
+    {
+        return $this->dedupeExamsForAgenda($exams)->map(function (Exam $exam) {
+            $data = $exam->toArray();
+
+            $relationSubs = $exam->relationLoaded('subExams')
+                ? $exam->subExams->map(fn ($s) => [
+                    'id' => $s->id,
+                    'name' => $s->name,
+                    'fonasa_code' => $s->fonasa_code,
+                    'additional_price' => (int) $s->additional_price,
+                ])->values()->all()
+                : [];
+
+            $jsonSubs = is_array($exam->getAttributes()['sub_exams'] ?? null)
+                ? array_values(array_filter($exam->getAttributes()['sub_exams']))
+                : [];
+
+            $data['sub_exams'] = ! empty($relationSubs) ? $relationSubs : $jsonSubs;
+
+            return $data;
+        })->values();
     }
 
     public function storeReferringDoctor(Request $request)

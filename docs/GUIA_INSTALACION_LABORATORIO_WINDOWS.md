@@ -1,114 +1,54 @@
-# Guía de instalación del RIS en un laboratorio (Windows)
+# RIS en laboratorio — Windows Server
 
-> **Recomendado para servidores nuevos:** use la guía principal
-> **[GUIA_INSTALACION_LABORATORIO.md](GUIA_INSTALACION_LABORATORIO.md)** (Ubuntu Server).
-> Este documento queda como referencia si el servidor del laboratorio es **Windows**.
+> **Recomendado:** [GUIA_INSTALACION_LABORATORIO.md](GUIA_INSTALACION_LABORATORIO.md) (Ubuntu Server + Docker).
 
----
-
-## Tailscale: ¿dónde va?
-
-| Dónde | ¿Instala Tailscale? |
-|-------|---------------------|
-| **Servidor del laboratorio** | **Opcional** — recomendado para soporte remoto y `deploy-lab` |
-| **PCs de recepción / médicos** | **No** |
-| **Computador del equipo de sistemas** (despliegues y soporte) | **Sí** — para SSH a la nube y laboratorios vía Envoy |
-
-Instalación paso a paso en el servidor (Ubuntu): **[GUIA_INSTALACION_LABORATORIO.md § 11](GUIA_INSTALACION_LABORATORIO.md#11-configurar-tailscale-en-el-servidor-opcional)**.
-En Windows Server puede usar el instalador MSI desde [tailscale.com/download](https://tailscale.com/download) y el mismo flujo de `tailscale up`.
-
-El laboratorio se conecta al PACS de la nube con la **URL o IP** que entregue el responsable (`ORTHANC_URL` en `.env`), no necesariamente por Tailscale.
+Esta guía resume lo esencial si el servidor del centro es **Windows** con **Docker Desktop**.
 
 ---
 
-## 1. ¿Qué vamos a instalar? (resumen)
+## Requisitos
 
-En el laboratorio habrá **un computador principal** (el **servidor**). Ahí corre el RIS en **Docker Desktop**. Las demás PCs usan el **navegador**.
+- Docker Desktop instalado y en ejecución
+- Git para clonar el repositorio
+- IP fija en la LAN (ej. `192.168.1.50`)
 
-- Las **imágenes médicas** están en la **nube**; el RIS local se conecta por red a ese PACS.
-- **Tailscale en el servidor** es opcional para usuarios del centro; sistemas puede pedirlo para soporte remoto (ver guía Ubuntu § 11).
-
----
-
-## 2. Antes de empezar: qué descargar (servidor Windows)
-
-| Programa | Para qué | Enlace |
-|----------|----------|--------|
-| **Docker Desktop** | Ejecutar el RIS | https://www.docker.com/products/docker-desktop/ |
-| **Git** | Descargar el RIS | https://git-scm.com/download/win |
-
-En PCs con **escáner**: **Node.js LTS**, **NAPS2** (ver sección 11).
+**Tailscale:** solo en el PC del equipo de sistemas (despliegues remotos), no en cada PC de usuarios.
 
 ---
 
-## 3. Docker Desktop
-
-Instalar, reiniciar si pide, dejar Docker Desktop **abierto** (ícono de ballena en la bandeja).
-
----
-
-## 4. Obtener token y clonar
+## Instalación
 
 ```powershell
-git clone https://EL_TOKEN@github.com/Raysus/ris.git C:\RIS
-git config --global credential.helper store
-```
-
----
-
-## 5. Configurar
-
-```powershell
+git clone https://github.com/Raysus/ris.git C:\RIS
 cd C:\RIS\backend
 Copy-Item .env.lan.example .env
 notepad .env
 ```
 
-Sustituya **todas** las apariciones de `192.168.1.50` por la IPv4 del servidor (`ipconfig`).
-`APP_URL` y `FRONTEND_URL` deben ser `http://<SU-IP>` (igual que en el navegador de las otras PCs).
-Configure `ORTHANC_URL` y `CLOUD_SYNC_SECRET` (secreto compartido con la nube) según indique sistemas.
-
-Desde otra PC: `curl http://<IP>/api/health` debe devolver JSON con `"status":"ok"`.
-
-Alias DNS (opcional): en `C:\Windows\System32\drivers\etc\hosts` agregue `192.168.x.x siresamatriz.healthticloud.cl` y use `http://siresamatriz.healthticloud.cl` con el mismo valor en `APP_URL` / `FRONTEND_URL` (ver guía Ubuntu §10.1).
-
-El contenedor API usa **PHP 8.5.4** (igual que `composer.json`). Si en Windows tiene otro PHP instalado, no importa: Docker usa la imagen del `Dockerfile`.
+En `.env`: sustituya `192.168.1.50` por la IP del servidor. `APP_URL` y `FRONTEND_URL` deben coincidir con la URL del navegador (`http://<IP>`). Configure `ORTHANC_URL` y `CLOUD_SYNC_SECRET` según sistemas.
 
 ```powershell
 docker compose -f docker-compose.lan.yml run --rm api php artisan key:generate --show
-```
-
-Pegue el valor en `APP_KEY=` en `.env`.
-
----
-
-## 6. Encender
-
-```powershell
+# Pegar APP_KEY= en .env
 docker compose -f docker-compose.lan.yml up -d --build
 ```
 
-Tras el primer arranque: `DB_AUTO_SEED=false` en `.env` y `up -d` de nuevo.
+Comprobar desde otra PC: `curl http://<IP>/api/health` → JSON `"status":"ok"`.
+
+Tras el primer arranque: `DB_AUTO_SEED=false` en `.env` y `docker compose -f docker-compose.lan.yml up -d`.
 
 ---
 
-## 7. Firewall Windows
-
-PowerShell como administrador:
+## Firewall
 
 ```powershell
-New-NetFirewallRule -DisplayName "RIS Frontend" -Direction Inbound -Protocol TCP -LocalPort 80   -Action Allow
-New-NetFirewallRule -DisplayName "RIS API"      -Direction Inbound -Protocol TCP -LocalPort 8000 -Action Allow
+New-NetFirewallRule -DisplayName "RIS HTTP" -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow
 ```
 
 ---
 
-## 8. Uso diario y actualizaciones
+## Actualizaciones
 
-Comandos en `C:\RIS\backend` con `docker compose -f docker-compose.lan.yml`.
+Las actualizaciones las ejecuta el equipo de sistemas (`envoy run deploy-lab` o `git pull` + `docker compose ... up -d --build` en el servidor).
 
-Las **actualizaciones** las hace el equipo de sistemas **desde su PC** (con Tailscale para llegar por SSH), no el personal del laboratorio.
-
----
-
-Problemas frecuentes y checklist: mismos criterios que la guía Ubuntu (firewall, `SESSION_SECURE_COOKIE=false`, URL del PACS, Docker abierto).
+Problemas frecuentes y checklist: [INSTALACION.md](INSTALACION.md) §7 y [GUIA_INSTALACION_LABORATORIO.md](GUIA_INSTALACION_LABORATORIO.md).

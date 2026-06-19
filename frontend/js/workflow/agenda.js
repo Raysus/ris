@@ -293,6 +293,460 @@ function risSeleccionarExamenEnFila($row, examId) {
     if (exam) risSyncExamQueryLabel($row, exam);
 }
 
+/* ========== Flujo estilo RIS clásico (búsqueda F2, dif bono, ingreso bono) ========== */
+let _risBuscarExamContext = { machineId: null, targetRow: null };
+window._risBonoMontos = null;
+let _risQuickExamResolved = null;
+
+function risClasificacionExamen(exam) {
+    const g = risGrupoModalidadEquiv(exam?.group_code || exam?.group) || 'OT';
+    if (['CR', 'DX', 'RX'].includes(g)) return 'RAYOS-X';
+    if (g === 'US') return 'ECOGRAFÍA';
+    if (g === 'MAMO') return 'MAMOGRAFÍA';
+    if (g === 'CT') return 'TOMOGRAFÍA';
+    if (g === 'MRI') return 'RESONANCIA';
+    return RIS_MODALITY_LABELS[g] || g;
+}
+
+function risPoblarSelectSalasAgenda($select, selectedId) {
+    if (!$select || !$select.length) return;
+    const prev = selectedId || $select.val();
+    $select.empty().append('<option value="">Seleccione sala...</option>');
+    (window.RIS.resources || []).forEach((res) => {
+        $select.append(`<option value="${res.id}">${res.title}</option>`);
+    });
+    if (prev) $select.val(prev);
+}
+
+function risNormalizarCodigoExamen(code) {
+    return String(code || '').toLowerCase().replace(/[\s.]/g, '');
+}
+
+/** Exámenes del catálogo con el mismo código FONASA (variantes estilo RIS clásico). */
+function risExamenesMismoCodigo(machineId, fonasaCode) {
+    const norm = risNormalizarCodigoExamen(fonasaCode);
+    if (!norm || !machineId) return [];
+    return risExamenesParaSala(machineId).filter(
+        (e) => risNormalizarCodigoExamen(e.fonasa_code) === norm
+    );
+}
+
+/**
+ * Variantes: sub_exámenes (tabla/JSON) o hermanos con mismo código FONASA.
+ * @returns {{ key: string, label: string, examId: string, subExamId: string|null, isSibling: boolean }[]}
+ */
+function risObtenerVariantesExamen(exam, machineId = null) {
+    if (!exam) return [];
+
+    const subs = (exam.sub_exams || []).filter((s) => s && s.id);
+    if (subs.length > 0) {
+        return subs.map((s) => ({
+            key: `sub:${s.id}`,
+            label: s.name || exam.name,
+            examId: String(exam.id),
+            subExamId: String(s.id),
+            isSibling: false,
+        }));
+    }
+
+    const sala = machineId || $('#risQuickExamMachine').val() || $('.eMachine').first().val();
+    const siblings = risExamenesMismoCodigo(sala, exam.fonasa_code);
+    if (siblings.length > 1) {
+        return siblings.map((e) => ({
+            key: `exam:${e.id}`,
+            label: e.name,
+            examId: String(e.id),
+            subExamId: null,
+            isSibling: true,
+        }));
+    }
+
+    return [];
+}
+
+function risPoblarVariantesEnFila($row, examData) {
+    const subSelect = $row.find('.eSubExam');
+    subSelect.empty().append('<option value="">Sin variante</option>');
+    if (!examData) return;
+
+    const variantes = risObtenerVariantesExamen(examData, $row.find('.eMachine').val());
+    if (!variantes.length) return;
+
+    variantes.forEach((v) => {
+        const val = v.isSibling ? `sibling:${v.examId}` : String(v.subExamId);
+        subSelect.append(
+            `<option value="${val}" data-exam-id="${v.examId}" data-sibling="${v.isSibling ? '1' : '0'}">${v.label}</option>`
+        );
+    });
+}
+
+function risConstruirFilasBusquedaExamenes(machineId, filter = '') {
+    if (!machineId) return [];
+    const q = String(filter || '').trim();
+    const rows = [];
+    const vistos = new Set();
+    let entidad = 0;
+
+    risExamenesParaSala(machineId).forEach((exam) => {
+        const variantes = risObtenerVariantesExamen(exam, machineId);
+        const items = variantes.length
+            ? variantes
+            : [{
+                key: `exam:${exam.id}`,
+                label: exam.name,
+                examId: String(exam.id),
+                subExamId: null,
+                isSibling: false,
+            }];
+
+        items.forEach((item) => {
+            const dedupeKey = `${item.examId}|${item.subExamId || ''}|${item.label}`;
+            if (vistos.has(dedupeKey)) return;
+            if (q && !risExamCoincideBusqueda({ ...exam, name: item.label }, q)) return;
+
+            vistos.add(dedupeKey);
+            entidad += 1;
+            const examRef = (catalogosAgenda.exams || []).find((e) => String(e.id) === String(item.examId)) || exam;
+            rows.push({
+                examId: item.examId,
+                subExamId: item.subExamId,
+                cod_examen: examRef.fonasa_code || exam.fonasa_code || '—',
+                cod_entidad: entidad,
+                nombre_examen: item.label,
+                clasificacion: risClasificacionExamen(examRef),
+                valor: parseFloat(examRef.price) || 0,
+            });
+        });
+    });
+
+    return rows.sort((a, b) => String(a.cod_examen).localeCompare(String(b.cod_examen)));
+}
+
+function risRenderTablaBuscarExamenes() {
+    const machineId = $('#risBuscarExamMachine').val();
+    const filter = $('#risBuscarExamFilter').val();
+    const $body = $('#risBuscarExamBody');
+    $body.empty();
+
+    const filas = risConstruirFilasBusquedaExamenes(machineId, filter);
+    if (!machineId) {
+        $body.append('<tr><td colspan="5" class="text-muted text-center py-3">Seleccione sala / equipo</td></tr>');
+        return;
+    }
+    if (!filas.length) {
+        $body.append('<tr><td colspan="5" class="text-muted text-center py-3">Sin resultados</td></tr>');
+        return;
+    }
+
+    filas.forEach((item, idx) => {
+        $body.append(`
+            <tr class="ris-buscar-exam-row${idx === 0 ? ' table-active' : ''}" data-idx="${idx}" tabindex="0">
+                <td class="font-monospace">${item.cod_examen}</td>
+                <td class="text-center">${item.cod_entidad}</td>
+                <td>${item.nombre_examen}</td>
+                <td>${item.clasificacion}</td>
+                <td class="text-end">$${Math.round(item.valor).toLocaleString('es-CL')}</td>
+            </tr>`);
+        $body.children().last().data('risExamItem', item);
+    });
+}
+
+function risSeleccionarExamenDesdeBusqueda(item) {
+    if (!item) return;
+
+    const machineId = _risBuscarExamContext.machineId || $('#risBuscarExamMachine').val();
+    let $row = _risBuscarExamContext.targetRow;
+
+    if ($row && $row.length) {
+        $row.find('.eMachine').val(machineId);
+        poblarSelectExamenesAgenda($row.find('.eExam'), machineId);
+        risSeleccionarExamenEnFila($row, item.examId);
+        if (item.subExamId) {
+            setTimeout(() => {
+                $row.find('.eSubExam').val(String(item.subExamId));
+                actualizarTerminoEstimadoDesdeExamenes();
+            }, 80);
+        }
+        $row.find('.eCode').val(item.cod_examen);
+    } else {
+        risAgregarFilaExamen(machineId, item.examId, item.subExamId || null);
+    }
+
+    calculateTotal();
+    risLimpiarQuickExamEntry();
+    bootstrap.Modal.getInstance(document.getElementById('modalBuscarExamenes'))?.hide();
+    showToast('Examen agregado a la cita.', 'success');
+}
+
+function abrirModalBuscarExamenes(machineId, filter = '', targetRow = null) {
+    _risBuscarExamContext = {
+        machineId: machineId || $('#risQuickExamMachine').val() || null,
+        targetRow: targetRow && targetRow.length ? targetRow : null,
+    };
+
+    risPoblarSelectSalasAgenda($('#risBuscarExamMachine'), _risBuscarExamContext.machineId);
+    $('#risBuscarExamFilter').val(filter || $('#risQuickExamCode').val() || '');
+    risRenderTablaBuscarExamenes();
+    openModal('modalBuscarExamenes');
+
+    setTimeout(() => {
+        const $filter = $('#risBuscarExamFilter');
+        $filter.trigger('focus');
+        if ($filter.val()) $filter[0]?.select();
+    }, 200);
+}
+
+function risAgregarFilaExamen(machineId, examId, subExamId = null) {
+    addStudyRow('primo');
+    const $row = $('#studyBody tr.study-entry').last();
+    $row.find('.eMachine').val(machineId);
+    risSeleccionarExamenEnFila($row, examId);
+    const examData = (catalogosAgenda.exams || []).find((e) => String(e.id) === String(examId));
+    if (examData) {
+        risPoblarVariantesEnFila($row, examData);
+    }
+    if (subExamId) {
+        setTimeout(() => {
+            const $sub = $row.find('.eSubExam');
+            const subVal = String(subExamId);
+            if ($sub.find(`option[value="${subVal}"]`).length) {
+                $sub.val(subVal);
+            }
+            actualizarTerminoEstimadoDesdeExamenes();
+            calculateTotal();
+        }, 80);
+    } else if (examId) {
+        setTimeout(() => {
+            const $sub = $row.find('.eSubExam');
+            const sibVal = `sibling:${examId}`;
+            if ($sub.find(`option[value="${sibVal}"]`).length) {
+                $sub.val(sibVal);
+            }
+            actualizarTerminoEstimadoDesdeExamenes();
+            calculateTotal();
+        }, 80);
+    }
+    return $row;
+}
+
+function risLimpiarQuickExamEntry() {
+    $('#risQuickExamCode').val('');
+    _risQuickExamResolved = null;
+    $('#risQuickExamNameWrap').addClass('d-none');
+    $('#risQuickExamName').text('');
+    $('#risQuickVariantsPanel').addClass('d-none');
+    $('#risQuickVariantsList').empty();
+}
+
+function risMarcarTodasVariantesQuick(checked) {
+    $('#risQuickVariantsList .ris-quick-variant').prop('checked', checked);
+}
+
+function risRenderQuickVariants(exam, machineId = null) {
+    const $panel = $('#risQuickVariantsPanel');
+    const $list = $('#risQuickVariantsList');
+    $list.empty();
+
+    const variantes = risObtenerVariantesExamen(exam, machineId || $('#risQuickExamMachine').val());
+    if (!variantes.length) {
+        $panel.addClass('d-none');
+        return;
+    }
+
+    variantes.forEach((v) => {
+        $list.append(`
+            <label class="agenda-variant-chip">
+                <input type="checkbox" class="form-check-input ris-quick-variant" value="${v.key}" checked
+                    data-exam-id="${v.examId}" data-sub-exam-id="${v.subExamId || ''}" data-sibling="${v.isSibling ? '1' : '0'}">
+                <span>${v.label}</span>
+            </label>`);
+    });
+    $panel.removeClass('d-none');
+}
+
+function risResolverExamQuickEntry() {
+    const machineId = $('#risQuickExamMachine').val();
+    const code = ($('#risQuickExamCode').val() || '').trim();
+
+    _risQuickExamResolved = null;
+    $('#risQuickExamNameWrap').addClass('d-none');
+    $('#risQuickExamName').text('');
+    $('#risQuickVariantsPanel').addClass('d-none');
+    $('#risQuickVariantsList').empty();
+
+    if (!machineId || !code) return null;
+
+    const exam = risResolverExamenDesdeBusqueda(code, machineId);
+    if (!exam) return null;
+
+    _risQuickExamResolved = exam;
+    $('#risQuickExamName').text(exam.name || '');
+    $('#risQuickExamNameWrap').removeClass('d-none');
+    risRenderQuickVariants(exam, machineId);
+    return exam;
+}
+
+function risObtenerVariantesQuickSeleccionadas() {
+    const items = [];
+    $('#risQuickVariantsList .ris-quick-variant:checked').each(function () {
+        items.push({
+            examId: String($(this).data('examId') || ''),
+            subExamId: $(this).data('subExamId') ? String($(this).data('subExamId')) : null,
+            isSibling: String($(this).data('sibling')) === '1',
+        });
+    });
+    return items;
+}
+
+function risAgregarExamenDesdeCodigo() {
+    const machineId = $('#risQuickExamMachine').val();
+    const code = ($('#risQuickExamCode').val() || '').trim();
+    if (!machineId) {
+        showToast('Seleccione la sala antes de agregar el examen.', 'warning');
+        $('#risQuickExamMachine').trigger('focus');
+        return;
+    }
+    if (!code) {
+        abrirModalBuscarExamenes(machineId);
+        return;
+    }
+
+    const exam = risResolverExamQuickEntry();
+    if (!exam) {
+        abrirModalBuscarExamenes(machineId, code);
+        return;
+    }
+
+    const variantes = risObtenerVariantesExamen(exam, machineId);
+    const selected = risObtenerVariantesQuickSeleccionadas();
+
+    if (variantes.length > 0) {
+        if (!selected.length) {
+            showToast('Seleccione al menos una variante / sub-examen.', 'warning');
+            return;
+        }
+        selected.forEach((item) => {
+            risAgregarFilaExamen(machineId, item.examId, item.subExamId);
+        });
+        showToast(`${selected.length} variante(s) agregada(s).`, 'success');
+    } else {
+        risAgregarFilaExamen(machineId, exam.id, null);
+        showToast('Examen agregado a la cita.', 'success');
+    }
+
+    risLimpiarQuickExamEntry();
+    $('#risQuickExamCode').trigger('focus');
+}
+
+function risObtenerPorcentajeCopagoPlan() {
+    const insId = $('#pInsurance').val();
+    const planId = $('#pPlan').val();
+    if (!insId || !planId || !catalogosAgenda.insurances) return 0;
+    const seguro = catalogosAgenda.insurances.find((i) => String(i.id) === String(insId));
+    const plan = seguro?.plans?.find((p) => String(p.id) === String(planId));
+    return parseFloat(plan?.percentage) || 0;
+}
+
+function risFormatPesoAgenda(valor) {
+    return `$${Math.round(Number(valor) || 0).toLocaleString('es-CL')}`;
+}
+
+function risActualizarDifBonoFilas(subtotalExamenes, porcentajeDescuento) {
+    const tipoBono = $('#pTipoBono').val();
+    const esBono = tipoBono === 'Manual' || tipoBono === 'Electrónico';
+    const bonifFonasa = 80;
+
+    $('.study-entry').each(function () {
+        const p = parseFloat($(this).find('.ePrice').val()) || 0;
+        const q = parseInt($(this).find('.eQty').val(), 10) || 1;
+        const valor = Math.round(p * q);
+        let difBono = valor;
+        let difBol = valor;
+
+        if (window._risBonoMontos && subtotalExamenes > 0) {
+            const ratio = valor / subtotalExamenes;
+            difBono = Math.round(window._risBonoMontos.monto_bonificacion * ratio);
+            difBol = Math.round(window._risBonoMontos.monto_copago * ratio);
+        } else if (esBono) {
+            difBono = Math.round(valor * bonifFonasa / 100);
+            difBol = Math.max(0, valor - difBono);
+        } else if (porcentajeDescuento > 0) {
+            difBol = Math.round(valor * porcentajeDescuento / 100);
+            difBono = Math.max(0, valor - difBol);
+        }
+
+        $(this).find('.eDifBono').text(risFormatPesoAgenda(difBono));
+        $(this).find('.eDifBol').text(risFormatPesoAgenda(difBol));
+    });
+}
+
+function risActualizarBotonIngresoBono() {
+    const tipo = $('#pTipoBono').val();
+    const show = tipo === 'Manual' || tipo === 'Electrónico';
+    $('#btnIngresoBono').toggleClass('d-none', !show);
+}
+
+function abrirModalIngresoBono() {
+    let subtotal = 0;
+    $('.study-entry').each(function () {
+        const p = parseFloat($(this).find('.ePrice').val()) || 0;
+        const q = parseInt($(this).find('.eQty').val(), 10) || 1;
+        subtotal += p * q;
+    });
+
+    const tipoBono = $('#pTipoBono').val();
+    const esBono = tipoBono === 'Manual' || tipoBono === 'Electrónico';
+    let bonif = esBono ? Math.round(subtotal * 0.8) : 0;
+    let copago = Math.max(0, subtotal - bonif);
+
+    if (window._risBonoMontos) {
+        bonif = window._risBonoMontos.monto_bonificacion;
+        copago = window._risBonoMontos.monto_copago;
+        subtotal = window._risBonoMontos.monto_total || subtotal;
+    }
+
+    $('#bonoNumero').val($('#fonasaFolio').val() || $('#pTransactionCode').val() || '');
+    $('#bonoFecha').val(new Date().toISOString().slice(0, 10));
+    $('#bonoValor').val(Math.round(subtotal));
+    $('#bonoBonificacion').val(Math.round(bonif));
+    $('#bonoCopago').val(Math.round(copago));
+    openModal('modalIngresoBono');
+    setTimeout(() => $('#bonoCopago').trigger('focus'), 200);
+}
+
+function guardarIngresoBonoRis() {
+    const valor = parseFloat($('#bonoValor').val()) || 0;
+    const bonif = parseFloat($('#bonoBonificacion').val()) || 0;
+    const copago = parseFloat($('#bonoCopago').val()) || 0;
+    const numero = ($('#bonoNumero').val() || '').trim();
+
+    window._risBonoMontos = {
+        monto_total: valor,
+        monto_bonificacion: bonif,
+        monto_copago: copago,
+        fecha: $('#bonoFecha').val() || null,
+    };
+
+    if (numero) {
+        $('#fonasaFolio').val(numero);
+        $('#pTransactionCode').val(numero);
+    }
+
+    const obs = ($('#agendaObservacion').val() || '').trim();
+    const notaBono = `Bono ${numero || 's/n'} · Valor $${valor} · Bonif. $${bonif} · Copago $${copago}`;
+    $('#paymentNotes').val(obs ? `${obs} | ${notaBono}` : notaBono);
+
+    calculateTotal();
+    bootstrap.Modal.getInstance(document.getElementById('modalIngresoBono'))?.hide();
+    showToast('Datos de bono aplicados a la cita.', 'success');
+}
+
+function risSetupLegacyAgendaUi() {
+    risPoblarSelectSalasAgenda($('#risQuickExamMachine'));
+    risPoblarSelectSalasAgenda($('#risBuscarExamMachine'));
+    risActualizarBotonIngresoBono();
+}
+
 function filtrarEventosAgendaCalendario(termRaw) {
     const viewType = calendar?.view?.type || 'resourceTimelineDay';
     return mapearEventosCalendario(filtrarAgendaItems(window.RIS?.agenda, termRaw), viewType);
@@ -658,10 +1112,12 @@ async function initAgenda() {
         setupProEventListeners();
         window._agendaListenersBound = true;
     }
+
+    risSetupLegacyAgendaUi();
 }
 
 function ensureAgendaModalsAnchored() {
-    ['appointmentModal', 'modalNuevoMedico'].forEach((id) => {
+    ['appointmentModal', 'modalNuevoMedico', 'modalBuscarExamenes', 'modalIngresoBono'].forEach((id) => {
         const inApp = document.querySelector(`#appContent #${id}`);
         const inBody = document.body.querySelector(`:scope > #${id}`);
         if (inApp && inBody && inApp !== inBody) {
@@ -757,8 +1213,68 @@ function sincronizarRecursosCalendario() {
     try {
         calendar.getResources().forEach(res => res.remove());
         window.RIS.resources.forEach(res => calendar.addResource(res));
+        dibujarLineaFinSalasAgenda();
     } catch (e) {
         console.warn('No se pudieron refrescar recursos del calendario:', e);
+    }
+}
+
+let agendaLineaFinSalasObserver = null;
+
+function desmontarLineaFinSalasAgenda() {
+    const root = document.getElementById('calendar');
+    root?.querySelectorAll('.agenda-linea-fin-salas').forEach((el) => el.remove());
+    if (agendaLineaFinSalasObserver) {
+        agendaLineaFinSalasObserver.disconnect();
+        agendaLineaFinSalasObserver = null;
+    }
+}
+
+/** Línea horizontal bajo la última sala (FC recorta border-bottom en scrollers). */
+function dibujarLineaFinSalasAgenda() {
+    const root = document.getElementById('calendar');
+    if (!root?.classList.contains('fc-resourceTimelineDay-view')) {
+        desmontarLineaFinSalasAgenda();
+        return;
+    }
+
+    const ultimaFila =
+        root.querySelector('.fc-datagrid-body tr.fc-datagrid-row:last-child') ||
+        root.querySelector('.fc-datagrid-body tbody > tr:last-child');
+    const harness = root.querySelector('.fc-view-harness');
+    if (!ultimaFila || !harness) return;
+
+    let linea = harness.querySelector('.agenda-linea-fin-salas');
+    if (!linea) {
+        linea = document.createElement('div');
+        linea.className = 'agenda-linea-fin-salas';
+        linea.setAttribute('aria-hidden', 'true');
+        harness.appendChild(linea);
+    }
+
+    const filaRect = ultimaFila.getBoundingClientRect();
+    const harnessRect = harness.getBoundingClientRect();
+    linea.style.top = `${Math.round(filaRect.bottom - harnessRect.top)}px`;
+
+    if (!agendaLineaFinSalasObserver) {
+        agendaLineaFinSalasObserver = new ResizeObserver(() => {
+            const cal = document.getElementById('calendar');
+            if (!cal?.classList.contains('fc-resourceTimelineDay-view')) return;
+            const fila =
+                cal.querySelector('.fc-datagrid-body tr.fc-datagrid-row:last-child') ||
+                cal.querySelector('.fc-datagrid-body tbody > tr:last-child');
+            const h = cal.querySelector('.fc-view-harness');
+            const ln = h?.querySelector('.agenda-linea-fin-salas');
+            if (!fila || !h || !ln) return;
+            const fr = fila.getBoundingClientRect();
+            const hr = h.getBoundingClientRect();
+            ln.style.top = `${Math.round(fr.bottom - hr.top)}px`;
+        });
+        const dgBody = root.querySelector('.fc-datagrid-body');
+        const tlBody = root.querySelector('.fc-timeline-body');
+        if (dgBody) agendaLineaFinSalasObserver.observe(dgBody);
+        if (tlBody) agendaLineaFinSalasObserver.observe(tlBody);
+        agendaLineaFinSalasObserver.observe(harness);
     }
 }
 
@@ -768,6 +1284,7 @@ function poblarPlanesPrevision(insuranceId, planId = null) {
 
     const insId = insuranceId ? String(insuranceId) : "";
     if (!insId || !(catalogosAgenda.insurances || []).length) {
+        selectPlan.val("");
         calculateTotal();
         return;
     }
@@ -781,11 +1298,11 @@ function poblarPlanesPrevision(insuranceId, planId = null) {
         });
     }
 
-    if (planId) {
-        const planStr = String(planId);
-        if (selectPlan.find(`option[value="${planStr}"]`).length) {
-            selectPlan.val(planStr);
-        }
+    const planStr = planId ? String(planId) : "";
+    if (planStr && selectPlan.find(`option[value="${planStr}"]`).length) {
+        selectPlan.val(planStr);
+    } else {
+        selectPlan.val("");
     }
 
     calculateTotal();
@@ -818,6 +1335,62 @@ function setAgendaPrevision(insuranceId, planId = null) {
 
     $("#pInsurance").val(ins);
     poblarPlanesPrevision(ins, planId);
+    risSincronizarEntidadPagadoraDesdePrevision();
+}
+
+function poblarEntidadesPagadorasAgenda(valorGuardado = null) {
+    const $sel = $('#pEntidadPagadora');
+    if (!$sel.length) return;
+
+    const prev = valorGuardado != null ? String(valorGuardado) : String($sel.val() || '');
+    $sel.empty().append($('<option>', { value: '', text: 'Seleccione...' }));
+
+    (catalogosAgenda.insurances || []).forEach((ins) => {
+        const nombre = ins.name || '';
+        if (!nombre) return;
+        $sel.append($('<option>', { value: nombre, text: nombre }));
+    });
+
+    if (prev && !$sel.find('option').filter(function () { return $(this).val() === prev; }).length) {
+        $sel.append($('<option>', { value: prev, text: prev }));
+    }
+
+    if (prev) {
+        $sel.val(prev);
+    }
+}
+
+/** Sugiere entidad pagadora según previsión o tipo de bono. */
+function risSincronizarEntidadPagadoraDesdePrevision(force = false) {
+    const $sel = $('#pEntidadPagadora');
+    if (!$sel.length) return;
+
+    if (!force && $sel.val()) return;
+
+    const tipoBono = $('#pTipoBono').val();
+    if (tipoBono === 'Manual' || tipoBono === 'Electrónico') {
+        const fonasa = (catalogosAgenda.insurances || []).find((i) =>
+            /fonasa/i.test(i.name || '')
+        );
+        if (fonasa?.name) {
+            if (!$sel.find('option').filter(function () { return $(this).val() === fonasa.name; }).length) {
+                $sel.append($('<option>', { value: fonasa.name, text: fonasa.name }));
+            }
+            $sel.val(fonasa.name);
+            return;
+        }
+    }
+
+    const insId = $('#pInsurance').val();
+    if (!insId) return;
+
+    const ins = (catalogosAgenda.insurances || []).find((i) => String(i.id) === String(insId));
+    if (ins?.name) {
+        if (!$sel.find('option').filter(function () { return $(this).val() === ins.name; }).length) {
+            $sel.append($('<option>', { value: ins.name, text: ins.name }));
+        }
+        $sel.val(ins.name);
+    }
 }
 
 function poblarSelectsAgenda() {
@@ -841,6 +1414,10 @@ function poblarSelectsAgenda() {
         selectPrevision.append(`<option value="${ins.id}">${ins.name}</option>`);
     });
 
+    poblarPlanesPrevision(null);
+
+    poblarEntidadesPagadorasAgenda();
+
     const selectInsumos = $("#addInsumoSelect");
     if (selectInsumos.length) {
         selectInsumos.empty().append('<option value="">Seleccione insumo...</option>');
@@ -862,6 +1439,9 @@ function poblarSelectsAgenda() {
         `);
         });
     }
+
+    risPoblarSelectSalasAgenda($('#risQuickExamMachine'));
+    risPoblarSelectSalasAgenda($('#risBuscarExamMachine'));
 }
 
 function normalizarDuracionFC(valor) {
@@ -869,6 +1449,38 @@ function normalizarDuracionFC(valor) {
     const partes = String(valor).split(':');
     if (partes.length >= 2) return `${partes[0]}:${partes[1]}`;
     return valor;
+}
+
+function horaActualScrollOffset(minutosAntes = 45) {
+    const t = new Date();
+    t.setMinutes(t.getMinutes() - minutosAntes);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(t.getHours())}:${pad(t.getMinutes())}:00`;
+}
+
+function esDiaVisibleHoy(view) {
+    if (!view?.currentStart) return false;
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const dia = new Date(view.currentStart);
+    dia.setHours(0, 0, 0, 0);
+    return dia.getTime() === hoy.getTime();
+}
+
+/** Vista día: centra el scroll en la hora actual (hoy) o al inicio del horario del lab. */
+function scrollAgendaVistaDia(view) {
+    if (!calendar || view?.type !== 'resourceTimelineDay') return;
+    const cfg = getAgendaScheduleConfig();
+    const destino = esDiaVisibleHoy(view)
+        ? horaActualScrollOffset(45)
+        : (cfg.horaInicio || '08:00:00');
+    window.requestAnimationFrame(() => {
+        try {
+            calendar.scrollToTime(destino);
+        } catch (e) {
+            /* vista aún renderizando */
+        }
+    });
 }
 
 /** Vistas Día (timeline por sala) · Semana (grilla horaria) · Mes (resumen por día). */
@@ -893,6 +1505,9 @@ function buildAgendaCalendarViews(config) {
                 minute: '2-digit',
                 hour12: false,
             },
+            scrollTime: horaActualScrollOffset(45),
+            scrollTimeReset: false,
+            expandRows: false,
         },
         resourceTimeGridWeek: {
             type: 'resourceTimeGrid',
@@ -985,10 +1600,27 @@ function setupCalendar(el) {
             montarUiInternaCalendario();
             actualizarContextoVistaAgenda(arg.view);
             refrescarEventosCalendario($('#searchAgenda').val() || '');
+            if (arg.view.type === 'resourceTimelineDay') {
+                setTimeout(() => {
+                    scrollAgendaVistaDia(arg.view);
+                    dibujarLineaFinSalasAgenda();
+                }, 80);
+            } else {
+                desmontarLineaFinSalasAgenda();
+            }
+        },
+        windowResize: function () {
+            dibujarLineaFinSalasAgenda();
         },
         views: buildAgendaCalendarViews(configRIS),
         resourceAreaWidth: '18%',
         resourceAreaHeaderContent: 'Salas / equipos',
+        expandRows: false,
+        resourceLaneDidMount: function () {
+            if (calendar?.view?.type === 'resourceTimelineDay') {
+                requestAnimationFrame(() => dibujarLineaFinSalasAgenda());
+            }
+        },
         allDaySlot: false,
         nowIndicator: true,
         slotMinTime: configRIS.horaInicio || '08:00:00',
@@ -1121,6 +1753,12 @@ function setupCalendar(el) {
     calendar.render();
     montarUiInternaCalendario();
     sincronizarRecursosCalendario();
+    if (calendar.view?.type === 'resourceTimelineDay') {
+        setTimeout(() => {
+            scrollAgendaVistaDia(calendar.view);
+            dibujarLineaFinSalasAgenda();
+        }, 120);
+    }
     } catch (err) {
         console.error('Error inicializando FullCalendar:', err);
         showToast('No se pudo dibujar el calendario. Recargue la página (Ctrl+F5).', 'danger');
@@ -1282,6 +1920,9 @@ function abrirModalCita(data) {
     }
     if ($form.length) $form[0].reset();
     poblarSelectsAgenda();
+    window._risBonoMontos = null;
+    $('#agendaObservacion').val('');
+    risLimpiarQuickExamEntry();
 
     $("#studyBody").empty();
     currentInsumos = [];
@@ -1335,8 +1976,11 @@ function abrirModalCita(data) {
         $("#pTipoBono").val(data.tipoBono || "Sin Bono");
         $("#payMethod").val(data.payMethod || "Efectivo").trigger("change");
         $("#paymentStatus").val(data.paymentStatus || "Pendiente");
-        $("#pEntidadPagadora").val(data.entidadPagadora || "");
+        poblarEntidadesPagadorasAgenda(data.entidadPagadora || "");
         $("#pTransactionCode").val(data.transactionCode || "");
+        if (data.transactionCode) {
+            $('#fonasaFolio').val(data.transactionCode);
+        }
 
         if (data.supplies && data.supplies.length > 0) {
             currentInsumos = [...data.supplies];
@@ -1385,6 +2029,10 @@ function abrirModalCita(data) {
     }
 
     initAgendaWizard();
+    risSetupLegacyAgendaUi();
+    if (data.machine) {
+        $('#risQuickExamMachine').val(data.machine);
+    }
     openModal("appointmentModal");
 }
 
@@ -1741,29 +2389,29 @@ function calculateTotal() {
     let subtotalExamenes = 0;
     $(".study-entry").each(function () {
         const p = parseFloat($(this).find(".ePrice").val()) || 0;
-        const q = parseInt($(this).find(".eQty").val()) || 1;
+        const q = parseInt($(this).find(".eQty").val(), 10) || 1;
         subtotalExamenes += (p * q);
     });
 
     let subtotalInsumos = window.currentInsumosTotal || 0;
+    const porcentajeDescuento = risObtenerPorcentajeCopagoPlan();
 
-    let porcentajeDescuento = 0;
-    const insId = $("#pInsurance").val();
-    const planId = $("#pPlan").val();
+    let montoDescuentoExamenes = subtotalExamenes * (porcentajeDescuento / 100);
+    let totalFinal = (subtotalExamenes - montoDescuentoExamenes) + subtotalInsumos;
 
-    if (insId && planId && catalogosAgenda.insurances) {
-        const seguro = catalogosAgenda.insurances.find(i => String(i.id) === String(insId));
-        const plan = seguro?.plans?.find(p => String(p.id) === String(planId));
-        porcentajeDescuento = parseFloat(plan?.percentage) || 0;
+    if (window._risBonoMontos) {
+        totalFinal = window._risBonoMontos.monto_copago + subtotalInsumos;
     }
 
-    const montoDescuentoExamenes = subtotalExamenes * (porcentajeDescuento / 100);
-
-    const totalFinal = (subtotalExamenes - montoDescuentoExamenes) + subtotalInsumos;
+    $('#risTotalArancel').text(`$${Math.round(subtotalExamenes).toLocaleString('es-CL')}`);
+    risActualizarDifBonoFilas(subtotalExamenes, porcentajeDescuento);
 
     let textoTotal = `$${Math.round(totalFinal).toLocaleString('es-CL')}`;
-    if (porcentajeDescuento > 0) {
+    if (porcentajeDescuento > 0 && !window._risBonoMontos) {
         textoTotal += ` <span class="badge bg-success ms-2" style="font-size:0.7rem;">Copago aplicado</span>`;
+    }
+    if (window._risBonoMontos) {
+        textoTotal += ` <span class="badge bg-primary ms-2" style="font-size:0.7rem;">Bono ingresado</span>`;
     }
     $("#percentageInsurance").val(porcentajeDescuento);
     $("#totalCopay").html(textoTotal);
@@ -1884,21 +2532,31 @@ function addStudyRow(relationType = 'primo', existingData = null) {
 
     const html = `
         <tr id="${rowId}" class="study-entry align-middle">
-            <td><select class="form-select form-select-sm eMachine"><option value="">Sala...</option>${machineOptions}</select></td>
-            <td>
-                <input type="text" class="form-control form-control-sm eExamQuery mb-1" placeholder="Código o nombre..." autocomplete="off" aria-label="Buscar examen por código o nombre">
-                <select class="form-select form-select-sm eExam"><option value="">--</option></select>
+            <td class="col-sala ps-3"><select class="form-select form-select-sm eMachine"><option value="">Sala...</option>${machineOptions}</select></td>
+            <td class="col-exam">
+                <input type="text" class="form-control form-control-sm eExamQuery d-none" placeholder="Código o nombre..." autocomplete="off" aria-hidden="true" tabindex="-1">
+                <select class="form-select form-select-sm eExam" title="Seleccionar examen"><option value="">Seleccione examen...</option></select>
             </td>
-            <td><select class="form-select form-select-sm eSubExam"><option value="">--</option></select></td>
-            <td><input type="number" class="form-control form-control-sm eQty text-center" value="${existingData ? existingData.qty || 1 : 1}" min="1"></td>
-            <td><input type="text" class="form-control form-control-sm eCode text-center" value="${existingData ? existingData.code || '' : ''}" placeholder="Cód." autocomplete="off" aria-label="Código de prestación"></td>
-            <td>
-                <div class="input-group input-group-sm">
+            <td class="col-variante"><select class="form-select form-select-sm eSubExam"><option value="">Sin variante</option></select></td>
+            <td class="col-cant"><input type="number" class="form-control form-control-sm eQty text-center" value="${existingData ? existingData.qty || 1 : 1}" min="1"></td>
+            <td class="col-code"><input type="text" class="form-control form-control-sm eCode text-center font-monospace" value="${existingData ? existingData.code || '' : ''}" placeholder="Cód." autocomplete="off" aria-label="Código de prestación"></td>
+            <td class="col-valor">
+                <div class="input-group input-group-sm agenda-money-input">
                     <span class="input-group-text">$</span>
-                    <input type="number" class="form-control form-control-sm ePrice" value="${existingData ? existingData.price || 0 : 0}">
+                    <input type="number" class="form-control form-control-sm ePrice text-end" value="${existingData ? existingData.price || 0 : 0}" min="0" step="1">
                 </div>
             </td>
-            <td class="text-center"><button type="button" onclick="$('#${rowId}').remove(); calculateTotal();" class="btn btn-sm text-danger p-0"><i class="bi bi-trash fs-5"></i></button></td>
+            <td class="col-dif text-end">
+                <span class="agenda-money-readonly eDifBono">$0</span>
+            </td>
+            <td class="col-dif text-end">
+                <span class="agenda-money-readonly eDifBol">$0</span>
+            </td>
+            <td class="col-del text-center">
+                <button type="button" onclick="$('#${rowId}').remove(); calculateTotal();" class="btn btn-sm btn-outline-danger border-0" title="Quitar examen">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
         </tr>`;
     $("#studyBody").append(html);
 
@@ -1912,6 +2570,7 @@ function addStudyRow(relationType = 'primo', existingData = null) {
             setTimeout(() => { newRow.find(".eSubExam").val(existingData.subExam); }, 50);
         }, 50);
     }
+    calculateTotal();
 }
 
 function configurarInsumosAgenda() {
@@ -2187,6 +2846,16 @@ function setupProEventListeners() {
     });
 
     $(document).on('keydown.agendaPro', '.eExamQuery, .eCode', function (e) {
+        if (e.key === 'F2') {
+            e.preventDefault();
+            const $row = $(this).closest('tr');
+            abrirModalBuscarExamenes(
+                $row.find('.eMachine').val() || $('#risQuickExamMachine').val(),
+                $(this).val(),
+                $row
+            );
+            return;
+        }
         if (e.key !== 'Enter') return;
         e.preventDefault();
         const $row = $(this).closest('tr');
@@ -2225,11 +2894,81 @@ function setupProEventListeners() {
     });
 
     $(document).on('change.agendaPro', '#pInsurance', function () {
-        poblarPlanesPrevision(risNullableUuid($(this).val()));
+        const insId = risNullableUuid($(this).val());
+        poblarPlanesPrevision(insId, null);
+        window._risBonoMontos = null;
+        risSincronizarEntidadPagadoraDesdePrevision(true);
     });
 
     $(document).on('change.agendaPro', '#pPlan', function () {
         calculateTotal();
+    });
+
+    $(document).on('keydown.agendaRis', '#risQuickExamCode', function (e) {
+        if (e.key === 'F2') {
+            e.preventDefault();
+            abrirModalBuscarExamenes($('#risQuickExamMachine').val(), $(this).val());
+            return;
+        }
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            risAgregarExamenDesdeCodigo();
+        }
+    });
+
+    $(document).on('input.agendaRis', '#risQuickExamCode', function () {
+        clearTimeout(window._risQuickExamResolveTimer);
+        window._risQuickExamResolveTimer = setTimeout(() => risResolverExamQuickEntry(), 280);
+    });
+
+    $(document).on('change.agendaRis', '#risQuickExamMachine', function () {
+        risResolverExamQuickEntry();
+    });
+
+    $(document).on('keydown.agendaRis', function (e) {
+        if (e.key !== 'F2') return;
+        if (!$('#appointmentModal').hasClass('show')) return;
+        const step = document.querySelector('.agenda-wizard-step:not(.d-none)')?.dataset?.step;
+        if (step !== '3') return;
+        if ($(e.target).closest('#modalBuscarExamenes').length) return;
+        e.preventDefault();
+        abrirModalBuscarExamenes($('#risQuickExamMachine').val(), $('#risQuickExamCode').val());
+    });
+
+    $(document).on('input.agendaRis change.agendaRis', '#risBuscarExamMachine, #risBuscarExamFilter', risRenderTablaBuscarExamenes);
+
+    $(document).on('click.agendaRis', '.ris-buscar-exam-row', function () {
+        $('#risBuscarExamBody .ris-buscar-exam-row').removeClass('table-active');
+        $(this).addClass('table-active');
+        risSeleccionarExamenDesdeBusqueda($(this).data('risExamItem'));
+    });
+
+    $(document).on('keydown.agendaRis', '.ris-buscar-exam-row', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            risSeleccionarExamenDesdeBusqueda($(this).data('risExamItem'));
+        }
+    });
+
+    $(document).on('change.agendaPro', '#pTipoBono', function () {
+        risActualizarBotonIngresoBono();
+        if (window.paymentManager?.toggleFonasaPanel) {
+            window.paymentManager.toggleFonasaPanel();
+        }
+        risSincronizarEntidadPagadoraDesdePrevision(true);
+        const tipo = $(this).val();
+        if (tipo === 'Manual' || tipo === 'Electrónico') {
+            abrirModalIngresoBono();
+        } else {
+            window._risBonoMontos = null;
+            calculateTotal();
+        }
+    });
+
+    $(document).on('input.agendaRis', '#bonoValor, #bonoBonificacion', function () {
+        const valor = parseFloat($('#bonoValor').val()) || 0;
+        const bonif = parseFloat($('#bonoBonificacion').val()) || 0;
+        $('#bonoCopago').val(Math.max(0, Math.round(valor - bonif)));
     });
 
     $(document).on("change", ".eMachine", function () {
@@ -2268,13 +3007,34 @@ function setupProEventListeners() {
             row.find(".ePrice").val(examData.price || 0);
             row.find(".eCode").val(examData.fonasa_code || '');
             risSyncExamQueryLabel(row, examData);
-
-            if (examData.sub_exams && examData.sub_exams.length > 0) {
-                examData.sub_exams.forEach(sub => {
-                    subSelect.append(`<option value="${sub.id}" data-duration="${sub.duration}">${sub.name}</option>`);
-                });
-            }
+            risPoblarVariantesEnFila(row, examData);
         }
+        calculateTotal();
+        actualizarTerminoEstimadoDesdeExamenes();
+    });
+
+    $(document).on('change', '.eSubExam', function () {
+        const row = $(this).closest('tr');
+        const val = String($(this).val() || '');
+        if (!val) return;
+
+        if (val.startsWith('sibling:')) {
+            const examId = val.slice(8);
+            const examData = (catalogosAgenda.exams || []).find((e) => String(e.id) === String(examId));
+            if (!examData) return;
+
+            const $exam = row.find('.eExam');
+            if (!$exam.find(`option[value="${examId}"]`).length) {
+                poblarSelectExamenesAgenda($exam, row.find('.eMachine').val());
+            }
+            $exam.val(examId);
+            row.find('.ePrice').val(examData.price || 0);
+            row.find('.eCode').val(examData.fonasa_code || '');
+            risSyncExamQueryLabel(row, examData);
+            risPoblarVariantesEnFila(row, examData);
+            row.find('.eSubExam').val(val);
+        }
+
         calculateTotal();
         actualizarTerminoEstimadoDesdeExamenes();
     });

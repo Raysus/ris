@@ -525,6 +525,350 @@ body {
     border-color: #dc3545;
 }
 
+/* Panel estilo RIS clásico (agenda recepción) */
+.ris-legacy-panel {
+    background: linear-gradient(180deg, #ece9e4 0%, #e2ded8 100%);
+    border-color: #a8a29e !important;
+}
+
+.ris-legacy-input {
+    background-color: #fff;
+    border: 1px inset #c4bfb8;
+    border-radius: 2px;
+    font-size: 0.85rem;
+}
+
+.ris-legacy-hint {
+    font-size: 0.68rem;
+    color: #6b7280;
+    font-style: italic;
+}
+
+.ris-legacy-total-box {
+    min-width: 9rem;
+    padding: 0.45rem 1rem;
+    background: #fff;
+    border: 1px solid #c4bfb8;
+    border-radius: 6px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.ris-legacy-total {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--htc-purple, #7d2181);
+    letter-spacing: -0.5px;
+    line-height: 1.1;
+}
+
+/* Modal cita + grilla de exámenes */
+.agenda-appointment-dialog {
+    max-width: min(96vw, 1280px);
+}
+
+.agenda-quick-exam-card {
+    border: 1px solid var(--border-color) !important;
+    background: var(--bg-card);
+}
+
+.agenda-quick-exam-toolbar {
+    display: grid;
+    grid-template-columns: minmax(8.5rem, 10rem) minmax(10rem, 1.15fr) minmax(11rem, 1.35fr) minmax(9.5rem, auto) minmax(7rem, auto);
+    gap: 0.75rem 1rem;
+    align-items: end;
+}
+
+@media (max-width: 991.98px) {
+    .agenda-quick-exam-toolbar {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .agenda-quick-cell--total {
+        grid-column: 1 / -1;
+        justify-self: end;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .agenda-quick-exam-toolbar {
+        grid-template-columns: 1fr;
+    }
+
+    .agenda-quick-cell--total {
+        justify-self: stretch;
+    }
+}
+
+.agenda-quick-cell {
+    min-width: 0;
+}
+
+.agenda-quick-control {
+    min-height: 31px;
+}
+
+.agenda-quick-cell--btn .agenda-quick-control {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.agenda-quick-total-value.agenda-quick-control {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 0.15rem;
+    background: transparent;
+    border: none;
+    min-height: 31px;
+}
+
+.agenda-quick-hint {
+    display: block;
+    min-height: 1.05rem;
+    margin-top: 0.2rem;
+    font-size: 0.68rem;
+    line-height: 1.1;
+    color: #6b7280;
+    font-style: italic;
+}
+
+.agenda-quick-cell--total .agenda-quick-hint {
+    text-align: right;
+}
+
+.agenda-quick-field {
+    flex: 0 1 auto;
+    min-width: 8.5rem;
+}
+
+.agenda-quick-field--room {
+    min-width: 11rem;
+    flex: 1 1 11rem;
+    max-width: 16rem;
+}
+
+.agenda-quick-field--exam {
+    flex: 1 1 14rem;
+    min-width: 12rem;
+    max-width: 22rem;
+}
+
+.agenda-quick-actions {
+    flex: 0 0 auto;
+    min-width: 9.5rem;
+}
+
+.agenda-quick-total {
+    flex: 0 0 auto;
+    min-width: 7.5rem;
+    text-align: right;
+}
+
+.agenda-quick-total-value {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: var(--primary, #7d2181);
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+}
+
+.agenda-quick-variants {
+    border-color: var(--border-color) !important;
+}
+
+.agenda-variant-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.agenda-variant-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--text-main, #334155);
+    background: #f8fafc;
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 999px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.agenda-variant-chip:hover {
+    background: #f1f5f9;
+}
+
+.agenda-variant-chip:has(.ris-quick-variant:checked) {
+    background: rgba(125, 33, 129, 0.08);
+    border-color: rgba(125, 33, 129, 0.35);
+    color: var(--primary, #7d2181);
+}
+
+.agenda-variant-chip .form-check-input {
+    margin: 0;
+    cursor: pointer;
+}
+
+.agenda-studies-card {
+    border: 1px solid #cbd5e1 !important;
+    overflow: hidden;
+}
+
+.agenda-studies-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.agenda-studies-thead th {
+    background: #f1f5f9;
+    color: #475569;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+    border-bottom: 2px solid #cbd5e1;
+    padding: 0.55rem 0.65rem;
+    vertical-align: middle;
+}
+
+#tableStudies {
+    width: 100%;
+    min-width: 980px;
+    table-layout: fixed;
+    margin-bottom: 0;
+}
+
+#tableStudies td {
+    padding: 0.55rem 0.65rem;
+    vertical-align: middle;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+#tableStudies .col-sala { width: 11%; min-width: 7.5rem; }
+#tableStudies .col-exam { width: 26%; min-width: 14rem; }
+#tableStudies .col-variante { width: 15%; min-width: 8.5rem; }
+#tableStudies .col-cant { width: 4.5rem; min-width: 4.5rem; }
+#tableStudies .col-code { width: 6.5rem; min-width: 6.5rem; }
+#tableStudies .col-valor { width: 7.5rem; min-width: 7.5rem; }
+#tableStudies .col-dif { width: 6.5rem; min-width: 6.5rem; }
+#tableStudies .col-del { width: 2.75rem; min-width: 2.75rem; }
+
+#tableStudies .eMachine,
+#tableStudies .eExam,
+#tableStudies .eSubExam {
+    width: 100%;
+    max-width: 100%;
+    font-size: 0.82rem;
+}
+
+#tableStudies .eExam {
+    text-overflow: ellipsis;
+}
+
+#tableStudies .agenda-money-input .form-control {
+    min-width: 4.5rem;
+    padding-left: 0.35rem;
+    padding-right: 0.35rem;
+}
+
+#tableStudies .agenda-money-input .input-group-text {
+    padding: 0.25rem 0.45rem;
+    font-size: 0.8rem;
+}
+
+.agenda-money-readonly {
+    display: inline-block;
+    min-width: 5.5rem;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: #334155;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+
+#tableStudies .study-entry:hover {
+    background-color: #f8fafc;
+}
+
+.ris-legacy-modal .modal-content {
+    border: 2px outset #d4d0c8;
+    border-radius: 4px;
+    background: #ece9e4;
+}
+
+.ris-legacy-modal-header {
+    background: linear-gradient(180deg, #f3c6c6 0%, #e8a8a8 100%);
+    border-bottom: 1px solid #c49a9a;
+    color: #1f2937;
+}
+
+.ris-legacy-table-wrap {
+    max-height: 52vh;
+    border: 1px inset #c4bfb8;
+    background: #fff;
+}
+
+.ris-legacy-table {
+    font-size: 0.78rem;
+}
+
+.ris-legacy-table thead th {
+    background: #d4d0c8;
+    border-bottom: 1px solid #a8a29e;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.ris-legacy-table tbody tr {
+    cursor: pointer;
+}
+
+.ris-legacy-focus:focus {
+    background-color: #b8ffff !important;
+    outline: 2px solid #0891b2;
+}
+
+.ris-buscar-exam-row.table-active {
+    background-color: #1e3a8a !important;
+    color: #fff;
+}
+
+.ris-buscar-exam-row.table-active td {
+    color: #fff;
+}
+
+/* Vista día: línea bajo la última sala (overlay; FC recorta bordes en scrollers) */
+#calendar.fc-resourceTimelineDay-view .fc-view-harness {
+    position: relative;
+}
+
+#calendar .agenda-linea-fin-salas {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: #1e293b;
+    z-index: 20;
+    pointer-events: none;
+}
+
+#calendar.fc-resourceTimelineDay-view .fc-datagrid-body .fc-datagrid-cell:not(:last-child),
+#calendar.fc-resourceTimelineDay-view .fc-timeline-body td.fc-timeline-lane.fc-resource:not(:last-child) {
+    border-bottom: 1px solid #e2e8f0;
+}
+
 /* Vista semana: grilla horaria (horas a la izquierda, días arriba) */
 .fc-resourceTimeGridWeek-view .fc-timegrid-axis,
 .fc-resourceTimeGridWeek-view .fc-timegrid-slot-label {

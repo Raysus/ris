@@ -50,7 +50,7 @@
 </div>
 
 <div class="modal fade" id="appointmentModal" tabindex="-1" data-bs-backdrop="static" aria-labelledby="modalTitle" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable agenda-appointment-dialog">
 
         <form id="formCita" class="modal-content border-0 shadow-lg"
             style="border-radius: 12px; background-color: #f4f6f9;">
@@ -250,28 +250,72 @@
 
                 <div class="agenda-wizard-step d-none" data-step="3">
 
-                <div class="card border-0 shadow-sm mb-4">
-                    <div
-                        class="card-header bg-white border-bottom-0 pt-3 pb-2 d-flex justify-content-between align-items-center">
-                        <h6 class="fw-bold text-primary mb-0"><i class="bi bi-ui-checks-grid me-2"></i>2.
-                            Prestaciones y Exámenes</h6>
-                        <button type="button" class="btn btn-sm btn-primary fw-bold shadow-sm rounded-pill px-3"
-                            onclick="addStudyRow('primo')">
-                            <i class="bi bi-plus-lg me-1"></i> Añadir Examen
-                        </button>
+                <div class="card agenda-quick-exam-card shadow-sm mb-3">
+                    <div class="card-body py-3">
+                        <div class="agenda-quick-exam-toolbar">
+                            <div class="agenda-quick-cell">
+                                <label class="form-label small fw-bold text-muted mb-1" for="risQuickExamCode">Código Examen</label>
+                                <input type="text" id="risQuickExamCode" class="form-control form-control-sm agenda-quick-control"
+                                    placeholder="0401060" autocomplete="off">
+                                <span class="agenda-quick-hint">F2 = Buscar</span>
+                            </div>
+                            <div class="agenda-quick-cell">
+                                <label class="form-label small fw-bold text-muted mb-1" for="risQuickExamMachine">Sala / Equipo</label>
+                                <select id="risQuickExamMachine" class="form-select form-select-sm agenda-quick-control">
+                                    <option value="">Seleccione sala...</option>
+                                </select>
+                                <span class="agenda-quick-hint" aria-hidden="true">&nbsp;</span>
+                            </div>
+                            <div class="agenda-quick-cell agenda-quick-cell--exam d-none" id="risQuickExamNameWrap">
+                                <label class="form-label small fw-bold text-muted mb-1">Examen</label>
+                                <div id="risQuickExamName" class="form-control form-control-sm bg-light text-truncate agenda-quick-control" readonly></div>
+                                <span class="agenda-quick-hint" aria-hidden="true">&nbsp;</span>
+                            </div>
+                            <div class="agenda-quick-cell agenda-quick-cell--btn">
+                                <label class="form-label small fw-bold text-muted mb-1" aria-hidden="true">&nbsp;</label>
+                                <button type="button" class="btn btn-sm btn-primary fw-bold w-100 agenda-quick-control"
+                                    onclick="risAgregarExamenDesdeCodigo()">
+                                    <i class="bi bi-plus-lg me-1"></i> Agregar Examen
+                                </button>
+                                <span class="agenda-quick-hint" aria-hidden="true">&nbsp;</span>
+                            </div>
+                            <div class="agenda-quick-cell agenda-quick-cell--total">
+                                <label class="form-label small fw-bold text-muted mb-1 text-end d-block">Total arancel</label>
+                                <div id="risTotalArancel" class="agenda-quick-total-value agenda-quick-control">$0</div>
+                                <span class="agenda-quick-hint" aria-hidden="true">&nbsp;</span>
+                            </div>
+                        </div>
+                        <div id="risQuickVariantsPanel" class="agenda-quick-variants d-none mt-3 pt-3 border-top">
+                            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                                <span class="small fw-bold text-muted mb-0">Variantes / sub-exámenes</span>
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="risMarcarTodasVariantesQuick(true)">Todas</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="risMarcarTodasVariantesQuick(false)">Ninguna</button>
+                                </div>
+                            </div>
+                            <div id="risQuickVariantsList" class="agenda-variant-chips"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card agenda-studies-card shadow-sm mb-4">
+                    <div class="card-header bg-white border-bottom pt-3 pb-2">
+                        <h6 class="fw-bold text-primary mb-0"><i class="bi bi-ui-checks-grid me-2"></i>Prestaciones y Exámenes</h6>
                     </div>
                     <div class="card-body p-0">
-                        <div class="table-responsive">
+                        <div class="agenda-studies-wrap">
                             <table class="table table-sm table-hover align-middle mb-0" id="tableStudies">
-                                <thead class="bg-light small text-muted">
+                                <thead class="agenda-studies-thead">
                                     <tr>
-                                        <th class="ps-3" style="width: 18%">Sala / Equipo</th>
-                                        <th style="width: 25%">Examen (lista o buscar código/nombre)</th>
-                                        <th style="width: 20%">Variante / Sub-Examen</th>
-                                        <th style="width: 8%" class="text-center">Cant.</th>
-                                        <th style="width: 12%" class="text-center" data-ris-label="service-code">Cód. prestación</th>
-                                        <th style="width: 20%">Arancel ($)</th>
-                                        <th style="width: 5%" class="text-center">Eliminar</th>
+                                        <th class="col-sala ps-3">Sala</th>
+                                        <th class="col-exam">Examen</th>
+                                        <th class="col-variante">Variante</th>
+                                        <th class="col-cant text-center">Cant.</th>
+                                        <th class="col-code text-center">Cód.</th>
+                                        <th class="col-valor text-end">Valor ($)</th>
+                                        <th class="col-dif text-end">Dif. Bono</th>
+                                        <th class="col-dif text-end">Dif. Bol</th>
+                                        <th class="col-del text-center"><span class="visually-hidden">Eliminar</span></th>
                                     </tr>
                                 </thead>
                                 <tbody id="studyBody"></tbody>
@@ -364,6 +408,12 @@
                     </div>
                 </div>
 
+                <div class="mb-4">
+                    <label class="form-label small fw-bold text-muted mb-1" for="agendaObservacion">Observación</label>
+                    <input type="text" id="agendaObservacion" class="form-control form-control-sm ris-legacy-input"
+                        placeholder="Notas de la atención">
+                </div>
+
                 </div><!-- fin paso 3 -->
 
                 <div class="agenda-wizard-step d-none" data-step="4">
@@ -382,11 +432,17 @@
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label small fw-bold text-muted mb-1">Tipo Bono</label>
-                                <select id="pTipoBono" class="form-select form-select-sm">
-                                    <option value="Sin Bono">Sin Bono</option>
-                                    <option value="Manual" data-requires-fonasa="true">Manual (FONASA)</option>
-                                    <option value="Electrónico" data-requires-fonasa="true">Electrónico (FONASA)</option>
-                                </select>
+                                <div class="d-flex gap-1">
+                                    <select id="pTipoBono" class="form-select form-select-sm flex-grow-1">
+                                        <option value="Sin Bono">Sin Bono</option>
+                                        <option value="Manual" data-requires-fonasa="true">Manual (FONASA)</option>
+                                        <option value="Electrónico" data-requires-fonasa="true">Electrónico (FONASA)</option>
+                                    </select>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary d-none" id="btnIngresoBono"
+                                        onclick="abrirModalIngresoBono()" title="Ingreso de bono (RIS)">
+                                        <i class="bi bi-ticket-perforated"></i>
+                                    </button>
+                                </div>
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label small fw-bold text-muted mb-1">Medio de Pago</label>
@@ -408,8 +464,10 @@
                                 </select>
                             </div>
                             <div class="col-md-2">
-                                <label class="form-label small fw-bold text-muted mb-1">Entidad Pagadora</label>
-                                <input type="text" id="pEntidadPagadora" class="form-control form-control-sm">
+                                <label class="form-label small fw-bold text-muted mb-1" for="pEntidadPagadora">Entidad Pagadora</label>
+                                <select id="pEntidadPagadora" class="form-select form-select-sm">
+                                    <option value="">Seleccione...</option>
+                                </select>
                             </div>
                             <div class="col-md-2">
                                 <label id="lblTransactionCode"
@@ -541,6 +599,88 @@
                 <button class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
                 <button class="btn btn-success" onclick="guardarNuevoMedico()"><i class="bi bi-save me-1"></i>
                     Registrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalBuscarExamenes" tabindex="-1" aria-labelledby="modalBuscarExamenesLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content ris-legacy-modal">
+            <div class="modal-header ris-legacy-modal-header py-2">
+                <h5 class="modal-title fw-bold" id="modalBuscarExamenesLabel">Buscar Exámenes</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body p-2">
+                <div class="row g-2 mb-2 align-items-end">
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold mb-0">Sala / Equipo</label>
+                        <select id="risBuscarExamMachine" class="form-select form-select-sm ris-legacy-input"></select>
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label small fw-bold mb-0">Filtrar</label>
+                        <input type="text" id="risBuscarExamFilter" class="form-control form-control-sm ris-legacy-input"
+                            placeholder="Código o nombre del examen..." autocomplete="off">
+                    </div>
+                </div>
+                <div class="table-responsive ris-legacy-table-wrap">
+                    <table class="table table-sm table-hover mb-0 ris-legacy-table" id="risTablaBuscarExamenes">
+                        <thead>
+                            <tr>
+                                <th>cod_examen</th>
+                                <th>cod_entidad</th>
+                                <th>nombre_examen</th>
+                                <th>clasificacion</th>
+                                <th class="text-end">valor</th>
+                            </tr>
+                        </thead>
+                        <tbody id="risBuscarExamBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-sm btn-light border" data-bs-dismiss="modal">Salir</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalIngresoBono" tabindex="-1" aria-labelledby="modalIngresoBonoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content ris-legacy-modal">
+            <div class="modal-header ris-legacy-modal-header py-2">
+                <h5 class="modal-title fw-bold" id="modalIngresoBonoLabel">Ingreso Bonos</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <label class="form-label small fw-bold mb-0" for="bonoNumero">Número Bono</label>
+                    <input type="text" id="bonoNumero" class="form-control form-control-sm ris-legacy-input">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small fw-bold mb-0" for="bonoFecha">Fecha</label>
+                    <input type="date" id="bonoFecha" class="form-control form-control-sm ris-legacy-input">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small fw-bold mb-0" for="bonoValor">Valor</label>
+                    <input type="number" id="bonoValor" class="form-control form-control-sm ris-legacy-input text-end" min="0" step="1">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small fw-bold mb-0" for="bonoBonificacion">Bonificación</label>
+                    <input type="number" id="bonoBonificacion" class="form-control form-control-sm ris-legacy-input text-end" min="0" step="1">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small fw-bold mb-0" for="bonoCopago">Copago</label>
+                    <input type="number" id="bonoCopago" class="form-control form-control-sm ris-legacy-input text-end ris-legacy-focus" min="0" step="1">
+                </div>
+            </div>
+            <div class="modal-footer d-flex justify-content-between py-2">
+                <button type="button" class="btn btn-sm btn-light border fw-bold" onclick="guardarIngresoBonoRis()">
+                    <i class="bi bi-save me-1"></i> Guardar
+                </button>
+                <button type="button" class="btn btn-sm btn-light border fw-bold" data-bs-dismiss="modal">
+                    <i class="bi bi-box-arrow-right me-1"></i> Salir
+                </button>
             </div>
         </div>
     </div>

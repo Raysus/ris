@@ -92,21 +92,9 @@ Abrir: **http://127.0.0.1:5500/index.html**
 
 ### 2.4 Primer login
 
-Tras `db:seed`, usar usuario del seeder (ej. `rgutierrez` / contraseña del seeder).  
-Cambiar contraseñas antes de producción.
+Tras `db:seed`, use un usuario del seeder (ej. `rgutierrez`). Cambie contraseñas antes de producción.
 
-**Probar perfiles dental / veterinario:** en el selector superior del RIS elija una sede de demostración:
-
-| Laboratorio | Tipo | Qué validar |
-|-------------|------|-------------|
-| Dental Demo — CBCT Temuco | Centro Dental | Menú **Atención en salas** (no Worklist); Agenda sin FONASA |
-| Dental Demo — Sucursal Centro | Centro Dental | Sucursal hija; mismo flujo |
-| Veterinaria Demo Sur | Veterinario | Atención en salas; etiqueta «Mascota» en agenda |
-| Veterinaria Demo — Urgencias 24h | Veterinario | Sucursal veterinaria |
-| Centro de Diagnóstico RIS PRO | Clínico | Menú **Worklist** y envío MWL |
-
-Flujo dental/vet: Agenda (confirmar cita) → **Atención en salas** → subir `.dcm`/`.zip` a PACS → finalizar → Radiólogo.  
-Requiere `ORTHANC_URL` accesible desde el backend en desarrollo.
+Seleccione una **sede concreta** en la barra superior (no «Todas mis sucursales»). El menú y los módulos dependen del tipo de laboratorio (clínico, dental, veterinario).
 
 ### 2.5 Comprobar que funciona
 
