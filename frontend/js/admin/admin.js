@@ -1513,7 +1513,7 @@ async function renderCatalogoAdmin() {
                         <tr>
                             <td class="ps-4"><span class="badge ${badgeColor}">${grupo}</span></td>
                             <td class="fw-bold text-dark">${nombreExamen}
-                                <small class="d-block text-muted" style="font-size: 0.75rem;">${exData.subs.join(", ")}</small>
+                                <small class="d-block text-muted" style="font-size: 0.75rem;">${(exData.subs || []).map(risNombreSubExamenAdmin).filter(Boolean).join(", ")}</small>
                             </td>
                             <td class="font-monospace text-secondary">${exData.code || '--'}</td>
                             <td class="text-end fw-bold text-success">$${parseFloat(exData.price).toLocaleString('es-CL')}</td>
@@ -1535,6 +1535,12 @@ async function renderCatalogoAdmin() {
     }
 }
 
+function risNombreSubExamenAdmin(sub) {
+    if (!sub) return '';
+    if (typeof sub === 'string') return sub.trim();
+    return String(sub.name || '').trim();
+}
+
 function nuevoExamen() {
     $("#formExamen")[0].reset();
     $("#catId").val("");
@@ -1553,7 +1559,7 @@ function cargarExamen(id) {
     $("#catNombre").val(ex.name);
     $("#catCodigo").val(ex.fonasa_code);
     $("#catPrecio").val(ex.price);
-    $("#catSubs").val((ex.sub_exams || []).join(", "));
+    $("#catSubs").val((ex.sub_exams || []).map(risNombreSubExamenAdmin).filter(Boolean).join(", "));
 
     const instr = ex.instruction;
     $("#catInstrSubject").val(instr?.subject || "");

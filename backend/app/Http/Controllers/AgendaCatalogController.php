@@ -13,6 +13,7 @@ use App\Models\Laboratory;
 use Illuminate\Http\Request;
 use App\Services\KeycloakService;
 use App\Services\LaboratoryProfileService;
+use App\Services\ExamSubExamService;
 use Illuminate\Support\Facades\Log;
 
 class AgendaCatalogController extends Controller
@@ -124,21 +125,7 @@ class AgendaCatalogController extends Controller
     {
         return $this->dedupeExamsForAgenda($exams)->map(function (Exam $exam) {
             $data = $exam->toArray();
-
-            $relationSubs = $exam->relationLoaded('subExams')
-                ? $exam->subExams->map(fn ($s) => [
-                    'id' => $s->id,
-                    'name' => $s->name,
-                    'fonasa_code' => $s->fonasa_code,
-                    'additional_price' => (int) $s->additional_price,
-                ])->values()->all()
-                : [];
-
-            $jsonSubs = is_array($exam->getAttributes()['sub_exams'] ?? null)
-                ? array_values(array_filter($exam->getAttributes()['sub_exams']))
-                : [];
-
-            $data['sub_exams'] = ! empty($relationSubs) ? $relationSubs : $jsonSubs;
+            $data['sub_exams'] = ExamSubExamService::serializeForAgenda($exam);
 
             return $data;
         })->values();

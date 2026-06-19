@@ -390,4 +390,35 @@ class AdminAgendaWorkflowTest extends TestCase
 
         $catalog->assertJsonPath('data.schedule.intervalo', '00:20:00');
     }
+
+    public function test_exam_store_syncs_sub_exams_to_table_and_agenda_catalog(): void
+    {
+        $headers = $this->authHeaders();
+
+        $response = $this->withHeaders($headers)->postJson('/api/exams', [
+            'group_code' => 'RX',
+            'name' => 'Examen Variantes Test',
+            'fonasa_code' => '0401060',
+            'price' => 5700,
+            'sub_exams' => ['Rodilla derecha frontal y lateral', 'Rodilla izquierda frontal y lateral'],
+        ]);
+
+        $response->assertOk()->assertJsonPath('success', true);
+        $examId = $response->json('exam.id');
+        $this->assertNotEmpty($examId);
+
+        $this->assertDatabaseCount('sub_exams', 2);
+        $this->assertDatabaseHas('sub_exams', [
+            'exam_id' => $examId,
+            'name' => 'Rodilla derecha frontal y lateral',
+        ]);
+
+        $catalog = $this->withHeaders($headers)->getJson('/api/agenda-catalogs')->assertOk();
+        $examPayload = collect($catalog->json('data.exams'))
+            ->firstWhere('id', $examId);
+
+        $this->assertNotNull($examPayload);
+        $this->assertCount(2, $examPayload['sub_exams']);
+        $this->assertNotEmpty($examPayload['sub_exams'][0]['id'] ?? null);
+    }
 }

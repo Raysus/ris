@@ -331,6 +331,12 @@ function risExamenesMismoCodigo(machineId, fonasaCode) {
     );
 }
 
+function risNombreSubExamen(sub) {
+    if (!sub) return '';
+    if (typeof sub === 'string') return sub.trim();
+    return String(sub.name || sub.label || '').trim();
+}
+
 /**
  * Variantes: sub_exámenes (tabla/JSON) o hermanos con mismo código FONASA.
  * @returns {{ key: string, label: string, examId: string, subExamId: string|null, isSibling: boolean }[]}
@@ -338,13 +344,21 @@ function risExamenesMismoCodigo(machineId, fonasaCode) {
 function risObtenerVariantesExamen(exam, machineId = null) {
     if (!exam) return [];
 
-    const subs = (exam.sub_exams || []).filter((s) => s && s.id);
+    const subs = (exam.sub_exams || [])
+        .map((s) => {
+            const name = risNombreSubExamen(s);
+            if (!name) return null;
+            const id = s && typeof s === 'object' && s.id ? String(s.id) : null;
+            return { id, name };
+        })
+        .filter(Boolean);
+
     if (subs.length > 0) {
         return subs.map((s) => ({
-            key: `sub:${s.id}`,
-            label: s.name || exam.name,
+            key: s.id ? `sub:${s.id}` : `name:${s.name}`,
+            label: s.name,
             examId: String(exam.id),
-            subExamId: String(s.id),
+            subExamId: s.id,
             isSibling: false,
         }));
     }
@@ -373,7 +387,8 @@ function risPoblarVariantesEnFila($row, examData) {
     if (!variantes.length) return;
 
     variantes.forEach((v) => {
-        const val = v.isSibling ? `sibling:${v.examId}` : String(v.subExamId);
+        const val = v.isSibling ? `sibling:${v.examId}` : (v.subExamId ? String(v.subExamId) : '');
+        if (!val) return;
         subSelect.append(
             `<option value="${val}" data-exam-id="${v.examId}" data-sibling="${v.isSibling ? '1' : '0'}">${v.label}</option>`
         );
@@ -2122,14 +2137,18 @@ async function guardarCita() {
         }
 
         salasInvolucradas.add(machine);
-        const subExamVal = $(this).find(".eSubExam").val();
+        const subExamVal = String($(this).find(".eSubExam").val() || '');
+        const subExamOptionText = $(this).find(".eSubExam option:selected").text().replace('--', '').trim();
+        const subExamId = (subExamVal && subExamVal !== '-' && !subExamVal.startsWith('sibling:'))
+            ? subExamVal
+            : null;
 
         todosLosEstudios.push({
             machine_id: machine,
             exam_id: examId,
             exam_name: $(this).find(".eExam option:selected").text().trim(),
-            sub_exam_name: $(this).find(".eSubExam option:selected").text().replace('--', '').trim() || null,
-            sub_exam_id: (subExamVal && subExamVal !== "-") ? subExamVal : null,
+            sub_exam_name: subExamOptionText || null,
+            sub_exam_id: subExamId,
             fonasa_code: $(this).find(".eCode").val() || null,
             quantity: parseInt($(this).find(".eQty").val()) || 1,
             price: parseFloat($(this).find(".ePrice").val()) || 0
