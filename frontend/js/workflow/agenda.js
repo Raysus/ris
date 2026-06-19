@@ -949,6 +949,95 @@ function calcularDuracionCita(machineId, cantidadExamenes) {
     return minutosBase * qty;
 }
 
+/**
+ * Bloques secuenciales por sala (orden de filas de exámenes).
+ * @returns {{ machineId: string, start: Date, end: Date }[]}
+ */
+function risCalcularBloquesPorSala(item) {
+    if (!item?.start) return [];
+
+    const startMs = new Date(normalizeApiDateTime(item.start)).getTime();
+    if (Number.isNaN(startMs)) return [];
+
+    const studies = item.studies || [];
+    const machineOrder = [];
+    const qtyByMachine = {};
+
+    studies.forEach((s) => {
+        const mid = String(s.machine || s.machine_id || '').trim();
+        if (!mid) return;
+        if (!Object.prototype.hasOwnProperty.call(qtyByMachine, mid)) {
+            qtyByMachine[mid] = 0;
+            machineOrder.push(mid);
+        }
+        qtyByMachine[mid] += parseInt(s.qty ?? s.quantity, 10) || 1;
+    });
+
+    if (machineOrder.length === 0) {
+        const mid = String(item.machine || '').trim();
+        if (!mid) return [];
+        machineOrder.push(mid);
+        qtyByMachine[mid] = 1;
+    }
+
+    let cursor = startMs;
+    const blocks = machineOrder.map((machineId) => {
+        const mins = calcularDuracionCita(machineId, qtyByMachine[machineId]);
+        const blockStart = new Date(cursor);
+        const blockEnd = new Date(cursor + mins * 60000);
+        cursor = blockEnd.getTime();
+        return { machineId, start: blockStart, end: blockEnd };
+    });
+
+    if (item.end && blocks.length > 0) {
+        const endDate = new Date(normalizeApiDateTime(item.end));
+        if (!Number.isNaN(endDate.getTime()) && endDate.getTime() >= blocks[blocks.length - 1].start.getTime()) {
+            blocks[blocks.length - 1].end = endDate;
+        }
+    }
+
+    return blocks;
+}
+
+function risHayColisionEnSala(machineId, start, end, excludeAppointmentId = null) {
+    const startMs = start.getTime();
+    const endMs = end.getTime();
+    return (window.RIS?.agenda || []).some((item) => {
+        if (excludeAppointmentId && String(item.id) === String(excludeAppointmentId)) return false;
+        return risCalcularBloquesPorSala(item).some((block) => {
+            if (String(block.machineId) !== String(machineId)) return false;
+            return startMs < block.end.getTime() && endMs > block.start.getTime();
+        });
+    });
+}
+
+function risResolverIdCitaDesdeEvento(event) {
+    return event?.extendedProps?.appointmentId || String(event?.id || '').split('#')[0];
+}
+
+function risPropsEventoCalendario(item) {
+    return {
+        appointmentId: String(item.id),
+        patient: item.patient,
+        status: item.status,
+        statusRaw: item.statusRaw,
+        needsReview: item.needsReview,
+        returnReason: item.returnReason,
+        machine: item.machine,
+        resourceIds: item.resourceIds,
+        mTratante: item.mTratante,
+        mDestinado: item.mDestinado,
+        priority: item.priority,
+        procedencia: item.procedencia,
+        payMethod: item.payMethod,
+        paymentStatus: item.paymentStatus,
+        transactionCode: item.transactionCode,
+        tipoBono: item.tipoBono,
+        entidadPagadora: item.entidadPagadora,
+        studies: item.studies,
+    };
+}
+
 function toLocalISOString(date) {
     if (!date) return "";
     const pad = n => (n < 10 ? '0' + n : n);
@@ -1739,16 +1828,30 @@ function setupCalendar(el) {
                 return;
             }
 
-            const appointment = window.RIS.agenda.find(a => a.id === info.event.id);
+            const apptId = risResolverIdCitaDesdeEvento(info.event);
+            const appointment = window.RIS.agenda.find((a) => a.id === apptId);
             if (appointment) abrirModalCita(appointment);
         },
 
         eventDrop: async function (info) {
-            const id = info.event.id;
-            const newStart = info.event.start;
-            const duracionActual = info.event.end ? (info.event.end.getTime() - info.oldEvent.start.getTime()) : (15 * 60000);
-            const newEnd = info.event.end || new Date(newStart.getTime() + duracionActual);
-            const newMachine = info.newResource ? info.newResource.id : info.event.getResources()[0].id;
+            const apptId = risResolverIdCitaDesdeEvento(info.event);
+            const appointment = window.RIS.agenda.find((a) => a.id === apptId);
+            const blocks = appointment ? risCalcularBloquesPorSala(appointment) : [];
+            const blockIdx = info.event.extendedProps.blockIndex ?? 0;
+
+            let appointmentStart = info.event.start;
+            if (blockIdx > 0 && blocks[blockIdx]) {
+                let offsetMs = 0;
+                for (let i = 0; i < blockIdx; i++) {
+                    offsetMs += blocks[i].end.getTime() - blocks[i].start.getTime();
+                }
+                appointmentStart = new Date(info.event.start.getTime() - offsetMs);
+            }
+
+            const spanMs = blocks.length
+                ? blocks[blocks.length - 1].end.getTime() - blocks[0].start.getTime()
+                : (info.event.end ? info.event.end.getTime() - info.oldEvent.start.getTime() : 15 * 60000);
+            const appointmentEnd = new Date(appointmentStart.getTime() + spanMs);
 
             if (!(await showConfirm(`¿Confirmas re-agendar la cita de ${info.event.title}?`, { title: "Re-agendar cita" }))) {
                 info.revert();
@@ -1759,19 +1862,19 @@ function setupCalendar(el) {
             const labId = localStorage.getItem('ris_lab_id');
 
             try {
-                const response = await fetch(`${API_URL}/appointments/${id}`, {
+                const response = await fetch(`${API_URL}/appointments/${apptId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
                     body: JSON.stringify({
                         is_drag_and_drop: true,
-                        start_time: toLocalISOString(newStart),
-                        end_time: toLocalISOString(newEnd),
-                        machine_id: newMachine
+                        start_time: toLocalISOString(appointmentStart),
+                        end_time: toLocalISOString(appointmentEnd),
+                        machine_id: appointment?.machine || info.newResource?.id || info.event.getResources()[0]?.id,
                     })
                 });
 
                 if (!response.ok) throw new Error("Error en el servidor");
-                showToast("Cita y exámenes asociados re-agendados correctamente", "success");
+                showToast("Cita re-agendada correctamente", "success");
                 cargarAgendaDesdeServidor();
             } catch (error) {
                 info.revert();
@@ -1858,54 +1961,41 @@ function filtrarAgendaItems(agenda, termRaw) {
     });
 }
 
-/** Mapea citas RIS → eventos FullCalendar (siempre con resourceId si hay sala). */
+/** Mapea citas RIS → eventos FullCalendar (un bloque por sala, en secuencia). */
 function mapearEventosCalendario(agendaItems, viewType) {
-    return (agendaItems || []).map((item) => {
+    const events = [];
+
+    (agendaItems || []).forEach((item) => {
         const colorEstado = getHexColorEstado(item.status);
         const titulo = item.title
             || `${item.patient?.lastName || ''}, ${item.patient?.name || ''}`.replace(/^,\s*/, '');
-        const ev = {
-            id: String(item.id),
-            title: titulo,
-            start: item.start,
-            end: item.end,
-            color: colorEstado,
-            textColor: AGENDA_ESTADO_TEXTO,
-            display: 'block',
-            extendedProps: {
-                patient: item.patient,
-                status: item.status,
-                statusRaw: item.statusRaw,
-                needsReview: item.needsReview,
-                returnReason: item.returnReason,
-                machine: item.machine,
-                resourceIds: item.resourceIds,
-                mTratante: item.mTratante,
-                mDestinado: item.mDestinado,
-                priority: item.priority,
-                procedencia: item.procedencia,
-                payMethod: item.payMethod,
-                paymentStatus: item.paymentStatus,
-                transactionCode: item.transactionCode,
-                tipoBono: item.tipoBono,
-                entidadPagadora: item.entidadPagadora,
-                studies: item.studies,
-            },
-        };
+        const baseProps = risPropsEventoCalendario(item);
+        const blocks = risCalcularBloquesPorSala(item);
 
-        const resourceList = [...new Set(
-            (item.resourceIds?.length ? item.resourceIds : (item.machine ? [item.machine] : []))
-                .map(String)
-                .filter(Boolean)
-        )];
-        if (resourceList.length > 1) {
-            ev.resourceIds = resourceList;
-        } else if (resourceList.length === 1) {
-            ev.resourceId = resourceList[0];
-        }
+        if (!blocks.length) return;
 
-        return ev;
+        blocks.forEach((block, idx) => {
+            events.push({
+                id: blocks.length > 1 ? `${item.id}#${block.machineId}` : String(item.id),
+                groupId: String(item.id),
+                title: titulo,
+                start: block.start,
+                end: block.end,
+                resourceId: block.machineId,
+                color: colorEstado,
+                textColor: AGENDA_ESTADO_TEXTO,
+                display: 'block',
+                extendedProps: {
+                    ...baseProps,
+                    blockIndex: idx,
+                    blockMachineId: block.machineId,
+                    blockCount: blocks.length,
+                },
+            });
+        });
     });
+
+    return events;
 }
 
 function refrescarEventosCalendario(searchTerm) {
@@ -2258,21 +2348,23 @@ async function guardarCita() {
     }
     const citaEnd = new Date(citaStart.getTime() + (duracionTotalMinutos * 60000));
 
+    const bloquesNuevaCita = risCalcularBloquesPorSala({
+        start: citaStart,
+        end: citaEnd,
+        machine: Array.from(salasInvolucradas)[0],
+        studies: todosLosEstudios.map((s) => ({
+            machine_id: s.machine_id,
+            quantity: s.quantity,
+        })),
+    });
+
     let colisionDetectada = null;
-    salasInvolucradas.forEach(machineId => {
-        const conflicto = (window.RIS.agenda || []).find(a => {
-            if (idOriginal && String(a.id) === String(idOriginal)) return false;
-            if (!a.resourceIds.includes(machineId)) return false;
-
-            const aStart = new Date(a.start).getTime();
-            const aEnd = new Date(a.end).getTime();
-            return (citaStart.getTime() < aEnd && citaEnd.getTime() > aStart);
-        });
-
-        if (conflicto && !colisionDetectada) {
+    bloquesNuevaCita.forEach((block) => {
+        if (colisionDetectada) return;
+        if (risHayColisionEnSala(block.machineId, block.start, block.end, idOriginal)) {
             colisionDetectada = {
-                sala: window.RIS.resources.find(r => r.id === machineId)?.title || machineId,
-                hora: new Date(conflicto.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                sala: window.RIS.resources.find((r) => r.id === block.machineId)?.title || block.machineId,
+                hora: block.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             };
         }
     });
@@ -3163,12 +3255,7 @@ function buscarDisponibilidad() {
 
     while (candidato < finBusqueda) {
         const finCita = new Date(candidato.getTime() + duracion * 60000);
-        const conflicto = (window.RIS.agenda || []).some((a) => {
-            if (!a.resourceIds?.includes(String(machine))) return false;
-            const aStart = new Date(a.start).getTime();
-            const aEnd = new Date(a.end).getTime();
-            return candidato.getTime() < aEnd && finCita.getTime() > aStart;
-        });
+        const conflicto = risHayColisionEnSala(machine, candidato, finCita);
         if (!conflicto) {
             libre = new Date(candidato);
             break;
