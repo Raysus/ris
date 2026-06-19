@@ -12,7 +12,11 @@ class LaboratoryProfileService
         $laboratory ??= self::currentLaboratory();
         $code = self::codeFromLaboratory($laboratory);
 
-        return self::profileForCode($code, $laboratory?->type?->name, $laboratory?->settings);
+        return self::profileForCode(
+            $code,
+            $laboratory?->type?->name,
+            is_array($laboratory?->settings) ? $laboratory->settings : null
+        );
     }
 
     public static function codeFromLaboratory(?Laboratory $laboratory): string

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\SettingsArray;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -24,7 +25,7 @@ class Laboratory extends Model
     ];
 
     protected $casts = [
-        'settings' => 'array',
+        'settings' => SettingsArray::class,
         'is_active' => 'boolean',
     ];
 
@@ -134,12 +135,12 @@ class Laboratory extends Model
         ];
 
         $keys = ['horaInicio', 'horaFin', 'intervalo'];
-        $own = is_array($this->settings) ? $this->settings : [];
+        $own = SettingsArray::normalize($this->settings);
         $parent = [];
 
         if ($this->parent_id) {
             $this->loadMissing('parent');
-            $parent = is_array($this->parent?->settings) ? $this->parent->settings : [];
+            $parent = SettingsArray::normalize($this->parent?->settings);
         }
 
         $resolved = $defaults;

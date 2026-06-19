@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Casts\SettingsArray;
 use App\Models\Laboratory;
 use App\Models\LaboratoryType;
 use Illuminate\Http\Request;
@@ -115,7 +116,7 @@ class SettingController extends Controller
                 }
             }
             if (is_array($settings)) {
-                $lab->settings = $settings;
+                $lab->settings = SettingsArray::normalize($settings);
             }
         }
 
