@@ -541,7 +541,7 @@ function abrirModalBuscarExamenes(machineId, filter = '', targetRow = null) {
     }, 200);
 }
 
-function risAgregarFilaExamen(machineId, examId, subExamId = null) {
+function risAgregarFilaExamen(machineId, examId, subExamId = null, opts = {}) {
     addStudyRow('primo');
     const $row = $('#studyBody tr.study-entry').last();
     $row.find('.eMachine').val(machineId);
@@ -560,13 +560,18 @@ function risAgregarFilaExamen(machineId, examId, subExamId = null) {
             actualizarTerminoEstimadoDesdeExamenes();
             calculateTotal();
         }, 80);
-    } else if (examId) {
+    } else if (opts.isSibling && examId) {
         setTimeout(() => {
             const $sub = $row.find('.eSubExam');
             const sibVal = `sibling:${examId}`;
             if ($sub.find(`option[value="${sibVal}"]`).length) {
                 $sub.val(sibVal);
             }
+            actualizarTerminoEstimadoDesdeExamenes();
+            calculateTotal();
+        }, 80);
+    } else if (examId && !subExamId) {
+        setTimeout(() => {
             actualizarTerminoEstimadoDesdeExamenes();
             calculateTotal();
         }, 80);
@@ -656,14 +661,20 @@ function risAgregarExamenDesdeCodigo() {
         return;
     }
 
-    const exam = risResolverExamQuickEntry();
+    // Leer selección ANTES de re-renderizar variantes (risResolverExamQuickEntry las resetea).
+    const panelVariantesVisible = !$('#risQuickVariantsPanel').hasClass('d-none');
+    const selected = panelVariantesVisible ? risObtenerVariantesQuickSeleccionadas() : [];
+
+    let exam = _risQuickExamResolved;
+    if (!exam) {
+        exam = risResolverExamQuickEntry();
+    }
     if (!exam) {
         abrirModalBuscarExamenes(machineId, code);
         return;
     }
 
     const variantes = risObtenerVariantesExamen(exam, machineId);
-    const selected = risObtenerVariantesQuickSeleccionadas();
 
     if (variantes.length > 0) {
         if (!selected.length) {
@@ -671,8 +682,9 @@ function risAgregarExamenDesdeCodigo() {
             return;
         }
         selected.forEach((item) => {
-            risAgregarFilaExamen(machineId, item.examId, item.subExamId);
+            risAgregarFilaExamen(machineId, item.examId, item.subExamId, { isSibling: item.isSibling });
         });
+        calculateTotal();
         showToast(`${selected.length} variante(s) agregada(s).`, 'success');
     } else {
         risAgregarFilaExamen(machineId, exam.id, null);
