@@ -648,6 +648,7 @@ async function initAgenda() {
     }
 
     setupCalendar(calendarEl);
+    initAgendaMesPanelEvents();
     await cargarAgendaDesdeServidor();
 
     ensureAgendaModalsAnchored();
