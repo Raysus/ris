@@ -1892,9 +1892,18 @@ function mapearEventosCalendario(agendaItems, viewType) {
                 studies: item.studies,
             },
         };
-        if (item.machine) {
-            ev.resourceId = String(item.machine);
+
+        const resourceList = [...new Set(
+            (item.resourceIds?.length ? item.resourceIds : (item.machine ? [item.machine] : []))
+                .map(String)
+                .filter(Boolean)
+        )];
+        if (resourceList.length > 1) {
+            ev.resourceIds = resourceList;
+        } else if (resourceList.length === 1) {
+            ev.resourceId = resourceList[0];
         }
+
         return ev;
     });
 }
@@ -1931,8 +1940,12 @@ async function cargarAgendaDesdeServidor() {
             window.RIS.agenda = data.data.map(app => {
                 const p = app.patient?.persona || {};
                 const estudios = app.studies || [];
-                const salasUnicas = [...new Set(estudios.map(s => String(s.machine_id)))];
-                if (salasUnicas.length === 0 && app.machine_id) salasUnicas.push(String(app.machine_id));
+                const salasUnicas = [...new Set(
+                    estudios.map((s) => String(s.machine_id || '')).filter(Boolean)
+                )];
+                if (salasUnicas.length === 0 && app.machine_id) {
+                    salasUnicas.push(String(app.machine_id));
+                }
                 return {
                     id: String(app.id),
                     machine: String(app.machine_id),
