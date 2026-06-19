@@ -256,6 +256,26 @@ class LocalMwlFileWriter
 
         $lines[] = $this->dumpTag('0020,000d', 'UI', $studyUid);
 
+        $primaryStep = $steps[0];
+        $rootModality = (string) ($tags['Modality'] ?? $primaryStep['Modality'] ?? 'US');
+        $rootStation = (string) ($tags['ScheduledStationAETitle'] ?? $primaryStep['ScheduledStationAETitle'] ?? '');
+        $rootDate = (string) ($tags['ScheduledProcedureStepStartDate'] ?? $primaryStep['ScheduledProcedureStepStartDate'] ?? '');
+        $rootTime = (string) ($tags['ScheduledProcedureStepStartTime'] ?? $primaryStep['ScheduledProcedureStepStartTime'] ?? '');
+
+        if ($rootDate !== '') {
+            $lines[] = $this->dumpTag('0008,0020', 'DA', $rootDate);
+        }
+        if ($rootTime !== '') {
+            $lines[] = $this->dumpTag('0008,0030', 'TM', $rootTime);
+        }
+        $lines[] = $this->dumpTag('0008,0060', 'CS', $rootModality);
+        if ($rootStation !== '') {
+            $lines[] = $this->dumpTag('0040,0001', 'AE', $rootStation);
+        }
+        if ($rootDate !== '') {
+            $lines[] = $this->dumpTag('0040,0002', 'DA', $rootDate);
+        }
+
         if (!empty($tags['RequestedProcedureDescription'])) {
             $lines[] = $this->dumpTag('0032,1060', 'LO', (string) $tags['RequestedProcedureDescription']);
         }

@@ -232,6 +232,27 @@ function risHasGlobalAccess() {
 function applyOperationalModuleNav() {
     const manual = getLabProfile().uses_dicom_worklist === false;
 
+    const canOperational = (module) => {
+        if (typeof risIsClinicAdmin === 'function' && risIsClinicAdmin()) {
+            return true;
+        }
+        const allowed = {
+            worklist: ['admin', 'tecnologo', 'sis_admin'],
+            atencion: ['admin', 'tecnologo', 'sis_admin'],
+        }[module] || [];
+        const profileName = (localStorage.getItem('ris_user_profile') || '').toLowerCase();
+        if (allowed.includes(profileName)) {
+            return true;
+        }
+        try {
+            const userData = JSON.parse(localStorage.getItem('ris_user_data') || '{}');
+            const roles = Array.isArray(userData.settings?.roles) ? userData.settings.roles : [];
+            return roles.some((r) => allowed.includes(String(r).toLowerCase()));
+        } catch (e) {
+            return false;
+        }
+    };
+
     if (risIsClinicAdmin()) {
         document.querySelectorAll('#sidebar nav a[data-page="worklist"]').forEach((el) => {
             el.classList.toggle('d-none', manual);
@@ -242,9 +263,11 @@ function applyOperationalModuleNav() {
         return;
     }
     document.querySelectorAll('#sidebar nav a[data-page="worklist"]').forEach((el) => {
+        if (!canOperational('worklist')) return;
         el.classList.toggle('d-none', manual);
     });
     document.querySelectorAll('#sidebar nav a[data-page="atencion"]').forEach((el) => {
+        if (!canOperational('atencion')) return;
         el.classList.toggle('d-none', !manual);
     });
 }

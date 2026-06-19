@@ -241,6 +241,18 @@ function initRadiologist() {
         showToast("Dictado por voz: módulo no cargado. Pulse Ctrl+F5.", "warning");
     }
     $("#btnDragon").off("click.risDragon").on("click.risDragon", activarDragon);
+    $(document)
+        .off("click.risRadiologistSign", "#btnFirmarDirecto")
+        .on("click.risRadiologistSign", "#btnFirmarDirecto", function (e) {
+            e.preventDefault();
+            firmarDirecto();
+        });
+    $(document)
+        .off("click.risRadiologistTranscribe", "#btnEnviarTranscripcion")
+        .on("click.risRadiologistTranscribe", "#btnEnviarTranscripcion", function (e) {
+            e.preventDefault();
+            enviarATranscripcion();
+        });
     $("#btnSpeechMikeDebug").off("click.risSpeechMike").on("click.risSpeechMike", toggleSpeechMikeDebug);
     syncSpeechMikeDebugButtonUi();
     if (typeof setupSpeechMikeUiBindings === "function") {
@@ -587,7 +599,7 @@ function cargarEstudioEnEditor(studyId) {
     $("#textoInforme").val(currentRadioStudy.reportText || "").prop("disabled", false);
     lastSavedText = currentRadioStudy.reportText || ""; // Resetear comparador de autoguardado
 
-    $("#btnPlantilla, #btnDevolver, #btnGrabarAudio, #btnFirmarDirecto, #btnHistorialPaciente, #btnAdenda, #btnDragon, #btnBrowserDictation")
+    $("#btnPlantilla, #btnDevolver, #btnEnviarTranscripcion, #btnFirmarDirecto, #btnHistorialPaciente, #btnAdenda, #btnDragon, #btnBrowserDictation")
         .prop("disabled", false);
 
     audioBlob = null;
@@ -714,7 +726,7 @@ async function enviarATranscripcion() {
 
         const token = localStorage.getItem('ris_token');
         const labId = localStorage.getItem('ris_lab_id');
-        const btn = $("#btnGrabarAudio");
+        const btn = $("#btnEnviarTranscripcion");
 
         try {
             btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Subiendo...');
@@ -1407,7 +1419,7 @@ function limpiarPantallaRadiologo() {
     $("#infoPacienteRadiologo").html('<div class="text-center text-muted p-5"><i class="bi bi-file-earmark-medical fs-1 d-block mb-3"></i>Seleccione paciente.</div>');
     $("#listaExamenesRadiologo").empty();
     $("#textoInforme").val("").prop("disabled", true);
-    $("#btnPlantilla, #btnDevolver, #btnGrabarAudio, #btnFirmarDirecto, #btnHistorialPaciente, #btnAdenda").prop("disabled", true);
+    $("#btnPlantilla, #btnDevolver, #btnEnviarTranscripcion, #btnFirmarDirecto, #btnHistorialPaciente, #btnAdenda").prop("disabled", true);
     audioBlob = null;
     $("#audioPreview").attr("src", "");
     $("#audioPreviewWrap").addClass("d-none");
@@ -1496,6 +1508,8 @@ function abrirVisorDicomSoloOhif() {
 
 window.toggleSpeechMikeDebug = toggleSpeechMikeDebug;
 window.activarDragon = activarDragon;
+window.firmarDirecto = firmarDirecto;
+window.enviarATranscripcion = enviarATranscripcion;
 window.isAudioPreviewListeningMode = isAudioPreviewListeningMode;
 window.executeSpeechMikeAudioAction = executeSpeechMikeAudioAction;
 window.seekAudioPreview = seekAudioPreview;

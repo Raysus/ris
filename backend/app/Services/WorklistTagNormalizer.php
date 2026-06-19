@@ -96,11 +96,16 @@ class WorklistTagNormalizer
     {
         $compact = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $accessionNumber) ?? '');
 
-        if ($compact !== '') {
-            return substr($compact, 0, self::SH_MAX);
+        if ($compact === '') {
+            $compact = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $fallback) ?: 'WORKLIST');
         }
 
-        return substr(strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $fallback) ?: 'WORKLIST'), 0, self::SH_MAX);
+        if (strlen($compact) <= self::SH_MAX) {
+            return $compact;
+        }
+
+        // ACC-YYYYMMDD-UUID: truncar al inicio colisiona citas del mismo día; conservar sufijo único.
+        return substr($compact, -self::SH_MAX);
     }
 
     public static function compactStepId(string $accessionNumber, string $fallbackId): string

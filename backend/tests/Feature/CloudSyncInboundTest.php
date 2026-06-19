@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\Appointment;
 use App\Models\Exam;
+use App\Models\Insurance;
+use App\Models\InsurancePlan;
 use App\Models\Machine;
 use App\Models\Paciente;
 use App\Models\Persona;
@@ -342,6 +344,130 @@ class CloudSyncInboundTest extends TestCase
         $this->assertSame(1, $second['counts']['exams_skipped']);
     }
 
+    public function test_inbound_appointment_nulls_missing_insurance_plan_id(): void
+    {
+        $lab = $this->risLab;
+        $machine = Machine::where('laboratory_id', $lab->id)->firstOrFail();
+        $personaId = '10101010-1010-1010-1010-101010101010';
+        $pacienteId = '20202020-2020-2020-2020-202020202020';
+        $appointmentId = '30303030-3030-3030-3030-303030303030';
+        $missingPlanId = '019e751d-d689-72f0-832d-734c38a6ad25';
+        $start = now()->addDays(3);
+
+        $this->withToken('test-sync-secret')
+            ->postJson('/api/integrations/cloud-sync/inbound', [
+                'model' => 'App\Models\Appointment',
+                'action' => 'created',
+                'data' => [
+                    'id' => $appointmentId,
+                    'laboratory_id' => $lab->id,
+                    'patient_id' => $pacienteId,
+                    'machine_id' => $machine->id,
+                    'insurance_plan_id' => $missingPlanId,
+                    'start_time' => $start->toIso8601String(),
+                    'end_time' => $start->copy()->addMinutes(20)->toIso8601String(),
+                    'status' => 'confirmado',
+                    'payment_status' => 'Pendiente',
+                    'origin' => 'Ambulatorio',
+                    'patient' => [
+                        'id' => $pacienteId,
+                        'laboratory_id' => $lab->id,
+                        'persona_id' => $personaId,
+                        'persona' => [
+                            'id' => $personaId,
+                            'rut' => '16.543.210-9',
+                            'names' => 'Plan',
+                            'last_name_1' => 'Faltante',
+                        ],
+                    ],
+                    'studies' => [],
+                ],
+            ])
+            ->assertOk();
+
+        $this->assertDatabaseHas('appointments', [
+            'id' => $appointmentId,
+            'insurance_plan_id' => null,
+        ]);
+    }
+
+    public function test_local_appointment_sync_applies_catalog_before_appointment(): void
+    {
+        config([
+            'cloud_sync.role' => 'local',
+            'cloud_sync.secret' => 'test-sync-secret',
+        ]);
+
+        $lab = $this->risLab;
+        $machine = Machine::where('laboratory_id', $lab->id)->firstOrFail();
+        $insuranceId = '40404040-4040-4040-4040-404040404040';
+        $planId = '50505050-5050-5050-5050-505050505050';
+        $personaId = '60606060-6060-6060-6060-606060606060';
+        $pacienteId = '70707070-7070-7070-7070-707070707070';
+        $appointmentId = '80808080-8080-8080-8080-808080808080';
+        $start = now()->addDays(4);
+
+        $this->withToken('test-sync-secret')
+            ->postJson('/api/integrations/local-sync/appointment', [
+                'action' => 'updated',
+                'catalog' => [
+                    [
+                        'model' => 'Insurance',
+                        'data' => [
+                            'id' => $insuranceId,
+                            'laboratory_id' => $lab->id,
+                            'name' => 'Fonasa Sync',
+                            'type' => 'publica',
+                            'is_active' => true,
+                        ],
+                    ],
+                    [
+                        'model' => 'InsurancePlan',
+                        'data' => [
+                            'id' => $planId,
+                            'laboratory_id' => $lab->id,
+                            'insurance_id' => $insuranceId,
+                            'name' => 'Plan A',
+                            'percentage' => 80,
+                        ],
+                    ],
+                ],
+                'persona' => [
+                    'id' => $personaId,
+                    'rut' => '17.654.321-0',
+                    'names' => 'Catalogo',
+                    'last_name_1' => 'Relay',
+                ],
+                'paciente' => [
+                    'id' => $pacienteId,
+                    'laboratory_id' => $lab->id,
+                    'persona_id' => $personaId,
+                ],
+                'appointment' => [
+                    'id' => $appointmentId,
+                    'laboratory_id' => $lab->id,
+                    'patient_id' => $pacienteId,
+                    'machine_id' => $machine->id,
+                    'insurance_id' => $insuranceId,
+                    'insurance_plan_id' => $planId,
+                    'start_time' => $start->toIso8601String(),
+                    'end_time' => $start->copy()->addMinutes(20)->toIso8601String(),
+                    'status' => 'confirmado',
+                    'payment_status' => 'Pendiente',
+                    'origin' => 'Ambulatorio',
+                    'studies' => [],
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->assertDatabaseHas('insurance_plans', ['id' => $planId]);
+        $this->assertDatabaseHas('appointments', [
+            'id' => $appointmentId,
+            'insurance_plan_id' => $planId,
+        ]);
+    }
+
     public function test_admin_can_pull_catalog_on_cloud(): void
     {
         $this->loginRis();
@@ -354,5 +480,50 @@ class CloudSyncInboundTest extends TestCase
             ->assertJsonPath('success', true);
 
         $this->assertTrue(CloudSyncMode::acceptsInbound());
+    }
+
+    public function test_inbound_user_creates_persona_then_user_with_rut_collision(): void
+    {
+        $existingPersonaId = '11111111-1111-1111-1111-111111111112';
+        $incomingPersonaId = '11111111-1111-1111-1111-111111111113';
+        $userId = '11111111-1111-1111-1111-111111111114';
+        $tipoId = \App\Models\TipoUsuario::query()->value('id');
+
+        Persona::create([
+            'id' => $existingPersonaId,
+            'rut' => '15.555.555-5',
+            'names' => 'Persona',
+            'last_name_1' => 'Nube',
+        ]);
+
+        $this->withToken('test-sync-secret')
+            ->postJson('/api/integrations/cloud-sync/inbound', [
+                'model' => 'App\Models\User',
+                'action' => 'created',
+                'data' => [
+                    'id' => $userId,
+                    'persona_id' => $incomingPersonaId,
+                    'tipo_usuario_id' => $tipoId,
+                    'username' => 'sync_user_test',
+                    'password' => bcrypt('secret'),
+                    'settings' => ['roles' => ['secretaria']],
+                    'is_active' => true,
+                    'persona' => [
+                        'id' => $incomingPersonaId,
+                        'rut' => '15.555.555-5',
+                        'names' => 'Persona',
+                        'last_name_1' => 'Lab',
+                    ],
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->assertDatabaseHas('users', [
+            'id' => $userId,
+            'username' => 'sync_user_test',
+            'persona_id' => $existingPersonaId,
+        ]);
+        $this->assertDatabaseMissing('personas', ['id' => $incomingPersonaId]);
     }
 }

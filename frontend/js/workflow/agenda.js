@@ -220,6 +220,95 @@ const RIS_MODALITY_LABELS = {
 
 const RIS_MODALITY_ORDER = ['CR', 'DX', 'RX', 'CT', 'MRI', 'US', 'MAMO', 'DEXA', 'CBCT', 'IO', 'NM', 'PT', 'RF', 'XA', 'OT'];
 
+function risNormalizeAgendaSearch(value) {
+    return String(value || '')
+        .toLocaleLowerCase('es-CL')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9k]/g, '');
+}
+
+function risExamenesParaSala(machineId) {
+    if (!machineId) return [];
+    const machineGroup = risGrupoSalaDesdeMaquina(machineId);
+    if (!machineGroup) return [];
+    return risDedupeExamenesCatalogo(catalogosAgenda.exams || [])
+        .filter((e) => risExamenCompatibleConSala(e, machineGroup));
+}
+
+function risExamCoincideBusqueda(exam, query) {
+    const q = String(query || '').trim().toLowerCase();
+    if (!q) return true;
+    const name = String(exam.name || '').toLowerCase();
+    const code = String(exam.fonasa_code || '').toLowerCase();
+    const qCode = q.replace(/[\s.]/g, '');
+    const codeNorm = code.replace(/[\s.]/g, '');
+    return name.includes(q) || code.includes(q) || (qCode && codeNorm.includes(qCode));
+}
+
+function risResolverExamenDesdeBusqueda(query, machineId) {
+    const q = String(query || '').trim();
+    if (!q || !machineId) return null;
+
+    const qLower = q.toLowerCase();
+    const qCode = qLower.replace(/[\s.]/g, '');
+    const exams = risExamenesParaSala(machineId);
+
+    let match = exams.find((e) => String(e.fonasa_code || '').toLowerCase().replace(/[\s.]/g, '') === qCode);
+    if (match) return match;
+
+    match = exams.find((e) => String(e.name || '').toLowerCase() === qLower);
+    if (match) return match;
+
+    match = exams.find((e) => {
+        const code = String(e.fonasa_code || '').toLowerCase();
+        return code && (code === qLower || code.startsWith(qLower));
+    });
+    if (match) return match;
+
+    const partial = exams.filter((e) => risExamCoincideBusqueda(e, q));
+    if (partial.length === 1) return partial[0];
+
+    return null;
+}
+
+function risSyncExamQueryLabel($row, exam) {
+    if (!$row || !$row.length) return;
+    if (!exam) {
+        $row.find('.eExamQuery').val('');
+        return;
+    }
+    const code = exam.fonasa_code ? String(exam.fonasa_code) : '';
+    $row.find('.eExamQuery').val(code ? `${code} — ${exam.name}` : exam.name);
+}
+
+function risSeleccionarExamenEnFila($row, examId) {
+    if (!$row || !$row.length || !examId) return;
+    const $select = $row.find('.eExam');
+    if (!$select.find(`option[value="${examId}"]`).length) {
+        poblarSelectExamenesAgenda($select, $row.find('.eMachine').val());
+    }
+    $select.val(String(examId)).trigger('change');
+    const exam = (catalogosAgenda.exams || []).find((e) => String(e.id) === String(examId));
+    if (exam) risSyncExamQueryLabel($row, exam);
+}
+
+function filtrarEventosAgendaCalendario(termRaw) {
+    const term = risNormalizeAgendaSearch(termRaw);
+    const allEvents = getEventsFromRIS();
+    if (!term) return allEvents;
+
+    return allEvents.filter((e) => {
+        const p = e.extendedProps?.patient || {};
+        const rut = risNormalizeAgendaSearch(p.rut);
+        const nombres = risNormalizeAgendaSearch(
+            `${p.name || ''} ${p.lastName || ''} ${p.secondLastName || ''}`
+        );
+        const title = risNormalizeAgendaSearch(e.title);
+        return title.includes(term) || rut.includes(term) || nombres.includes(term);
+    });
+}
+
 function risDedupeExamenesCatalogo(exams) {
     const seen = new Map();
     for (const exam of exams) {
@@ -231,7 +320,7 @@ function risDedupeExamenesCatalogo(exams) {
 }
 
 /** Exámenes del catálogo agrupados por modalidad, filtrados por grupo de la sala seleccionada. */
-function poblarSelectExamenesAgenda($examSelect, machineId) {
+function poblarSelectExamenesAgenda($examSelect, machineId, filterQuery = '') {
     if (!$examSelect || !$examSelect.length) return;
 
     const prev = $examSelect.val();
@@ -248,11 +337,13 @@ function poblarSelectExamenesAgenda($examSelect, machineId) {
         return;
     }
 
-    const exams = risDedupeExamenesCatalogo(catalogosAgenda.exams || [])
-        .filter((e) => risExamenCompatibleConSala(e, machineGroup));
+    const exams = risExamenesParaSala(machineId).filter((e) => risExamCoincideBusqueda(e, filterQuery));
     if (!exams.length) {
         const salaLabel = RIS_MODALITY_LABELS[risGrupoModalidadEquiv(machineGroup)] || machineGroup || 'sala';
-        $examSelect.append(`<option value="">-- Sin exámenes para ${salaLabel} --</option>`);
+        const hint = String(filterQuery || '').trim()
+            ? '-- Sin coincidencias --'
+            : `-- Sin exámenes para ${salaLabel} --`;
+        $examSelect.append(`<option value="">${hint}</option>`);
         return;
     }
 
@@ -274,8 +365,10 @@ function poblarSelectExamenesAgenda($examSelect, machineId) {
             .slice()
             .sort((a, b) => String(a.name).localeCompare(String(b.name), 'es'))
             .forEach((e) => {
+                const code = e.fonasa_code ? String(e.fonasa_code) : '';
+                const text = code ? `[${code}] ${e.name}` : e.name;
                 $og.append(
-                    `<option value="${e.id}" data-price="${e.price || 0}" data-group="${grupo}">${e.name}</option>`
+                    `<option value="${e.id}" data-price="${e.price || 0}" data-group="${grupo}" data-code="${code}">${text}</option>`
                 );
             });
         $examSelect.append($og);
@@ -1165,7 +1258,7 @@ function abrirModalCita(data) {
     if (data.id) {
         const p = data.patient || {};
 
-        $("#pRut").val(p.rut || "");
+        $("#pRut").val(p.rut || "").data('agendaLastSearch', (p.rut || '').trim().toUpperCase());
         $("#pName").val(capitalizarNombrePropio(p.name || ""));
         $("#pLastName").val(capitalizarNombrePropio(p.lastName || ""));
         $("#pSecondLastName").val(capitalizarNombrePropio(p.secondLastName || ""));
@@ -1738,10 +1831,13 @@ function addStudyRow(relationType = 'primo', existingData = null) {
     const html = `
         <tr id="${rowId}" class="study-entry align-middle">
             <td><select class="form-select form-select-sm eMachine"><option value="">Sala...</option>${machineOptions}</select></td>
-            <td><select class="form-select form-select-sm eExam"><option value="">--</option></select></td>
+            <td>
+                <input type="text" class="form-control form-control-sm eExamQuery mb-1" placeholder="Código o nombre..." autocomplete="off" aria-label="Buscar examen por código o nombre">
+                <select class="form-select form-select-sm eExam"><option value="">--</option></select>
+            </td>
             <td><select class="form-select form-select-sm eSubExam"><option value="">--</option></select></td>
             <td><input type="number" class="form-control form-control-sm eQty text-center" value="${existingData ? existingData.qty || 1 : 1}" min="1"></td>
-            <td><input type="text" class="form-control form-control-sm eCode text-center bg-white" value="${existingData ? existingData.code || '' : ''}" readonly tabindex="-1"></td>
+            <td><input type="text" class="form-control form-control-sm eCode text-center" value="${existingData ? existingData.code || '' : ''}" placeholder="Cód." autocomplete="off" aria-label="Código de prestación"></td>
             <td>
                 <div class="input-group input-group-sm">
                     <span class="input-group-text">$</span>
@@ -1789,6 +1885,154 @@ function configurarInsumosAgenda() {
     });
 }
 
+let _agendaPatientSearchKey = '';
+let _agendaPatientSearchPromise = null;
+
+/** Busca persona por documento (RUT/pasaporte) y rellena el formulario de cita. */
+async function buscarPacientePorDocumentoAgenda(options = {}) {
+    const $input = options.$input ? $(options.$input) : $('#pRut');
+    if (!$input.length) return false;
+
+    const tipoDoc = $('#pTipoDoc').val() || 'RUT';
+    const doc = ($input.val() || '').trim().toUpperCase();
+    if (!doc) return false;
+
+    if (tipoDoc === 'RUT') {
+        if (!validarRut(doc)) {
+            if (typeof showToast === 'function') showToast('❌ RUT Inválido', 'danger');
+            $input.addClass('is-invalid');
+            return false;
+        }
+    } else if (doc.length < 4) {
+        if (typeof showToast === 'function') showToast('Documento inválido.', 'warning');
+        $input.addClass('is-invalid');
+        return false;
+    }
+
+    $input.removeClass('is-invalid').addClass('is-valid');
+
+    const searchKey = `${tipoDoc}|${doc}`;
+    if (_agendaPatientSearchPromise && _agendaPatientSearchKey === searchKey) {
+        return _agendaPatientSearchPromise;
+    }
+
+    _agendaPatientSearchKey = searchKey;
+    _agendaPatientSearchPromise = (async () => {
+        const token = localStorage.getItem('ris_token');
+        const labId = localStorage.getItem('ris_lab_id');
+
+        try {
+            const labIdBusqueda =
+                typeof risRequireConcreteLabId === 'function'
+                    ? risRequireConcreteLabId(false)
+                    : labId;
+            if (!labIdBusqueda) {
+                showToast('Seleccione una sede específica en la barra superior.', 'warning');
+                return false;
+            }
+
+            const response = await fetch(
+                `${API_URL}/patients/search?rut=${encodeURIComponent(doc)}`,
+                {
+                    headers: {
+                        Accept: 'application/json',
+                        Authorization: `Bearer ${token}`,
+                        'X-Lab-Id': labIdBusqueda
+                    }
+                }
+            );
+
+            const rawText = await response.text();
+            let data = null;
+            try {
+                data = rawText ? JSON.parse(rawText) : null;
+            } catch (e) {
+                console.error('Respuesta inválida al buscar paciente:', rawText);
+                showToast('Error al interpretar la respuesta del servidor.', 'danger');
+                return false;
+            }
+
+            if (response.ok && data?.success && data.data) {
+                const payload = data.data;
+                const persona = payload.persona;
+
+                if (!persona) {
+                    showToast('Respuesta incompleta: falta registro de persona.', 'danger');
+                    return false;
+                }
+
+                $('#pName').val(capitalizarNombrePropio(persona.names || ''));
+                $('#pLastName').val(capitalizarNombrePropio(persona.last_name_1 || ''));
+                $('#pSecondLastName').val(capitalizarNombrePropio(persona.last_name_2 || ''));
+                $('#pSex').val(persona.gender || 'M');
+                $('#pEmail').val(persona.email || '');
+                $('#pPhone').val(persona.phone || '');
+                $('#pBirthDate').val(risFormatBirthDateForInput(persona.birth_date));
+                risActualizarEdadPacienteAgenda();
+
+                setAgendaPrevision(
+                    payload.insurance_id || null,
+                    payload.insurance_plan_id || null
+                );
+
+                if (payload.history_count && payload.history_count > 0) {
+                    showToast(
+                        `🔔 ${payload.history_count} cita(s) previa(s) en esta sede (registro global de persona).`,
+                        'info'
+                    );
+                    $('#pName').addClass('border-info bg-info-subtle');
+                } else if (payload.insurance_id) {
+                    showToast(
+                        'Previsión sugerida desde la última atención registrada.',
+                        'info'
+                    );
+                }
+
+                showToast('✅ Persona encontrada (registro global).', 'success');
+                $input.data('agendaLastSearch', doc);
+                return true;
+            }
+
+            if (response.status === 404 || (data && data.success === false)) {
+                showToast(
+                    'ℹ️ No hay persona con ese documento. Al guardar la cita se creará el registro.',
+                    'info'
+                );
+                $('#pName, #pLastName, #pSecondLastName, #pBirthDate, #pEmail, #pPhone').val('');
+                setAgendaPrevision(null);
+                $('#pSex').val('M');
+                $input.data('agendaLastSearch', doc);
+                return true;
+            }
+
+            showToast(data?.message || `Error al buscar paciente (${response.status})`, 'danger');
+            console.error(`Error del Servidor (${response.status}):`, rawText);
+            return false;
+        } catch (error) {
+            console.error('Error buscando paciente:', error);
+            return false;
+        } finally {
+            if (_agendaPatientSearchKey === searchKey) {
+                _agendaPatientSearchPromise = null;
+            }
+        }
+    })();
+
+    return _agendaPatientSearchPromise;
+}
+
+/** Asegura búsqueda de paciente antes de validar el paso 1 del wizard (blur puede no haber corrido). */
+async function ensureAgendaPacienteCargado() {
+    const doc = ($('#pRut').val() || '').trim().toUpperCase();
+    if (!doc) return;
+
+    const lastDoc = $('#pRut').data('agendaLastSearch') || '';
+    const namesFilled = $('#pName').val()?.trim() && $('#pLastName').val()?.trim();
+    if (namesFilled && lastDoc === doc) return;
+
+    await buscarPacientePorDocumentoAgenda();
+}
+
 function setupProEventListeners() {
     $(document).on('change', '#manualStartTime', function () {
         const v = $(this).val();
@@ -1799,32 +2043,32 @@ function setupProEventListeners() {
     $(document).on('change', '#fileOrdenMedica', function (e) { procesarArchivoEscaner(e, 'orden'); });
     $(document).on('change', '#fileEncuesta', function (e) { procesarArchivoEscaner(e, 'encuesta'); });
 
-    $("#agendaStatus").on("change", function () {
+    $(document).on('change.agendaPro', '#agendaStatus', function () {
         colorSelectorEstado();
         actualizarCtaAtencionSalas();
     });
-    $(document).on("input", ".eQty", calculateTotal);
+    $(document).on('input', '.eQty', calculateTotal);
     window.addEventListener('ris_updated', actualizarCalendarioEnVivo);
     window.addEventListener('storage', (e) => { if (e.key === 'ris_app_data') actualizarCalendarioEnVivo(); });
 
-    $("#mTratante").on("change", async function () {
-        if ($(this).val() === "NUEVO") {
-            $("#modalNuevoMedico").modal('show');
-            $(this).val(""); // Reset select
+    $(document).on('change.agendaPro', '#mTratante', function () {
+        if ($(this).val() === 'NUEVO') {
+            $('#modalNuevoMedico').modal('show');
+            $(this).val('');
         }
     });
 
-    $("#pBirthDate").on("change", function () {
+    $(document).on('change.agendaPro', '#pBirthDate', function () {
         risActualizarEdadPacienteAgenda();
     });
 
-    $("#payMethod").on("change", function () {
+    $(document).on('change.agendaPro', '#payMethod', function () {
         const val = $(this).val();
-        let lbl = "Cód. Transacción";
-        if (val === "Cheque") lbl = "N° Cheque";
-        if (val === "Tarjeta") lbl = "Cód. ISWITCH";
-        if (val === "Transbank") lbl = "Número de Operación";
-        $("#lblTransactionCode").text(lbl);
+        let lbl = 'Cód. Transacción';
+        if (val === 'Cheque') lbl = 'N° Cheque';
+        if (val === 'Tarjeta') lbl = 'Cód. ISWITCH';
+        if (val === 'Transbank') lbl = 'Número de Operación';
+        $('#lblTransactionCode').text(lbl);
     });
 
     $(document).on("change", ".ePrice", async function () {
@@ -1846,144 +2090,94 @@ function setupProEventListeners() {
         calculateTotal();
     });
 
-    $("#searchAgenda").on("input", function () {
-        const term = $(this).val().toLowerCase().replace(/[^a-z0-9k]/g, '');
-        const allEvents = getEventsFromRIS();
+    $(document).on('input.agendaPro', '#searchAgenda', function () {
+        const term = $(this).val();
+        const filtered = filtrarEventosAgendaCalendario(term);
         calendar.getEventSources().forEach(src => src.remove());
-        if (term === "") calendar.addEventSource(allEvents);
-        else {
-            const filtered = allEvents.filter(e => e.title.toLowerCase().includes(term) || e.extendedProps.patient.rut.toLowerCase().replace(/[^a-z0-9k]/g, '').includes(term));
-            calendar.addEventSource(filtered);
-        }
+        calendar.addEventSource(filtered);
     });
 
-    $("#pRut").off("input.agendaRutFormat").on("input.agendaRutFormat", function () {
-        if (($("#pTipoDoc").val() || "RUT") !== "RUT") return;
-        let actual = $(this).val().replace(/[^0-9kK]/g, "");
+    $(document).on('input.agendaPro', '#pRut', function () {
+        $(this).removeData('agendaLastSearch');
+        if (($('#pTipoDoc').val() || 'RUT') !== 'RUT') return;
+        let actual = $(this).val().replace(/[^0-9kK]/g, '');
         if (actual.length === 0) {
-            $(this).val("");
+            $(this).val('');
             return;
         }
-        let rutPuntos = "";
-        let cuerpo = actual.slice(0, -1);
-        let dv = actual.slice(-1).toUpperCase();
+        let rutPuntos = '';
+        const cuerpo = actual.slice(0, -1);
+        const dv = actual.slice(-1).toUpperCase();
         for (let i = cuerpo.length - 1, j = 1; i >= 0; i--, j++) {
             rutPuntos = cuerpo.charAt(i) + rutPuntos;
-            if (j % 3 === 0 && i !== 0) rutPuntos = "." + rutPuntos;
+            if (j % 3 === 0 && i !== 0) rutPuntos = '.' + rutPuntos;
         }
-        $(this).val(cuerpo.length > 0 ? rutPuntos + "-" + dv : dv);
+        $(this).val(cuerpo.length > 0 ? rutPuntos + '-' + dv : dv);
     });
 
-    $("#pRut").off("blur.agenda").on("blur.agenda", async function () {
-        const tipoDoc = $("#pTipoDoc").val() || "RUT";
-        const doc = $(this).val().trim().toUpperCase();
-        if (!doc) return;
+    $(document).on('blur.agendaPro', '#pRut', function () {
+        buscarPacientePorDocumentoAgenda({ $input: this });
+    });
 
-        if (tipoDoc === "RUT") {
-            if (!validarRut(doc)) {
-                if (typeof showToast === "function") showToast("❌ RUT Inválido", "danger");
-                $(this).addClass("is-invalid");
-                return;
-            }
-        } else if (doc.length < 4) {
-            if (typeof showToast === "function") showToast("Documento inválido.", "warning");
-            $(this).addClass("is-invalid");
+    $(document).on('keydown.agendaPro', '#pRut', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            buscarPacientePorDocumentoAgenda({ $input: this });
+        }
+    });
+
+    $(document).on('input.agendaPro', '.eExamQuery', function () {
+        const $row = $(this).closest('tr');
+        poblarSelectExamenesAgenda(
+            $row.find('.eExam'),
+            $row.find('.eMachine').val(),
+            $(this).val()
+        );
+    });
+
+    $(document).on('keydown.agendaPro', '.eExamQuery, .eCode', function (e) {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const $row = $(this).closest('tr');
+        const machineId = $row.find('.eMachine').val();
+        if (!machineId) {
+            showToast('Seleccione la sala antes de buscar el examen.', 'warning');
             return;
         }
-
-        $(this).removeClass("is-invalid").addClass("is-valid");
-
-        const token = localStorage.getItem("ris_token");
-        const labId = localStorage.getItem("ris_lab_id");
-
-        try {
-            const labIdBusqueda =
-                typeof risRequireConcreteLabId === "function"
-                    ? risRequireConcreteLabId(false)
-                    : labId;
-            if (!labIdBusqueda) {
-                showToast("Seleccione una sede específica en la barra superior.", "warning");
-                return;
+        const query = $(this).val();
+        const exam = risResolverExamenDesdeBusqueda(query, machineId);
+        if (!exam) {
+            if (String(query || '').trim()) {
+                showToast('No se encontró examen con ese código o nombre para la sala.', 'warning');
             }
+            return;
+        }
+        risSeleccionarExamenEnFila($row, exam.id);
+    });
 
-            const response = await fetch(
-                `${API_URL}/patients/search?rut=${encodeURIComponent(doc)}`,
-                {
-                headers: {
-                    'Accept': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                    'X-Lab-Id': labIdBusqueda
-                }
-            });
-
-            const rawText = await response.text();
-            let data = null;
-            try {
-                data = rawText ? JSON.parse(rawText) : null;
-            } catch (e) {
-                console.error("Respuesta inválida al buscar paciente:", rawText);
-                showToast("Error al interpretar la respuesta del servidor.", "danger");
-                return;
-            }
-
-            if (response.ok && data?.success && data.data) {
-                const payload = data.data;
-                const persona = payload.persona;
-
-                if (!persona) {
-                    showToast("Respuesta incompleta: falta registro de persona.", "danger");
-                    return;
-                }
-
-                $("#pName").val(capitalizarNombrePropio(persona.names || ""));
-                $("#pLastName").val(capitalizarNombrePropio(persona.last_name_1 || ""));
-                $("#pSecondLastName").val(capitalizarNombrePropio(persona.last_name_2 || ""));
-                $("#pSex").val(persona.gender || "M");
-                $("#pEmail").val(persona.email || "");
-                $("#pPhone").val(persona.phone || "");
-                $("#pBirthDate").val(risFormatBirthDateForInput(persona.birth_date));
-                risActualizarEdadPacienteAgenda();
-
-                setAgendaPrevision(
-                    payload.insurance_id || null,
-                    payload.insurance_plan_id || null
-                );
-
-                if (payload.history_count && payload.history_count > 0) {
-                    showToast(
-                        `🔔 ${payload.history_count} cita(s) previa(s) en esta sede (registro global de persona).`,
-                        "info"
-                    );
-                    $("#pName").addClass("border-info bg-info-subtle");
-                } else if (payload.insurance_id) {
-                    showToast(
-                        "Previsión sugerida desde la última atención registrada.",
-                        "info"
-                    );
-                }
-
-                showToast("✅ Persona encontrada (registro global).", "success");
-            } else if (response.status === 404 || (data && data.success === false)) {
-                showToast(
-                    "ℹ️ No hay persona con ese documento. Al guardar la cita se creará el registro.",
-                    "info"
-                );
-                $("#pName, #pLastName, #pSecondLastName, #pBirthDate, #pEmail, #pPhone").val("");
-                setAgendaPrevision(null);
-                $("#pSex").val("M");
-            } else {
-                showToast(data?.message || `Error al buscar paciente (${response.status})`, "danger");
-                console.error(`Error del Servidor (${response.status}):`, rawText);
-            }
-        } catch (error) {
-            console.error("Error buscando paciente:", error);
+    $(document).on('blur.agendaPro', '.eCode', function () {
+        const val = String($(this).val() || '').trim();
+        if (!val) return;
+        const $row = $(this).closest('tr');
+        const machineId = $row.find('.eMachine').val();
+        if (!machineId) return;
+        const exam = risResolverExamenDesdeBusqueda(val, machineId);
+        if (exam) {
+            risSeleccionarExamenEnFila($row, exam.id);
+            return;
+        }
+        const selectedId = $row.find('.eExam').val();
+        if (selectedId) {
+            const examData = (catalogosAgenda.exams || []).find((e) => String(e.id) === String(selectedId));
+            if (examData) $(this).val(examData.fonasa_code || '');
         }
     });
-    $("#pInsurance").on("change", function () {
+
+    $(document).on('change.agendaPro', '#pInsurance', function () {
         poblarPlanesPrevision(risNullableUuid($(this).val()));
     });
 
-    $("#pPlan").on("change", function () {
+    $(document).on('change.agendaPro', '#pPlan', function () {
         calculateTotal();
     });
 
@@ -1995,8 +2189,9 @@ function setupProEventListeners() {
         const prevExam = examSelect.val();
 
         subSelect.empty().append('<option value="">--</option>');
-        row.find(".ePrice").val(0);
-        row.find(".eCode").val('');
+        row.find('.ePrice').val(0);
+        row.find('.eCode').val('');
+        row.find('.eExamQuery').val('');
 
         poblarSelectExamenesAgenda(examSelect, machineId);
         if (prevExam && examSelect.find(`option[value="${prevExam}"]`).length) {
@@ -2011,12 +2206,17 @@ function setupProEventListeners() {
 
         subSelect.empty().append('<option value="">Sin variante</option>');
 
-        if (!examId) return;
+        if (!examId) {
+            row.find('.eCode').val('');
+            risSyncExamQueryLabel(row, null);
+            return;
+        }
 
         const examData = catalogosAgenda.exams.find(e => String(e.id) === String(examId));
         if (examData) {
             row.find(".ePrice").val(examData.price || 0);
             row.find(".eCode").val(examData.fonasa_code || '');
+            risSyncExamQueryLabel(row, examData);
 
             if (examData.sub_exams && examData.sub_exams.length > 0) {
                 examData.sub_exams.forEach(sub => {
@@ -2229,31 +2429,18 @@ async function marcarComoRevisado(citaId) {
 }
 
 function toggleFormatoDocAgenda() {
-    const tipo = $("#pTipoDoc").val();
-    const input = $("#pRut");
-    const label = $("#lblDoc");
+    const tipo = $('#pTipoDoc').val();
+    const input = $('#pRut');
+    const label = $('#lblDoc');
 
-    input.val("").removeClass("is-invalid is-valid");
+    input.val('').removeClass('is-invalid is-valid').removeData('agendaLastSearch');
 
-    if (tipo === "PASAPORTE") {
-        label.text("N° Pasaporte / ID *");
-        input.attr("placeholder", "Ej. AB123456");
-        input.off("input.agendaRutFormat");
+    if (tipo === 'PASAPORTE') {
+        label.text('N° Pasaporte / ID *');
+        input.attr('placeholder', 'Ej. AB123456');
     } else {
-        label.text("N° de RUT *");
-        input.attr("placeholder", "12.345.678-9");
-        input.off("input.agendaRutFormat").on("input.agendaRutFormat", function () {
-            let actual = $(this).val().replace(/[^0-9kK]/g, '');
-            if (actual.length === 0) return;
-            let cuerpo = actual.slice(0, -1);
-            let dv = actual.slice(-1).toUpperCase();
-            let rutPuntos = "";
-            for (let i = cuerpo.length - 1, j = 1; i >= 0; i--, j++) {
-                rutPuntos = cuerpo.charAt(i) + rutPuntos;
-                if (j % 3 === 0 && i !== 0) rutPuntos = "." + rutPuntos;
-            }
-            $(this).val(rutPuntos + "-" + dv);
-        });
+        label.text('N° de RUT *');
+        input.attr('placeholder', '12.345.678-9');
     }
 }
 
@@ -2278,3 +2465,5 @@ window.abrirModalCita = abrirModalCita;
 window.guardarCita = guardarCita;
 window.eliminarCita = eliminarCita;
 window.refreshAgendaExamSelects = refreshAgendaExamSelects;
+window.buscarPacientePorDocumentoAgenda = buscarPacientePorDocumentoAgenda;
+window.ensureAgendaPacienteCargado = ensureAgendaPacienteCargado;

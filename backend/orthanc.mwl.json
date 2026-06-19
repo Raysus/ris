@@ -5,12 +5,12 @@
   "DicomCheckCallingAet": false,
   "DicomCheckModalityHost": false,
   "DicomModalities": {
-    "fuji_pacs": ["PACS", "192.168.100.7", 11112],
-    "fuji_pacs_8": ["PACS", "192.168.100.8", 11112],
-    "fcr_pano": ["FCR_PANO", "192.168.100.7", 11112],
-    "fcr_pano_8": ["FCR_PANO", "192.168.100.8", 11112],
-    "fcr": ["FCR", "192.168.100.7", 11112],
-    "fcr_8": ["FCR", "192.168.100.8", 11112],
+    "fcr_pano": ["FCR_PANO", "192.168.0.128", 11112],
+    "fcr_mamo": ["FCR_MAMO", "192.168.0.103", 11112],
+    "fcr_pacs": ["PACS", "192.168.0.102", 11112],
+    "fcr_pacs_console": ["FCR_PACS", "192.168.0.102", 11112],
+    "eco_mindray": ["ECO_MINDRAY", "192.168.0.108", 11112],
+    "hdi5000_107": ["HDI5000", "192.168.0.107", 11112],
     "findscu": ["FINDSCU", "127.0.0.1", 11112]
   },
   "DicomServerEnabled": true,
@@ -29,7 +29,7 @@
   ],
   "Worklists": {
     "Enable": true,
-    "FilterIssuerAet": false,
+    "FilterIssuerAet": true,
     "LimitAnswers": 0,
     "Database": "/var/lib/orthanc/worklists/SIRESA_MWL"
   }

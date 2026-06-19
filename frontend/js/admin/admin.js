@@ -16,6 +16,17 @@ let currentPacientesAdmin = [];
 let currentPlantillasFromDB = [];
 let currentLaboratoriesTree = [];
 
+const RIS_MIN_PASSWORD_LENGTH = 4;
+
+function risHumanizarErrorValidacion(msg) {
+    if (!msg || typeof msg !== 'string') return 'No se pudo guardar el usuario.';
+    if (msg === 'validation.min.string') {
+        return `La contraseña debe tener al menos ${RIS_MIN_PASSWORD_LENGTH} caracteres.`;
+    }
+    if (msg.startsWith('validation.')) return 'Datos inválidos. Revise los campos del formulario.';
+    return msg;
+}
+
 /** Modalidades para prestaciones / plantillas. */
 const RIS_EXAM_MODALITY_OPTIONS = [
     { value: 'CR', label: 'Radiografía CR — cassette digital (CR)' },
@@ -822,6 +833,18 @@ async function guardarUsuario() {
     const rut = $("#uRut").val().toUpperCase();
     if (!validarRut(rut)) return showToast("❌ RUT inválido.", "danger");
 
+    const esNuevo = $("#uId").val() === "";
+    const password = $("#uPassword").val();
+    if (password && password.length < RIS_MIN_PASSWORD_LENGTH) {
+        $("#uPassword").addClass("is-invalid");
+        return showToast(`❌ La contraseña debe tener al menos ${RIS_MIN_PASSWORD_LENGTH} caracteres.`, "danger");
+    }
+    if (esNuevo && !password) {
+        $("#uPassword").addClass("is-invalid");
+        return showToast("❌ La contraseña es obligatoria para usuarios nuevos.", "danger");
+    }
+    $("#uPassword").removeClass("is-invalid");
+
     const email = $("#uEmail").val().trim();
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         $("#uEmail").addClass("is-invalid");
@@ -873,7 +896,14 @@ async function guardarUsuario() {
             showToast(`✅ Usuario guardado correctamente.${msgEmail}`, "success");
             renderListaUsuariosAdmin();
         } else {
-            showToast(`❌ Error: ${data.message}`, "danger");
+            let msg = data.message || 'No se pudo guardar el usuario.';
+            if (data.errors && typeof data.errors === 'object') {
+                const firstField = Object.keys(data.errors)[0];
+                if (firstField && data.errors[firstField]?.[0]) {
+                    msg = data.errors[firstField][0];
+                }
+            }
+            showToast(`❌ Error: ${risHumanizarErrorValidacion(msg)}`, "danger");
             console.log(data);
         }
     } catch (e) { showToast("🔌 Error de conexión", "danger"); }

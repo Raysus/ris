@@ -198,13 +198,13 @@
                         <i class="bi bi-arrow-return-left me-1"></i> Devolver a T.M.
                     </button>
                     <div class="d-flex gap-2">
-                        <button class="btn btn-outline-info fw-bold text-dark" id="btnGrabarAudio"
-                            onclick="enviarATranscripcion()" disabled
-                            title="Envía el audio a la bandeja de la secretaria">
+                        <button type="button" class="btn btn-outline-info fw-bold text-dark" id="btnEnviarTranscripcion"
+                            disabled
+                            title="Requiere audio grabado. Envía el dictado a la bandeja de transcripción.">
                             <i class="bi bi-headphones me-1"></i> Enviar a Transcripción
                         </button>
-                        <button class="btn btn-success fw-bold px-4 shadow" id="btnFirmarDirecto"
-                            onclick="firmarDirecto()" disabled title="Firma y libera el examen inmediatamente">
+                        <button type="button" class="btn btn-success fw-bold px-4 shadow" id="btnFirmarDirecto"
+                            disabled title="Firma el texto del informe y libera el examen (no requiere audio).">
                             <i class="bi bi-pen me-1"></i> Firmar y Liberar
                         </button>
                     </div>

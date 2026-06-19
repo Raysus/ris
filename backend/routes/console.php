@@ -25,3 +25,10 @@ Schedule::command('ris:sync-orthanc-status')
     ->environments(['production'])
     ->withoutOverlapping()
     ->appendOutputTo(storage_path('logs/orthanc-sync.log'));
+
+Schedule::command('ris:flush-cloud-sync-pending')
+    ->everyTwoMinutes()
+    ->environments(['production'])
+    ->when(fn () => \App\Support\CloudSyncMode::isLocal() && \App\Support\CloudSyncMode::canPushToCloud())
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/cloud-sync-pending.log'));

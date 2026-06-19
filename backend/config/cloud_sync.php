@@ -47,6 +47,21 @@ return [
             : []
     ),
 
+  /** Segundos entre reintentos cuando no hay internet (laboratorios). */
+    'pending_release_seconds' => (int) env('CLOUD_SYNC_PENDING_RELEASE', 60),
+
+    /** Tope de espera entre reintentos automáticos. */
+    'max_release_backoff' => (int) env('CLOUD_SYNC_MAX_BACKOFF', 900),
+
+    /** Timeout HTTP hacia la nube. */
+    'http_timeout' => (int) env('CLOUD_SYNC_HTTP_TIMEOUT', 15),
+
+    /** URL opcional para comprobar conectividad (por defecto /health del CLOUD_API_BASE). */
+    'health_url' => env('CLOUD_SYNC_HEALTH_URL'),
+
+    /** Minutos sin actualizar antes de reencolar un pending (comando programado). */
+    'flush_stale_minutes' => (int) env('CLOUD_SYNC_FLUSH_STALE_MINUTES', 2),
+
     'catalog_entities' => [
         'laboratories',
         'referring_doctors',
@@ -66,6 +81,10 @@ return [
         'App\Models\Paciente' => \App\Models\Paciente::class,
         'User' => \App\Models\User::class,
         'App\Models\User' => \App\Models\User::class,
+        'TipoUsuario' => \App\Models\TipoUsuario::class,
+        'App\Models\TipoUsuario' => \App\Models\TipoUsuario::class,
+        'LaboratoryUser' => \App\Models\LaboratoryUser::class,
+        'App\Models\LaboratoryUser' => \App\Models\LaboratoryUser::class,
         'Appointment' => \App\Models\Appointment::class,
         'App\Models\Appointment' => \App\Models\Appointment::class,
         'AppointmentStudy' => \App\Models\AppointmentStudy::class,

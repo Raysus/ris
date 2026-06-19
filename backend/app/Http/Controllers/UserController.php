@@ -5,8 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\Persona;
 use App\Services\KeycloakService;
+use App\Jobs\SyncUserBundleToCloud;
+use App\Observers\AppointmentObserver;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
@@ -48,16 +49,31 @@ class UserController extends Controller
     {
         $allowedLabs = config('app.allowed_lab_ids');
 
+        $isUpdate = $request->filled('id');
+
         $request->validate([
             'rut' => 'required|string',
             'nombres' => 'required|string|max:255',
             'apellidoPaterno' => 'required|string|max:255',
             'email' => 'nullable|email|max:255',
             'username' => 'required|string|max:255',
-            'password' => 'nullable|string|min:6',
+            'password' => $isUpdate ? 'nullable|string|min:4' : 'required|string|min:4',
+        ], [
+            'rut.required' => 'El RUT es obligatorio.',
+            'nombres.required' => 'Los nombres son obligatorios.',
+            'apellidoPaterno.required' => 'El apellido paterno es obligatorio.',
+            'username.required' => 'El nombre de usuario es obligatorio.',
+            'email.email' => 'El correo electrónico no es válido.',
+            'password.required' => 'La contraseña es obligatoria para usuarios nuevos.',
+            'password.min.string' => 'La contraseña debe tener al menos 4 caracteres.',
         ]);
 
-        return DB::transaction(function () use ($request, $allowedLabs) {
+        AppointmentObserver::$suppressRelatedSync = true;
+
+        $userAction = 'updated';
+
+        try {
+            [$user, $persona, $userAction] = DB::transaction(function () use ($request, $allowedLabs) {
             $email = $request->filled('email')
                 ? strtolower(trim((string) $request->email))
                 : null;
@@ -73,10 +89,10 @@ class UserController extends Controller
             $rolesSeleccionados = $request->input('roles', []);
 
             if (in_array('sis_admin', $rolesSeleccionados, true)) {
-                return response()->json([
+                throw new \Illuminate\Http\Exceptions\HttpResponseException(response()->json([
                     'success' => false,
                     'message' => 'No se puede asignar el rol Sys. Admin desde la interfaz.',
-                ], 422);
+                ], 422));
             }
 
             $primerRol = $rolesSeleccionados[0] ?? 'recepcion';
@@ -85,20 +101,23 @@ class UserController extends Controller
             $tipoUsuario = \App\Models\TipoUsuario::where('name', $primerRol)->first();
 
             $existingUser = User::where('persona_id', $persona->id)->first();
-            $user = User::updateOrCreate(
-                ['persona_id' => $persona->id],
-                [
-                    'username' => $request->username,
-                    'medical_title' => $request->titulo,
-                    'dragon_profile' => $request->dragonProfile,
-                    // Evitamos el "not null violation" inyectando el ID directamente
-                    'tipo_usuario_id' => $tipoUsuario ? $tipoUsuario->id : null,
-                ]
-            );
+            $userAction = $existingUser ? 'updated' : 'created';
+
+            $userAttributes = [
+                'username' => $request->username,
+                'medical_title' => $request->titulo,
+                'dragon_profile' => $request->dragonProfile,
+                'tipo_usuario_id' => $tipoUsuario ? $tipoUsuario->id : null,
+            ];
 
             if ($request->filled('password')) {
-                $user->password = Hash::make($request->password);
+                $userAttributes['password'] = $request->password;
             }
+
+            $user = User::updateOrCreate(
+                ['persona_id' => $persona->id],
+                $userAttributes
+            );
 
             $user->settings = ['roles' => $rolesSeleccionados];
             $user->is_active = true;
@@ -106,7 +125,7 @@ class UserController extends Controller
 
             // === MAPEO DE ROLES KEYCLOAK ===
             $keycloakRole = 'user'; // Rol por defecto
-            if (collect($rolesSeleccionados)->intersect(['admin', 'secretaria', 'transcriptor'])->isNotEmpty()) {
+            if (collect($rolesSeleccionados)->intersect(['admin', 'secretaria', 'secretario', 'transcriptor'])->isNotEmpty()) {
                 $keycloakRole = 'admin';
             } elseif (in_array('radiologo', $rolesSeleccionados)) {
                 $keycloakRole = 'medico';
@@ -153,19 +172,19 @@ class UserController extends Controller
 
             $user->load('persona', 'tipoUsuario', 'laboratories');
 
-            // Sincronización a la nube vía Redis
-            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Persona', 'updated', $persona->toArray());
+            return [$user, $persona, $userAction];
+            });
+        } finally {
+            AppointmentObserver::$suppressRelatedSync = false;
+        }
 
-            // 🔥 LE DAMOS 3 SEGUNDOS DE VENTAJA A LA PERSONA PARA QUE LLEGUE PRIMERO
-            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\User', 'updated', $user->makeVisible(['password'])->toArray())
-                ->delay(now()->addSeconds(3));
+        SyncUserBundleToCloud::dispatch($user->id, $userAction);
 
-            return response()->json([
-                'success' => true,
-                'user' => $user,
-                'keycloak_synced' => $this->shouldSyncKeycloak(),
-            ]);
-        });
+        return response()->json([
+            'success' => true,
+            'user' => $user,
+            'keycloak_synced' => $this->shouldSyncKeycloak(),
+        ]);
     }
     public function destroy($id)
     {

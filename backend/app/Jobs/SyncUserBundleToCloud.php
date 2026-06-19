@@ -2,8 +2,8 @@
 
 namespace App\Jobs;
 
-use App\Models\Appointment;
 use App\Models\CloudSyncLog;
+use App\Models\User;
 use App\Services\CloudSyncLogger;
 use App\Support\CloudSyncMode;
 use App\Support\CloudSyncTransport;
@@ -18,13 +18,13 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Envía persona → paciente → cita a la nube en un solo job (orden garantizado).
+ * Envía persona → usuario (y pivotes de sede) a la nube en orden garantizado.
  */
-class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommit, ShouldBeUnique
+class SyncUserBundleToCloud implements ShouldQueue, ShouldQueueAfterCommit, ShouldBeUnique
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public string $appointmentId;
+    public string $userId;
 
     public string $action;
 
@@ -34,16 +34,16 @@ class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommi
 
     public int $uniqueFor = 120;
 
-    public function __construct(string $appointmentId, string $action = 'created', ?string $syncLogId = null)
+    public function __construct(string $userId, string $action = 'updated', ?string $syncLogId = null)
     {
-        $this->appointmentId = $appointmentId;
+        $this->userId = $userId;
         $this->action = $action;
         $this->syncLogId = $syncLogId;
     }
 
     public function uniqueId(): string
     {
-        return 'appointment-bundle:' . $this->action . ':' . $this->appointmentId;
+        return 'user-bundle:' . $this->action . ':' . $this->userId;
     }
 
     public function handle(): void
@@ -52,23 +52,17 @@ class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommi
             return;
         }
 
-        $appointment = Appointment::with([
-            'patient.persona',
-            'studies.exam',
-            'studies.machine',
-            'supplies',
-            'machine',
-            'referringDoctor',
-            'insurance',
-            'insurancePlan',
-        ])->find($this->appointmentId);
-        if (!$appointment?->patient?->persona) {
+        $user = User::with(['persona', 'tipoUsuario', 'laboratories'])->find($this->userId);
+        if (!$user?->persona) {
             return;
         }
 
-        $payload = $appointment->toArray();
+        $persona = $user->persona->toArray();
+        $userData = $user->makeVisible(['password'])->toArray();
+        $userData['persona'] = $persona;
+
         if (!$this->syncLogId) {
-            $this->syncLogId = CloudSyncLogger::startPending('App\Models\Appointment', $this->action, $payload)->id;
+            $this->syncLogId = CloudSyncLogger::startPending('App\Models\User', $this->action, $userData)->id;
         } else {
             CloudSyncLogger::markAttempt($this->syncLogId);
         }
@@ -86,50 +80,13 @@ class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommi
             'X-Requested-With' => 'XMLHttpRequest',
         ];
 
-        $persona = $appointment->patient->persona->toArray();
-        $paciente = $appointment->patient->toArray();
-        $paciente['persona'] = $persona;
-
         $chunks = [
             ['model' => 'App\Models\Persona', 'action' => 'updated', 'data' => $persona],
-            ['model' => 'App\Models\Paciente', 'action' => 'updated', 'data' => $paciente],
-        ];
-
-        $seen = [];
-        $pushCatalog = function (string $model, array $data) use (&$chunks, &$seen): void {
-            $id = (string) ($data['id'] ?? '');
-            if ($id === '' || isset($seen[$model . ':' . $id])) {
-                return;
-            }
-            $seen[$model . ':' . $id] = true;
-            $chunks[] = ['model' => $model, 'action' => 'updated', 'data' => $data];
-        };
-
-        if ($appointment->insurance) {
-            $pushCatalog('Insurance', $appointment->insurance->toArray());
-        }
-        if ($appointment->insurancePlan) {
-            $pushCatalog('InsurancePlan', $appointment->insurancePlan->toArray());
-        }
-        if ($appointment->referringDoctor) {
-            $pushCatalog('ReferringDoctor', $appointment->referringDoctor->toArray());
-        }
-        if ($appointment->machine) {
-            $pushCatalog('Machine', $appointment->machine->toArray());
-        }
-        foreach ($appointment->studies as $study) {
-            if ($study->exam) {
-                $pushCatalog('Exam', $study->exam->toArray());
-            }
-            if ($study->machine) {
-                $pushCatalog('Machine', $study->machine->toArray());
-            }
-        }
-
-        $chunks[] = [
-            'model' => 'App\Models\Appointment',
-            'action' => $this->action,
-            'data' => $payload,
+            [
+                'model' => 'App\Models\User',
+                'action' => $this->action,
+                'data' => $userData,
+            ],
         ];
 
         try {
@@ -197,8 +154,8 @@ class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommi
 
         $delay = CloudSyncTransport::releaseDelaySeconds($attempts);
 
-        Log::info('Cloud sync bundle diferido (sin conectividad o nube no disponible)', [
-            'appointment_id' => $this->appointmentId,
+        Log::info('Cloud sync bundle de usuario diferido', [
+            'user_id' => $this->userId,
             'sync_log_id' => $this->syncLogId,
             'delay_seconds' => $delay,
             'error' => $e->getMessage(),

@@ -64,6 +64,24 @@ class CloudSyncLogger
         ]);
     }
 
+    /**
+     * Fallo transitorio (sin internet / nube caída): queda pendiente para reintento.
+     */
+    public static function markDeferred(CloudSyncLog|string $log, \Throwable|string $error): void
+    {
+        $record = is_string($log) ? CloudSyncLog::find($log) : $log;
+        if (!$record) {
+            return;
+        }
+
+        $message = is_string($error) ? $error : $error->getMessage();
+
+        $record->update([
+            'status' => 'pending',
+            'last_error' => Str::limit($message, 2000),
+        ]);
+    }
+
     public static function hashPayload(array $payload): string
     {
         return hash('sha256', json_encode(self::trimPayload($payload)));
