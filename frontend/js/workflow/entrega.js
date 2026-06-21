@@ -4,7 +4,8 @@
 
 let currentDeliveryData = [];
 let citaIdParaEntrega = null;
-let colorInformeGlobalDelivery = "#333333";
+let colorInformeGlobalDelivery = "#111111";
+let labInfoEntrega = { name: '', address: '', city: '', settings: {} };
 
 function escapeHtmlEntrega(text) {
     return String(text ?? '')
@@ -35,8 +36,16 @@ async function cargarAjustesVisualesEntrega() {
         });
         const data = await response.json();
 
-        if (response.ok && data.success && data.data && data.data.settings && data.data.settings.colorInforme) {
-            colorInformeGlobalDelivery = data.data.settings.colorInforme;
+        if (response.ok && data.success && data.data) {
+            if (data.data.settings && data.data.settings.colorInforme) {
+                colorInformeGlobalDelivery = data.data.settings.colorInforme;
+            }
+            labInfoEntrega = {
+                name: data.data.name || '',
+                address: data.data.address || '',
+                city: data.data.city || '',
+                settings: data.data.settings || {},
+            };
         }
     } catch (e) { console.error("Error cargando ajustes visuales:", e); }
 }
@@ -212,85 +221,38 @@ function imprimirComprobanteEntrega(citaId) {
     const baseItem = currentDeliveryData.find(c => String(c.id) === String(citaId));
     if (!baseItem) return;
 
-    // 🔥 Registro de Auditoría de Impresión (Silencioso)
     registrarImpresionEnLog(citaId);
 
-    const clinicName = "HealthTiCloud RIS";
-    const clinicAddress = "Av. Principal 123, Ciudad";
+    const labInfo = baseItem.laboratory || labInfoEntrega;
+    const chain = {
+        ...baseItem,
+        start_time: baseItem.start_time || baseItem.signatureDate,
+        destinationDoctorName: baseItem.doctorName || baseItem.destinationDoctorName,
+        destinationDoctorInitials: baseItem.destinationDoctorInitials,
+        destinationDoctorRegistration: baseItem.destinationDoctorRegistration,
+    };
 
-    let informesHtml = "";
-    baseItem.studies.forEach(study => {
-        informesHtml += `
-            <div style="margin-bottom: 25px;">
-                <h4 style="color: #2c3e50; border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-bottom: 15px;">${study.exam}</h4>
-                <div class="report-body">${study.reportText || 'Sin informe redactado.'}</div>
-            </div>
-        `;
-    });
+    let html;
+    if (typeof risReportDocument !== 'undefined') {
+        html = risReportDocument.buildPrintDocumentHtml(
+            chain,
+            baseItem.studies || [],
+            labInfo,
+            colorInformeGlobalDelivery
+        );
+    } else {
+        html = `<html><body><pre>${escapeHtmlEntrega((baseItem.studies || []).map(s => s.reportText).join('\n\n'))}</pre></body></html>`;
+    }
 
     const printWindow = window.open('', '_blank');
-
-    printWindow.document.write(`
-        <html>
-        <head>
-            <title>Informe - ${baseItem.patient.rut}</title>
-            <style>
-                body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; line-height: 1.6; }
-                .header { text-align: center; border-bottom: 2px solid #2c3e50; padding-bottom: 20px; margin-bottom: 30px; }
-                .header h1 { margin: 0; color: #2c3e50; font-size: 24px; text-transform: uppercase; }
-                .clinica-name { color: #7f8c8d; font-size: 14px; margin-top: 5px; }
-                .patient-data { border: 1px solid #bdc3c7; padding: 15px; border-radius: 5px; margin-bottom: 30px; font-size: 12px; }
-                .patient-data table { width: 100%; }
-                .patient-data td { padding: 4px; }
-                .report-body { 
-                    font-size: 14px; 
-                    text-align: justify; 
-                    white-space: pre-wrap; 
-                    margin-bottom: 30px; 
-                    color: ${colorInformeGlobalDelivery}; 
-                }
-                .firma-container { margin-top: 60px; text-align: right; }
-                .firma { border-top: 1px solid #000; display: inline-block; padding-top: 5px; width: 250px; text-align: center; font-size: 12px; }
-            </style>
-        </head>
-        <body>
-            <div class="header">
-                <h1>Informe Imagenológico Integral</h1>
-                <div class="clinica-name">
-                    <strong>${clinicName.toUpperCase()}</strong><br>
-                    ${clinicAddress}
-                </div>
-            </div>
-            <div class="patient-data">
-                <table width="100%">
-                    <tr>
-                        <td><b>Paciente:</b> ${baseItem.patient.name} ${baseItem.patient.lastName}</td>
-                        <td><b>RUT:</b> ${baseItem.patient.rut}</td>
-                    </tr>
-                    <tr>
-                        <td><b>Accession N°:</b> ${baseItem.accessionNumber}</td>
-                        <td><b>Fecha Impresión:</b> ${new Date().toLocaleDateString('es-CL')}</td>
-                    </tr>
-                </table>
-            </div>
-            
-            ${informesHtml}
-            
-           <div class="firma-container">
-                <div class="firma">
-                    ${baseItem.firmaUrl
-            ? `<img src="${baseItem.firmaUrl}" style="max-height: 80px; max-width: 200px; margin-bottom: 5px;"><br>`
-            : `<br><br><br>` // Espacio en blanco si no tiene firma digitalizada
-        }
-                    <b>Dr(a). ${baseItem.doctorName}</b><br>
-                    <small>Firma Electrónica Avanzada</small><br>
-                    <small style="color: #7f8c8d;">Firmado el: ${baseItem.signatureDate || new Date().toLocaleDateString('es-CL')}</small>
-                </div>
-            </div>
-            <script>setTimeout(() => { window.print(); window.close(); }, 500);<\/script>
-        </body></html>
-    `);
+    printWindow.document.write(html);
     printWindow.document.close();
+    printWindow.onload = () => {
+        setTimeout(() => {
+            printWindow.print();
+            printWindow.close();
+        }, 500);
+    };
 }
 
 function imprimirEtiquetaCD(citaId) {

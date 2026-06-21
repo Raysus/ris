@@ -35,6 +35,7 @@ use App\Http\Controllers\FonasaController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\FhirController;
 use App\Http\Controllers\LabProfileController;
+use App\Http\Controllers\PatientPortalIntegrationController;
 
 Route::get('/health', HealthController::class);
 
@@ -45,6 +46,11 @@ Route::middleware('cloud.sync')->group(function () {
     Route::get('/integrations/cloud-sync/export', [CloudSyncInboundController::class, 'export']);
     Route::post('/integrations/local-mwl/relay', [LocalMwlRelayController::class, 'receive']);
     Route::post('/integrations/local-sync/appointment', [LocalAppointmentSyncController::class, 'receive']);
+});
+
+Route::middleware('portal.integration')->group(function () {
+    Route::get('/integrations/portal/reports', [PatientPortalIntegrationController::class, 'index']);
+    Route::get('/integrations/portal/reports/{appointmentId}', [PatientPortalIntegrationController::class, 'show']);
 });
 
 Route::get('/fhir/metadata', [FhirController::class, 'metadata']);

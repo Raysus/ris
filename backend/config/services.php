@@ -39,6 +39,10 @@ return [
         'secret' => env('CLOUD_SYNC_SECRET'),
     ],
 
+    'portal_integration' => [
+        'secret' => env('PORTAL_INTEGRATION_SECRET'),
+    ],
+
     'orthanc' => [
         'url' => env('ORTHANC_URL'),
         'host' => env('ORTHANC_HOST'),

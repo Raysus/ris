@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Appointment;
+use App\Services\ReportDocumentFormatter;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
@@ -306,6 +307,7 @@ class RadiologistController extends Controller
                 'studies.report',
                 'destinationDoctor.persona',
                 'referringDoctor',
+                'laboratory',
             ])
             ->where(function ($q) {
                 $q->where('status', 'para_firma')
@@ -315,37 +317,22 @@ class RadiologistController extends Controller
             ->get();
 
         $formattedData = $appointments->map(function ($app) {
-            $destDoctorName = null;
-            $firmaUrl = null;
-
-            if ($app->destinationDoctor && $app->destinationDoctor->persona) {
-                $p = $app->destinationDoctor->persona;
-                $destDoctorName = trim("{$p->names} {$p->last_name_1} {$p->last_name_2}");
-
-                if ($p->signature_path) {
-                    $firmaUrl = asset('storage/' . $p->signature_path);
-                }
-            }
-
-            $refDoctorName = null;
-            if ($app->referringDoctor) {
-                $refDoctorName = $app->referringDoctor->name ?? $app->referringDoctor->names ?? 'Derivante Registrado';
-            }
+            $chainMeta = ReportDocumentFormatter::appointmentChainMeta($app);
+            $doctor = ReportDocumentFormatter::doctorPayload($app->destinationDoctor);
 
             $studies = $app->studies->filter(
                 fn ($s) => $app->status === 'para_firma' || $s->status === 'para_firma'
             );
 
-            return [
+            return array_merge([
                 'id' => $app->id,
                 'accessionNumber' => $app->accession_number ?? 'ACC-' . $app->id,
                 'studyInstanceUid' => $app->study_instance_uid,
-                'start_time' => $app->start_time,
                 'destinationDoctorId' => $app->destination_doctor_id,
                 'referringDoctorId' => $app->referring_doctor_id,
-                'destinationDoctorName' => $destDoctorName,
-                'referringDoctorName' => $refDoctorName,
-                'firmaUrl' => $firmaUrl,
+                'destinationDoctorName' => preg_replace('/^DR\.?\s*/i', '', $doctor['displayName']),
+                'referringDoctorName' => $chainMeta['referringDoctorName'],
+                'firmaUrl' => $doctor['signatureUrl'],
                 'patient' => $this->formatPatientPayload($app->patient),
                 'studies' => $studies->map(function ($s) {
                     return [
@@ -355,7 +342,7 @@ class RadiologistController extends Controller
                         'reportText' => $s->getStoredReportText(),
                     ];
                 })->values(),
-            ];
+            ], $chainMeta);
         })->filter(fn ($row) => $row['studies']->isNotEmpty())->values();
 
         return response()->json(['success' => true, 'data' => $formattedData]);

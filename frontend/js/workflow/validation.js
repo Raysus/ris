@@ -5,8 +5,8 @@
 let currentValidationData = [];
 let currentValidationChain = null;
 let currentValStudy = null;
-let colorInformeGlobalValidation = "#333333";
-let labInfoValidacion = { name: '', address: '', city: '' };
+let colorInformeGlobalValidation = "#111111";
+let labInfoValidacion = { name: '', address: '', city: '', settings: {} };
 
 function $valRoot() {
     return $("#appContent");
@@ -24,37 +24,63 @@ function formatearFechaValidacion(dateStr) {
 }
 
 function actualizarDocClinicaValidacion() {
-    const nombre = labInfoValidacion.name
-        || localStorage.getItem('ris_lab_name')
-        || 'HealthTiCloud RIS';
-    const dirParts = [labInfoValidacion.address, labInfoValidacion.city].filter(Boolean);
-    $valRoot().find("#docClinicaNombre").text(nombre);
-    $valRoot().find("#docClinicaDireccion").html(
-        dirParts.length
-            ? `<i class="bi bi-geo-alt-fill me-1"></i>${dirParts.join(', ')}`
-            : '<i class="bi bi-geo-alt-fill me-1"></i>Dirección del Centro'
-    );
+    if (currentValidationChain?.laboratory) {
+        labInfoValidacion = {
+            name: currentValidationChain.laboratory.name || labInfoValidacion.name,
+            address: currentValidationChain.laboratory.address || labInfoValidacion.address,
+            city: currentValidationChain.laboratory.city || labInfoValidacion.city,
+            settings: currentValidationChain.laboratory.settings || labInfoValidacion.settings || {},
+        };
+    }
+}
+
+function renderCartaInformeValidacion() {
+    if (!currentValidationChain || !currentValStudy || typeof risReportDocument === 'undefined') return;
+
+    const study = {
+        ...currentValStudy,
+        reportText: $valRoot().find("#finalReportText").val() || currentValStudy.reportText || '',
+    };
+    const doc = risReportDocument.buildStudyDocument(currentValidationChain, study, labInfoValidacion);
+    const headerHtml = (doc.headerLines || [])
+        .map((line) => `<div style="text-align:center;">${line.replace(/</g, '&lt;')}</div>`)
+        .join('');
+
+    $valRoot().find("#reportLetterIntro").html(`
+        <div style="font-family:'Times New Roman',Times,serif;font-size:12pt;line-height:1.45;color:${colorInformeGlobalValidation};">
+            <div style="text-align:center;margin-bottom:18px;">${headerHtml}</div>
+            <div style="margin-bottom:14px;">${doc.dateLine}</div>
+            <div style="margin-bottom:10px;">Estimado Doctor:</div>
+            <div style="margin-bottom:14px;text-align:justify;">
+                El examen realizado a su paciente Sr(a) ${doc.patientName}, ha dado el siguiente resultado:
+            </div>
+            <div style="font-weight:bold;margin-bottom:10px;">${doc.examTitle}</div>
+        </div>
+    `);
+
+    const doctor = doc.doctor || {};
+    const signature = doctor.signatureUrl
+        ? `<img src="${doctor.signatureUrl}" alt="Firma" style="max-height:70px;max-width:180px;margin-bottom:6px;"><br>`
+        : '';
+    $valRoot().find("#reportLetterFooter").html(`
+        <div style="font-family:'Times New Roman',Times,serif;font-size:12pt;line-height:1.45;color:${colorInformeGlobalValidation};">
+            <div style="margin-top:28px;">Atentamente,</div>
+            <div style="margin-top:18px;">
+                ${signature}
+                <div style="font-weight:bold;">${doctor.displayName || 'DR. MÉDICO RADIÓLOGO'}</div>
+                <div>MEDICO RADIÓLOGO</div>
+                ${doctor.initials ? `<div>${doctor.initials}</div>` : ''}
+                ${doctor.registration ? `<div>${doctor.registration}</div>` : ''}
+            </div>
+        </div>
+    `);
+
+    $valRoot().find("#finalReportText").css("color", colorInformeGlobalValidation);
 }
 
 function actualizarCabeceraInformeValidacion(chain, study) {
-    if (!chain) return;
-
     actualizarDocClinicaValidacion();
-
-    const patient = chain.patient || {};
-    $valRoot().find("#docPaciente").text(formatearNombrePacienteValidacion(patient));
-    $valRoot().find("#docRut").text(patient.rut || '—');
-    $valRoot().find("#docEdad").text(patient.age ?? '—');
-    $valRoot().find("#docFecha").text(formatearFechaValidacion(chain.start_time));
-    $valRoot().find("#docDerivante").text(chain.referringDoctorName || 'No registrado');
-
-    const examLabel = study
-        ? (study.subExam ? `${study.exam} - ${study.subExam}` : (study.exam || '—'))
-        : '—';
-    $valRoot().find("#docExamen").text(examLabel);
-    $valRoot().find("#docIdCita").text(
-        chain.accessionNumber ? `Accession: ${chain.accessionNumber}` : `ID: ${chain.id}`
-    );
+    renderCartaInformeValidacion();
 }
 
 function actualizarHeaderPacienteValidacion(chain) {
@@ -95,6 +121,7 @@ async function cargarAjustesVisualesValidacion() {
                 name: lab.name || localStorage.getItem('ris_lab_name') || '',
                 address: lab.address || '',
                 city: lab.city || '',
+                settings: lab.settings || {},
             };
             actualizarDocClinicaValidacion();
         }
@@ -192,7 +219,7 @@ function abrirValidacion(citaId) {
     $valRoot().find("#placeholderValidacion").addClass("d-none");
     $valRoot().find("#infoPacienteValidacion").removeClass("d-none");
 
-    if (!labInfoValidacion.name) {
+    if (!labInfoValidacion.name && !currentValidationChain.laboratory) {
         cargarAjustesVisualesValidacion().finally(() => {
             if (currentValidationChain?.id === citaId) {
                 actualizarHeaderPacienteValidacion(currentValidationChain);
@@ -202,14 +229,6 @@ function abrirValidacion(citaId) {
     }
 
     actualizarHeaderPacienteValidacion(currentValidationChain);
-
-    $valRoot().find("#docHeader, #firmaFalsa").removeClass("d-none");
-
-    if (currentValidationChain.firmaUrl) {
-        $valRoot().find("#firmaNombre").html(`<img src="${currentValidationChain.firmaUrl}" style="max-height: 60px; max-width: 150px; margin-bottom: 5px;"><br>Dr(a). ${currentValidationChain.destinationDoctorName}`);
-    } else {
-        $valRoot().find("#firmaNombre").text(`Dr(a). ${currentValidationChain.destinationDoctorName || 'Radiólogo'}`);
-    }
 
     let tabsHtml = '<div class="d-flex gap-2 flex-wrap mb-3">';
     studies.forEach((study, index) => {
@@ -251,7 +270,7 @@ function cargarEstudioValidacion(studyId) {
         .val(reportText || "Sin texto de informe registrado. Devuelva a transcripción para completar el dictado.")
         .prop("disabled", true);
 
-    // Resetear estilos de edición si quedaron activos de otro examen
+    renderCartaInformeValidacion();
     $valRoot().find("#finalReportText").removeClass("border border-warning border-2 bg-warning-subtle shadow-sm");
     $valRoot().find("#btnEditarValidacion").html('<i class="bi bi-pencil-square me-1"></i> CORREGIR TYPO').removeClass("btn-warning").addClass("btn-outline-warning");
 }
@@ -348,7 +367,7 @@ function limpiarPantallaValidacion() {
 
     $valRoot().find("#placeholderValidacion").removeClass("d-none");
     $valRoot().find("#infoPacienteValidacion").addClass("d-none");
-    $valRoot().find("#docHeader, #firmaFalsa").addClass("d-none");
+    $valRoot().find("#reportLetterIntro, #reportLetterFooter").empty();
     $valRoot().find("#examenesValidacion").empty();
     $valRoot().find("#finalReportText").val("").prop("disabled", true);
 
@@ -365,13 +384,28 @@ function limpiarPantallaValidacion() {
 
 function generarVistaPrevia() {
     if (typeof showLoader === 'function') showLoader();
-    $("#finalReportText").css({ "resize": "none", "overflow": "hidden", "height": "auto" });
-    $("#finalReportText")[0].style.height = $("#finalReportText")[0].scrollHeight + "px";
+    renderCartaInformeValidacion();
+
+    const study = {
+        ...currentValStudy,
+        reportText: $valRoot().find("#finalReportText").val() || '',
+    };
+    const previewHost = document.createElement('div');
+    previewHost.innerHTML = typeof risReportDocument !== 'undefined'
+        ? risReportDocument.buildHtml(
+            risReportDocument.buildStudyDocument(currentValidationChain, study, labInfoValidacion),
+            colorInformeGlobalValidation
+        )
+        : $valRoot().find('#papelInforme').html();
 
     if (typeof html2pdf !== 'undefined') {
-        html2pdf().set({ margin: [15, 15, 15, 15], filename: 'preview.pdf' }).from(document.getElementById('papelInforme')).save().then(() => {
+        html2pdf().set({
+            margin: [12, 12, 12, 12],
+            filename: `Informe_${currentValidationChain?.accessionNumber || 'preview'}.pdf`,
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' },
+        }).from(previewHost.firstElementChild || previewHost).save().then(() => {
             if (typeof hideLoader === 'function') hideLoader();
-            $("#finalReportText").css({ "height": "100%" });
         });
     } else {
         if (typeof hideLoader === 'function') hideLoader();
@@ -413,7 +447,6 @@ function habilitarEdicionValidacion() {
     }
 }
 
-// Guardar los cambios del textarea en memoria mientras se escribe
 $(document).on("input", "#finalReportText", function () {
     if (currentValStudy) {
         currentValStudy.reportText = $(this).val();

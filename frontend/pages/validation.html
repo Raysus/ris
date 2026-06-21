@@ -63,42 +63,13 @@
                     <div class="flex-grow-1 d-flex flex-column bg-white border rounded shadow-sm p-4 overflow-auto"
                         id="papelInforme">
 
-                        <div id="docHeader" class="border-bottom pb-3 mb-3 d-none">
-                            <div class="text-center mb-4">
-                                <h3 class="fw-bold text-dark mb-0" id="docClinicaNombre">HealthTiCloud RIS</h3>
-                                <small class="text-muted d-block" id="docClinicaDireccion"><i
-                                        class="bi bi-geo-alt-fill me-1"></i>Dirección del Centro</small>
-                            </div>
+                        <div id="reportLetterIntro" class="ris-report-letter-intro"></div>
 
-                            <div class="text-center mb-3">
-                                <h5 class="fw-bold text-dark border p-2 bg-light mb-1">INFORME IMAGENOLÓGICO</h5>
-                                <small class="text-muted fw-bold" id="docIdCita"></small>
-                            </div>
-
-                            <div class="row small mt-3">
-                                <div class="col-7">
-                                    <strong>Paciente:</strong> <span id="docPaciente"></span><br>
-                                    <strong>RUT:</strong> <span id="docRut"></span><br>
-                                    <strong>Edad:</strong> <span id="docEdad"></span>
-                                </div>
-                                <div class="col-5 text-end">
-                                    <strong>Fecha Atención:</strong> <span id="docFecha"></span><br>
-                                    <strong>Médico Solicitante:</strong> <span id="docDerivante"></span><br>
-                                    <strong>Examen:</strong> <span id="docExamen"></span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <textarea id="finalReportText" class="form-control border-0 flex-grow-1 p-0"
-                            style="resize: none; font-size: 1.05rem; line-height: 1.6; background-color: transparent;"
+                        <textarea id="finalReportText" class="form-control border-0 flex-grow-1 p-0 mt-2 mb-2"
+                            style="resize: none; font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.45; background-color: transparent;"
                             disabled></textarea>
 
-                        <div id="firmaFalsa" class="mt-4 pt-3 border-top text-end d-none">
-                            <p class="mb-0 fw-bold text-dark" id="firmaNombre">Dr. Radiólogo</p>
-                            <small class="text-muted">Médico Radiólogo - Registro Interno</small><br>
-                            <small class="text-success fw-bold"><i class="bi bi-shield-check me-1"></i>Firma Electrónica
-                                Pendiente</small>
-                        </div>
+                        <div id="reportLetterFooter" class="ris-report-letter-footer"></div>
                     </div>
 
                 </div>

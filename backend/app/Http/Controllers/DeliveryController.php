@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Appointment;
 use App\Services\AppointmentNotificationService;
+use App\Services\ReportDocumentFormatter;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -32,7 +33,9 @@ class DeliveryController extends Controller
             ->with([
                 'patient.persona',
                 'studies',
-                'destinationDoctor.persona'
+                'destinationDoctor.persona',
+                'laboratory',
+                'referringDoctor',
             ])
             ->whereIn('status', ['entregable', 'entregado'])
             ->orderBy('updated_at', 'desc')
@@ -40,38 +43,31 @@ class DeliveryController extends Controller
 
         $formattedData = $appointments->map(function ($app) {
             $p = $app->patient->persona;
+            $chainMeta = ReportDocumentFormatter::appointmentChainMeta($app);
+            $doctor = ReportDocumentFormatter::doctorPayload($app->destinationDoctor);
 
-            $destDoctorName = "Médico Radiólogo";
-            $firmaUrl = null;
-            if ($app->destinationDoctor && $app->destinationDoctor->persona) {
-                $doc = $app->destinationDoctor->persona;
-                $destDoctorName = trim("{$doc->names} {$doc->last_name_1}");
-
-                if ($doc->signature_path) {
-                    $firmaUrl = asset('storage/' . $doc->signature_path);
-                }
-            }
-
-            return [
+            return array_merge([
                 'id' => $app->id,
                 'accessionNumber' => $app->accession_number ?? 'ACC-' . $app->id,
                 'status' => $app->status,
                 'signatureDate' => $app->updated_at->format('d/m/Y H:i'),
-                'doctorName' => $destDoctorName,
-                'firmaUrl' => $firmaUrl,
+                'doctorName' => preg_replace('/^DR\.?\s*/i', '', $doctor['displayName']),
+                'firmaUrl' => $doctor['signatureUrl'],
                 'patient' => [
                     'rut' => $p->rut,
                     'name' => $p->names,
                     'lastName' => $p->last_name_1,
+                    'secondLastName' => $p->last_name_2,
                 ],
                 'studies' => $app->studies->map(function ($s) {
                     return [
                         'study_id' => $s->id,
                         'exam' => $s->exam_name,
+                        'subExam' => $s->sub_exam_name,
                         'reportText' => $s->getStoredReportText(),
                     ];
-                })
-            ];
+                }),
+            ], $chainMeta);
         });
 
         return response()->json(['success' => true, 'data' => $formattedData]);

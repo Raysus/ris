@@ -36,7 +36,7 @@ class ForceApiCors
         $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
         $response->headers->set(
             'Access-Control-Allow-Headers',
-            'Content-Type, Authorization, X-Lab-Id, X-Requested-With, Accept'
+            'Content-Type, Authorization, X-Lab-Id, X-Requested-With, Accept, X-Portal-Integration-Secret'
         );
         $response->headers->set('Vary', 'Origin', false);
 

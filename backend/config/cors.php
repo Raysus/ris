@@ -47,7 +47,7 @@ return [
         '#^https?://100\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$#',
     ],
 
-    'allowed_headers' => ['Content-Type', 'Authorization', 'X-Lab-Id', 'X-Requested-With'],
+    'allowed_headers' => ['Content-Type', 'Authorization', 'X-Lab-Id', 'X-Requested-With', 'X-Portal-Integration-Secret'],
 
     'exposed_headers' => [],
 
