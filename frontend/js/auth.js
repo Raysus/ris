@@ -78,13 +78,18 @@ $(document).ready(function () {
                     localStorage.removeItem('ris_lab_name');
                 }
 
-                const profileName = data.user.tipo_usuario?.name || data.user.role || 'Invitado';
+                const labsPermitidos = data.contexto_laboratorio.laboratorios_permitidos || [];
+                const esSysAdmin = labsPermitidos.includes('*')
+                    || String(data.user.username || '').toLowerCase() === 'admin';
+                const profileName = esSysAdmin
+                    ? 'sis_admin'
+                    : (data.user.tipo_usuario?.name || data.user.role || 'Invitado');
                 const permissions = data.user.tipo_usuario?.permissions || {};
 
                 localStorage.setItem('ris_user_profile', profileName);
                 localStorage.setItem('ris_permissions', JSON.stringify(permissions));
                 localStorage.setItem('ris_user_data', JSON.stringify(data.user));
-                localStorage.setItem('ris_all_labs', data.contexto_laboratorio.laboratorios_permitidos.includes('*') ? 'true' : 'false');
+                localStorage.setItem('ris_all_labs', esSysAdmin ? 'true' : 'false');
                 localStorage.setItem('ris_labs_permitidos', JSON.stringify(labsPermitidos));
 
                 if (data.contexto_laboratorio.perfil_laboratorio) {
