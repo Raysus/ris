@@ -1260,10 +1260,15 @@ async function guardarSala() {
 
 function resolverSucursalesAdminMatrizActual(tree, childrenFromSettings, currentLabId) {
     if (typeof risIsConcreteLabId === 'function' && risIsConcreteLabId(currentLabId)) {
+        if (Array.isArray(childrenFromSettings)) {
+            return childrenFromSettings;
+        }
+
         const matriz = (tree || []).find((p) => String(p.id) === String(currentLabId));
         if (matriz) {
             return matriz.children || [];
         }
+
         const padre = (tree || []).find((p) =>
             (p.children || []).some((c) => String(c.id) === String(currentLabId))
         );
@@ -1271,12 +1276,18 @@ function resolverSucursalesAdminMatrizActual(tree, childrenFromSettings, current
             return padre.children || [];
         }
     }
-    return childrenFromSettings || [];
+
+    return [];
 }
 
 async function cargarConfigCentro() {
     await cargarTiposLaboratorio();
+    currentSucursalesAdmin = [];
 
+    const labIdActivo = ($("#navLabSelector").val() || localStorage.getItem('ris_lab_id') || '').trim();
+    if (labIdActivo && labIdActivo !== 'ALL') {
+        localStorage.setItem('ris_lab_id', labIdActivo);
+    }
     try {
         const response = await fetch(`${API_URL}/settings`, {
             headers: adminAuthHeaders(),
@@ -1312,6 +1323,7 @@ async function cargarConfigCentro() {
             }
 
             if (typeof esAdminLogueado === 'function' && esAdminLogueado()) {
+                currentSucursalesAdmin = Array.isArray(data.children) ? data.children : [];
                 const esSysAdmin = esSysAdminLogueado();
 
                 try {
@@ -1326,7 +1338,7 @@ async function cargarConfigCentro() {
                         currentSucursalesAdmin = resolverSucursalesAdminMatrizActual(
                             dataAll.data,
                             data.children || [],
-                            localStorage.getItem('ris_lab_id')
+                            labIdActivo || localStorage.getItem('ris_lab_id')
                         );
 
                         if (esSysAdmin) {
