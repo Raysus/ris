@@ -6,6 +6,7 @@ use App\Casts\SettingsArray;
 use App\Models\Laboratory;
 use App\Models\LaboratoryType;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class SettingController extends Controller
@@ -250,5 +251,71 @@ class SettingController extends Controller
         \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Laboratory', 'created', $lab->toArray());
 
         return response()->json(['success' => true, 'data' => $lab->load('type')]);
+    }
+
+    public function destroyLaboratory(Request $request, string $id)
+    {
+        $user = $request->user();
+        $user->loadMissing('tipoUsuario');
+
+        if (!$user->canCreateLaboratoryMatrix()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No tienes permisos para eliminar casas matrices. Se requiere perfil Sys. Admin.',
+            ], 403);
+        }
+
+        $lab = Laboratory::find($id);
+
+        if (!$lab) {
+            return response()->json(['success' => false, 'message' => 'Casa matriz no encontrada.'], 404);
+        }
+
+        if ($lab->parent_id !== null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Solo se pueden eliminar casas matrices, no sucursales.',
+            ], 422);
+        }
+
+        $blockReason = $this->matrixDeleteBlockReason($lab);
+        if ($blockReason !== null) {
+            return response()->json(['success' => false, 'message' => $blockReason], 422);
+        }
+
+        if ($lab->logo_path) {
+            Storage::disk('public')->delete($lab->logo_path);
+        }
+
+        $lab->delete();
+
+        return response()->json(['success' => true, 'message' => 'Casa matriz eliminada correctamente.']);
+    }
+
+    private function matrixDeleteBlockReason(Laboratory $lab): ?string
+    {
+        if ($lab->children()->exists()) {
+            return 'Elimine primero todas las sucursales de esta casa matriz.';
+        }
+
+        $checks = [
+            'laboratory_user' => 'usuarios asignados',
+            'patients' => 'pacientes',
+            'appointments' => 'citas',
+            'exams' => 'exámenes',
+            'machines' => 'salas o equipos',
+            'insurances' => 'previsiones',
+            'services' => 'servicios',
+            'supplies' => 'insumos',
+            'report_templates' => 'plantillas médicas',
+        ];
+
+        foreach ($checks as $table => $label) {
+            if (DB::table($table)->where('laboratory_id', $lab->id)->exists()) {
+                return "No se puede eliminar: la matriz tiene {$label} registrados.";
+            }
+        }
+
+        return null;
     }
 }
