@@ -12,34 +12,23 @@ Sistema de información radiológica: agenda, worklist, informes, administració
 
 ## Documentación
 
-**Guía de instalación (técnicos):** **[docs/INSTALACION.md](docs/INSTALACION.md)**  
-**Git push/pull (permisos 403):** **[docs/GIT_ACCESO_GITHUB.md](docs/GIT_ACCESO_GITHUB.md)**
+| Documento | Para quién |
+|-----------|------------|
+| [docs/INSTALACION.md](docs/INSTALACION.md) | Técnicos: local, LAN Docker, nube, bridge, sync, fallos |
+| [docs/GUIA_INSTALACION_LABORATORIO.md](docs/GUIA_INSTALACION_LABORATORIO.md) | Instalación paso a paso (Ubuntu Server) |
+| [docs/GUIA_INSTALACION_LABORATORIO_WINDOWS.md](docs/GUIA_INSTALACION_LABORATORIO_WINDOWS.md) | Variante Windows (referencia) |
+| [docs/GIT_ACCESO_GITHUB.md](docs/GIT_ACCESO_GITHUB.md) | Token o SSH para `git push` / `git pull` |
 
-Incluye: instalación local, red LAN, producción en nube, bridge escáner/visor en cada PC, variables `.env` y fallos frecuentes.
+**Manual de usuario:** `docs/INSTRUCTIVO_HealthTiCloud_RIS.pdf` o `.docx`  
+Regenerar: `cd docs` → `python generate_instructivo.py` y `python generate_instructivo_docx.py`
 
-**Despliegue en un laboratorio (paso a paso, no técnico):** **[docs/GUIA_INSTALACION_LABORATORIO.md](docs/GUIA_INSTALACION_LABORATORIO.md)** (Ubuntu). Windows: **[docs/GUIA_INSTALACION_LABORATORIO_WINDOWS.md](docs/GUIA_INSTALACION_LABORATORIO_WINDOWS.md)**.
+**Laboratorio LAN:** las PCs entran por `http://<IP-del-servidor>` (puerto 80). Comprobar desde otra PC: `curl http://<IP>/api/health`.
 
-RIS local en Docker; PACS y visor en la nube. Las PCs del centro entran por `http://<IP-del-servidor>` (puerto 80). **Tailscale** + **openssh-server** son para soporte remoto y `deploy-lab`, no para cada PC del centro.
-
-**Checklist LAN:** otra PC debe poder `curl http://<IP>/api/health` (JSON ok). Alias DNS ejemplo: `http://siresamatriz.healthticloud.cl` (guía §10.1).
-
-**Manual de usuario:** `docs/INSTRUCTIVO_HealthTiCloud_RIS.pdf` o `.docx`
-
-Regenerar tras cambios: `cd docs` → `python generate_instructivo.py` y `python generate_instructivo_docx.py`
-
-### Laboratorios de prueba (tras `db:seed`)
-
-| Laboratorio | Tipo | Módulo tecnólogo |
-|-------------|------|------------------|
-| Centro de Diagnóstico RIS PRO | Clínico | Worklist (MWL) |
-| Dental Demo — CBCT Temuco / Sucursal Centro | Dental | Atención en salas |
-| Veterinaria Demo Sur / Urgencias 24h | Veterinario | Atención en salas |
-
-Seleccione la sede en la barra superior. Usuario tecnólogo de prueba: `friquelme` (ver contraseña en seeder).
+**Despliegue:** rama `laboratorios` en sedes locales · rama `nube` en producción. Ver `backend/Envoy.blade.php` (`deploy-lab`, `deploy-nube`).
 
 ---
 
-## Inicio rápido (local)
+## Inicio rápido (desarrollo local)
 
 ```bash
 cd backend
@@ -55,7 +44,7 @@ php artisan serve --port=8000
 
 ```bash
 cd frontend/js && cp config.example.js config.js
-# Editar config.js: const API_URL = 'http://127.0.0.1:8000/api';
+# API en config.js: http://127.0.0.1:8000/api
 cd .. && python -m http.server 5500
 ```
 
@@ -70,8 +59,6 @@ Abrir **http://127.0.0.1:5500/index.html**
 | Frontend | https://ris.healthticloud.cl |
 | API | https://api.healthticloud.cl |
 
-Detalle de Nginx, colas, respaldos y deploy: **[docs/INSTALACION.md](docs/INSTALACION.md)** §4.
-
 ---
 
 ## Bridge local (escáner y visor)
@@ -83,7 +70,7 @@ cd tools/ris-local-bridge
 npm install && npm start
 ```
 
-Ver **[docs/INSTALACION.md](docs/INSTALACION.md)** §5.
+Ver [docs/INSTALACION.md](docs/INSTALACION.md) §5.
 
 ---
 
@@ -92,7 +79,3 @@ Ver **[docs/INSTALACION.md](docs/INSTALACION.md)** §5.
 ```bash
 cd backend && php artisan test
 ```
-
----
-
-**Versión:** 1.0.0 · Mayo 2026

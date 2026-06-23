@@ -51,10 +51,11 @@ class CloudSyncInboundController extends Controller
 
         $laboratoryId = $request->query('laboratory_id');
         $includePatients = filter_var($request->query('include_patients', false), FILTER_VALIDATE_BOOL);
+        $includeUsers = filter_var($request->query('include_users', false), FILTER_VALIDATE_BOOL);
 
         return response()->json([
             'success' => true,
-            'data' => $exporter->export($laboratoryId, $includePatients),
+            'data' => $exporter->export($laboratoryId, $includePatients, $includeUsers),
         ]);
     }
 }

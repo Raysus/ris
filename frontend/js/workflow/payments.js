@@ -365,6 +365,11 @@ class PaymentManager {
                 folio,
                 tipo: document.getElementById('pTipoBono')?.value || 'Electronico',
                 rut_beneficiario: document.getElementById('fonasaRutBenef')?.value?.trim() || null,
+                ...(window._risBonoMontos ? {
+                    monto_total: window._risBonoMontos.monto_total,
+                    monto_bonificacion: window._risBonoMontos.monto_bonificacion,
+                    monto_copago: window._risBonoMontos.monto_copago,
+                } : {}),
             }),
         });
         const json = await res.json();

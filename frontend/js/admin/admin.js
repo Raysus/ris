@@ -108,9 +108,48 @@ function risAsegurarValorModalidad(selector, code) {
 }
 
 function esAdminLogueado() {
-    const perfil = localStorage.getItem('ris_user_profile') || '';
+    const perfil = (localStorage.getItem('ris_user_profile') || '').toLowerCase();
 
     return perfil === 'sis_admin' || perfil === 'admin' || perfil === 'super_admin';
+}
+
+function esSysAdminLogueado() {
+    if (typeof risIsSysAdmin === 'function') {
+        return risIsSysAdmin();
+    }
+    return (localStorage.getItem('ris_user_profile') || '').toLowerCase() === 'sis_admin'
+        || localStorage.getItem('ris_all_labs') === 'true';
+}
+
+function poblarSelectTiposLaboratorio(selectors, selectedId) {
+    const $targets = $(selectors);
+    if (!$targets.length) return;
+
+    $targets.empty().append('<option value="">Seleccione Tipo...</option>');
+    (catalogLabTypes || []).forEach((t) => {
+        const label = t.code ? `${t.name} (${t.code})` : t.name;
+        $targets.append(`<option value="${t.id}">${label}</option>`);
+    });
+
+    if (selectedId) {
+        $targets.val(selectedId);
+    }
+}
+
+async function cargarTiposLaboratorio() {
+    try {
+        const response = await fetch(`${API_URL}/laboratory-types`, {
+            headers: adminAuthHeaders(),
+        });
+        const data = await response.json();
+        if (response.ok && data.success && Array.isArray(data.data)) {
+            catalogLabTypes = data.data;
+            return catalogLabTypes;
+        }
+    } catch (e) {
+        console.error('Error cargando tipos de laboratorio', e);
+    }
+    return catalogLabTypes || [];
 }
 
 function initAdmin() {
@@ -356,17 +395,18 @@ async function cargarCloudSyncLogs() {
     }
 }
 
-async function pullCatalogoDesdeNube(includePatients) {
+async function pullCatalogoDesdeNube(includePatients, includeUsers = true) {
     const labId = typeof risRequireConcreteLabId === 'function'
         ? risRequireConcreteLabId()
         : (localStorage.getItem('ris_lab_id') || '');
     if (!labId) {
         return;
     }
+    const parts = ['catálogo'];
+    if (includeUsers) parts.push('usuarios de la sede');
+    if (includePatients) parts.push('pacientes');
     if (!(await showConfirm(
-        includePatients
-            ? '¿Importar catálogo y pacientes de esta sede desde la nube?'
-            : '¿Importar catálogo (exámenes, máquinas, médicos solicitantes, etc.) desde la nube?',
+        `¿Importar ${parts.join(', ')} desde la nube?`,
         { title: 'Sincronizar desde nube', confirmText: 'Importar' }
     ))) {
         return;
@@ -378,6 +418,7 @@ async function pullCatalogoDesdeNube(includePatients) {
             body: JSON.stringify({
                 laboratory_id: labId,
                 include_patients: !!includePatients,
+                include_users: !!includeUsers,
             }),
         });
         const json = await res.json();
@@ -1196,24 +1237,24 @@ async function guardarSala() {
 }
 
 async function cargarConfigCentro() {
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
+    await cargarTiposLaboratorio();
 
     try {
         const response = await fetch(`${API_URL}/settings`, {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
+            headers: adminAuthHeaders(),
         });
         const data = await response.json();
 
         if (response.ok && data.success) {
-            catalogLabTypes = data.lab_types || [];
-            const selects = $("#cfgTipo, #sucTipo");
-            selects.empty().append('<option value="">Seleccione Tipo...</option>');
-            catalogLabTypes.forEach(t => selects.append(`<option value="${t.id}">${t.name}</option>`));
+            if (Array.isArray(data.lab_types) && data.lab_types.length) {
+                catalogLabTypes = data.lab_types;
+            }
+
+            poblarSelectTiposLaboratorio('#cfgTipo, #sucTipo, #matrizTipo');
 
             const lab = data.data || {};
-            $("#cfgTipo").val(lab.laboratory_type_id);
-            $("#cfgNombre").val(lab.name);
+            $("#cfgTipo").val(lab.laboratory_type_id || '');
+            $("#cfgNombre").val(lab.name || '');
             $("#cfgDireccion").val(lab.address || "");
             $("#cfgCiudad").val(lab.city || "");
             $("#cfgTelefono").val(lab.phone || "");
@@ -1226,23 +1267,19 @@ async function cargarConfigCentro() {
                 $("#cfgColorInforme").val(lab.settings.colorInforme || "#000000");
             }
 
+            if (esSysAdminLogueado()) {
+                $("#btnNuevaMatriz").removeClass("d-none");
+            } else {
+                $("#btnNuevaMatriz").addClass("d-none");
+            }
+
             if (typeof esAdminLogueado === 'function' && esAdminLogueado()) {
-
-                const esSysAdmin = typeof risIsSysAdmin === 'function'
-                    ? risIsSysAdmin()
-                    : (localStorage.getItem('ris_user_profile') === 'sis_admin');
-
-                if (esSysAdmin) {
-                    $("#btnNuevaMatriz").removeClass("d-none");
-                    const selectMatriz = $("#matrizTipo");
-                    selectMatriz.empty().append('<option value="">Seleccione Tipo...</option>');
-                    catalogLabTypes.forEach(t => selectMatriz.append(`<option value="${t.id}">${t.name}</option>`));
-                }
+                const esSysAdmin = esSysAdminLogueado();
 
                 try {
                     const labsEndpoint = esSysAdmin ? `${API_URL}/all-laboratories` : `${API_URL}/laboratories`;
                     const resAll = await fetch(labsEndpoint, {
-                        headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
+                        headers: adminAuthHeaders(),
                     });
                     const dataAll = await resAll.json();
 
@@ -1274,8 +1311,24 @@ async function cargarConfigCentro() {
                     renderTablaSucursales();
                 }
             }, 200);
+        } else if (!response.ok) {
+            console.error('settings:', data?.message || response.status);
+            if (catalogLabTypes.length) {
+                poblarSelectTiposLaboratorio('#cfgTipo, #sucTipo, #matrizTipo');
+            }
+            if (esSysAdminLogueado()) {
+                $("#btnNuevaMatriz").removeClass("d-none");
+            }
         }
-    } catch (e) { console.error(e); }
+    } catch (e) {
+        console.error(e);
+        if (catalogLabTypes.length) {
+            poblarSelectTiposLaboratorio('#cfgTipo, #sucTipo, #matrizTipo');
+        }
+        if (esSysAdminLogueado()) {
+            $("#btnNuevaMatriz").removeClass("d-none");
+        }
+    }
 }
 
 function actualizarOpcionesLaboratorioGlobal(todosLosPadres) {
@@ -1352,7 +1405,17 @@ async function guardarConfigCentroAdmin() {
             headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' },
             body: formData
         });
-        if (response.ok) showToast("✅ Matriz actualizada.", "success");
+        if (response.ok) {
+            window.RIS = window.RIS || {};
+            window.RIS.config = { ...(window.RIS.config || {}), ...settings };
+            if (typeof window.aplicarConfigAgendaHorario === 'function') {
+                window.aplicarConfigAgendaHorario(settings);
+            }
+            showToast("✅ Matriz actualizada.", "success");
+        } else {
+            const data = await response.json().catch(() => ({}));
+            showToast(`❌ ${data.message || 'No se pudo guardar la configuración.'}`, "danger");
+        }
     } catch (e) { showToast("Error al guardar", "danger"); }
 }
 
@@ -1501,7 +1564,7 @@ async function renderCatalogoAdmin() {
                         <tr>
                             <td class="ps-4"><span class="badge ${badgeColor}">${grupo}</span></td>
                             <td class="fw-bold text-dark">${nombreExamen}
-                                <small class="d-block text-muted" style="font-size: 0.75rem;">${exData.subs.join(", ")}</small>
+                                <small class="d-block text-muted" style="font-size: 0.75rem;">${(exData.subs || []).map(risNombreSubExamenAdmin).filter(Boolean).join(", ")}</small>
                             </td>
                             <td class="font-monospace text-secondary">${exData.code || '--'}</td>
                             <td class="text-end fw-bold text-success">$${parseFloat(exData.price).toLocaleString('es-CL')}</td>
@@ -1523,6 +1586,12 @@ async function renderCatalogoAdmin() {
     }
 }
 
+function risNombreSubExamenAdmin(sub) {
+    if (!sub) return '';
+    if (typeof sub === 'string') return sub.trim();
+    return String(sub.name || '').trim();
+}
+
 function nuevoExamen() {
     $("#formExamen")[0].reset();
     $("#catId").val("");
@@ -1541,7 +1610,7 @@ function cargarExamen(id) {
     $("#catNombre").val(ex.name);
     $("#catCodigo").val(ex.fonasa_code);
     $("#catPrecio").val(ex.price);
-    $("#catSubs").val((ex.sub_exams || []).join(", "));
+    $("#catSubs").val((ex.sub_exams || []).map(risNombreSubExamenAdmin).filter(Boolean).join(", "));
 
     const instr = ex.instruction;
     $("#catInstrSubject").val(instr?.subject || "");
@@ -2636,6 +2705,11 @@ async function eliminarSala() {
 function nuevaMatriz() {
     $("#formMatriz")[0].reset();
     $(".req-matriz").removeClass("is-invalid");
+    if (!catalogLabTypes.length) {
+        cargarTiposLaboratorio().then(() => poblarSelectTiposLaboratorio('#matrizTipo'));
+    } else {
+        poblarSelectTiposLaboratorio('#matrizTipo');
+    }
     $("#modalMatriz").modal('show');
 }
 
@@ -2648,20 +2722,21 @@ async function guardarMatriz() {
 
     if (hasError) return showToast("⚠️ Complete los campos obligatorios.", "danger");
 
+    const tipoId = $("#matrizTipo").val();
+    if (!tipoId) return showToast("⚠️ Seleccione el tipo de laboratorio.", "danger");
+
     const payload = {
-        laboratory_type_id: $("#matrizTipo").val(),
+        laboratory_type_id: tipoId,
         name: $("#matrizNombre").val().trim(),
         address: $("#matrizDireccion").val().trim(),
         city: $("#matrizCiudad").val().trim(),
         phone: $("#matrizTelefono").val().trim()
     };
 
-    const token = localStorage.getItem('ris_token');
-
     try {
         const response = await fetch(`${API_URL}/laboratories`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': localStorage.getItem('ris_lab_id'), 'Accept': 'application/json' },
+            headers: adminAuthHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify(payload)
         });
 

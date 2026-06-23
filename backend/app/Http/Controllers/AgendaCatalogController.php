@@ -13,6 +13,7 @@ use App\Models\Laboratory;
 use Illuminate\Http\Request;
 use App\Services\KeycloakService;
 use App\Services\LaboratoryProfileService;
+use App\Services\ExamSubExamService;
 use Illuminate\Support\Facades\Log;
 
 class AgendaCatalogController extends Controller
@@ -71,15 +72,11 @@ class AgendaCatalogController extends Controller
 
         $labId = config('app.current_lab_id');
         $lab = $labId ? Laboratory::find($labId) : null;
-        $scheduleDefaults = [
+        $schedule = $lab ? $lab->resolveScheduleSettings() : [
             'horaInicio' => '08:00:00',
             'horaFin' => '20:00:00',
             'intervalo' => '00:15:00',
         ];
-        $schedule = array_merge(
-            $scheduleDefaults,
-            is_array($lab?->settings) ? $lab->settings : []
-        );
 
         return response()->json([
             'success' => true,
@@ -87,16 +84,12 @@ class AgendaCatalogController extends Controller
                 'referring_doctors' => $refDoctorsQuery->get(),
                 'destination_doctors' => $destDoctorsQuery->get(),
                 'insurances' => $insurancesQuery->get(),
-                'exams' => $this->dedupeExamsForAgenda($examsQuery->get()),
+                'exams' => $this->serializeExamsForAgenda($examsQuery->get()),
                 'supplies' => $suppliesQuery->get(),
                 'supply_packs' => $supplyPacksQuery->get(),
                 'machines' => $machinesQuery->get(),
                 'lab_profile' => $labProfile,
-                'schedule' => [
-                    'horaInicio' => $schedule['horaInicio'] ?? $scheduleDefaults['horaInicio'],
-                    'horaFin' => $schedule['horaFin'] ?? $scheduleDefaults['horaFin'],
-                    'intervalo' => $schedule['intervalo'] ?? $scheduleDefaults['intervalo'],
-                ],
+                'schedule' => $schedule,
             ],
         ]);
     }
@@ -119,6 +112,23 @@ class AgendaCatalogController extends Controller
                 return "{$lab}|{$group}|{$name}";
             })
             ->values();
+    }
+
+    /**
+     * La columna JSON sub_exams y la relación subExams comparten clave en JSON;
+     * unificamos variantes para la agenda.
+     *
+     * @param  \Illuminate\Support\Collection<int, Exam>  $exams
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    private function serializeExamsForAgenda($exams)
+    {
+        return $this->dedupeExamsForAgenda($exams)->map(function (Exam $exam) {
+            $data = $exam->toArray();
+            $data['sub_exams'] = ExamSubExamService::serializeForAgenda($exam);
+
+            return $data;
+        })->values();
     }
 
     public function storeReferringDoctor(Request $request)

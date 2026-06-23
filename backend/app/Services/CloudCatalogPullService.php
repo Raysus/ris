@@ -6,6 +6,8 @@ use App\Models\Insurance;
 use App\Models\InsurancePlan;
 use App\Models\Laboratory;
 use App\Models\Paciente;
+use App\Models\Persona;
+use App\Models\User;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -22,9 +24,9 @@ class CloudCatalogPullService
      *
      * @return array{counts: array<string, int>, source: string}
      */
-    public function pull(?string $laboratoryId, bool $includePatients = false, ?array $remotePayload = null): array
+    public function pull(?string $laboratoryId, bool $includePatients = false, ?array $remotePayload = null, bool $includeUsers = false): array
     {
-        $payload = $remotePayload ?? $this->fetchFromCloud($laboratoryId, $includePatients);
+        $payload = $remotePayload ?? $this->fetchFromCloud($laboratoryId, $includePatients, $includeUsers);
 
         $counts = [];
 
@@ -76,6 +78,47 @@ class CloudCatalogPullService
             }
         }
 
+        if ($includeUsers && !empty($payload['users'])) {
+            $counts['users'] = 0;
+            $counts['users_skipped'] = 0;
+            foreach ($payload['users'] as $row) {
+                if (empty($row['id'])) {
+                    continue;
+                }
+                try {
+                    if (!empty($row['persona']) && $this->entitySync->catalogRowIsUnchanged(Persona::class, $row['persona'])) {
+                        // persona sin cambios
+                    } elseif (!empty($row['persona'])) {
+                        $this->entitySync->apply('Persona', 'updated', $row['persona']);
+                    }
+                    if ($this->entitySync->catalogRowIsUnchanged(User::class, $row)) {
+                        $counts['users_skipped']++;
+                        continue;
+                    }
+                    $this->entitySync->apply('User', 'updated', $row);
+                    $counts['users']++;
+                } catch (\Throwable $e) {
+                    Log::warning("cloud pull user {$row['id']}: " . $e->getMessage());
+                }
+            }
+
+            $counts['laboratory_users'] = 0;
+            foreach ($payload['laboratory_users'] ?? [] as $row) {
+                if (empty($row['id'])) {
+                    continue;
+                }
+                try {
+                    if ($this->entitySync->catalogRowIsUnchanged(\App\Models\LaboratoryUser::class, $row)) {
+                        continue;
+                    }
+                    $this->entitySync->apply('LaboratoryUser', 'updated', $row);
+                    $counts['laboratory_users']++;
+                } catch (\Throwable $e) {
+                    Log::warning("cloud pull laboratory_user {$row['id']}: " . $e->getMessage());
+                }
+            }
+        }
+
         return [
             'counts' => $counts,
             'source' => $remotePayload ? 'payload' : 'remote',
@@ -83,13 +126,13 @@ class CloudCatalogPullService
     }
 
     /** Aplica catálogo de la misma BD (nube leyendo a sí misma — prueba / matriz). */
-    public function pullLocalSnapshot(?string $laboratoryId, bool $includePatients = false): array
+    public function pullLocalSnapshot(?string $laboratoryId, bool $includePatients = false, bool $includeUsers = false): array
     {
-        $payload = $this->exporter->export($laboratoryId, $includePatients);
-        return $this->pull($laboratoryId, $includePatients, $payload);
+        $payload = $this->exporter->export($laboratoryId, $includePatients, $includeUsers);
+        return $this->pull($laboratoryId, $includePatients, $payload, $includeUsers);
     }
 
-    private function fetchFromCloud(?string $laboratoryId, bool $includePatients): array
+    private function fetchFromCloud(?string $laboratoryId, bool $includePatients, bool $includeUsers = false): array
     {
         $url = config('cloud_sync.export_url');
         $secret = config('cloud_sync.secret');
@@ -106,9 +149,16 @@ class CloudCatalogPullService
         $response = $http->get($url, [
             'laboratory_id' => $laboratoryId,
             'include_patients' => $includePatients ? '1' : '0',
+            'include_users' => $includeUsers ? '1' : '0',
         ]);
 
         if ($response->failed()) {
+            if ($response->status() === 401) {
+                throw new \RuntimeException(
+                    'Token de sincronización inválido: CLOUD_SYNC_SECRET del laboratorio no coincide con el de '
+                    . parse_url($url, PHP_URL_HOST) . '. Pídalo a sistemas, actualice backend/.env y reinicie api/queue.'
+                );
+            }
             throw new \RuntimeException('Exportación nube falló: ' . $response->body());
         }
 

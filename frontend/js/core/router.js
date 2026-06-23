@@ -12,8 +12,8 @@ const RIS_MODULE_SCRIPTS = {
         "/js/workflow/radiologist.js",
     ],
     transcription: "/js/workflow/transcription.js",
-    validation: "/js/workflow/validation.js",
-    entrega: "/js/workflow/entrega.js",
+    validation: ["/js/shared/reportDocument.js", "/js/workflow/validation.js"],
+    entrega: ["/js/shared/reportDocument.js", "/js/workflow/entrega.js"],
     dashboard: "/js/dashboard/dashboard.js",
     admin: "/js/admin/admin.js",
 };

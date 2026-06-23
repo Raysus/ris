@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Exam;
 use App\Support\ModalityCode;
 use App\Models\ExamInstruction;
+use App\Services\ExamSubExamService;
 use Illuminate\Http\Request;
 
 class ExamController extends Controller
@@ -23,7 +24,13 @@ class ExamController extends Controller
             }
         }
 
-        $data = $query->with('instruction')->orderBy('name')->get();
+        $data = $query->with(['instruction', 'subExams'])->orderBy('name')->get()->map(function (Exam $exam) {
+            $arr = $exam->toArray();
+            $arr['sub_exams'] = ExamSubExamService::serializeForAgenda($exam);
+
+            return $arr;
+        });
+
         return response()->json(['success' => true, 'data' => $data]);
     }
 
@@ -52,7 +59,7 @@ class ExamController extends Controller
             'laboratory_id' => $labId,
             'group_code' => ModalityCode::normalizeGroup($validated['group_code']),
             'name' => $validated['name'],
-            'sub_exams' => $validated['sub_exams'] ?? [],
+            'sub_exams' => [],
             'fonasa_code' => $validated['fonasa_code'] ?? null,
             'price' => $validated['price'] ?? 0,
             'is_active' => true,
@@ -67,11 +74,15 @@ class ExamController extends Controller
             );
         }
 
+        ExamSubExamService::syncFromItems($exam, $validated['sub_exams'] ?? []);
+
         $this->syncExamInstruction($exam, $validated['instruction'] ?? null);
 
-        $exam->load('instruction');
+        $exam->load(['instruction', 'subExams']);
+        $examPayload = $exam->toArray();
+        $examPayload['sub_exams'] = ExamSubExamService::serializeForAgenda($exam);
 
-        return response()->json(['success' => true, 'exam' => $exam]);
+        return response()->json(['success' => true, 'exam' => $examPayload]);
     }
 
     public function update(Request $request, string $id)
