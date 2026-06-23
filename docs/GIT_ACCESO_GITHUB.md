@@ -17,7 +17,19 @@ Elija **una** de las dos opciones siguientes.
    - **Classic:** marque el scope **`repo`** (acceso completo a repos privados).
 4. Copie el token (`github_pat_...` o `ghp_...`). **No lo comparta por chat ni lo suba al repo.**
 
-### 2. Configurar el servidor con el mismo token (recomendado)
+### 2. Configurar esta estación (recomendado)
+
+En su PC de desarrollo o en el servidor:
+
+```bash
+cd /ruta/a/RIS
+export GITHUB_TOKEN='github_pat_XXXXX'   # token con Contents Read and write
+bash scripts/preparar-git-estacion.sh
+```
+
+Eso configura identidad Git del repo, remoto HTTPS seguro y credenciales en `~/.git-credentials`.
+
+### 3. Configurar el servidor con el mismo token
 
 En el servidor del laboratorio, con su token **read and write**:
 
