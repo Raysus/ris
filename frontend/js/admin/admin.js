@@ -121,6 +121,28 @@ function esSysAdminLogueado() {
         || localStorage.getItem('ris_all_labs') === 'true';
 }
 
+function puedeEliminarMatrizActiva() {
+    if (!esSysAdminLogueado()) return false;
+
+    const labId = localStorage.getItem('ris_lab_id');
+    if (typeof risIsConcreteLabId === 'function' && !risIsConcreteLabId(labId)) {
+        return false;
+    }
+
+    const matriz = (currentLaboratoriesTree || []).find((p) => String(p.id) === String(labId));
+    return !!matriz;
+}
+
+function actualizarBotonesMatrizSysAdmin() {
+    if (!esSysAdminLogueado()) {
+        $("#btnNuevaMatriz, #btnEliminarMatriz").addClass("d-none");
+        return;
+    }
+
+    $("#btnNuevaMatriz").removeClass("d-none");
+    $("#btnEliminarMatriz").toggleClass("d-none", !puedeEliminarMatrizActiva());
+}
+
 function poblarSelectTiposLaboratorio(selectors, selectedId) {
     const $targets = $(selectors);
     if (!$targets.length) return;
@@ -223,8 +245,8 @@ function setupAdminEvents() {
             showToast("Identidad recuperada de la base de datos.", "info");
         }
     });
-    $('button[data-bs-target="#tab-config"]').on('shown.bs.tab', function (e) {
-        renderTablaSucursales();
+    $('button[data-bs-target="#tab-config"]').on('shown.bs.tab', function () {
+        cargarConfigCentro();
     });
     $('button[data-bs-target="#tab-caja"]').on('shown.bs.tab', () => cargarCierreCaja());
     $('button[data-bs-target="#tab-cloud-sync"]').on('shown.bs.tab', () => cargarCloudSyncLogs());
@@ -1236,6 +1258,22 @@ async function guardarSala() {
     }
 }
 
+function resolverSucursalesAdminMatrizActual(tree, childrenFromSettings, currentLabId) {
+    if (typeof risIsConcreteLabId === 'function' && risIsConcreteLabId(currentLabId)) {
+        const matriz = (tree || []).find((p) => String(p.id) === String(currentLabId));
+        if (matriz) {
+            return matriz.children || [];
+        }
+        const padre = (tree || []).find((p) =>
+            (p.children || []).some((c) => String(c.id) === String(currentLabId))
+        );
+        if (padre) {
+            return padre.children || [];
+        }
+    }
+    return childrenFromSettings || [];
+}
+
 async function cargarConfigCentro() {
     await cargarTiposLaboratorio();
 
@@ -1268,9 +1306,9 @@ async function cargarConfigCentro() {
             }
 
             if (esSysAdminLogueado()) {
-                $("#btnNuevaMatriz").removeClass("d-none");
+                actualizarBotonesMatrizSysAdmin();
             } else {
-                $("#btnNuevaMatriz").addClass("d-none");
+                $("#btnNuevaMatriz, #btnEliminarMatriz").addClass("d-none");
             }
 
             if (typeof esAdminLogueado === 'function' && esAdminLogueado()) {
@@ -1285,7 +1323,11 @@ async function cargarConfigCentro() {
 
                     if (resAll.ok && dataAll.success) {
                         currentLaboratoriesTree = dataAll.data;
-                        currentSucursalesAdmin = dataAll.data.flatMap(padre => padre.children || []);
+                        currentSucursalesAdmin = resolverSucursalesAdminMatrizActual(
+                            dataAll.data,
+                            data.children || [],
+                            localStorage.getItem('ris_lab_id')
+                        );
 
                         if (esSysAdmin) {
                             actualizarOpcionesLaboratorioGlobal(dataAll.data);
@@ -1294,6 +1336,7 @@ async function cargarConfigCentro() {
                                 actualizarOpcionesLaboratorioUsuario(matriz, matriz.children || []);
                             });
                         }
+                        actualizarBotonesMatrizSysAdmin();
                     }
                 } catch (err) { console.error("Error cargando laboratorios del admin", err); }
             } else {
@@ -1317,7 +1360,7 @@ async function cargarConfigCentro() {
                 poblarSelectTiposLaboratorio('#cfgTipo, #sucTipo, #matrizTipo');
             }
             if (esSysAdminLogueado()) {
-                $("#btnNuevaMatriz").removeClass("d-none");
+                actualizarBotonesMatrizSysAdmin();
             }
         }
     } catch (e) {
@@ -1326,7 +1369,7 @@ async function cargarConfigCentro() {
             poblarSelectTiposLaboratorio('#cfgTipo, #sucTipo, #matrizTipo');
         }
         if (esSysAdminLogueado()) {
-            $("#btnNuevaMatriz").removeClass("d-none");
+            actualizarBotonesMatrizSysAdmin();
         }
     }
 }
@@ -1429,7 +1472,6 @@ function renderTablaSucursales() {
     }
 
     currentSucursalesAdmin.forEach(suc => {
-        console.log("Sucursal:", suc);
         const activo = (suc.is_active == 1 || suc.is_active === true);
         const statusBadge = activo ? '<span class="badge bg-success">Activa</span>' : '<span class="badge bg-danger">Inactiva</span>';
 
@@ -1445,7 +1487,6 @@ function renderTablaSucursales() {
             </tr>
         `);
     });
-    console.log($tbody)
 }
 
 function nuevaSucursal() {
@@ -2711,6 +2752,38 @@ function nuevaMatriz() {
         poblarSelectTiposLaboratorio('#matrizTipo');
     }
     $("#modalMatriz").modal('show');
+}
+
+async function eliminarMatriz() {
+    const labId = localStorage.getItem('ris_lab_id');
+    if (!puedeEliminarMatrizActiva()) {
+        return showToast('Seleccione una casa matriz en la barra superior para eliminarla.', 'warning');
+    }
+
+    const nombre = ($("#cfgNombre").val() || '').trim() || 'esta casa matriz';
+    const confirmado = await showConfirm(
+        `¿Eliminar permanentemente "${nombre}"?\n\nSolo se permite si no tiene sucursales ni datos operativos (pacientes, citas, usuarios, etc.).`,
+        { dangerous: true, confirmText: 'Eliminar matriz' }
+    );
+    if (!confirmado) return;
+
+    try {
+        const response = await fetch(`${API_URL}/laboratories/${labId}`, {
+            method: 'DELETE',
+            headers: adminAuthHeaders(),
+        });
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            showToast('Casa matriz eliminada correctamente.', 'warning');
+            localStorage.removeItem('ris_lab_id');
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            showToast(`❌ ${data.message || 'No se pudo eliminar la casa matriz.'}`, 'danger');
+        }
+    } catch (e) {
+        showToast('Error de conexión con el servidor.', 'danger');
+    }
 }
 
 async function guardarMatriz() {

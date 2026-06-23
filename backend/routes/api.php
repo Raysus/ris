@@ -87,6 +87,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::delete('/branches/{id}', [SettingController::class, 'destroyBranch']);
     Route::get('/all-laboratories', [SettingController::class, 'getAllLaboratories']);
     Route::post('/laboratories', [SettingController::class, 'storeLaboratory']);
+    Route::delete('/laboratories/{id}', [SettingController::class, 'destroyLaboratory']);
 
     Route::put('/appointments/{id}/status', [WorklistController::class, 'updateStatus']);
     Route::put('/appointments/{id}/clear-review', [AppointmentController::class, 'clearReview']);
