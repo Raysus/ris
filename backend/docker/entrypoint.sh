@@ -22,7 +22,8 @@ case "$1" in
 
     # Sembrar datos solo si se pide explícitamente (evita re-seed en cada reinicio).
     if [ "${DB_AUTO_SEED}" = "true" ]; then
-        php artisan db:seed --force || true
+        SEED_CLASS="${DB_SEED_CLASS:-DatabaseSeeder}"
+        php artisan db:seed --class="${SEED_CLASS}" --force || true
     fi
 
     php artisan storage:link || true

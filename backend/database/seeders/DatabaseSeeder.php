@@ -275,7 +275,8 @@ class DatabaseSeeder extends Seeder
 
         // ==========================================
         // 8–12. Catálogo operativo (máquinas, exámenes, insumos): importar desde nube
-        //   Admin → Sync Nube → Catálogo + usuarios
+        //   Admin → Sync Nube → Catálogo (+ usuarios)
+        //   Para ECOTEMUCO en LAN sin Siresa: use EcotemucoLabSeeder (docs/DESPLIEGUE_ECOTEMUCO_LOCAL.md)
         // ==========================================
 
         // Reactivamos las llaves foráneas

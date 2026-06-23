@@ -5,6 +5,7 @@ Guía para técnicos. Un solo documento: servidor + PCs de usuario.
 > **¿Despliegue en un laboratorio (paso a paso, sin tecnicismos)?**
 > Use **[GUIA_INSTALACION_LABORATORIO.md](GUIA_INSTALACION_LABORATORIO.md)** (Ubuntu Server + Docker).
 > Variante Windows: **[GUIA_INSTALACION_LABORATORIO_WINDOWS.md](GUIA_INSTALACION_LABORATORIO_WINDOWS.md)**.
+> **Secretos:** **[SECRETOS_DESPLIEGUE.md](SECRETOS_DESPLIEGUE.md)** · **ECOTEMUCO local:** **[DESPLIEGUE_ECOTEMUCO_LOCAL.md](DESPLIEGUE_ECOTEMUCO_LOCAL.md)**.
 > Esta guía cubre desarrollo local, producción en nube y detalle técnico.
 >
 > **Tailscale** solo lo usa quien **despliega o da soporte** desde su computador (SSH/Envoy a nube y laboratorios).
@@ -57,6 +58,9 @@ Copy-Item .env.example .env
 composer install
 php artisan key:generate
 php artisan migrate --force
+# Demo Siresa (desarrollo): php artisan db:seed
+# ECOTEMUCO LAN: DB_SEED_CLASS=EcotemucoLabSeeder en .env o:
+# php artisan db:seed --class=EcotemucoLabSeeder
 php artisan db:seed
 php artisan storage:link
 php artisan serve --host=127.0.0.1 --port=8000
