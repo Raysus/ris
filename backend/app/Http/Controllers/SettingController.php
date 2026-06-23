@@ -218,8 +218,8 @@ class SettingController extends Controller
         $user = $request->user();
         $user->loadMissing('tipoUsuario');
 
-        if ($user->tipoUsuario?->name !== 'sis_admin') {
-            return response()->json(['success' => false, 'message' => 'No tienes permisos para crear nuevas matrices.'], 403);
+        if (!$user->canCreateLaboratoryMatrix()) {
+            return response()->json(['success' => false, 'message' => 'No tienes permisos para crear nuevas matrices. Se requiere perfil Sys. Admin.'], 403);
         }
 
         $request->validate([

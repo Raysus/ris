@@ -202,7 +202,19 @@ function risIsSysAdmin() {
     if (profileName === 'sis_admin' || profileName === 'super_admin') {
         return true;
     }
-    return localStorage.getItem('ris_all_labs') === 'true';
+    if (localStorage.getItem('ris_all_labs') === 'true') {
+        return true;
+    }
+    try {
+        const userData = JSON.parse(localStorage.getItem('ris_user_data') || '{}');
+        if (String(userData.username || '').toLowerCase() === 'admin') {
+            return true;
+        }
+        const roles = Array.isArray(userData.settings?.roles) ? userData.settings.roles : [];
+        return roles.some((r) => String(r).toLowerCase() === 'sis_admin');
+    } catch (e) {
+        return false;
+    }
 }
 
 /** Admin de clínica: todos los módulos del menú, pero solo en sus labs asignados. */

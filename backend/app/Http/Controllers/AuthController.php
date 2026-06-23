@@ -88,6 +88,8 @@ class AuthController extends Controller
             }
         }
 
+        $isSysAdmin = $user->hasFullLabAccess();
+
         return response()->json([
             'success' => true,
             'access_token' => $token,
@@ -101,7 +103,7 @@ class AuthController extends Controller
                 'names' => $user->persona->names ?? null,
                 'last_name_1' => $user->persona->last_name_1 ?? null,
                 'last_name_2' => $user->persona->last_name_2 ?? null,
-                'role' => $user->tipoUsuario->name ?? 'unknown',
+                'role' => $isSysAdmin ? 'sis_admin' : ($user->tipoUsuario->name ?? 'unknown'),
                 'persona' => [
                     'names' => $user->persona->names ?? null,
                     'last_name_1' => $user->persona->last_name_1 ?? null,
@@ -109,7 +111,7 @@ class AuthController extends Controller
                     'email' => $user->persona->email ?? null,
                 ],
                 'tipo_usuario' => [
-                    'name' => $user->tipoUsuario->name ?? 'unknown',
+                    'name' => $isSysAdmin ? 'sis_admin' : ($user->tipoUsuario->name ?? 'unknown'),
                     'permissions' => is_array($user->tipoUsuario->permissions ?? null)
                         ? $user->tipoUsuario->permissions
                         : json_decode($user->tipoUsuario->permissions ?? '{}', true),
