@@ -6,6 +6,10 @@ HealthTiCloud RIS en el **servidor principal** de un laboratorio con **Ubuntu Se
 
 > Si el servidor es **Windows**, use **[GUIA_INSTALACION_LABORATORIO_WINDOWS.md](GUIA_INSTALACION_LABORATORIO_WINDOWS.md)**.
 >
+> **Secretos compartidos** (cloud sync, PACS, Keycloak): **[SECRETOS_DESPLIEGUE.md](SECRETOS_DESPLIEGUE.md)**.
+>
+> **ECOTEMUCO en local** (sin demo Siresa): **[DESPLIEGUE_ECOTEMUCO_LOCAL.md](DESPLIEGUE_ECOTEMUCO_LOCAL.md)**.
+>
 > Si algo falla, vaya a **"Problemas frecuentes"** al final.
 
 ---
@@ -189,7 +193,8 @@ En `nano`: edite, luego `Ctrl+O`, Enter, `Ctrl+X`.
 | `ORTHANC_URL` | URL del PACS que le dio sistemas |
 | `PACS_DEFAULT_IP` / `PACS_DEFAULT_PORT` / `PACS_DEFAULT_AET` | Datos DICOM para equipos (si aplica) |
 | `DB_PASSWORD` | Contraseña fuerte inventada por usted |
-| `CLOUD_SYNC_SECRET` | Secreto **igual al de la nube** (lo entrega sistemas; sin esto no se envían citas a la matriz) |
+| `CLOUD_SYNC_SECRET` | Ver **[SECRETOS_DESPLIEGUE.md](SECRETOS_DESPLIEGUE.md)** o ejecute `bash ../scripts/apply-lan-secrets.sh <IP-LAN>` |
+| `DB_SEED_CLASS` | `DatabaseSeeder` = demo Siresa · `EcotemucoLabSeeder` = solo ECOTEMUCO (ver [DESPLIEGUE_ECOTEMUCO_LOCAL.md](DESPLIEGUE_ECOTEMUCO_LOCAL.md)) |
 | `SANCTUM_STATEFUL_DOMAINS` | Alias DNS, IP LAN, Tailscale `100.x` (si aplica), `localhost,127.0.0.1` |
 | `VIEWER_URL` / `VIEWER_PATH` | Visor OHIF en nube (`https://viewer.healthticloud.cl`, `/viewer`) |
 | `PATIENT_PORTAL_URL` | `https://portal.healthticloud.cl` (enlaces en correos) |
@@ -234,6 +239,9 @@ nano .env
 # Cambie DB_AUTO_SEED=true a DB_AUTO_SEED=false
 docker compose -f docker-compose.lan.yml up -d
 ```
+
+> Si instaló **ECOTEMUCO**, use `DB_SEED_CLASS=EcotemucoLabSeeder` en el primer arranque y luego
+> **Admin → Sync Nube** para traer exámenes y salas. No use el seeder por defecto (crea Siresa).
 
 ---
 
