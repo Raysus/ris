@@ -81,6 +81,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::post('exams/import', [ExamController::class, 'importExams']);
 
     Route::get('/settings', [SettingController::class, 'getSettings']);
+    Route::get('/laboratory-types', [SettingController::class, 'getLaboratoryTypes']);
     Route::post('/settings', [SettingController::class, 'updateSettings']);
     Route::post('/branches', [SettingController::class, 'storeBranch']);
     Route::delete('/branches/{id}', [SettingController::class, 'destroyBranch']);

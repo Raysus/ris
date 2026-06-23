@@ -53,27 +53,62 @@ class SettingController extends Controller
         return response()->json(['success' => true, 'data' => $labs]);
     }
 
+    public function getLaboratoryTypes()
+    {
+        $this->ensureDefaultLaboratoryTypes();
+
+        $types = LaboratoryType::query()
+            ->orderBy('name')
+            ->get(['id', 'name', 'code']);
+
+        return response()->json(['success' => true, 'data' => $types]);
+    }
+
+    private function ensureDefaultLaboratoryTypes(): void
+    {
+        if (LaboratoryType::exists()) {
+            return;
+        }
+
+        $defaults = [
+            ['name' => 'Clínico Humano', 'code' => 'clinical'],
+            ['name' => 'Veterinario', 'code' => 'veterinary'],
+            ['name' => 'Centro Dental', 'code' => 'dental'],
+        ];
+
+        foreach ($defaults as $row) {
+            LaboratoryType::create($row);
+        }
+    }
+
     public function getSettings()
     {
         $labId = config('app.current_lab_id');
-        $lab = Laboratory::find($labId);
+        $lab = $labId ? Laboratory::find($labId) : null;
         $user = auth()->user();
 
-        $query = Laboratory::where('parent_id', $labId);
+        $children = collect();
+        if ($labId) {
+            $query = Laboratory::where('parent_id', $labId);
 
-        if (!in_array($user->tipoUsuario->name, ['sis_admin', 'admin'])) {
-            $assignedLabIds = $user->laboratories()->pluck('laboratories.id')->toArray();
-            $query->whereIn('id', $assignedLabIds);
+            if (!in_array($user->tipoUsuario->name, ['sis_admin', 'admin'])) {
+                $assignedLabIds = $user->laboratories()->pluck('laboratories.id')->toArray();
+                $query->whereIn('id', $assignedLabIds);
+            }
+
+            $children = $query->get();
         }
 
-        $children = $query->get();
-        $types = \DB::table('laboratory_types')->select('id', 'name')->get();
+        $this->ensureDefaultLaboratoryTypes();
+        $types = LaboratoryType::query()
+            ->orderBy('name')
+            ->get(['id', 'name', 'code']);
 
         return response()->json([
             'success' => true,
             'data' => $lab,
             'children' => $children,
-            'lab_types' => $types
+            'lab_types' => $types,
         ]);
     }
 
@@ -84,6 +119,13 @@ class SettingController extends Controller
         }
 
         $lab = Laboratory::find(config('app.current_lab_id'));
+
+        if (!$lab) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Seleccione una casa matriz en la barra superior antes de guardar ajustes.',
+            ], 422);
+        }
 
         if ($request->has('name'))
             $lab->name = $request->name;
@@ -173,34 +215,40 @@ class SettingController extends Controller
 
     public function storeLaboratory(Request $request)
     {
-        if ($request->user()->tipoUsuario->name !== 'sis_admin') {
+        $user = $request->user();
+        $user->loadMissing('tipoUsuario');
+
+        if ($user->tipoUsuario?->name !== 'sis_admin') {
             return response()->json(['success' => false, 'message' => 'No tienes permisos para crear nuevas matrices.'], 403);
         }
 
         $request->validate([
             'name' => 'required|string|max:255',
-            'laboratory_type_id' => 'required|string'
+            'laboratory_type_id' => 'required|uuid|exists:laboratory_types,id',
         ]);
 
-        $lab = new \App\Models\Laboratory();
+        $this->ensureDefaultLaboratoryTypes();
+
+        $lab = new Laboratory();
         $lab->name = $request->name;
         $lab->laboratory_type_id = $request->laboratory_type_id;
         $lab->address = $request->address;
         $lab->city = $request->city;
         $lab->phone = $request->phone;
         $lab->parent_id = null;
+        $lab->is_active = true;
 
         $lab->settings = [
             'horaInicio' => '08:00:00',
             'horaFin' => '20:00:00',
             'intervalo' => '00:15:00',
-            'colorInforme' => '#000000'
+            'colorInforme' => '#000000',
         ];
 
         $lab->save();
 
         \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Laboratory', 'created', $lab->toArray());
 
-        return response()->json(['success' => true, 'data' => $lab]);
+        return response()->json(['success' => true, 'data' => $lab->load('type')]);
     }
 }
