@@ -20,16 +20,16 @@ if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; 
 
   if [ ! -f .env ] || ! grep -q "^APP_URL=http://${LAN_IP}\$" .env 2>/dev/null; then
     cp .env.lan.example .env
-    sed -i "s/192\.168\.1\.50/${LAN_IP}/g" .env
-    sed -i "s|http://siresamatriz.healthticloud.cl|http://${LAN_IP}|g" .env
+    bash "$ROOT/scripts/apply-lan-secrets.sh" "$LAN_IP"
     sed -i 's/^DTE_EMISOR_RAZON_SOCIAL=HealthTiCloud RIS/DTE_EMISOR_RAZON_SOCIAL="HealthTiCloud RIS"/' .env
+    sed -i 's/^DB_SEED_CLASS=.*/DB_SEED_CLASS=EcotemucoLabSeeder/' .env
     DB_PASS="$(openssl rand -base64 24 | tr -d '/+=' | head -c 24)"
     sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=${DB_PASS}/" .env
     if ! grep -q '^APP_KEY=base64:' .env; then
       APP_KEY="$($COMPOSE run --rm api php artisan key:generate --show)"
       sed -i "s/^APP_KEY=.*/APP_KEY=${APP_KEY}/" .env
     fi
-    echo "  .env creado. Revise ORTHANC_URL y CLOUD_SYNC_SECRET si aplica."
+    echo "  .env creado (ECOTEMUCO). Revise si necesita RESET_DB=1 en setup-ecotemuco-local.sh."
   fi
 
   echo "→ Construyendo y levantando contenedores (puede tardar varios minutos)..."
