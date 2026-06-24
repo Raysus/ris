@@ -78,7 +78,6 @@ $(document).ready(function () {
                     localStorage.removeItem('ris_lab_name');
                 }
 
-                const labsPermitidos = data.contexto_laboratorio.laboratorios_permitidos || [];
                 const esSysAdmin = labsPermitidos.includes('*')
                     || String(data.user.username || '').toLowerCase() === 'admin';
                 const profileName = esSysAdmin
