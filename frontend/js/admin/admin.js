@@ -13,6 +13,9 @@ let currentSucursalesAdmin = [];
 let currentPlanesFromDB = [];
 let catalogInsurances = [];
 let currentPacientesAdmin = [];
+let patientsAdminPage = 1;
+let patientsAdminLastPage = 1;
+let patientsAdminTotal = 0;
 let currentPlantillasFromDB = [];
 let currentLaboratoriesTree = [];
 
@@ -191,6 +194,7 @@ function initAdmin() {
     cargarCatalogoRoles();
 
     if (typeof cargarPacientes === "function") cargarPacientes();
+    if (typeof refreshPacientesAdminActions === 'function') refreshPacientesAdminActions();
 
     const fechaActual = new Date();
     const mesActual = `${fechaActual.getFullYear()}-${String(fechaActual.getMonth() + 1).padStart(2, '0')}`;
@@ -2300,92 +2304,6 @@ function descargarExcelXLSX(datos, nombreArchivo, nombreHoja = 'Reporte') {
     XLSX.writeFile(libro, nombreArchivo);
 }
 
-async function cargarPacientes() {
-    const token = localStorage.getItem('ris_token');
-    const labId = localStorage.getItem('ris_lab_id');
-
-    try {
-        const response = await fetch(`${API_URL}/patients`, {
-            method: 'GET',
-            headers: {
-                'Accept': 'application/json',
-                'Authorization': `Bearer ${token}`,
-                'X-Lab-Id': labId,
-                'Accept': 'application/json'
-            }
-        });
-
-        const data = await response.json();
-
-        if (response.ok && data.success) {
-            currentPacientesAdmin = data.data.data || data.data;
-            renderizarTablaPacientes(currentPacientesAdmin);
-        } else {
-            console.error("Error al cargar pacientes:", data.message);
-        }
-    } catch (error) {
-        console.error("Error de conexión:", error);
-    }
-}
-
-function verDetallePaciente(id) {
-    const paciente = currentPacientesAdmin.find(p => p.id === id);
-    if (!paciente) return;
-
-    const per = paciente.persona || {};
-
-    $("#detRut").text(per.rut || 'Sin RUT');
-    $("#detNombre").text(`${per.names || ''} ${per.last_name_1 || ''} ${per.last_name_2 || ''}`);
-    $("#detEmail").text(per.email || 'No registrado');
-    $("#detTelefono").text(per.phone || 'No registrado');
-
-    let fechaNacimiento = 'No registrada';
-    if (per.birth_date) {
-        fechaNacimiento = new Date(per.birth_date).toLocaleDateString('es-CL');
-    }
-    $("#detNacimiento").text(fechaNacimiento);
-
-    let genero = 'No especificado';
-    if (per.gender === 'M') genero = 'Masculino';
-    else if (per.gender === 'F') genero = 'Femenino';
-    $("#detGenero").text(genero);
-
-    $("#modalPacienteDetalle").modal('show');
-}
-
-function renderizarTablaPacientes(pacientes) {
-    const $tbody = $('#tabla-pacientes-body');
-    $tbody.empty();
-
-    if (pacientes.length === 0) {
-        $tbody.append('<tr><td colspan="5" class="text-center">No hay pacientes registrados en este laboratorio.</td></tr>');
-        return;
-    }
-
-    pacientes.forEach(paciente => {
-
-        const persona = paciente.persona;
-
-        const filaHtml = `
-            <tr>
-                <td>${persona.rut || 'Sin RUT'}</td>
-                <td>${persona.names} ${persona.last_name_1} ${persona.last_name_2 || ''}</td>
-                <td>${persona.gender || '-'}</td>
-                <td>${persona.phone || '-'}</td>
-                <td>
-                    <button class="btn btn-sm btn-info" onclick="verDetallePaciente('${paciente.id}')">Ver</button>
-                </td>
-            </tr>
-        `;
-        $tbody.append(filaHtml);
-    });
-}
-
-
-$(document).ready(function () {
-    cargarPacientes();
-});
-
 $(document).on('change', '.role-check', function () {
     const roles = [];
     $(".role-check:checked").each(function () { roles.push($(this).val()); });
@@ -3094,6 +3012,18 @@ async function eliminarPlantilla() {
 
 // === MÓDULO DE PACIENTES (CRUD) ===
 
+function formatGeneroPaciente(gender) {
+    if (gender === 'M') return 'Masculino';
+    if (gender === 'F') return 'Femenino';
+    if (gender === 'O') return 'Otro';
+    return gender || '-';
+}
+
+function refreshPacientesAdminActions() {
+    const canEdit = canEditPatientsRis();
+    $("#btnNuevoPacienteAdmin").toggleClass('d-none', !canEdit);
+}
+
 function canEditPatientsRis() {
     const profile = (localStorage.getItem('ris_user_profile') || '').toLowerCase();
     if (!['secretaria', 'secretario'].includes(profile)) {
@@ -3103,61 +3033,105 @@ function canEditPatientsRis() {
     return labName.includes('RDOX') && labName.includes('OSORNO');
 }
 
-async function cargarPacientes() {
+async function cargarPacientes(page = 1) {
     const token = localStorage.getItem('ris_token');
     const labId = localStorage.getItem('ris_lab_id');
-    const tbody = $("#tablaPacientes tbody"); // Asegúrate de tener una tabla con este ID en tu pestaña de pacientes
+    const tbody = $("#tabla-pacientes-body");
+
+    if (!tbody.length) return;
+
+    page = Math.max(1, parseInt(page, 10) || 1);
+    tbody.html('<tr><td colspan="5" class="text-center p-4"><span class="spinner-border spinner-border-sm text-primary"></span> Cargando pacientes...</td></tr>');
 
     try {
-        const response = await fetch(`${API_URL}/patients`, {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId }
+        const response = await fetch(`${API_URL}/patients?page=${page}&per_page=50`, {
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`,
+                'X-Lab-Id': labId,
+            }
         });
         const data = await response.json();
 
         if (response.ok && data.success) {
-            currentPacientesAdmin = data.data.data; // Viene paginado usualmente
+            const paginated = data.data;
+            currentPacientesAdmin = Array.isArray(paginated?.data) ? paginated.data : (paginated || []);
+            patientsAdminPage = paginated?.current_page || 1;
+            patientsAdminLastPage = paginated?.last_page || 1;
+            patientsAdminTotal = paginated?.total ?? currentPacientesAdmin.length;
             renderListaPacientesAdmin();
+            renderPacientesAdminPagination();
 
-            // Llenar el select de seguros médicos en el modal
             const selectSeguro = $("#pacSeguro").empty().append('<option value="">Sin Previsión (Particular)</option>');
-            catalogInsurances.forEach(ins => {
+            (catalogInsurances || []).forEach(ins => {
                 selectSeguro.append(`<option value="${ins.id}">${ins.name}</option>`);
             });
+            refreshPacientesAdminActions();
+        } else {
+            tbody.html(`<tr><td colspan="5" class="text-center text-danger p-4">${data.message || 'No se pudo cargar el directorio.'}</td></tr>`);
         }
     } catch (e) {
         console.error("Error al cargar pacientes", e);
+        tbody.html('<tr><td colspan="5" class="text-center text-danger p-4">Error de conexión al cargar pacientes.</td></tr>');
     }
 }
 
-function renderListaPacientesAdmin() {
-    const tbody = $("#tablaPacientes tbody");
-    if (!tbody.length) return; // Por si la tabla aún no existe en el HTML
-    tbody.empty();
+function renderPacientesAdminPagination() {
+    const bar = $("#pacientesAdminPagination");
+    if (!bar.length) return;
 
-    if (currentPacientesAdmin.length === 0) {
-        tbody.append('<tr><td colspan="5" class="text-center text-muted">No hay pacientes registrados</td></tr>');
+    if (patientsAdminLastPage <= 1) {
+        bar.addClass('d-none');
         return;
     }
 
+    bar.removeClass('d-none');
+    $("#pacientesAdminPaginationInfo").text(
+        `Página ${patientsAdminPage} de ${patientsAdminLastPage} · ${patientsAdminTotal} paciente(s)`
+    );
+    $("#pacientesAdminPrev").prop('disabled', patientsAdminPage <= 1);
+    $("#pacientesAdminNext").prop('disabled', patientsAdminPage >= patientsAdminLastPage);
+}
+
+function renderListaPacientesAdmin() {
+    const tbody = $("#tabla-pacientes-body");
+    if (!tbody.length) return;
+    tbody.empty();
+
+    if (!currentPacientesAdmin.length) {
+        tbody.append('<tr><td colspan="5" class="text-center text-muted p-4">No hay pacientes registrados en este laboratorio.</td></tr>');
+        return;
+    }
+
+    const canEdit = canEditPatientsRis();
+
     currentPacientesAdmin.forEach(p => {
-        const per = p.persona;
+        const per = p.persona || {};
+        const nombre = `${per.names || ''} ${per.last_name_1 || ''} ${per.last_name_2 || ''}`.trim();
+        const acciones = canEdit
+            ? `<button type="button" class="btn btn-sm btn-outline-primary" onclick="abrirModalPaciente('${p.id}')"><i class="bi bi-pencil"></i> Editar</button>`
+            : '<span class="text-muted small">Solo lectura</span>';
+
         tbody.append(`
             <tr>
-                <td class="fw-bold">${per.rut}</td>
-                <td>${per.last_name_1} ${per.last_name_2 || ''}, ${per.names}</td>
-                <td>${per.email || '<span class="text-muted small">Sin correo</span>'}</td>
+                <td class="ps-4 fw-bold">${per.rut || 'Sin RUT'}</td>
+                <td>${nombre || '-'}</td>
+                <td>${formatGeneroPaciente(per.gender)}</td>
                 <td>${per.phone || '-'}</td>
-                <td class="text-end">
-                    ${canEditPatientsRis()
-                        ? `<button class="btn btn-sm btn-outline-primary" onclick="abrirModalPaciente('${p.id}')"><i class="bi bi-pencil"></i> Editar</button>`
-                        : '<span class="text-muted small">Solo lectura</span>'}
-                </td>
+                <td class="text-center pe-4">${acciones}</td>
             </tr>
         `);
     });
 }
 
 function abrirModalPaciente(id = null) {
+    if (!id && !canEditPatientsRis()) {
+        return showToast('Su perfil no puede crear pacientes en esta sede.', 'warning');
+    }
+    if (!id && typeof risRequireConcreteLabId === 'function' && !risRequireConcreteLabId()) {
+        return;
+    }
+
     limpiarFormulario(".req-pac");
     $("#pacienteId").val("");
     $("#pacRUT, #pacNombres, #pacApellido1, #pacApellido2, #pacNacimiento, #pacGenero, #pacTelefono, #pacEmail, #pacSeguro").val("");
@@ -3253,6 +3227,9 @@ async function guardarPaciente() {
 }
 
 async function eliminarPaciente() {
+    if (!canEditPatientsRis()) {
+        return showToast('Su perfil no puede eliminar pacientes en esta sede.', 'warning');
+    }
     const id = $("#pacienteId").val();
     if (!id) return;
     if (!(await showConfirm("¿Está absolutamente seguro de eliminar este paciente y todo su historial? Esta acción es irreversible.", { dangerous: true, confirmText: "Eliminar definitivamente" }))) return;
