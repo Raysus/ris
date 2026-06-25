@@ -240,7 +240,7 @@ function risHasGlobalAccess() {
     return risIsSysAdmin();
 }
 
-/** Muestra Worklist y Atención para admins; en dental/vet solo Atención en salas. */
+/** Clínico humano → Worklist; dental/veterinario → Atención en salas (también para admins). */
 function applyOperationalModuleNav() {
     const manual = getLabProfile().uses_dicom_worklist === false;
 
@@ -265,15 +265,6 @@ function applyOperationalModuleNav() {
         }
     };
 
-    if (risIsClinicAdmin()) {
-        document.querySelectorAll('#sidebar nav a[data-page="worklist"]').forEach((el) => {
-            el.classList.toggle('d-none', manual);
-        });
-        document.querySelectorAll('#sidebar nav a[data-page="atencion"]').forEach((el) => {
-            el.classList.remove('d-none');
-        });
-        return;
-    }
     document.querySelectorAll('#sidebar nav a[data-page="worklist"]').forEach((el) => {
         if (!canOperational('worklist')) return;
         el.classList.toggle('d-none', manual);
