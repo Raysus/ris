@@ -104,7 +104,7 @@ class KeycloakService
     {
         $roles = [];
 
-        if (collect($risRoles)->intersect(['admin', 'secretaria', 'secretario', 'transcriptor', 'sis_admin', 'recepcion'])->isNotEmpty()) {
+        if (collect($risRoles)->intersect(['admin', 'secretaria', 'secretario', 'sis_admin'])->isNotEmpty()) {
             $roles[] = 'admin';
         }
         if (collect($risRoles)->intersect(['secretaria', 'secretario'])->isNotEmpty()) {

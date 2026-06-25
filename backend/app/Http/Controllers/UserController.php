@@ -125,7 +125,7 @@ class UserController extends Controller
 
             // === MAPEO DE ROLES KEYCLOAK ===
             $keycloakRole = 'user'; // compat legacy (un solo rol)
-            if (collect($rolesSeleccionados)->intersect(['admin', 'secretaria', 'secretario', 'transcriptor'])->isNotEmpty()) {
+            if (collect($rolesSeleccionados)->intersect(['admin', 'secretario', 'sis_admin'])->isNotEmpty()) {
                 $keycloakRole = 'admin';
             } elseif (in_array('radiologo', $rolesSeleccionados)) {
                 $keycloakRole = 'medico';
@@ -212,7 +212,7 @@ class UserController extends Controller
 
     public function getRoles()
     {
-        $roles = \App\Models\TipoUsuario::where('name', '!=', 'sis_admin')
+        $roles = \App\Models\TipoUsuario::assignableQuery()
             ->orderBy('name')
             ->get();
 
