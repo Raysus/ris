@@ -26,6 +26,8 @@ $(document).ready(async function () {
     $("#userNameDisplay").text(nombreMostrado.trim());
     $("#userRoleDisplay").text(profileName.toUpperCase());
 
+    risApplyLaptopLayout();
+
     const userRoles = Array.isArray(userData.settings?.roles) ? userData.settings.roles : [];
     const esSysAdmin = typeof risIsSysAdmin === 'function'
         ? risIsSysAdmin()
@@ -96,6 +98,8 @@ $(document).ready(async function () {
 
     $('#toggleSidebar').click(function () {
         $('#sidebar').toggleClass('collapsed');
+        const isCollapsed = $('#sidebar').hasClass('collapsed');
+        localStorage.setItem('ris_sidebar_collapsed', isCollapsed ? 'true' : 'false');
     });
 
     $('#darkMode').click(function () {
@@ -151,6 +155,29 @@ $(document).ready(async function () {
     }
 
     risEnsureCurrentPageVisible();
+});
+
+/** En 1366×768 y similares, sidebar colapsado por defecto para ganar ancho útil. */
+function risApplyLaptopLayout() {
+    const w = window.innerWidth;
+    const collapsed = localStorage.getItem('ris_sidebar_collapsed');
+    if (collapsed === null && w >= 992 && w <= 1400) {
+        $('#sidebar').addClass('collapsed');
+        localStorage.setItem('ris_sidebar_collapsed', 'true');
+    } else if (collapsed === 'true') {
+        $('#sidebar').addClass('collapsed');
+    } else if (collapsed === 'false') {
+        $('#sidebar').removeClass('collapsed');
+    }
+}
+
+$(window).on('resize', function () {
+    clearTimeout(window._risResizeTimer);
+    window._risResizeTimer = setTimeout(function () {
+        if (typeof window.risAgendaCalendar !== 'undefined' && window.risAgendaCalendar?.updateSize) {
+            window.risAgendaCalendar.updateSize();
+        }
+    }, 150);
 });
 
 function risResolveVisiblePage(preferred) {
