@@ -22,6 +22,10 @@
                     data-bs-target="#tab-pacientes" type="button" role="tab">
                     <i class="bi bi-person-vcard me-2 text-success"></i>Pacientes
                 </button>
+                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
+                    data-bs-target="#tab-medicos-referentes" type="button" role="tab">
+                    <i class="bi bi-person-plus me-2 text-info"></i>Médicos referentes
+                </button>
 
                 <span class="small text-muted text-uppercase fw-bolder mb-1 mt-3 px-2"
                     style="font-size: 0.7rem;">Operación Clínica</span>
@@ -177,6 +181,38 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="tab-pane fade h-100" id="tab-medicos-referentes" role="tabpanel">
+                    <div class="d-flex flex-column h-100">
+                        <div class="d-flex justify-content-between mb-3 flex-wrap gap-2">
+                            <div class="input-group shadow-sm ris-toolbar-search">
+                                <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
+                                <input type="text" id="searchMedicoReferente" class="form-control border-start-0"
+                                    placeholder="Buscar por RUT, nombre o correo..."
+                                    onkeyup="renderListaMedicosReferentesAdmin()">
+                            </div>
+                            <button type="button" class="btn btn-info text-white fw-bold shadow px-4"
+                                onclick="nuevoMedicoReferente()">
+                                <i class="bi bi-plus-lg me-2"></i>Nuevo médico referente
+                            </button>
+                        </div>
+                        <div class="card shadow-sm border-0 flex-grow-1 overflow-auto">
+                            <table class="table table-hover align-middle mb-0" id="tablaMedicosReferentesAdmin">
+                                <thead class="bg-light sticky-top">
+                                    <tr>
+                                        <th class="ps-4">RUT</th>
+                                        <th>Nombre</th>
+                                        <th>Teléfono</th>
+                                        <th>Correo</th>
+                                        <th class="text-center pe-4">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="tab-pane fade h-100" id="tab-insumos" role="tabpanel">
                     <div class="d-flex flex-column h-100">
                         <div class="d-flex justify-content-between mb-3">
@@ -1247,6 +1283,58 @@
                 <div>
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
                     <button type="button" class="btn btn-primary fw-bold px-4" onclick="guardarPlan()">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalMedicoReferente" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-info text-white py-3">
+                <h5 class="modal-title fw-bold"><i class="bi bi-person-plus me-2"></i>Médico referente</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light p-4">
+                <form id="formMedicoReferente">
+                    <input type="hidden" id="refDoctorId">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small text-muted" for="refDoctorRut">RUT *</label>
+                            <input type="text" class="form-control req-refdoc" id="refDoctorRut"
+                                placeholder="12.345.678-9">
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label fw-bold small text-muted" for="refDoctorNames">Nombres *</label>
+                            <input type="text" class="form-control req-refdoc" id="refDoctorNames">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted" for="refDoctorLast1">Apellido paterno</label>
+                            <input type="text" class="form-control" id="refDoctorLast1">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted" for="refDoctorLast2">Apellido materno</label>
+                            <input type="text" class="form-control" id="refDoctorLast2">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted" for="refDoctorPhone">Teléfono</label>
+                            <input type="text" class="form-control" id="refDoctorPhone">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted" for="refDoctorEmail">Correo</label>
+                            <input type="email" class="form-control" id="refDoctorEmail">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-danger d-none" id="btnEliminarMedicoReferente"
+                    onclick="eliminarMedicoReferente()">Eliminar</button>
+                <div class="ms-auto">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-info text-white fw-bold px-4"
+                        onclick="guardarMedicoReferente()">Guardar</button>
                 </div>
             </div>
         </div>
