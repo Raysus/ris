@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Persona;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -52,7 +53,7 @@ class KeycloakService
     {
         $token = $this->getAdminToken();
 
-        $rutNormalizado = strtoupper(str_replace(['.', ' '], '', $userData['rut']));
+        $rutNormalizado = Persona::normalizeRut($userData['rut']);
 
         $keycloakUser = [
             'username' => $rutNormalizado,
@@ -98,8 +99,40 @@ class KeycloakService
      * @param string|null $email
      * @param string $roleName
      */
+    /** @return list<string> Roles realm de Keycloak para personal del portal (no paciente). */
+    public static function mapRisRolesToKeycloak(array $risRoles): array
+    {
+        $roles = [];
+
+        if (collect($risRoles)->intersect(['admin', 'secretaria', 'secretario', 'transcriptor', 'sis_admin', 'recepcion'])->isNotEmpty()) {
+            $roles[] = 'admin';
+        }
+        if (collect($risRoles)->intersect(['secretaria', 'secretario'])->isNotEmpty()) {
+            $roles[] = 'secretaria';
+        }
+        if (in_array('radiologo', $risRoles, true)) {
+            $roles[] = 'medico';
+        }
+        if (in_array('tecnologo', $risRoles, true)) {
+            $roles[] = 'tecnologo';
+        }
+        if (in_array('derivante', $risRoles, true)) {
+            $roles[] = 'medico_solicitante';
+        }
+
+        return array_values(array_unique($roles));
+    }
+
     /**
-     * @param  array{firstName?: string, lastName?: string, sendSetupEmail?: bool}  $options
+     * @param  array{
+     *   firstName?: string,
+     *   lastName?: string,
+     *   sendSetupEmail?: bool,
+     *   legacyUsername?: string,
+     *   risRoles?: array<int, string>,
+     *   portalLabId?: int|string|null,
+     *   portalSiteFilter?: string|null,
+     * }  $options
      */
     public function updateUser($username, $password, $email, $roleName, array $options = [])
     {
@@ -107,58 +140,106 @@ class KeycloakService
         $firstName = $options['firstName'] ?? null;
         $lastName = $options['lastName'] ?? null;
         $sendSetupEmail = (bool) ($options['sendSetupEmail'] ?? false);
-        $createdInKeycloak = false;
+        $legacyUsername = $options['legacyUsername'] ?? null;
+        $keycloakRoles = !empty($options['risRoles'])
+            ? self::mapRisRolesToKeycloak($options['risRoles'])
+            : array_filter([$roleName]);
+        $portalAttributes = $this->buildPortalAttributes($options);
 
-        // 1. Buscar si el usuario ya existe
+        // Keycloak usa RUT normalizado (sin puntos), igual que pacientes y portal.
+        $keycloakUsername = Persona::normalizeRut((string) $username);
+
+        // 1. Buscar si el usuario ya existe (por RUT o por username legacy del RIS)
         $searchResponse = Http::withoutVerifying()
             ->withToken($token)
             ->get("{$this->baseUrl}/admin/realms/{$this->targetRealm}/users", [
-                'username' => $username,
+                'username' => $keycloakUsername,
                 'exact' => true
             ]);
 
         $users = $searchResponse->json();
         $userId = null;
 
+        if (empty($users) && filled($legacyUsername) && $legacyUsername !== $keycloakUsername) {
+            $legacySearch = Http::withoutVerifying()
+                ->withToken($token)
+                ->get("{$this->baseUrl}/admin/realms/{$this->targetRealm}/users", [
+                    'username' => $legacyUsername,
+                    'exact' => true,
+                ]);
+            $users = $legacySearch->json();
+        }
+
         if (!empty($users)) {
             // EL USUARIO EXISTE: Obtenemos su UUID y lo actualizamos
             $userId = $users[0]['id'];
-            $updatePayload = array_filter([
-                'email' => $email,
-                'firstName' => $firstName,
-                'lastName' => $lastName,
-            ], fn ($v) => $v !== null && $v !== '');
+            $existingUsername = (string) ($users[0]['username'] ?? '');
 
-            if (!empty($password)) {
-                $updatePayload['credentials'] = [
-                    [
-                        'type' => 'password',
-                        'value' => $password,
-                        'temporary' => false,
-                    ]
-                ];
+            if ($existingUsername !== $keycloakUsername) {
+                // Keycloak suele tener deshabilitado "Edit username": recrear con RUT.
+                $deleteResponse = Http::withoutVerifying()
+                    ->withToken($token)
+                    ->delete("{$this->baseUrl}/admin/realms/{$this->targetRealm}/users/{$userId}");
+
+                if (!$deleteResponse->successful()) {
+                    Log::error('No se pudo eliminar usuario legacy en Keycloak', [
+                        'legacyUsername' => $existingUsername,
+                        'targetUsername' => $keycloakUsername,
+                        'body' => $deleteResponse->body(),
+                    ]);
+                    throw new \Exception('No se pudo migrar el usuario legacy en Keycloak.');
+                }
+
+                $users = [];
+            } else {
+                $updatePayload = array_filter([
+                    'email' => $email,
+                    'firstName' => $firstName,
+                    'lastName' => $lastName,
+                    'attributes' => array_merge(
+                        ['rut' => [$keycloakUsername]],
+                        $portalAttributes
+                    ),
+                ], fn ($v) => $v !== null && $v !== '');
+
+                if (!empty($password)) {
+                    $updatePayload['credentials'] = [
+                        [
+                            'type' => 'password',
+                            'value' => $password,
+                            'temporary' => false,
+                        ]
+                    ];
+                }
+
+                $updateResponse = Http::withoutVerifying()
+                    ->withToken($token)
+                    ->put("{$this->baseUrl}/admin/realms/{$this->targetRealm}/users/{$userId}", $updatePayload);
+
+                if (!$updateResponse->successful()) {
+                    Log::error("Error actualizando usuario en Keycloak", ['body' => $updateResponse->body()]);
+                }
             }
+        }
 
-            $updateResponse = Http::withoutVerifying()
-                ->withToken($token)
-                ->put("{$this->baseUrl}/admin/realms/{$this->targetRealm}/users/{$userId}", $updatePayload);
-
-            if (!$updateResponse->successful()) {
-                Log::error("Error actualizando usuario en Keycloak", ['body' => $updateResponse->body()]);
-            }
-        } else {
+        if (empty($users)) {
             // EL USUARIO NO EXISTE: Lo creamos
             if (empty($password)) {
-                throw new \Exception("Se requiere una contraseña inicial para crear al usuario en Keycloak.");
+                $password = bin2hex(random_bytes(8));
+                $sendSetupEmail = $sendSetupEmail || filled($email);
             }
 
             $createPayload = array_filter([
-                'username' => $username,
+                'username' => $keycloakUsername,
                 'email' => $email,
                 'firstName' => $firstName,
                 'lastName' => $lastName,
                 'enabled' => true,
                 'emailVerified' => empty($email),
+                'attributes' => array_merge(
+                    ['rut' => [$keycloakUsername]],
+                    $portalAttributes
+                ),
                 'credentials' => [
                     [
                         'type' => 'password',
@@ -178,7 +259,7 @@ class KeycloakService
                 $searchResponse2 = Http::withoutVerifying()
                     ->withToken($token)
                     ->get("{$this->baseUrl}/admin/realms/{$this->targetRealm}/users", [
-                        'username' => $username,
+                        'username' => $keycloakUsername,
                         'exact' => true
                     ]);
                 $userId = $searchResponse2->json()[0]['id'];
@@ -188,9 +269,9 @@ class KeycloakService
             }
         }
 
-        // 2. Asignar el Rol
-        if ($userId && $roleName) {
-            $this->assignRealmRole($userId, $roleName);
+        // 2. Asignar roles realm (portal lee realm_access.roles del JWT)
+        if ($userId && $keycloakRoles !== []) {
+            $this->assignRealmRoles($userId, $keycloakRoles, $token);
         }
 
         // 3. Enviar correo de Keycloak (actualizar contraseña / verificar email)
@@ -246,34 +327,62 @@ class KeycloakService
      */
     public function assignRealmRole($userId, $roleName)
     {
-        $token = $this->getAdminToken();
+        return $this->assignRealmRoles($userId, [$roleName]);
+    }
 
-        // 1. Obtener la ID técnica del Rol en Keycloak
-        $roleResponse = Http::withoutVerifying()
-            ->withToken($token)
-            ->get("{$this->baseUrl}/admin/realms/{$this->targetRealm}/roles/{$roleName}");
+    /** @param list<string> $roleNames */
+    public function assignRealmRoles($userId, array $roleNames, ?string $token = null): bool
+    {
+        $token = $token ?? $this->getAdminToken();
+        $rolePayload = [];
 
-        if (!$roleResponse->successful()) {
-            Log::warning("Rol '{$roleName}' no encontrado en Keycloak. Verifique que exista en el Realm.");
+        foreach (array_values(array_unique(array_filter($roleNames))) as $roleName) {
+            $roleResponse = Http::withoutVerifying()
+                ->withToken($token)
+                ->get("{$this->baseUrl}/admin/realms/{$this->targetRealm}/roles/{$roleName}");
+
+            if (!$roleResponse->successful()) {
+                Log::warning("Rol '{$roleName}' no encontrado en Keycloak.");
+                continue;
+            }
+
+            $roleData = $roleResponse->json();
+            $rolePayload[] = [
+                'id' => $roleData['id'],
+                'name' => $roleData['name'],
+            ];
+        }
+
+        if ($rolePayload === []) {
             return false;
         }
 
-        $roleData = $roleResponse->json();
-
-        // 2. Mapear el Rol al Usuario
         $assignResponse = Http::withoutVerifying()
             ->withToken($token)
-            ->post("{$this->baseUrl}/admin/realms/{$this->targetRealm}/users/{$userId}/role-mappings/realm", [
-                [
-                    "id" => $roleData['id'],
-                    "name" => $roleData['name']
-                ]
-            ]);
+            ->post("{$this->baseUrl}/admin/realms/{$this->targetRealm}/users/{$userId}/role-mappings/realm", $rolePayload);
 
         if (!$assignResponse->successful()) {
-            Log::error("Fallo al asignar el rol '{$roleName}' al usuario {$userId}", ['body' => $assignResponse->body()]);
+            Log::error("Fallo al asignar roles Keycloak al usuario {$userId}", [
+                'roles' => $roleNames,
+                'body' => $assignResponse->body(),
+            ]);
         }
 
         return $assignResponse->successful();
+    }
+
+  /** Atributos que el portal lee del JWT (protocol mappers lab_id / site_filter). */
+    private function buildPortalAttributes(array $options): array
+    {
+        $attrs = [];
+
+        if (array_key_exists('portalLabId', $options) && $options['portalLabId'] !== null && $options['portalLabId'] !== '') {
+            $attrs['lab_id'] = [(string) $options['portalLabId']];
+        }
+        if (!empty($options['portalSiteFilter'])) {
+            $attrs['site_filter'] = [(string) $options['portalSiteFilter']];
+        }
+
+        return $attrs;
     }
 }

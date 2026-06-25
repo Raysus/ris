@@ -124,7 +124,7 @@ class UserController extends Controller
             $user->save();
 
             // === MAPEO DE ROLES KEYCLOAK ===
-            $keycloakRole = 'user'; // Rol por defecto
+            $keycloakRole = 'user'; // compat legacy (un solo rol)
             if (collect($rolesSeleccionados)->intersect(['admin', 'secretaria', 'secretario', 'transcriptor'])->isNotEmpty()) {
                 $keycloakRole = 'admin';
             } elseif (in_array('radiologo', $rolesSeleccionados)) {
@@ -135,21 +135,7 @@ class UserController extends Controller
                 $keycloakRole = 'medico_solicitante';
             }
 
-            // Sincronización con Keycloak (rol, credenciales y EMAIL).
-            // Antes se enviaba $user->email (inexistente en el modelo User): el correo
-            // nunca llegaba a Keycloak. El email vive en Persona, así que usamos $email.
-            // Se sincroniza al cambiar la contraseña O el email, y nunca rompe el guardado local.
-            if (config('app.env') !== 'local' && $this->shouldSyncKeycloak()
-                && ($request->filled('password') || filled($email))) {
-                try {
-                    $this->keycloakService->updateUser($user->username, $request->password, $email, $keycloakRole);
-                } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::warning(
-                        'Sync de usuario/email a Keycloak falló: ' . $e->getMessage()
-                    );
-                }
-            }
-            // === FIN AJUSTE KEYCLOAK ===
+            [$portalLabId, $portalSiteFilter] = [null, null];
 
             // Gestión de laboratorios (Sucursales)
             if ($request->has('laboratories')) {
@@ -171,6 +157,33 @@ class UserController extends Controller
             }
 
             $user->load('persona', 'tipoUsuario', 'laboratories');
+            [$portalLabId, $portalSiteFilter] = $this->resolvePortalAccessForUser($user);
+
+            // Sincronización con Keycloak (rol, credenciales y EMAIL).
+            if (config('app.env') !== 'local' && $this->shouldSyncKeycloak()
+                && ($request->filled('password') || filled($email))) {
+                try {
+                    $this->keycloakService->updateUser(
+                        $persona->rut,
+                        $request->password,
+                        $email,
+                        $keycloakRole,
+                        [
+                            'firstName' => $request->nombres,
+                            'lastName' => trim($request->apellidoPaterno . ' ' . ($request->apellidoMaterno ?? '')),
+                            'legacyUsername' => $user->username,
+                            'risRoles' => $rolesSeleccionados,
+                            'portalLabId' => $portalLabId,
+                            'portalSiteFilter' => $portalSiteFilter,
+                        ]
+                    );
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning(
+                        'Sync de usuario/email a Keycloak falló: ' . $e->getMessage()
+                    );
+                }
+            }
+            // === FIN AJUSTE KEYCLOAK ===
 
             return [$user, $persona, $userAction];
             });
@@ -211,5 +224,26 @@ class UserController extends Controller
         return filled(env('KEYCLOAK_BASE_URL'))
             && filled(env('KEYCLOAK_ADMIN_USER'))
             && filled(env('KEYCLOAK_ADMIN_PASSWORD'));
+    }
+
+    /**
+     * Mapeo sede RIS → atributos del portal (Keycloak lab_id / site_filter).
+     *
+     * @return array{0: int|string|null, 1: string|null}
+     */
+    private function resolvePortalAccessForUser(User $user): array
+    {
+        $user->loadMissing('laboratories');
+        $labName = strtoupper((string) ($user->laboratories->first()?->name ?? ''));
+
+        if (str_contains($labName, 'SIRESA')) {
+            return [5, 'SIRESA'];
+        }
+
+        if (str_contains($labName, 'ECOTEMUCO')) {
+            return [6, 'IMEX TEMUCO'];
+        }
+
+        return [null, null];
     }
 }

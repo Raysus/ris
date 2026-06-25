@@ -12,6 +12,7 @@
     'nube' => 'userit@100.104.4.114',
     'siresa_centro' => 'siresa-centro-servidor@100.103.135.42',
     'lab_lautaro' => 'admin@100.104.4.20',
+    'ecotemuco' => 'admin@100.96.63.26',
 ])
 
 @setup
@@ -23,6 +24,7 @@
     $lab_app_dirs = [
         'siresa_centro' => '/opt/RIS',
         'lab_lautaro' => '/var/www/ris.healthticloud.cl',
+        'ecotemuco' => '/home/raul/Escritorio/RIS',
     ];
 
     // Stack Docker de los laboratorios (LAN)
