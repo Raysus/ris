@@ -34,6 +34,8 @@ class PatientController extends Controller
 
     public function index(Request $request)
     {
+        $perPage = min(max((int) $request->query('per_page', 20), 1), 100);
+
         $patients = $this->getSecurePatientQuery()
             ->with([
                 'persona',
@@ -41,7 +43,7 @@ class PatientController extends Controller
                 'appointments.studies.exam'
             ])
             ->orderBy('created_at', 'desc')
-            ->paginate(20);
+            ->paginate($perPage);
 
         return response()->json(['success' => true, 'data' => $patients]);
     }
