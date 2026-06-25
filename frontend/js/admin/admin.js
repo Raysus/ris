@@ -3081,11 +3081,11 @@ function renderPacientesAdminPagination() {
     if (!bar.length) return;
 
     if (patientsAdminLastPage <= 1) {
-        bar.addClass('d-none');
+        bar.addClass('d-none').removeClass('d-flex');
         return;
     }
 
-    bar.removeClass('d-none');
+    bar.removeClass('d-none').addClass('d-flex');
     $("#pacientesAdminPaginationInfo").text(
         `Página ${patientsAdminPage} de ${patientsAdminLastPage} · ${patientsAdminTotal} paciente(s)`
     );

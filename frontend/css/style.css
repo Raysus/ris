@@ -1331,6 +1331,211 @@ body.dark,
 }
 
 /* =========================================
+   RESPONSIVE — laptops 1366×768 y similares
+   ========================================= */
+@media (min-width: 992px) and (max-width: 1400px) {
+    :root {
+        --sidebar-width: 220px;
+    }
+
+    #appContent {
+        padding: 1rem 1.15rem;
+    }
+
+    #appContent .container-fluid.p-4 {
+        padding: 1rem !important;
+    }
+
+    #appContent .container-fluid.p-3,
+    #appContent .container-fluid.p-2 {
+        padding: 0.75rem !important;
+    }
+
+    .topbar {
+        height: 56px;
+        padding: 0 0.85rem;
+        gap: 0.5rem;
+    }
+
+    .topbar .right {
+        gap: 0.65rem !important;
+        flex-wrap: nowrap;
+        min-width: 0;
+    }
+
+    #navLabSelectorContainer {
+        max-width: 11.5rem;
+        margin-right: 0.25rem !important;
+    }
+
+    #navLabSelectorContainer .form-select {
+        font-size: 0.8rem;
+        padding-left: 0.35rem;
+        padding-right: 1.75rem;
+    }
+
+    #userNameDisplay {
+        font-size: 0.8rem !important;
+        max-width: 9.5rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .sidebar {
+        padding: 1rem 0.65rem;
+    }
+
+    .sidebar nav a {
+        padding: 0.65rem 0.75rem;
+        font-size: 0.88rem;
+        margin-bottom: 0.35rem;
+    }
+
+    .brand-logo {
+        max-width: 180px;
+    }
+
+    .agenda-page h4 {
+        font-size: 1.15rem;
+    }
+
+    .agenda-ayuda-panel .card-body {
+        padding: 0.75rem 1rem !important;
+    }
+
+    .agenda-ayuda-panel .agenda-ayuda-list {
+        font-size: 0.78rem;
+    }
+
+    .agenda-calendar,
+    #calendar {
+        min-height: 420px;
+        height: calc(100vh - 230px);
+    }
+
+    #calendar.fc .fc-header-toolbar {
+        column-gap: 0.75rem;
+        padding: 0.5rem 0.65rem;
+    }
+
+    #calendar.fc .fc-header-toolbar .fc-toolbar-title {
+        font-size: 0.95rem;
+    }
+
+    #calendar.fc .fc-header-toolbar .fc-button-group .fc-button {
+        font-size: 0.78rem;
+        padding: 0.25rem 0.45rem;
+        min-width: 2.75rem;
+    }
+
+    .agenda-appointment-dialog {
+        max-width: min(98vw, 1120px);
+    }
+
+    .agenda-wizard-nav .nav-link {
+        font-size: 0.78rem;
+        padding: 0.4rem 0.75rem;
+    }
+
+    .agenda-quick-exam-toolbar {
+        grid-template-columns: minmax(7rem, 9rem) minmax(8rem, 1fr) minmax(9rem, 1.15fr) minmax(8rem, auto) minmax(6.5rem, auto);
+        gap: 0.55rem 0.75rem;
+    }
+
+    #tableStudies {
+        min-width: 860px;
+    }
+
+    #tableStudies .col-exam { min-width: 11rem; }
+    #tableStudies .col-variante { min-width: 7rem; }
+
+    .ris-toolbar-search {
+        max-width: 240px;
+    }
+
+    .admin-module .col-md-3.col-lg-2 {
+        flex: 0 0 13.5%;
+        max-width: 13.5%;
+    }
+
+    .admin-module .tab-content {
+        min-width: 0;
+    }
+
+    .admin-module .nav-pills .nav-link {
+        font-size: 0.82rem;
+        padding: 0.45rem 0.65rem !important;
+    }
+
+    .admin-module h3 {
+        font-size: 1.35rem;
+    }
+
+    .card-header h5,
+    .card-header h6 {
+        font-size: 0.95rem;
+    }
+
+    .worklist-toolbar,
+    .ris-module-toolbar {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .filter-machine-select {
+        min-width: 140px;
+        max-width: 180px;
+    }
+
+    .search-patient-input {
+        min-width: 150px;
+        max-width: 220px;
+    }
+
+    .radiologist-toolbar .btn {
+        font-size: 0.72rem;
+        padding: 0.28rem 0.5rem;
+    }
+
+    .radiologist-toolbar .btn .bi {
+        margin-right: 0.15rem !important;
+    }
+
+    #colHistorial[style*="width: 50%"] {
+        width: 42% !important;
+    }
+
+    .modal-xl {
+        max-width: min(96vw, 1120px);
+    }
+
+    .modal-lg {
+        max-width: min(96vw, 900px);
+    }
+
+    .table {
+        font-size: 0.88rem;
+    }
+
+    .table thead th {
+        font-size: 0.72rem;
+        padding: 0.55rem 0.5rem;
+    }
+
+    .display-6 {
+        font-size: 1.85rem;
+    }
+}
+
+.ris-toolbar-search {
+    width: 100%;
+    max-width: 320px;
+    min-width: 0;
+    flex: 0 1 auto;
+}
+
+/* =========================================
    RESPONSIVE — tablet y móvil
    ========================================= */
 @media (max-width: 992px) {

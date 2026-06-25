@@ -1933,6 +1933,7 @@ function setupCalendar(el) {
     });
 
     calendar.render();
+    window.risAgendaCalendar = calendar;
     montarUiInternaCalendario();
     sincronizarRecursosCalendario();
     if (calendar.view?.type === 'resourceTimelineDay') {
