@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\ReferringDoctorController;
 use App\Models\ReferringDoctor;
 use App\Models\User;
 use App\Models\Insurance;
@@ -133,55 +134,6 @@ class AgendaCatalogController extends Controller
 
     public function storeReferringDoctor(Request $request)
     {
-        $request->validate([
-            'rut' => 'required|string',
-            'names' => 'required|string|max:255',
-            'last_name_1' => 'nullable|string|max:255',
-            'email' => 'nullable|email'
-        ]);
-
-        $cleanRut = ReferringDoctor::normalizeRut($request->rut);
-
-        // 1. Guardar en Base de Datos Local (un médico por RUT)
-        $doctor = ReferringDoctor::findByRut($cleanRut);
-        if ($doctor) {
-            $doctor->fill([
-                'names' => $request->names,
-                'last_name_1' => $request->last_name_1,
-                'last_name_2' => $request->last_name_2 ?? null,
-                'email' => $request->email,
-            ])->save();
-        } else {
-            $doctor = ReferringDoctor::create([
-                'rut' => $cleanRut,
-                'names' => $request->names,
-                'last_name_1' => $request->last_name_1,
-                'last_name_2' => $request->last_name_2 ?? null,
-                'email' => $request->email,
-            ]);
-        }
-
-        // 2. Crear cuenta en Keycloak para que el médico vea sus pacientes
-        try {
-            $this->keycloakService->createUser([
-                'username' => $cleanRut,
-                'nombres' => $request->names,
-                'apellidos' => $request->last_name_1,
-                'password' => substr($cleanRut, 0, 4), // Contraseña temporal
-                'rut' => $cleanRut,
-                'email' => $request->email ?? null,
-            ]);
-            // Opcional: Podrías asignarle el rol 'medico_derivante' en Keycloak aquí
-        } catch (\Exception $e) {
-            Log::warning("No se pudo crear el médico en Keycloak: " . $e->getMessage());
-        }
-
-        // 3. Sincronizar con la nube
-        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\ReferringDoctor', 'created', $doctor->toArray());
-
-        return response()->json([
-            'success' => true,
-            'data' => $doctor
-        ]);
+        return app(ReferringDoctorController::class)->store($request);
     }
 }

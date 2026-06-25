@@ -20,6 +20,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\PlanController;
 use App\Http\Controllers\InsuranceController;
+use App\Http\Controllers\ReferringDoctorController;
 use App\Http\Controllers\TemplateController;
 
 
@@ -92,7 +93,10 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::put('/appointments/{id}/status', [WorklistController::class, 'updateStatus']);
     Route::put('/appointments/{id}/clear-review', [AppointmentController::class, 'clearReview']);
     Route::apiResource('appointments', AppointmentController::class);
-    Route::post('/referring-doctors', [AgendaCatalogController::class, 'storeReferringDoctor']);
+    Route::get('/referring-doctors', [ReferringDoctorController::class, 'index']);
+    Route::post('/referring-doctors', [ReferringDoctorController::class, 'store']);
+    Route::put('/referring-doctors/{id}', [ReferringDoctorController::class, 'update']);
+    Route::delete('/referring-doctors/{id}', [ReferringDoctorController::class, 'destroy']);
 
     Route::apiResource('users', UserController::class);
     Route::apiResource('supplies', SupplyController::class);

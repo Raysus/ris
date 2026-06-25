@@ -12,6 +12,7 @@ let catalogLabTypes = [];
 let currentSucursalesAdmin = [];
 let currentPlanesFromDB = [];
 let catalogInsurances = [];
+let catalogReferringDoctors = [];
 let currentPacientesAdmin = [];
 let patientsAdminPage = 1;
 let patientsAdminLastPage = 1;
@@ -195,6 +196,7 @@ function initAdmin() {
 
     if (typeof cargarPacientes === "function") cargarPacientes();
     if (typeof refreshPacientesAdminActions === 'function') refreshPacientesAdminActions();
+    if (typeof cargarMedicosReferentesAdmin === 'function') cargarMedicosReferentesAdmin();
 
     const fechaActual = new Date();
     const mesActual = `${fechaActual.getFullYear()}-${String(fechaActual.getMonth() + 1).padStart(2, '0')}`;
@@ -3252,6 +3254,201 @@ async function eliminarPaciente() {
         }
     } catch (e) {
         showToast("Error de conexión", "danger");
+    }
+}
+
+// === MÉDICOS REFERENTES ===
+
+function risCanDeleteReferringDoctors() {
+    return typeof risIsSysAdmin === 'function' && risIsSysAdmin();
+}
+
+function nombreCompletoMedicoReferente(doc) {
+    return [doc.last_name_1, doc.last_name_2, doc.names].filter(Boolean).join(' ').trim() || doc.names || '-';
+}
+
+async function cargarMedicosReferentesAdmin() {
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+    const tbody = $("#tablaMedicosReferentesAdmin tbody");
+    if (!tbody.length) return;
+
+    tbody.html('<tr><td colspan="5" class="text-center p-4"><span class="spinner-border spinner-border-sm text-primary"></span></td></tr>');
+
+    try {
+        const response = await fetch(`${API_URL}/referring-doctors`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
+        });
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            catalogReferringDoctors = data.data || [];
+            renderListaMedicosReferentesAdmin();
+        } else {
+            tbody.html(`<tr><td colspan="5" class="text-center text-danger p-4">${data.message || 'No se pudo cargar.'}</td></tr>`);
+        }
+    } catch (e) {
+        console.error('Error cargando médicos referentes', e);
+        tbody.html('<tr><td colspan="5" class="text-center text-danger p-4">Error de conexión.</td></tr>');
+    }
+}
+
+function renderListaMedicosReferentesAdmin() {
+    const tbody = $("#tablaMedicosReferentesAdmin tbody");
+    if (!tbody.length) return;
+    tbody.empty();
+
+    const searchStr = ($("#searchMedicoReferente").val() || '').toLowerCase().trim();
+    const filtrados = catalogReferringDoctors.filter((doc) => {
+        const blob = [doc.rut, doc.names, doc.last_name_1, doc.last_name_2, doc.email, doc.phone]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+        return !searchStr || blob.includes(searchStr);
+    });
+
+    if (!filtrados.length) {
+        tbody.append('<tr><td colspan="5" class="text-center text-muted p-5">No hay médicos referentes registrados.</td></tr>');
+        return;
+    }
+
+    filtrados.forEach((doc) => {
+        tbody.append(`
+            <tr>
+                <td class="ps-4 fw-bold">${doc.rut || '-'}</td>
+                <td>${nombreCompletoMedicoReferente(doc)}</td>
+                <td>${doc.phone || '-'}</td>
+                <td>${doc.email || '<span class="text-muted small">Sin correo</span>'}</td>
+                <td class="text-center pe-4">
+                    <button type="button" class="btn btn-sm btn-outline-info fw-bold"
+                        onclick="cargarMedicoReferente('${doc.id}')">
+                        <i class="bi bi-pencil-square"></i> Editar
+                    </button>
+                </td>
+            </tr>
+        `);
+    });
+}
+
+function nuevoMedicoReferente() {
+    $("#formMedicoReferente")[0].reset();
+    $("#refDoctorId").val('');
+    $("#refDoctorRut").prop('disabled', false);
+    $(".req-refdoc").removeClass('is-invalid');
+    $("#btnEliminarMedicoReferente").addClass('d-none');
+    $("#modalMedicoReferente").modal('show');
+}
+
+function cargarMedicoReferente(id) {
+    const doc = catalogReferringDoctors.find((d) => String(d.id) === String(id));
+    if (!doc) return;
+
+    $("#refDoctorId").val(doc.id);
+    $("#refDoctorRut").val(doc.rut || '').prop('disabled', true);
+    $("#refDoctorNames").val(doc.names || '');
+    $("#refDoctorLast1").val(doc.last_name_1 || '');
+    $("#refDoctorLast2").val(doc.last_name_2 || '');
+    $("#refDoctorPhone").val(doc.phone || '');
+    $("#refDoctorEmail").val(doc.email || '');
+    $(".req-refdoc").removeClass('is-invalid');
+
+    if (risCanDeleteReferringDoctors()) {
+        $("#btnEliminarMedicoReferente").removeClass('d-none');
+    } else {
+        $("#btnEliminarMedicoReferente").addClass('d-none');
+    }
+
+    $("#modalMedicoReferente").modal('show');
+}
+
+async function guardarMedicoReferente() {
+    const rut = $("#refDoctorRut").val().trim();
+    const names = $("#refDoctorNames").val().trim();
+    if (!rut || !names) {
+        if (!rut) $("#refDoctorRut").addClass('is-invalid');
+        if (!names) $("#refDoctorNames").addClass('is-invalid');
+        return showToast('RUT y nombres son obligatorios.', 'warning');
+    }
+
+    if (!$("#refDoctorId").val() && typeof validarRut === 'function' && !validarRut(rut)) {
+        $("#refDoctorRut").addClass('is-invalid');
+        return showToast('RUT inválido.', 'danger');
+    }
+
+    const payload = {
+        rut,
+        names,
+        last_name_1: $("#refDoctorLast1").val().trim() || null,
+        last_name_2: $("#refDoctorLast2").val().trim() || null,
+        phone: $("#refDoctorPhone").val().trim() || null,
+        email: $("#refDoctorEmail").val().trim() || null,
+    };
+
+    const id = $("#refDoctorId").val();
+    const isEdit = !!id;
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(
+            isEdit ? `${API_URL}/referring-doctors/${id}` : `${API_URL}/referring-doctors`,
+            {
+                method: isEdit ? 'PUT' : 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                    'X-Lab-Id': labId,
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            }
+        );
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            $("#modalMedicoReferente").modal('hide');
+            showToast(isEdit ? 'Médico referente actualizado.' : 'Médico referente registrado.', 'success');
+            cargarMedicosReferentesAdmin();
+        } else {
+            showToast(data.message || 'No se pudo guardar.', 'danger');
+        }
+    } catch (e) {
+        showToast('Error de conexión', 'danger');
+    }
+}
+
+async function eliminarMedicoReferente() {
+    if (!risCanDeleteReferringDoctors()) {
+        return showToast('Solo Sys. Admin puede eliminar médicos referentes.', 'warning');
+    }
+
+    const id = $("#refDoctorId").val();
+    if (!id) return;
+
+    if (!(await showConfirm(
+        '¿Eliminar este médico referente del catálogo? No se puede deshacer si no tiene citas asociadas.',
+        { dangerous: true, confirmText: 'Eliminar' }
+    ))) return;
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(`${API_URL}/referring-doctors/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
+        });
+        const data = await response.json().catch(() => ({}));
+
+        if (response.ok) {
+            $("#modalMedicoReferente").modal('hide');
+            showToast('Médico referente eliminado.', 'warning');
+            cargarMedicosReferentesAdmin();
+        } else {
+            showToast(data.message || 'No se pudo eliminar.', 'danger');
+        }
+    } catch (e) {
+        showToast('Error de conexión', 'danger');
     }
 }
 
