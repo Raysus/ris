@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ChecksRisAuthorization;
 use Illuminate\Http\Request;
 use App\Models\Appointment;
 use App\Services\ReportDocumentFormatter;
@@ -12,6 +13,15 @@ use Illuminate\Support\Str;
 
 class RadiologistController extends Controller
 {
+    use ChecksRisAuthorization;
+
+    private const RADIOLOGIST_ROLES = ['admin', 'sis_admin', 'radiologo'];
+
+    private function assertRadiologistAccess(Request $request): void
+    {
+        $this->assertAnyRole($request, self::RADIOLOGIST_ROLES);
+    }
+
     private function formatPatientPayload($patient): array
     {
         $persona = optional(optional($patient)->persona);
@@ -55,6 +65,7 @@ class RadiologistController extends Controller
 
     public function index(Request $request)
     {
+        $this->assertRadiologistAccess($request);
         $appointments = $this->getSecureAppointmentQuery()
             ->with(['patient.persona', 'studies'])
             ->whereIn('status', ['en_informe', 'pendiente_radiologo'])
@@ -79,6 +90,7 @@ class RadiologistController extends Controller
 
     public function signReport(Request $request, $id)
     {
+        $this->assertRadiologistAccess($request);
         $request->validate([
             'reports' => 'required|array|min:1',
             'reports.*.id' => 'required|string',
@@ -159,6 +171,7 @@ class RadiologistController extends Controller
 
     public function saveDraft(Request $request, $id)
     {
+        $this->assertRadiologistAccess($request);
         $request->validate([
             'reports' => 'required|array',
             'reports.*.id' => 'required|string',
@@ -191,6 +204,7 @@ class RadiologistController extends Controller
 
     public function returnToTechnologist(Request $request, $id)
     {
+        $this->assertRadiologistAccess($request);
         $request->validate(['reason' => 'required|string']);
         $userId = $request->user()->id;
 
@@ -236,6 +250,7 @@ class RadiologistController extends Controller
 
     public function sendToTranscription(Request $request, $id)
     {
+        $this->assertRadiologistAccess($request);
         $request->validate([
             'study_id' => 'required|string',
             'audio' => 'required|file|mimes:webm,mp3,wav,ogg,mp4|max:15360',
@@ -301,6 +316,7 @@ class RadiologistController extends Controller
 
     public function validations(Request $request)
     {
+        $this->assertRadiologistAccess($request);
         $appointments = $this->getSecureAppointmentQuery()
             ->with([
                 'patient.persona',
@@ -350,6 +366,7 @@ class RadiologistController extends Controller
 
     public function rejectTranscription(Request $request, $id)
     {
+        $this->assertRadiologistAccess($request);
         $request->validate(['reason' => 'required|string']);
         $userId = $request->user()->id;
 
@@ -396,20 +413,22 @@ class RadiologistController extends Controller
 
     public function uploadStudyAudio(Request $request, $studyId)
     {
-        // Validar que el archivo sea un archivo de audio binario válido
+        $this->assertRadiologistAccess($request);
+
         $request->validate([
-            'audio' => 'required|file|mimes:wav,mp3,ogg,webm|max:10240', // máx 10MB
+            'audio' => 'required|file|mimes:wav,mp3,ogg,webm|max:10240',
         ]);
 
         try {
-            // 1. Buscar el registro del sub-examen específico
             $study = DB::table('appointment_studies')->where('id', $studyId)->first();
 
             if (!$study) {
                 return response()->json(['success' => false, 'message' => 'Estudio no encontrado.'], 404);
             }
 
-            // 2. Procesar y almacenar el archivo físico en storage/app/public/audios
+            $this->getSecureAppointmentQuery()->findOrFail($study->appointment_id);
+
+            $path = null;
             if ($request->hasFile('audio')) {
                 $file = $request->file('audio');
 

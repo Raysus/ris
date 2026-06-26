@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ChecksRisAuthorization;
 use Illuminate\Http\Request;
 use App\Models\Appointment;
 use Illuminate\Support\Facades\DB;
@@ -11,6 +12,15 @@ use Carbon\Carbon;
 
 class TranscriptionController extends Controller
 {
+    use ChecksRisAuthorization;
+
+    private const TRANSCRIPTION_ROLES = ['admin', 'sis_admin', 'transcriptor'];
+
+    private function assertTranscriptionAccess(Request $request): void
+    {
+        $this->assertAnyRole($request, self::TRANSCRIPTION_ROLES);
+    }
+
     private function getSecureAppointmentQuery()
     {
         $allowedLabs = config('app.allowed_lab_ids');
@@ -28,6 +38,7 @@ class TranscriptionController extends Controller
 
     public function index(Request $request)
     {
+        $this->assertTranscriptionAccess($request);
         $appointments = $this->getSecureAppointmentQuery()
             ->with(['patient.persona', 'studies'])
             ->where('status', 'en_transcripcion')
@@ -78,6 +89,7 @@ class TranscriptionController extends Controller
 
     public function saveDraft(Request $request, $id)
     {
+        $this->assertTranscriptionAccess($request);
         $request->validate([
             'reports' => 'required|array',
             'reports.*.id' => 'required|string',
@@ -110,7 +122,7 @@ class TranscriptionController extends Controller
 
     public function sendToValidation(Request $request, $id)
     {
-        \Log::info("Datos recibidos en sendToValidation para cita $id: " . json_encode($request->all()));
+        $this->assertTranscriptionAccess($request);
 
         $request->validate([
             'reports' => 'required|array',
@@ -174,6 +186,7 @@ class TranscriptionController extends Controller
 
     public function returnToDoctor(Request $request, $id)
     {
+        $this->assertTranscriptionAccess($request);
         $request->validate(['reason' => 'required|string']);
         $userId = $request->user()->id;
 

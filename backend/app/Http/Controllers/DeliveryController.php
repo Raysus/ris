@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ChecksRisAuthorization;
 use Illuminate\Http\Request;
 use App\Models\Appointment;
 use App\Services\AppointmentNotificationService;
@@ -12,6 +13,15 @@ use Illuminate\Support\Str;
 
 class DeliveryController extends Controller
 {
+    use ChecksRisAuthorization;
+
+    private const DELIVERY_ROLES = ['admin', 'sis_admin', 'recepcion', 'secretaria', 'secretario'];
+
+    private function assertDeliveryAccess(Request $request): void
+    {
+        $this->assertAnyRole($request, self::DELIVERY_ROLES);
+    }
+
     private function getSecureAppointmentQuery()
     {
         $allowedLabs = config('app.allowed_lab_ids');
@@ -29,6 +39,7 @@ class DeliveryController extends Controller
 
     public function index(Request $request)
     {
+        $this->assertDeliveryAccess($request);
         $appointments = $this->getSecureAppointmentQuery()
             ->with([
                 'patient.persona',
@@ -75,6 +86,7 @@ class DeliveryController extends Controller
 
     public function deliver(Request $request, $id)
     {
+        $this->assertDeliveryAccess($request);
         $request->validate([
             'receiver_rut' => 'required|string',
             'receiver_name' => 'required|string',
@@ -167,6 +179,7 @@ class DeliveryController extends Controller
 
     public function revert(Request $request, $id)
     {
+        $this->assertDeliveryAccess($request);
 
         return $this->updateDeliveryStatus($request, $id, 'entregable', 'DELIVERY_REVERTED');
     }
@@ -223,6 +236,7 @@ class DeliveryController extends Controller
 
     public function sendEmail(Request $request, $id, AppointmentNotificationService $notifications)
     {
+        $this->assertDeliveryAccess($request);
         $userId = $request->user()->id;
 
         try {
@@ -263,6 +277,7 @@ class DeliveryController extends Controller
     // === NUEVO: AUDITORÍA DE IMPRESIONES ===
     public function logPrint(Request $request, $id)
     {
+        $this->assertDeliveryAccess($request);
         $userId = $request->user()->id;
         try {
             DB::table('appointment_logs')->insert([
