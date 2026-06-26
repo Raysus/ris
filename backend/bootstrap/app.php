@@ -15,7 +15,13 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        $middleware->trustProxies(at: '*');
+        $trustedProxies = env('TRUSTED_PROXIES', '');
+        $at = match (true) {
+            $trustedProxies === '*' => '*',
+            $trustedProxies === '' => [],
+            default => array_values(array_filter(array_map('trim', explode(',', $trustedProxies)))),
+        };
+        $middleware->trustProxies(at: $at);
 
         $middleware->api(prepend: [
             \App\Http\Middleware\ForceApiCors::class,

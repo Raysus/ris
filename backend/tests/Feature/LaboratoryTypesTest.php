@@ -16,10 +16,22 @@ class LaboratoryTypesTest extends TestCase
 
     public function test_sis_admin_can_list_and_create_laboratory_types_catalog(): void
     {
-        LaboratoryType::query()->delete();
+        $this->seedRis();
 
         $sisAdminType = TipoUsuario::where('name', 'sis_admin')->firstOrFail();
-        $user = User::where('tipo_usuario_id', $sisAdminType->id)->firstOrFail();
+        $persona = \App\Models\Persona::create([
+            'rut' => '17777777-7',
+            'names' => 'Sys',
+            'last_name_1' => 'Admin',
+        ]);
+        $user = User::create([
+            'persona_id' => $persona->id,
+            'tipo_usuario_id' => $sisAdminType->id,
+            'username' => 'sis_admin_test',
+            'password' => bcrypt('password123'),
+            'settings' => ['roles' => ['sis_admin']],
+            'is_active' => true,
+        ]);
         $token = $user->createToken('test')->plainTextToken;
 
         $this->withHeaders([

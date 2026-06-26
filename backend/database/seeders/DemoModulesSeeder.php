@@ -22,6 +22,7 @@ class DemoModulesSeeder extends Seeder
         \Schema::disableForeignKeyConstraints();
 
         $this->removeImexLaboratory();
+        $this->ensureDemoLaboratoriesExist();
         $this->seedDemoOperationalData();
 
         \Schema::enableForeignKeyConstraints();
@@ -102,6 +103,53 @@ class DemoModulesSeeder extends Seeder
         DB::table('laboratories')->where('id', $labId)->delete();
 
         $this->command?->info('IMEX eliminado de la base de datos.');
+    }
+
+    private function ensureDemoLaboratoriesExist(): void
+    {
+        $now = Carbon::now();
+        $labs = [
+            [1, 1, null, 'Centro de Diagnóstico RIS PRO', 'Manuel Montt 942', 'Temuco'],
+            [4, 1, null, 'Sucursal Sur', 'Av. Demo Sur 100', 'Temuco'],
+            [9, 3, null, 'Dental Demo — CBCT Temuco', 'Dinamarca 661', 'Temuco'],
+            [10, 3, 9, 'Dental Demo — Sucursal Centro', 'Centro 200', 'Temuco'],
+            [11, 2, null, 'Veterinaria Demo Sur', 'Victoria 300', 'Victoria'],
+            [12, 2, null, 'Veterinaria Demo — Urgencias 24h', 'Urgencias 24', 'Temuco'],
+        ];
+
+        foreach ($labs as $l) {
+            $id = $this->uuid('laboratories', $l[0]);
+            if (DB::table('laboratories')->where('id', $id)->exists()) {
+                continue;
+            }
+
+            DB::table('laboratories')->insert([
+                'id' => $id,
+                'laboratory_type_id' => $this->uuid('laboratory_types', $l[1]),
+                'parent_id' => $l[2] ? $this->uuid('laboratories', $l[2]) : null,
+                'name' => $l[3],
+                'address' => $l[4],
+                'city' => $l[5],
+                'phone' => '(45) 000 0000',
+                'settings' => '{}',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+
+        foreach (self::DEMO_LABS as $labOld) {
+            $labId = $this->uuid('laboratories', $labOld);
+            foreach ([1, 2, 3] as $userOld) {
+                DB::table('laboratory_user')->insertOrIgnore([
+                    'id' => $this->uuid('laboratory_user', 'demo_u' . $userOld . '_l' . $labOld),
+                    'laboratory_id' => $labId,
+                    'user_id' => $this->uuid('users', $userOld),
+                    'is_primary' => $labOld === 1 && $userOld === 2,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+            }
+        }
     }
 
     private function seedDemoOperationalData(): void

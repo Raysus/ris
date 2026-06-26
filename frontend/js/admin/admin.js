@@ -20,7 +20,7 @@ let patientsAdminTotal = 0;
 let currentPlantillasFromDB = [];
 let currentLaboratoriesTree = [];
 
-const RIS_MIN_PASSWORD_LENGTH = 4;
+const RIS_MIN_PASSWORD_LENGTH = 8;
 
 function risHumanizarErrorValidacion(msg) {
     if (!msg || typeof msg !== 'string') return 'No se pudo guardar el usuario.';
@@ -790,20 +790,20 @@ async function renderListaUsuariosAdmin() {
                 // Obtenemos el nombre del Tipo de Usuario (relación tipoUsuario en Laravel)
                 const tipoPrincipal = u.tipo_usuario ? u.tipo_usuario.description : 'No asignado';
 
-                const rolesBadges = rolesArray.map(r => `<span class="badge bg-light text-dark border me-1 small">${r.toUpperCase()}</span>`).join('');
+                const rolesBadges = rolesArray.map(r => `<span class="badge bg-light text-dark border me-1 small">${risEscapeHtml(r.toUpperCase())}</span>`).join('');
 
                 tbody.append(`
                     <tr>
                         <td class="ps-4">
-                            <div class="fw-bold text-dark">${u.medical_title || ''} ${p.names || ''} ${p.last_name_1 || ''}</div>
-                            <small class="text-muted">@${u.username}</small>
-                            ${p.email ? `<div class="small text-secondary"><i class="bi bi-envelope me-1"></i>${p.email}</div>` : ''}
+                            <div class="fw-bold text-dark">${risEscapeHtml(u.medical_title || '')} ${risEscapeHtml(p.names || '')} ${risEscapeHtml(p.last_name_1 || '')}</div>
+                            <small class="text-muted">@${risEscapeHtml(u.username)}</small>
+                            ${p.email ? `<div class="small text-secondary"><i class="bi bi-envelope me-1"></i>${risEscapeHtml(p.email)}</div>` : ''}
                         </td>
-                        <td class="fw-bold text-secondary">${p.rut || '--'}</td>
-                        <td><span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3">${tipoPrincipal}</span></td>
+                        <td class="fw-bold text-secondary">${risEscapeHtml(p.rut || '--')}</td>
+                        <td><span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3">${risEscapeHtml(tipoPrincipal)}</span></td>
                         <td>${rolesBadges}</td>
                         <td class="small text-muted">
-                            ${u.pacs_ae ? `<div><i class="bi bi-display me-1"></i>${u.pacs_ae}</div>` : '--'}
+                            ${u.pacs_ae ? `<div><i class="bi bi-display me-1"></i>${risEscapeHtml(u.pacs_ae)}</div>` : '--'}
                         </td>
                         <td class="text-center pe-4">
                             <button class="btn btn-sm btn-outline-primary fw-bold" onclick="cargarUsuario('${u.id}')">

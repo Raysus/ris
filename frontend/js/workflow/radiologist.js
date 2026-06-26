@@ -293,7 +293,7 @@ async function cargarPlantillasRadiologo() {
             }
 
             allTemplates.forEach(tpl => {
-                dropdown.append(`<li><a class="dropdown-item" href="javascript:void(0);" onclick="aplicarPlantillaId('${tpl.id}')"><b>[${tpl.group_code}]</b> ${tpl.title}</a></li>`);
+                dropdown.append(`<li><a class="dropdown-item" href="javascript:void(0);" onclick="aplicarPlantillaId('${tpl.id}')"><b>[${risEscapeHtml(tpl.group_code)}]</b> ${risEscapeHtml(tpl.title)}</a></li>`);
             });
         }
     } catch (e) {
@@ -408,12 +408,12 @@ async function cargarHistorialSplit() {
                 contenedor.append(`
                     <div class="card shadow-sm border-0 mb-3" style="font-size: 0.85rem;">
                         <div class="card-header bg-white d-flex justify-content-between align-items-center py-2 border-0">
-                            <strong class="text-dark">${informe.exam_name}</strong>
+                            <strong class="text-dark">${risEscapeHtml(informe.exam_name)}</strong>
                             <span class="badge bg-secondary">${new Date(informe.date).toLocaleDateString('es-CL')}</span>
                         </div>
                         <div class="card-body py-2">
-                            <p class="text-muted mb-2" style="font-size: 0.75rem;">Dr(a). ${informe.doctor_name}</p>
-                            <div class="p-2 bg-white border rounded text-dark" style="white-space: pre-wrap; user-select: all;">${informe.report_text}</div>
+                            <p class="text-muted mb-2" style="font-size: 0.75rem;">Dr(a). ${risEscapeHtml(informe.doctor_name)}</p>
+                            <div class="p-2 bg-white border rounded text-dark" style="white-space: pre-wrap; user-select: all;">${risEscapeHtml(informe.report_text)}</div>
                         </div>
                     </div>
                 `);
@@ -466,7 +466,7 @@ function abrirRadiologo(id) {
     const retornoAlerta = (app.needsReview && app.returnReason !== '') ? `
         <div class="alert alert-warning py-2 px-3 mb-3 small shadow-sm d-flex align-items-center gap-2 border-warning border-2">
             <i class="bi bi-exclamation-octagon-fill fs-4"></i>
-            <div><strong class="d-block">Audio Devuelto por Transcripción:</strong> ${app.returnReason}</div>
+            <div><strong class="d-block">Audio Devuelto por Transcripción:</strong> ${risEscapeHtml(app.returnReason)}</div>
         </div>
     ` : '';
 
@@ -476,9 +476,9 @@ function abrirRadiologo(id) {
         ${retornoAlerta}
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div>
-                <h5 class="mb-1 fw-bold text-dark"><i class="bi bi-person-bounding-box me-2 text-secondary"></i>${nombreCompleto}</h5>
-                <span class="badge bg-dark font-monospace fs-6">${app.accessionNumber}</span>
-                <span class="text-muted small ms-3"><b>RUT:</b> ${app.patient.rut}</span>
+                <h5 class="mb-1 fw-bold text-dark"><i class="bi bi-person-bounding-box me-2 text-secondary"></i>${risEscapeHtml(nombreCompleto)}</h5>
+                <span class="badge bg-dark font-monospace fs-6">${risEscapeHtml(app.accessionNumber)}</span>
+                <span class="text-muted small ms-3"><b>RUT:</b> ${risEscapeHtml(app.patient.rut)}</span>
             </div>
         </div>
     `);
@@ -487,7 +487,7 @@ function abrirRadiologo(id) {
     currentReportingChain.studies.forEach((study, index) => {
         const btnClass = index === 0 ? 'bg-primary text-white' : 'btn-outline-primary';
         tabsHtml += `<button id="tab-${study.study_id}" class="study-tab-btn btn btn-sm ${btnClass} fw-bold shadow-sm" onclick="cargarEstudioEnEditor('${study.study_id}')">
-            <i class="bi bi-file-medical me-1"></i>${study.exam}</button>`;
+            <i class="bi bi-file-medical me-1"></i>${risEscapeHtml(study.exam)}</button>`;
     });
     tabsHtml += '</div>';
     $("#listaExamenesRadiologo").html(tabsHtml);
@@ -521,7 +521,7 @@ function renderRadiologistStudies() {
             claseBorde = 'border-start border-4 border-warning bg-warning-subtle';
             badgeEstado = `
                 <div class="mt-2 small text-warning-emphasis fw-bold">
-                    <i class="bi bi-exclamation-triangle-fill"></i> Secretaria reporta: ${app.returnReason}
+                    <i class="bi bi-exclamation-triangle-fill"></i> Secretaria reporta: ${risEscapeHtml(app.returnReason)}
                 </div>`;
         }
 
@@ -530,11 +530,11 @@ function renderRadiologistStudies() {
         const item = `
             <button type="button" class="list-group-item list-group-item-action p-3 d-flex flex-column align-items-start gap-1 ${selectedClass} ${claseBorde}" onclick="abrirRadiologo('${app.id}')">
                 <div class="d-flex w-100 justify-content-between align-items-center">
-                    <h6 class="mb-0 fw-bold font-monospace text-truncate" style="max-width: 150px;">${app.accessionNumber}</h6>
+                    <h6 class="mb-0 fw-bold font-monospace text-truncate" style="max-width: 150px;">${risEscapeHtml(app.accessionNumber)}</h6>
                 </div>
-                <strong class="m-0 text-truncate w-100" style="font-size: 0.95rem;">${nombreCompleto}</strong>
+                <strong class="m-0 text-truncate w-100" style="font-size: 0.95rem;">${risEscapeHtml(nombreCompleto)}</strong>
                 <div class="d-flex w-100 justify-content-between align-items-center mt-1 opacity-75 small">
-                    <span>RUT: ${app.patient.rut}</span>
+                    <span>RUT: ${risEscapeHtml(app.patient.rut)}</span>
                     <span>Edad: ${app.patient.age}</span>
                 </div>
                 ${badgeEstado}
@@ -555,7 +555,7 @@ function abrirInforme(citaId) {
     const retornoAlerta = (app.needsReview && app.returnReason !== '') ? `
         <div class="alert alert-warning py-2 px-3 mb-3 small shadow-sm d-flex align-items-center gap-2 border-warning border-2">
             <i class="bi bi-exclamation-octagon-fill fs-4"></i>
-            <div><strong class="d-block">Audio Devuelto por Transcripción:</strong> ${app.returnReason}</div>
+            <div><strong class="d-block">Audio Devuelto por Transcripción:</strong> ${risEscapeHtml(app.returnReason)}</div>
         </div>
     ` : '';
 
@@ -565,9 +565,9 @@ function abrirInforme(citaId) {
         ${retornoAlerta}
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div>
-                <h5 class="mb-1 fw-bold text-dark"><i class="bi bi-person-bounding-box me-2 text-secondary"></i>${nombreCompleto}</h5>
-                <span class="badge bg-dark font-monospace fs-6">${app.accessionNumber}</span>
-                <span class="text-muted small ms-3"><b>RUT:</b> ${app.patient.rut}</span>
+                <h5 class="mb-1 fw-bold text-dark"><i class="bi bi-person-bounding-box me-2 text-secondary"></i>${risEscapeHtml(nombreCompleto)}</h5>
+                <span class="badge bg-dark font-monospace fs-6">${risEscapeHtml(app.accessionNumber)}</span>
+                <span class="text-muted small ms-3"><b>RUT:</b> ${risEscapeHtml(app.patient.rut)}</span>
             </div>
         </div>
     `);
@@ -576,7 +576,7 @@ function abrirInforme(citaId) {
     currentReportingChain.studies.forEach((study, index) => {
         const btnClass = index === 0 ? 'bg-primary text-white' : 'btn-outline-primary';
         tabsHtml += `<button id="tab-${study.study_id}" class="study-tab-btn btn btn-sm ${btnClass} fw-bold shadow-sm" onclick="cargarEstudioEnEditor('${study.study_id}')">
-            <i class="bi bi-file-medical me-1"></i>${study.exam}</button>`;
+            <i class="bi bi-file-medical me-1"></i>${risEscapeHtml(study.exam)}</button>`;
     });
     tabsHtml += '</div>';
     $("#listaExamenesRadiologo").html(tabsHtml);

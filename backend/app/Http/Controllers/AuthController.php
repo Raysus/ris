@@ -146,19 +146,25 @@ class AuthController extends Controller
     {
         $request->validate(['email' => 'required|email']);
 
+        $genericMessage = 'Si el correo está registrado, recibirá instrucciones de recuperación.';
+
         $user = User::whereHas('persona', function ($q) use ($request) {
             $q->where('email_hash', Persona::hashEmail($request->email));
         })->first();
 
         if (!$user) {
-            return response()->json(['success' => false, 'message' => 'Correo no registrado.'], 404);
+            return response()->json([
+                'success' => true,
+                'message' => $genericMessage,
+            ]);
         }
 
         $token = Str::random(60);
+        $tokenHash = hash('sha256', $token);
 
         DB::table('password_reset_tokens')->updateOrInsert(
             ['email' => $request->email],
-            ['token' => $token, 'created_at' => now()]
+            ['token' => $tokenHash, 'created_at' => now()]
         );
 
         $recoveryLink = rtrim(env('FRONTEND_URL', 'http://127.0.0.1:5500'), '/')
@@ -189,7 +195,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Instrucciones enviadas.'
+            'message' => $genericMessage,
         ]);
     }
 
@@ -201,9 +207,11 @@ class AuthController extends Controller
             'password' => 'required|min:8|confirmed',
         ]);
 
+        $tokenHash = hash('sha256', $request->token);
+
         $reset = DB::table('password_reset_tokens')
             ->where('email', $request->email)
-            ->where('token', $request->token)
+            ->where('token', $tokenHash)
             ->first();
 
         if (!$reset) {

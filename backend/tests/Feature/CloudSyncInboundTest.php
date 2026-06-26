@@ -217,8 +217,7 @@ class CloudSyncInboundTest extends TestCase
         $existingId = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
         $incomingId = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
 
-        ReferringDoctor::create([
-            'id' => $existingId,
+        $this->createModelWithId(ReferringDoctor::class, $existingId, [
             'rut' => '12345678-9',
             'names' => 'Medico',
             'last_name_1' => 'Local',
@@ -282,8 +281,7 @@ class CloudSyncInboundTest extends TestCase
         $existingId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
         $incomingId = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 
-        Exam::create([
-            'id' => $existingId,
+        $this->createModelWithId(Exam::class, $existingId, [
             'laboratory_id' => $lab->id,
             'group_code' => 'US',
             'name' => 'Ecotomografía abdominal',
@@ -321,8 +319,7 @@ class CloudSyncInboundTest extends TestCase
     public function test_pull_catalog_skips_unchanged_exams(): void
     {
         $lab = $this->risLab;
-        $exam = Exam::create([
-            'id' => 'cccccccc-cccc-cccc-cccc-cccccccccccc',
+        $exam = $this->createModelWithId(Exam::class, 'cccccccc-cccc-cccc-cccc-cccccccccccc', [
             'laboratory_id' => $lab->id,
             'group_code' => 'RX',
             'name' => 'Tórax simple',
@@ -339,7 +336,8 @@ class CloudSyncInboundTest extends TestCase
         $first = $pull->pull($lab->id, false, $payload);
         $second = $pull->pull($lab->id, false, $payload);
 
-        $this->assertSame(1, $first['counts']['exams']);
+        $this->assertSame(0, $first['counts']['exams']);
+        $this->assertSame(1, $first['counts']['exams_skipped']);
         $this->assertSame(0, $second['counts']['exams']);
         $this->assertSame(1, $second['counts']['exams_skipped']);
     }
@@ -489,8 +487,7 @@ class CloudSyncInboundTest extends TestCase
         $userId = '11111111-1111-1111-1111-111111111114';
         $tipoId = \App\Models\TipoUsuario::query()->value('id');
 
-        Persona::create([
-            'id' => $existingPersonaId,
+        $this->createModelWithId(Persona::class, $existingPersonaId, [
             'rut' => '15.555.555-5',
             'names' => 'Persona',
             'last_name_1' => 'Nube',

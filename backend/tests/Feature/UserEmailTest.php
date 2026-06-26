@@ -31,7 +31,7 @@ class UserEmailTest extends TestCase
             'apellidoMaterno' => 'Soto',
             'email' => 'Ana.Perez@Centro.cl',
             'username' => 'aperez',
-            'password' => 'secret123',
+            'password' => 'secret1234',
             'roles' => ['recepcion'],
             'laboratories' => [$this->risLab->id],
         ]);
@@ -54,7 +54,7 @@ class UserEmailTest extends TestCase
             'apellidoPaterno' => 'Pérez',
             'email' => 'no-es-un-correo',
             'username' => 'aperez',
-            'password' => 'secret123',
+            'password' => 'secret1234',
             'roles' => ['recepcion'],
             'laboratories' => [$this->risLab->id],
         ]);
@@ -69,7 +69,7 @@ class UserEmailTest extends TestCase
             'nombres' => 'Ana',
             'apellidoPaterno' => 'Pérez',
             'username' => 'aperez',
-            'password' => 'secret123',
+            'password' => 'secret1234',
             'roles' => ['recepcion'],
             'laboratories' => [$this->risLab->id],
         ]);
@@ -91,7 +91,7 @@ class UserEmailTest extends TestCase
             'apellidoPaterno' => 'Pérez',
             'email' => 'ana@centro.cl',
             'username' => 'aperez',
-            'password' => 'secret123',
+            'password' => 'secret1234',
             'roles' => ['recepcion'],
             'laboratories' => [$this->risLab->id],
         ])->assertOk();

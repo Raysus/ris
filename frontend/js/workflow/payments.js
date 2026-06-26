@@ -2,6 +2,10 @@
  * MÓDULO DE GESTIÓN DE PAGOS
  */
 
+function payEscapeHtml(text) {
+    return typeof risEscapeHtml === 'function' ? risEscapeHtml(text) : String(text ?? '');
+}
+
 function showPaymentToast(msg, type) {
     if (typeof showToast === 'function') {
         showToast(msg, type || 'info');
@@ -89,7 +93,7 @@ class PaymentManager {
             const copago = (totalLinea * porcentaje) / 100;
             html += `
                 <tr>
-                    <td class="small"><strong>${nombre}</strong></td>
+                    <td class="small"><strong>${payEscapeHtml(nombre)}</strong></td>
                     <td class="text-end small">$${this.formatPeso(totalLinea)}</td>
                     <td class="text-end small">${porcentaje}%</td>
                     <td class="text-end small text-danger">$${this.formatPeso(copago)}</td>
@@ -151,7 +155,7 @@ class PaymentManager {
             const copago = (estudio.precio * porcentaje) / 100;
             html += `
                 <tr>
-                    <td class="small"><strong>${estudio.nombre}</strong></td>
+                    <td class="small"><strong>${payEscapeHtml(estudio.nombre)}</strong></td>
                     <td class="text-end small">$${this.formatPeso(estudio.precio)}</td>
                     <td class="text-end small">${porcentaje}%</td>
                     <td class="text-end small text-danger">$${this.formatPeso(copago)}</td>
@@ -265,8 +269,8 @@ class PaymentManager {
                 <tr>
                     <td class="small">${fecha}</td>
                     <td class="small fw-bold">$${this.formatPeso(pago.amount)}</td>
-                    <td class="small">${pago.payment_method}</td>
-                    <td class="small"><span class="badge bg-success">${pago.status}</span></td>
+                    <td class="small">${payEscapeHtml(pago.payment_method)}</td>
+                    <td class="small"><span class="badge bg-success">${payEscapeHtml(pago.status)}</span></td>
                 </tr>`;
         });
 
@@ -276,7 +280,7 @@ class PaymentManager {
             </div>
             <div class="alert alert-info py-2 mt-2 mb-0 small">
                 <strong>Total pagado:</strong> $${this.formatPeso(data.resumen?.total_pagado || 0)}
-                — <strong>Estado:</strong> ${data.resumen?.estado || '-'}
+                — <strong>Estado:</strong> ${payEscapeHtml(data.resumen?.estado || '-')}
             </div>`;
 
         container.innerHTML = html;
@@ -300,10 +304,10 @@ class PaymentManager {
             if (result.success) {
                 const c = result.data.comprobante;
                 showPaymentModal('Comprobante de Pago', `
-                    <p><strong>Paciente:</strong> ${c.paciente}</p>
+                    <p><strong>Paciente:</strong> ${payEscapeHtml(c.paciente)}</p>
                     <p><strong>Monto:</strong> $${this.formatPeso(c.monto)}</p>
-                    <p><strong>Método:</strong> ${c.metodo}</p>
-                    <p><strong>Fecha:</strong> ${c.fecha}</p>
+                    <p><strong>Método:</strong> ${payEscapeHtml(c.metodo)}</p>
+                    <p><strong>Fecha:</strong> ${payEscapeHtml(c.fecha)}</p>
                     <button class="btn btn-sm btn-primary" onclick="window.print()">Imprimir</button>`);
             }
         } catch (e) {

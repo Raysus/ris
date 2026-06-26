@@ -27,7 +27,7 @@ class DemoLabsQaTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->seedRis();
+        $this->seedRis(true);
     }
 
     private function demoLabs()

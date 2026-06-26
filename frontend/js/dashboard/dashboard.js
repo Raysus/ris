@@ -100,8 +100,8 @@ function renderAlertasOperativas(alerts, flujo) {
             <div class="alert ${cls} d-flex align-items-start shadow-sm mb-2" role="alert">
                 <i class="bi bi-${icon} fs-5 me-2 mt-1"></i>
                 <div>
-                    <strong>${a.title}</strong><br>
-                    <span class="small">${a.message}</span>
+                    <strong>${typeof risEscapeHtml === 'function' ? risEscapeHtml(a.title) : a.title}</strong><br>
+                    <span class="small">${typeof risEscapeHtml === 'function' ? risEscapeHtml(a.message) : a.message}</span>
                 </div>
             </div>
         `);

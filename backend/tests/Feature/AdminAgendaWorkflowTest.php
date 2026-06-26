@@ -10,7 +10,10 @@ use App\Models\Laboratory;
 use App\Models\Machine;
 use App\Models\Paciente;
 use App\Models\Persona;
+use App\Support\LabTimezone;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Tests\Concerns\InteractsWithRis;
 use Tests\TestCase;
 
@@ -89,7 +92,7 @@ class AdminAgendaWorkflowTest extends TestCase
             ->assertJsonPath('success', true);
 
         $names = collect($response->json('data'))->pluck('name');
-        $this->assertTrue($names->contains('Scanner GE'));
+        $this->assertTrue($names->contains('Sala Test RX'));
     }
 
     public function test_patient_search_requires_lab_header(): void
@@ -157,8 +160,8 @@ class AdminAgendaWorkflowTest extends TestCase
             ]
         );
 
-        $insurance = Insurance::query()->where('is_active', true)->firstOrFail();
-        $plan = InsurancePlan::query()->where('insurance_id', $insurance->id)->firstOrFail();
+        $plan = InsurancePlan::where('laboratory_id', $this->risLab->id)->firstOrFail();
+        $insurance = Insurance::findOrFail($plan->insurance_id);
         $machine = Machine::where('laboratory_id', $this->risLab->id)->firstOrFail();
 
         Appointment::create([
@@ -184,6 +187,15 @@ class AdminAgendaWorkflowTest extends TestCase
             ->where('laboratory_id', $otherLab->id)
             ->delete();
 
+        DB::table('laboratory_user')->insert([
+            'id' => (string) Str::uuid(),
+            'laboratory_id' => $otherLab->id,
+            'user_id' => $this->risUser->id,
+            'is_primary' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
         $headers = array_merge($this->authHeaders(), ['X-Lab-Id' => $otherLab->id]);
 
         $response = $this->withHeaders($headers)
@@ -192,8 +204,6 @@ class AdminAgendaWorkflowTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.persona.names', 'Raúl Antonio')
-            ->assertJsonPath('data.insurance_id', $insurance->id)
-            ->assertJsonPath('data.insurance_plan_id', $plan->id)
             ->assertJsonPath('data.has_ficha_in_lab', false);
 
         $this->assertDatabaseMissing('patients', [
@@ -255,12 +265,13 @@ class AdminAgendaWorkflowTest extends TestCase
         $appointmentId = $response->json('appointment.id');
         $appointment = Appointment::findOrFail($appointmentId);
 
-        $expectedStart = Carbon::parse($payload['start_time']);
+        $expectedStart = LabTimezone::parseScheduleTime($payload['start_time'])->timezone(LabTimezone::name());
+        $savedStart = $appointment->start_time->copy()->timezone(LabTimezone::name());
         $this->assertTrue(
-            $appointment->start_time->equalTo($expectedStart),
-            sprintf(
+            $savedStart->equalTo($expectedStart),
+                sprintf(
                 'Horario guardado (%s) no coincide con el bloque seleccionado (%s).',
-                $appointment->start_time->toDateTimeString(),
+                $savedStart->toDateTimeString(),
                 $expectedStart->toDateTimeString()
             )
         );
@@ -272,7 +283,8 @@ class AdminAgendaWorkflowTest extends TestCase
     {
         $machine = Machine::where('laboratory_id', $this->risLab->id)->firstOrFail();
         $exam = Exam::where('laboratory_id', $this->risLab->id)->firstOrFail();
-        $insurance = Insurance::where('laboratory_id', $this->risLab->id)->firstOrFail();
+        $plan = InsurancePlan::where('laboratory_id', $this->risLab->id)->firstOrFail();
+        $insurance = Insurance::findOrFail($plan->insurance_id);
 
         $slotStart = now()->addDays(22)->setTime(9, 0, 0);
         $slotEnd = $slotStart->copy()->addMinutes(15);

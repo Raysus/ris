@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\SyncAppointmentBundleToCloud;
 use App\Jobs\SyncEntityToCloud;
 use App\Models\CloudSyncLog;
 use App\Services\CloudSyncLogger;
@@ -102,7 +103,7 @@ class CloudSyncTest extends TestCase
             ->assertOk()
             ->assertJsonPath('success', true);
 
-        Queue::assertPushed(SyncEntityToCloud::class);
+        Queue::assertPushed(SyncAppointmentBundleToCloud::class);
     }
 
     public function test_cash_close_report(): void

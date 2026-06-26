@@ -12,6 +12,7 @@ use App\Models\Paciente;
 use App\Models\Persona;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use App\Support\RisHttp;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
@@ -120,14 +121,10 @@ class Hl7IntegrationService
             return $hl7;
         }
 
-        $http = Http::timeout(15)->withHeaders([
+        $http = RisHttp::client(15)->withHeaders([
             'Content-Type' => 'application/hl7-v2',
             'X-HL7-Secret' => config('hl7.outbound_secret'),
         ]);
-
-        if (app()->environment('local', 'testing')) {
-            $http = $http->withoutVerifying();
-        }
 
         $response = $http->withBody($raw, 'application/hl7-v2')->post($url);
 

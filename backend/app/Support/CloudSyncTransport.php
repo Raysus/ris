@@ -5,6 +5,7 @@ namespace App\Support;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
+use App\Support\RisHttp;
 use Illuminate\Support\Facades\Http;
 
 class CloudSyncTransport
@@ -102,10 +103,7 @@ class CloudSyncTransport
             self::healthUrlFromInbound(),
         ]));
 
-        $http = Http::timeout(5);
-        if (app()->environment('local', 'testing')) {
-            $http = $http->withoutVerifying();
-        }
+        $http = RisHttp::client(5);
 
         foreach ($candidates as $url) {
             try {

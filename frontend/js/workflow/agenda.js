@@ -313,7 +313,7 @@ function risPoblarSelectSalasAgenda($select, selectedId) {
     const prev = selectedId || $select.val();
     $select.empty().append('<option value="">Seleccione sala...</option>');
     (window.RIS.resources || []).forEach((res) => {
-        $select.append(`<option value="${res.id}">${res.title}</option>`);
+        $select.append(`<option value="${res.id}">${risEscapeHtml(res.title)}</option>`);
     });
     if (prev) $select.val(prev);
 }
@@ -486,10 +486,10 @@ function risRenderTablaBuscarExamenes() {
     filas.forEach((item, idx) => {
         $body.append(`
             <tr class="ris-buscar-exam-row${idx === 0 ? ' table-active' : ''}" data-idx="${idx}" tabindex="0">
-                <td class="font-monospace">${item.cod_examen}</td>
-                <td class="text-center">${item.cod_entidad}</td>
-                <td>${item.nombre_examen}</td>
-                <td>${item.clasificacion}</td>
+                <td class="font-monospace">${risEscapeHtml(item.cod_examen)}</td>
+                <td class="text-center">${risEscapeHtml(item.cod_entidad)}</td>
+                <td>${risEscapeHtml(item.nombre_examen)}</td>
+                <td>${risEscapeHtml(item.clasificacion)}</td>
                 <td class="text-end">$${Math.round(item.valor).toLocaleString('es-CL')}</td>
             </tr>`);
         $body.children().last().data('risExamItem', item);
@@ -623,7 +623,7 @@ function risRenderQuickVariants(exam, machineId = null) {
             <label class="agenda-variant-chip">
                 <input type="checkbox" class="form-check-input ris-quick-variant" value="${v.key}" checked
                     data-exam-id="${v.examId}" data-sub-exam-id="${v.subExamId || ''}" data-sibling="${v.isSibling ? '1' : '0'}">
-                <span>${v.label}</span>
+                <span>${risEscapeHtml(v.label)}</span>
             </label>`);
     });
     $panel.removeClass('d-none');
@@ -1566,20 +1566,20 @@ function poblarSelectsAgenda() {
     selectTratante.empty().append('<option value="">Seleccione o escriba...</option>');
     selectTratante.append('<option value="NUEVO" class="fw-bold text-success">➕ Agregar Nuevo Médico...</option>');
     (catalogosAgenda.referring_doctors || []).forEach(doc => {
-        selectTratante.append(`<option value="${doc.id}">${doc.names} ${doc.last_name_1}</option>`);
+        selectTratante.append(`<option value="${doc.id}">${risEscapeHtml(doc.names)} ${risEscapeHtml(doc.last_name_1)}</option>`);
     });
 
     const selectDestinado = $("#mDestinado");
     selectDestinado.empty().append('<option value="">Seleccione Radiólogo...</option>');
     (catalogosAgenda.destination_doctors || []).forEach(doc => {
         const p = doc.persona || {};
-        selectDestinado.append(`<option value="${doc.id}">Dr(a). ${p.names} ${p.last_name_1}</option>`);
+        selectDestinado.append(`<option value="${doc.id}">Dr(a). ${risEscapeHtml(p.names)} ${risEscapeHtml(p.last_name_1)}</option>`);
     });
 
     const selectPrevision = $("#pInsurance");
     selectPrevision.empty().append('<option value="">Seleccione Previsión...</option>');
     (catalogosAgenda.insurances || []).forEach(ins => {
-        selectPrevision.append(`<option value="${ins.id}">${ins.name}</option>`);
+        selectPrevision.append(`<option value="${ins.id}">${risEscapeHtml(ins.name)}</option>`);
     });
 
     poblarPlanesPrevision(null);
@@ -1590,7 +1590,7 @@ function poblarSelectsAgenda() {
     if (selectInsumos.length) {
         selectInsumos.empty().append('<option value="">Seleccione insumo...</option>');
         (catalogosAgenda.supplies || []).forEach(sup => {
-            selectInsumos.append(`<option value="${sup.id}" data-price="${sup.price}">${sup.name} ($${sup.price})</option>`);
+            selectInsumos.append(`<option value="${sup.id}" data-price="${sup.price}">${risEscapeHtml(sup.name)} ($${sup.price})</option>`);
         });
     }
 
@@ -2235,7 +2235,7 @@ async function guardarNuevoMedico() {
 
     if (response.ok) {
         const data = await response.json();
-        $("#mTratante").append(`<option value="${data.data.id}" selected>${data.data.names} ${data.data.last_name_1}</option>`);
+        $("#mTratante").append(`<option value="${data.data.id}" selected>${risEscapeHtml(data.data.names)} ${risEscapeHtml(data.data.last_name_1)}</option>`);
         $("#modalNuevoMedico").modal('hide');
         showToast("Médico registrado y vinculado a Keycloak", "success");
     }
@@ -2651,8 +2651,8 @@ function renderInsumos() {
         tbody.append(`
             <tr class="align-middle">
                 <td>
-                    <div class="fw-bold">${ins.name}</div>
-                    <small class="text-muted">${ins.category || 'Insumo'}</small>
+                    <div class="fw-bold">${risEscapeHtml(ins.name)}</div>
+                    <small class="text-muted">${risEscapeHtml(ins.category || 'Insumo')}</small>
                 </td>
                 <td class="text-center">x${ins.quantity || 1}</td>
                 <td class="text-end text-primary fw-bold">$${subtotal.toLocaleString('es-CL')}</td>
@@ -2774,7 +2774,7 @@ function configurarInsumosAgenda() {
     const select = $("#insumoIndividualSelect");
     select.empty().append('<option value="">+ Agregar insumo individual...</option>');
     insumosCobrados.forEach(s => {
-        select.append(`<option value="${s.id}">${s.name} ($${Number(s.price).toLocaleString('es-CL')})</option>`);
+        select.append(`<option value="${s.id}">${risEscapeHtml(s.name)} ($${Number(s.price).toLocaleString('es-CL')})</option>`);
     });
 
     select.off('change.insumos').on('change.insumos', function () {

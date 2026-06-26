@@ -1,10 +1,13 @@
 #!/bin/sh
 set -e
 
-# Fallback: si no se definió APP_KEY en .env, genera una temporal para este
-# contenedor. RECOMENDADO: fijar APP_KEY en .env (ver guía LAN, paso 3) para que
-# api, queue y scheduler compartan la misma clave.
+# Fallback: si no se definió APP_KEY en .env, genera una temporal solo en desarrollo.
+# En producción APP_KEY es obligatorio (api, queue y scheduler deben compartir la misma clave).
 if [ -z "${APP_KEY}" ]; then
+    if [ "${APP_ENV}" = "production" ]; then
+        echo "ERROR: APP_KEY obligatorio en producción. Defínalo en .env antes de arrancar."
+        exit 1
+    fi
     APP_KEY="$(php artisan key:generate --show)"
     export APP_KEY
     echo "AVISO: APP_KEY no definido en .env; usando una clave temporal generada."

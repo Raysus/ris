@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Persona;
+use App\Support\RisHttp;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -24,7 +25,7 @@ class KeycloakService
 
     private function getAdminToken()
     {
-        $response = Http::withoutVerifying()->asForm()->post("{$this->baseUrl}/realms/master/protocol/openid-connect/token", [
+        $response = RisHttp::client()->asForm()->post("{$this->baseUrl}/realms/master/protocol/openid-connect/token", [
             'client_id' => 'admin-cli',
             'username' => $this->adminUser,
             'password' => $this->adminPassword,
@@ -79,7 +80,7 @@ class KeycloakService
             'realm' => $this->targetRealm,
         ]);
 
-        $response = Http::withoutVerifying()
+        $response = RisHttp::client()
             ->withToken($token)
             ->post("{$this->baseUrl}/admin/realms/{$this->targetRealm}/users", $keycloakUser);
 
@@ -151,7 +152,7 @@ class KeycloakService
         $keycloakUsername = Persona::normalizeRut((string) $username);
 
         // 1. Buscar si el usuario ya existe (por RUT o por username legacy del RIS)
-        $searchResponse = Http::withoutVerifying()
+        $searchResponse = RisHttp::client()
             ->withToken($token)
             ->get("{$this->baseUrl}/admin/realms/{$this->targetRealm}/users", [
                 'username' => $keycloakUsername,
@@ -162,7 +163,7 @@ class KeycloakService
         $userId = null;
 
         if (empty($users) && filled($legacyUsername) && $legacyUsername !== $keycloakUsername) {
-            $legacySearch = Http::withoutVerifying()
+            $legacySearch = RisHttp::client()
                 ->withToken($token)
                 ->get("{$this->baseUrl}/admin/realms/{$this->targetRealm}/users", [
                     'username' => $legacyUsername,
@@ -178,7 +179,7 @@ class KeycloakService
 
             if ($existingUsername !== $keycloakUsername) {
                 // Keycloak suele tener deshabilitado "Edit username": recrear con RUT.
-                $deleteResponse = Http::withoutVerifying()
+                $deleteResponse = RisHttp::client()
                     ->withToken($token)
                     ->delete("{$this->baseUrl}/admin/realms/{$this->targetRealm}/users/{$userId}");
 
@@ -213,7 +214,7 @@ class KeycloakService
                     ];
                 }
 
-                $updateResponse = Http::withoutVerifying()
+                $updateResponse = RisHttp::client()
                     ->withToken($token)
                     ->put("{$this->baseUrl}/admin/realms/{$this->targetRealm}/users/{$userId}", $updatePayload);
 
@@ -250,14 +251,14 @@ class KeycloakService
                 ],
             ], fn ($v) => $v !== null);
 
-            $createResponse = Http::withoutVerifying()
+            $createResponse = RisHttp::client()
                 ->withToken($token)
                 ->post("{$this->baseUrl}/admin/realms/{$this->targetRealm}/users", $createPayload);
 
             if ($createResponse->created()) {
                 $createdInKeycloak = true;
                 // Volvemos a buscarlo para obtener su UUID interno generado por Keycloak
-                $searchResponse2 = Http::withoutVerifying()
+                $searchResponse2 = RisHttp::client()
                     ->withToken($token)
                     ->get("{$this->baseUrl}/admin/realms/{$this->targetRealm}/users", [
                         'username' => $keycloakUsername,
@@ -301,7 +302,7 @@ class KeycloakService
             . '?client_id=' . urlencode($clientId)
             . '&lifespan=' . $lifespan;
 
-        $response = Http::withoutVerifying()
+        $response = RisHttp::client()
             ->withToken($token)
             ->withBody(json_encode($actions), 'application/json')
             ->put($url);
@@ -338,7 +339,7 @@ class KeycloakService
         $rolePayload = [];
 
         foreach (array_values(array_unique(array_filter($roleNames))) as $roleName) {
-            $roleResponse = Http::withoutVerifying()
+            $roleResponse = RisHttp::client()
                 ->withToken($token)
                 ->get("{$this->baseUrl}/admin/realms/{$this->targetRealm}/roles/{$roleName}");
 
@@ -358,7 +359,7 @@ class KeycloakService
             return false;
         }
 
-        $assignResponse = Http::withoutVerifying()
+        $assignResponse = RisHttp::client()
             ->withToken($token)
             ->post("{$this->baseUrl}/admin/realms/{$this->targetRealm}/users/{$userId}/role-mappings/realm", $rolePayload);
 
