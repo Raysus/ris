@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Appointment;
 use App\Models\ElectronicDocument;
+use App\Support\RisHttp;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -102,11 +103,7 @@ class DteService
         $url = config('dte.provider_url');
 
         if ($url && config('dte.enabled')) {
-            $http = Http::timeout(30)->withToken(config('dte.provider_token'));
-
-            if (app()->environment('local', 'testing')) {
-                $http = $http->withoutVerifying();
-            }
+            $http = RisHttp::client(30)->withToken(config('dte.provider_token'));
 
             $response = $http->post($url, ['document' => $doc->payload, 'type' => $doc->document_type]);
 

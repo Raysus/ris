@@ -60,8 +60,10 @@ Route::post('/fhir/ServiceRequest', [FhirController::class, 'serviceRequest']);
 Route::post('/login', [AuthController::class, 'login'])
     ->middleware('throttle:5,1')
     ->name('login');
-Route::post('/password/forgot', [AuthController::class, 'forgotPassword']);
-Route::post('/password/reset', [AuthController::class, 'resetPassword']);
+Route::post('/password/forgot', [AuthController::class, 'forgotPassword'])
+    ->middleware('throttle:5,1');
+Route::post('/password/reset', [AuthController::class, 'resetPassword'])
+    ->middleware('throttle:5,1');
 
 Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
 

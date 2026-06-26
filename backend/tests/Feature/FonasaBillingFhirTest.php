@@ -6,6 +6,7 @@ use App\Models\FonasaBono;
 use App\Models\Insurance;
 use App\Models\InsurancePlan;
 use App\Models\ElectronicDocument;
+use Illuminate\Support\Facades\Config;
 use Tests\Concerns\InteractsWithRis;
 use Tests\TestCase;
 
@@ -18,6 +19,7 @@ class FonasaBillingFhirTest extends TestCase
         parent::setUp();
         $this->seedRis();
         $this->loginRis();
+        config(['dte.enabled' => true, 'dte.provider_url' => null]);
     }
 
     public function test_fonasa_register_and_validate_simulated(): void
@@ -100,9 +102,15 @@ class FonasaBillingFhirTest extends TestCase
             ->assertJsonStructure(['data' => ['filas', 'totales', 'mes']]);
     }
 
-    public function test_fhir_metadata_public(): void
+    public function test_fhir_metadata_requires_secret_when_enabled(): void
     {
+        Config::set('fhir.enabled', true);
+        Config::set('fhir.inbound_secret', 'test-fhir-secret');
+
         $this->getJson('/api/fhir/metadata')
+            ->assertUnauthorized();
+
+        $this->getJson('/api/fhir/metadata', ['X-FHIR-Secret' => 'test-fhir-secret'])
             ->assertOk()
             ->assertJsonPath('resourceType', 'CapabilityStatement');
     }

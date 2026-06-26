@@ -42,35 +42,36 @@ function renderCartaInformeValidacion() {
         reportText: $valRoot().find("#finalReportText").val() || currentValStudy.reportText || '',
     };
     const doc = risReportDocument.buildStudyDocument(currentValidationChain, study, labInfoValidacion);
+    const e = (value) => (typeof risEscapeHtml === 'function' ? risEscapeHtml(value) : String(value ?? ''));
     const headerHtml = (doc.headerLines || [])
-        .map((line) => `<div style="text-align:center;">${line.replace(/</g, '&lt;')}</div>`)
+        .map((line) => `<div style="text-align:center;">${e(line)}</div>`)
         .join('');
 
     $valRoot().find("#reportLetterIntro").html(`
         <div style="font-family:'Times New Roman',Times,serif;font-size:12pt;line-height:1.45;color:${colorInformeGlobalValidation};">
             <div style="text-align:center;margin-bottom:18px;">${headerHtml}</div>
-            <div style="margin-bottom:14px;">${doc.dateLine}</div>
+            <div style="margin-bottom:14px;">${e(doc.dateLine)}</div>
             <div style="margin-bottom:10px;">Estimado Doctor:</div>
             <div style="margin-bottom:14px;text-align:justify;">
-                El examen realizado a su paciente Sr(a) ${doc.patientName}, ha dado el siguiente resultado:
+                El examen realizado a su paciente Sr(a) ${e(doc.patientName)}, ha dado el siguiente resultado:
             </div>
-            <div style="font-weight:bold;margin-bottom:10px;">${doc.examTitle}</div>
+            <div style="font-weight:bold;margin-bottom:10px;">${e(doc.examTitle)}</div>
         </div>
     `);
 
     const doctor = doc.doctor || {};
     const signature = doctor.signatureUrl
-        ? `<img src="${doctor.signatureUrl}" alt="Firma" style="max-height:70px;max-width:180px;margin-bottom:6px;"><br>`
+        ? `<img src="${e(doctor.signatureUrl)}" alt="Firma" style="max-height:70px;max-width:180px;margin-bottom:6px;"><br>`
         : '';
     $valRoot().find("#reportLetterFooter").html(`
         <div style="font-family:'Times New Roman',Times,serif;font-size:12pt;line-height:1.45;color:${colorInformeGlobalValidation};">
             <div style="margin-top:28px;">Atentamente,</div>
             <div style="margin-top:18px;">
                 ${signature}
-                <div style="font-weight:bold;">${doctor.displayName || 'DR. MÉDICO RADIÓLOGO'}</div>
+                <div style="font-weight:bold;">${e(doctor.displayName || 'DR. MÉDICO RADIÓLOGO')}</div>
                 <div>MEDICO RADIÓLOGO</div>
-                ${doctor.initials ? `<div>${doctor.initials}</div>` : ''}
-                ${doctor.registration ? `<div>${doctor.registration}</div>` : ''}
+                ${doctor.initials ? `<div>${e(doctor.initials)}</div>` : ''}
+                ${doctor.registration ? `<div>${e(doctor.registration)}</div>` : ''}
             </div>
         </div>
     `);

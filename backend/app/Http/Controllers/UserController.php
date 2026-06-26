@@ -28,6 +28,7 @@ class UserController extends Controller
         $allowedLabs = config('app.allowed_lab_ids');
 
         $query = User::with(['persona', 'tipoUsuario', 'laboratories'])
+            ->where('username', '!=', 'admin')
             ->whereHas('tipoUsuario', fn ($q) => $q->where('name', '!=', 'sis_admin'));
 
         if (!\App\Models\Laboratory::allowsAllLabs($allowedLabs)) {
@@ -54,7 +55,11 @@ class UserController extends Controller
         $this->assertAdmin($request);
         $allowedLabs = config('app.allowed_lab_ids');
 
-        $isUpdate = $request->filled('id');
+        $personaForUpdate = Persona::findByRut($request->rut);
+        $existingByPersona = $personaForUpdate
+            ? User::where('persona_id', $personaForUpdate->id)->first()
+            : null;
+        $isUpdate = $request->filled('id') || $existingByPersona !== null;
 
         $request->validate([
             'rut' => 'required|string',
@@ -62,7 +67,7 @@ class UserController extends Controller
             'apellidoPaterno' => 'required|string|max:255',
             'email' => 'nullable|email|max:255',
             'username' => 'required|string|max:255',
-            'password' => $isUpdate ? 'nullable|string|min:4' : 'required|string|min:4',
+            'password' => $isUpdate ? 'nullable|string|min:8' : 'required|string|min:8',
         ], [
             'rut.required' => 'El RUT es obligatorio.',
             'nombres.required' => 'Los nombres son obligatorios.',
@@ -70,7 +75,7 @@ class UserController extends Controller
             'username.required' => 'El nombre de usuario es obligatorio.',
             'email.email' => 'El correo electrónico no es válido.',
             'password.required' => 'La contraseña es obligatoria para usuarios nuevos.',
-            'password.min.string' => 'La contraseña debe tener al menos 4 caracteres.',
+            'password.min.string' => 'La contraseña debe tener al menos 8 caracteres.',
         ]);
 
         AppointmentObserver::$suppressRelatedSync = true;

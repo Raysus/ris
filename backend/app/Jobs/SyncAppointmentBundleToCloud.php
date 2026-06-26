@@ -7,6 +7,7 @@ use App\Models\CloudSyncLog;
 use App\Services\CloudSyncLogger;
 use App\Support\CloudSyncMode;
 use App\Support\CloudSyncTransport;
+use App\Support\RisHttp;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -76,10 +77,7 @@ class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommi
         $cloudUrl = config('cloud_sync.inbound_url');
         $secret = config('cloud_sync.secret');
 
-        $http = Http::timeout(CloudSyncTransport::defaultTimeout())->withToken($secret)->acceptJson()->asJson();
-        if (app()->environment('local', 'testing')) {
-            $http = $http->withoutVerifying();
-        }
+        $http = RisHttp::client(CloudSyncTransport::defaultTimeout())->withToken($secret)->acceptJson()->asJson();
 
         $headers = [
             'User-Agent' => 'HealthTiCloud-RIS/1.0',

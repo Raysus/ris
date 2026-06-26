@@ -7,6 +7,7 @@ use App\Services\CloudEntitySyncService;
 use App\Services\CloudSyncLogger;
 use App\Support\CloudSyncMode;
 use App\Support\CloudSyncTransport;
+use App\Support\RisHttp;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -81,11 +82,7 @@ class SyncEntityToCloud implements ShouldQueue, ShouldBeUnique
 
         $this->packFiles();
 
-        $http = Http::timeout(CloudSyncTransport::defaultTimeout());
-
-        if (app()->environment('local', 'testing')) {
-            $http = $http->withoutVerifying();
-        }
+        $http = RisHttp::client(CloudSyncTransport::defaultTimeout());
 
         try {
             $response = $http

@@ -247,20 +247,25 @@ class ReportDocumentFormatter
             ? '<div>' . e($doctor['registration']) . '</div>'
             : '';
 
+        $dateLine = e($document['dateLine'] ?? '');
+        $patientName = e($document['patientName'] ?? '');
+        $examTitle = e($document['examTitle'] ?? 'EXAMEN:');
+        $doctorName = e($doctor['displayName'] ?? 'DR. MÉDICO RADIÓLOGO');
+
         return <<<HTML
 <div class="ris-report-page" style="color: {$textColor}; font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.45;">
     <div class="ris-report-header" style="text-align:center; margin-bottom: 18px;">{$header}</div>
-    <div style="margin-bottom: 14px;">{$document['dateLine'] ?? ''}</div>
+    <div style="margin-bottom: 14px;">{$dateLine}</div>
     <div style="margin-bottom: 10px;">Estimado Doctor:</div>
     <div style="margin-bottom: 14px; text-align: justify;">
-        El examen realizado a su paciente Sr(a) {$document['patientName']}, ha dado el siguiente resultado:
+        El examen realizado a su paciente Sr(a) {$patientName}, ha dado el siguiente resultado:
     </div>
-    <div style="font-weight: bold; margin-bottom: 10px;">{$document['examTitle'] ?? 'EXAMEN:'}</div>
+    <div style="font-weight: bold; margin-bottom: 10px;">{$examTitle}</div>
     <div class="ris-report-body" style="white-space: pre-wrap; text-align: justify; margin-bottom: 24px;">{$body}</div>
     <div style="margin-top: 28px;">Atentamente,</div>
     <div style="margin-top: 18px;">
         {$signature}
-        <div style="font-weight: bold;">{$doctor['displayName'] ?? 'DR. MÉDICO RADIÓLOGO'}</div>
+        <div style="font-weight: bold;">{$doctorName}</div>
         <div>MEDICO RADIÓLOGO</div>
         {$initials}
         {$registration}

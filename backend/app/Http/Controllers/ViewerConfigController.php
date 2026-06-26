@@ -21,7 +21,6 @@ class ViewerConfigController extends Controller
                 'viewer_path' => env('VIEWER_PATH', '/viewer'),
                 'viewer_query_param' => env('VIEWER_QUERY_PARAM', 'StudyInstanceUIDs'),
                 'viewer_accession_param' => env('VIEWER_ACCESSION_PARAM', ''),
-                'viewer_token' => env('VIEWER_TOKEN', ''),
                 'patient_portal_url' => rtrim(env('PATIENT_PORTAL_URL', 'https://portal.healthticloud.cl'), '/'),
                 'pacs_bridge_url' => env('PACS_BRIDGE_URL', 'http://localhost:8181/open-dicom'),
                 'pacs_ip' => $dicom['host'] ?: env('PACS_DEFAULT_IP', '172.16.66.11'),

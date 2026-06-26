@@ -15,7 +15,15 @@ class Hl7Controller extends Controller
         }
 
         $secret = config('hl7.inbound_secret');
-        if ($secret && $request->header('X-HL7-Secret') !== $secret) {
+        if (!is_string($secret) || $secret === '') {
+            return response()->json([
+                'success' => false,
+                'message' => 'HL7 habilitado sin secreto de entrada configurado.',
+            ], 503);
+        }
+
+        $provided = (string) $request->header('X-HL7-Secret', '');
+        if (!hash_equals($secret, $provided)) {
             return response()->json(['success' => false, 'message' => 'No autorizado.'], 401);
         }
 

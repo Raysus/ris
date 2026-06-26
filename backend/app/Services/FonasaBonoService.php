@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Appointment;
 use App\Models\FonasaBono;
+use App\Support\RisHttp;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
@@ -115,11 +116,7 @@ class FonasaBonoService
 
     protected function callExternalApi(FonasaBono $bono): array
     {
-        $http = Http::timeout(20)->withToken(config('fonasa.api_token'));
-
-        if (app()->environment('local', 'testing')) {
-            $http = $http->withoutVerifying();
-        }
+        $http = RisHttp::client(20)->withToken(config('fonasa.api_token'));
 
         $response = $http->post(config('fonasa.api_url'), [
             'folio' => $bono->folio,

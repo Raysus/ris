@@ -191,7 +191,7 @@ class CloudEntitySyncService
     {
         if (CloudSyncMode::acceptsInbound()) {
             $record = $this->findCatalogRecordById($class, $incomingId);
-            if ($record || $class !== ReferringDoctor::class) {
+            if ($record) {
                 return $record;
             }
 
@@ -362,6 +362,10 @@ class CloudEntitySyncService
     {
         if ($class === ReferringDoctor::class && filled($attrs['rut'] ?? null)) {
             $attrs['rut'] = ReferringDoctor::normalizeRut((string) $attrs['rut']);
+        }
+
+        if ($class === Insurance::class && ! filled($attrs['code'] ?? null) && filled($attrs['name'] ?? null)) {
+            $attrs['code'] = strtoupper(substr(preg_replace('/[^a-z0-9]+/i', '_', (string) $attrs['name']), 0, 32));
         }
 
         return $attrs;
@@ -670,7 +674,14 @@ class CloudEntitySyncService
 
     private function createPersonaOrResolveByRut(array $payload, string $rut): string
     {
+        $incomingId = (string) ($payload['id'] ?? '');
+        unset($payload['id']);
+
         try {
+            if ($incomingId !== '') {
+                return $this->saveWithIncomingId(Persona::class, $incomingId, $payload)->id;
+            }
+
             return Persona::create($payload)->id;
         } catch (QueryException $e) {
             if ($rut !== '' && str_contains($e->getMessage(), 'rut_hash')) {

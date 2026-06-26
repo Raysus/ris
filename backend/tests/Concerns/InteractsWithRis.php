@@ -9,11 +9,17 @@ use App\Models\Laboratory;
 use App\Models\Machine;
 use App\Models\Paciente;
 use App\Models\Persona;
+use App\Models\TipoUsuario;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
+use Database\Seeders\DemoModulesSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
 use App\Jobs\SyncEntityToCloud;
+use Illuminate\Database\Eloquent\Model;
 use Laravel\Sanctum\Sanctum;
 
 trait InteractsWithRis
@@ -29,13 +35,109 @@ trait InteractsWithRis
         Queue::fake([SyncEntityToCloud::class]);
     }
 
-    protected function seedRis(): void
+    /**
+     * @param  class-string<Model>  $class
+     */
+    protected function createModelWithId(string $class, string $id, array $attributes): Model
+    {
+        $model = new $class();
+        $model->setAttribute($model->getKeyName(), $id);
+        $model->fill($attributes);
+        $model->save();
+
+        return $model->fresh();
+    }
+
+    protected function seedRis(bool $withDemoModules = false): void
     {
         $this->fakeCloudSync();
         $this->seed(DatabaseSeeder::class);
 
+        if ($withDemoModules) {
+            $this->seed(DemoModulesSeeder::class);
+        }
+
+        $this->risLab = Laboratory::where('name', 'Siresa')->firstOrFail();
+        $this->ensureSiresaTestCatalog();
+
         $this->risUser = User::where('username', 'rgutierrez')->firstOrFail();
-        $this->risLab = Laboratory::where('name', 'Centro de Diagnóstico RIS PRO')->firstOrFail();
+    }
+
+    protected function ensureSiresaTestCatalog(): void
+    {
+        $lab = $this->risLab ?? Laboratory::where('name', 'Siresa')->firstOrFail();
+
+        $friquelme = User::where('username', 'friquelme')->first();
+        if ($friquelme && !$friquelme->laboratories()->where('laboratories.id', $lab->id)->exists()) {
+            DB::table('laboratory_user')->insert([
+                'id' => (string) Str::uuid(),
+                'laboratory_id' => $lab->id,
+                'user_id' => $friquelme->id,
+                'is_primary' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        if (!Machine::where('laboratory_id', $lab->id)->exists()) {
+            Machine::create([
+                'laboratory_id' => $lab->id,
+                'name' => 'Sala Test RX',
+                'group' => 'RX',
+                'ae_title' => 'TEST_AE',
+                'ip_address' => '127.0.0.1',
+                'port' => 104,
+                'is_active' => true,
+            ]);
+        }
+
+        if (!Exam::where('laboratory_id', $lab->id)->exists()) {
+            Exam::create([
+                'laboratory_id' => $lab->id,
+                'group_code' => 'RX',
+                'name' => 'RX TORAX PA LAT',
+                'fonasa_code' => '8701',
+                'price' => 25000,
+                'is_active' => true,
+            ]);
+        }
+    }
+
+    protected function createRecepcionTestUser(): User
+    {
+        return $this->createRoleTestUser('recepcion');
+    }
+
+    protected function createRoleTestUser(string $role): User
+    {
+        $lab = $this->risLab ?? Laboratory::where('name', 'Siresa')->firstOrFail();
+        $tipo = TipoUsuario::where('name', $role)->firstOrFail();
+
+        $persona = Persona::create([
+            'rut' => '18888888-' . random_int(1, 9),
+            'names' => ucfirst($role),
+            'last_name_1' => 'Prueba',
+        ]);
+
+        $user = User::create([
+            'persona_id' => $persona->id,
+            'tipo_usuario_id' => $tipo->id,
+            'username' => $role . '_test_' . random_int(1000, 9999),
+            'password' => Hash::make('password123'),
+            'settings' => ['roles' => [$role]],
+            'is_active' => true,
+        ]);
+
+        DB::table('laboratory_user')->insert([
+            'id' => (string) Str::uuid(),
+            'laboratory_id' => $lab->id,
+            'user_id' => $user->id,
+            'is_primary' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return $user;
     }
 
     protected function loginRis(string $username = 'rgutierrez', string $password = 'rgutierrez'): string

@@ -8,6 +8,7 @@ use App\Models\Laboratory;
 use App\Models\Paciente;
 use App\Models\Persona;
 use App\Models\User;
+use App\Support\RisHttp;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -141,10 +142,7 @@ class CloudCatalogPullService
             throw new \RuntimeException('Configure CLOUD_EXPORT_URL y CLOUD_SYNC_SECRET en el .env del laboratorio.');
         }
 
-        $http = Http::timeout(60)->withToken($secret)->acceptJson();
-        if (app()->environment('local', 'testing')) {
-            $http = $http->withoutVerifying();
-        }
+        $http = RisHttp::client(60)->withToken($secret)->acceptJson();
 
         $response = $http->get($url, [
             'laboratory_id' => $laboratoryId,

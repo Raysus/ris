@@ -88,9 +88,9 @@ class DicomImportService
      */
     public function formatPatientNameDicom(string $names, string $lastName1, ?string $lastName2 = null): string
     {
-        $family = strtoupper(trim(preg_replace('/\s+/', ' ', $lastName1)));
-        $given = strtoupper(trim(preg_replace('/\s+/', ' ', $names)));
-        $maternal = strtoupper(trim(preg_replace('/\s+/', ' ', (string) $lastName2)));
+        $family = mb_strtoupper(trim(preg_replace('/\s+/', ' ', $lastName1)), 'UTF-8');
+        $given = mb_strtoupper(trim(preg_replace('/\s+/', ' ', $names)), 'UTF-8');
+        $maternal = mb_strtoupper(trim(preg_replace('/\s+/', ' ', (string) $lastName2)), 'UTF-8');
 
         if ($maternal !== '') {
             $family = trim($family === '' ? $maternal : "{$family} {$maternal}");

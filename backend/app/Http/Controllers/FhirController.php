@@ -10,8 +10,12 @@ use Illuminate\Http\Request;
 
 class FhirController extends Controller
 {
-    public function metadata()
+    public function metadata(Request $request)
     {
+        if ($denied = $this->assertFhirInboundAccess($request)) {
+            return $denied;
+        }
+
         return response()->json([
             'resourceType' => 'CapabilityStatement',
             'status' => 'active',
@@ -88,17 +92,8 @@ class FhirController extends Controller
 
     protected function createServiceRequest(Request $request)
     {
-        if (!config('fhir.enabled')) {
-            return response()->json(['resourceType' => 'OperationOutcome', 'issue' => [
-                ['severity' => 'error', 'diagnostics' => 'FHIR deshabilitado.'],
-            ]], 503);
-        }
-
-        $secret = config('fhir.inbound_secret');
-        if ($secret && $request->header('X-FHIR-Secret') !== $secret) {
-            return response()->json(['resourceType' => 'OperationOutcome', 'issue' => [
-                ['severity' => 'error', 'diagnostics' => 'No autorizado.'],
-            ]], 401);
+        if ($denied = $this->assertFhirInboundAccess($request)) {
+            return $denied;
         }
 
         $resource = $request->all();
@@ -168,5 +163,30 @@ class FhirController extends Controller
         }
 
         return $query->findOrFail($id);
+    }
+
+    protected function assertFhirInboundAccess(Request $request): ?\Illuminate\Http\JsonResponse
+    {
+        if (!config('fhir.enabled')) {
+            return response()->json(['resourceType' => 'OperationOutcome', 'issue' => [
+                ['severity' => 'error', 'diagnostics' => 'FHIR deshabilitado.'],
+            ]], 503);
+        }
+
+        $secret = config('fhir.inbound_secret');
+        if (!is_string($secret) || $secret === '') {
+            return response()->json(['resourceType' => 'OperationOutcome', 'issue' => [
+                ['severity' => 'error', 'diagnostics' => 'FHIR habilitado sin secreto de entrada configurado.'],
+            ]], 503);
+        }
+
+        $provided = (string) $request->header('X-FHIR-Secret', '');
+        if (!hash_equals($secret, $provided)) {
+            return response()->json(['resourceType' => 'OperationOutcome', 'issue' => [
+                ['severity' => 'error', 'diagnostics' => 'No autorizado.'],
+            ]], 401);
+        }
+
+        return null;
     }
 }

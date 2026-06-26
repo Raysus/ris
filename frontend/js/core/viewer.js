@@ -165,8 +165,7 @@ function buildOhifViewerUrl(cfg, studyInstanceUid) {
     const url = new URL(`${base}${path}`);
     url.searchParams.set(param, uid);
 
-    const authToken =
-        (cfg.viewer_token || "").trim() || localStorage.getItem("ris_token") || "";
+    const authToken = localStorage.getItem("ris_token") || "";
     if (authToken) {
         url.searchParams.set("token", authToken);
     }

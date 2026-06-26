@@ -84,7 +84,7 @@ function renderListaTranscripcion() {
             claseBorde = 'border-start border-4 border-danger bg-danger-subtle';
             badgeEstado = `
                 <div class="mt-2 small text-danger fw-bold">
-                    <i class="bi bi-exclamation-triangle-fill"></i> Devuelto: ${app.returnReason}
+                    <i class="bi bi-exclamation-triangle-fill"></i> Devuelto: ${risEscapeHtml(app.returnReason)}
                 </div>`;
         } else {
             badgeEstado = `<div class="mt-2 small text-success opacity-75"><i class="bi bi-check-circle"></i> Dictado Nuevo</div>`;
@@ -95,12 +95,12 @@ function renderListaTranscripcion() {
         const item = `
             <button type="button" class="list-group-item list-group-item-action p-3 d-flex flex-column align-items-start gap-1 ${selectedClass} ${claseBorde}" onclick="abrirTranscripcion('${app.id}')">
                 <div class="d-flex w-100 justify-content-between align-items-center">
-                    <h6 class="mb-0 fw-bold font-monospace text-truncate" style="max-width: 150px;">${app.accessionNumber}</h6>
+                    <h6 class="mb-0 fw-bold font-monospace text-truncate" style="max-width: 150px;">${risEscapeHtml(app.accessionNumber)}</h6>
                     ${badgeAudio}
                 </div>
-                <strong class="m-0 text-truncate w-100" style="font-size: 0.95rem;">${nombreCompleto}</strong>
+                <strong class="m-0 text-truncate w-100" style="font-size: 0.95rem;">${risEscapeHtml(nombreCompleto)}</strong>
                 <div class="d-flex w-100 justify-content-between align-items-center mt-1 opacity-75 small">
-                    <span>RUT: ${app.patient.rut}</span>
+                    <span>RUT: ${risEscapeHtml(app.patient.rut)}</span>
                     <span>Edad: ${app.patient.age}</span>
                 </div>
                 ${badgeEstado}
@@ -121,7 +121,7 @@ function abrirTranscripcion(id) {
     const retornoAlerta = (app.needsReview && app.returnReason !== '') ? `
         <div class="alert alert-danger py-2 px-3 mb-3 small shadow-sm d-flex align-items-center gap-2 border-danger border-2">
             <i class="bi bi-exclamation-octagon-fill fs-4"></i>
-            <div><strong class="d-block">Devuelto por Validación Médica:</strong> ${app.returnReason}</div>
+            <div><strong class="d-block">Devuelto por Validación Médica:</strong> ${risEscapeHtml(app.returnReason)}</div>
         </div>
     ` : '';
 
@@ -131,9 +131,9 @@ function abrirTranscripcion(id) {
         ${retornoAlerta}
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div>
-                <h5 class="mb-1 fw-bold text-dark"><i class="bi bi-person-fill me-2 text-secondary"></i>${nombreCompleto}</h5>
-                <span class="badge bg-dark font-monospace fs-6">${app.accessionNumber}</span>
-                <span class="text-muted small ms-3"><b>RUT:</b> ${app.patient.rut}</span>
+                <h5 class="mb-1 fw-bold text-dark"><i class="bi bi-person-fill me-2 text-secondary"></i>${risEscapeHtml(nombreCompleto)}</h5>
+                <span class="badge bg-dark font-monospace fs-6">${risEscapeHtml(app.accessionNumber)}</span>
+                <span class="text-muted small ms-3"><b>RUT:</b> ${risEscapeHtml(app.patient.rut)}</span>
                 <span class="text-muted small ms-3"><b>Edad:</b> ${app.patient.age}</span>
             </div>
             <div class="text-end">
@@ -148,7 +148,7 @@ function abrirTranscripcion(id) {
     app.studies.forEach((study, idx) => {
         const subExamenLabel = study.subExam ? ` - <small class="opacity-75">${study.subExam}</small>` : '';
         const btn = $(`<button class="btn btn-sm btn-outline-dark fw-bold shadow-sm text-start"></button>`);
-        btn.html(`<i class="bi bi-file-earmark-medical me-1"></i> ${study.exam} ${subExamenLabel}`);
+        btn.html(`<i class="bi bi-file-earmark-medical me-1"></i> ${risEscapeHtml(study.exam)} ${subExamenLabel}`);
 
         btn.on('click', () => {
             $("#listaExamenesTranscripcion button").removeClass("btn-dark text-white").addClass("btn-outline-dark");

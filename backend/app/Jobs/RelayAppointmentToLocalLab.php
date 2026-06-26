@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Appointment;
 use App\Support\LaboratorySyncRelay;
+use App\Support\RisHttp;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -143,10 +144,7 @@ class RelayAppointmentToLocalLab implements ShouldQueue, ShouldBeUnique
             return;
         }
 
-        $http = Http::timeout(30)->withToken($secret)->acceptJson()->asJson();
-        if (app()->environment('local', 'testing')) {
-            $http = $http->withoutVerifying();
-        }
+        $http = RisHttp::client(30)->withToken($secret)->acceptJson()->asJson();
 
         $body = [
             'action' => $this->action,

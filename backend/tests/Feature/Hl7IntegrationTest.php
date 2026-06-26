@@ -62,6 +62,15 @@ class Hl7IntegrationTest extends TestCase
         $this->assertEquals('22222222-2', $parsed['patient_id']);
     }
 
+    public function test_hl7_rejects_when_secret_not_configured(): void
+    {
+        Config::set('hl7.inbound_secret', '');
+
+        $this->postJson('/api/hl7/inbound', ['message' => 'MSH|test'], [
+            'X-Lab-Id' => $this->risLab->id,
+        ])->assertStatus(503);
+    }
+
     public function test_admin_lists_hl7_messages(): void
     {
         $this->loginRis();
