@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ChecksRisAuthorization;
 use App\Models\Payment;
 use App\Models\Appointment;
 use App\Models\Tariff;
@@ -12,14 +13,30 @@ use App\Services\LaboratoryProfileService;
 
 class PaymentController extends Controller
 {
+    use ChecksRisAuthorization;
+
+    private const PAYMENT_ROLES = ['admin', 'sis_admin', 'recepcion', 'secretaria', 'secretario'];
+
+    private function assertPaymentAccess(Request $request): void
+    {
+        $this->assertAnyRole($request, self::PAYMENT_ROLES);
+    }
+
+    private function resolveLabId(Request $request): ?string
+    {
+        return $request->header('X-Lab-Id') ?: config('app.current_lab_id');
+    }
+
     /**
      * Obtener desglose de precios para una cita
      * GET /api/payments/breakdown/{appointment_id}
      */
-    public function getBreakdown($appointmentId)
+    public function getBreakdown(Request $request, $appointmentId)
     {
+        $this->assertPaymentAccess($request);
+
         try {
-            $appointment = Appointment::with([
+            $appointment = $this->scopedAppointmentQuery()->with([
                 'studies.exam',
                 'insurancePlan',
                 'supplies'
@@ -96,6 +113,8 @@ class PaymentController extends Controller
      */
     public function store(Request $request)
     {
+        $this->assertPaymentAccess($request);
+
         $request->validate([
             'appointment_id' => 'required|uuid|exists:appointments,id',
             'amount' => 'required|numeric|min:0',
@@ -106,7 +125,7 @@ class PaymentController extends Controller
 
         try {
             return DB::transaction(function () use ($request) {
-                $appointment = Appointment::findOrFail($request->appointment_id);
+                $appointment = $this->scopedAppointmentQuery()->findOrFail($request->appointment_id);
 
                 // Crear registro de pago
                 $payment = Payment::create([
@@ -143,16 +162,19 @@ class PaymentController extends Controller
      * Obtener historial de pagos de una cita
      * GET /api/payments/history/{appointment_id}
      */
-    public function getHistory($appointmentId)
+    public function getHistory(Request $request, $appointmentId)
     {
+        $this->assertPaymentAccess($request);
+
         try {
+            $appointment = $this->scopedAppointmentQuery()->with('studies')->findOrFail($appointmentId);
+
             $payments = Payment::where('appointment_id', $appointmentId)
                 ->with(['cashier.persona', 'appointment'])
                 ->orderBy('created_at', 'desc')
                 ->get();
 
             $totalPagado = $payments->sum('amount');
-            $appointment = Appointment::find($appointmentId);
             $totalDeuda = ($appointment->studies->sum('price') ?? 0) - $totalPagado;
 
             return response()->json([
@@ -180,6 +202,7 @@ class PaymentController extends Controller
      */
     public function getInsurancePlans(Request $request)
     {
+        $this->assertPaymentAccess($request);
         try {
             $labId = $request->header('X-Lab-Id') ?: config('app.current_lab_id');
             $insuranceId = $request->query('insurance_id');
@@ -216,10 +239,12 @@ class PaymentController extends Controller
      * Generar comprobante de pago (PDF)
      * GET /api/payments/{id}/receipt
      */
-    public function generateReceipt($paymentId)
+    public function generateReceipt(Request $request, $paymentId)
     {
+        $this->assertPaymentAccess($request);
+
         try {
-            $payment = Payment::with([
+            $payment = $this->scopedPaymentQuery()->with([
                 'appointment.patient.persona',
                 'appointment.studies.exam',
                 'cashier.persona'
@@ -256,9 +281,12 @@ class PaymentController extends Controller
      */
     public function getDailyReport(Request $request)
     {
+        $this->assertPaymentAccess($request);
         $fecha = $request->query('fecha') ? Carbon::parse($request->query('fecha')) : Carbon::now();
+        $labId = $this->resolveLabId($request);
 
-        $pagos = Payment::whereDate('created_at', $fecha->toDateString())
+        $pagos = $this->scopedPaymentsForLab($labId)
+            ->whereDate('created_at', $fecha->toDateString())
             ->with('cashier.persona')
             ->get();
 
@@ -291,11 +319,14 @@ class PaymentController extends Controller
      */
     public function getMonthlyReport(Request $request)
     {
+        $this->assertPaymentAccess($request);
         $mes = $request->query('mes', Carbon::now()->format('Y-m'));
         $inicio = Carbon::parse($mes . '-01')->startOfMonth();
         $fin = $inicio->copy()->endOfMonth();
+        $labId = $this->resolveLabId($request);
 
-        $pagos = Payment::whereBetween('created_at', [$inicio, $fin])
+        $pagos = $this->scopedPaymentsForLab($labId)
+            ->whereBetween('created_at', [$inicio, $fin])
             ->with('cashier.persona')
             ->get();
 
@@ -319,9 +350,12 @@ class PaymentController extends Controller
      */
     public function getCashierReport(Request $request)
     {
+        $this->assertPaymentAccess($request);
         $fecha = $request->query('fecha') ? Carbon::parse($request->query('fecha')) : Carbon::now();
+        $labId = $this->resolveLabId($request);
 
-        $pagos = Payment::whereDate('created_at', $fecha->toDateString())
+        $pagos = $this->scopedPaymentsForLab($labId)
+            ->whereDate('created_at', $fecha->toDateString())
             ->with('cashier.persona')
             ->get();
 
@@ -350,13 +384,12 @@ class PaymentController extends Controller
      */
     public function getCashClose(Request $request)
     {
+        $this->assertPaymentAccess($request);
         $fecha = $request->query('fecha') ? Carbon::parse($request->query('fecha')) : Carbon::now();
-        $labId = $request->header('X-Lab-Id') ?: config('app.current_lab_id');
+        $labId = $this->resolveLabId($request);
 
-        $pagos = Payment::whereDate('created_at', $fecha->toDateString())
-            ->when($labId, function ($q) use ($labId) {
-                $q->whereHas('appointment', fn ($aq) => $aq->where('laboratory_id', $labId));
-            })
+        $pagos = $this->scopedPaymentsForLab($labId)
+            ->whereDate('created_at', $fecha->toDateString())
             ->with(['cashier.persona', 'appointment.patient.persona'])
             ->orderBy('created_at')
             ->get();

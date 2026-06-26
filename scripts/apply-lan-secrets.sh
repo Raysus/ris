@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
-# Aplica secretos compartidos de docs/SECRETOS_DESPLIEGUE.md al .env LAN del backend.
-# Uso: bash scripts/apply-lan-secrets.sh [IP_LAN]
+# Aplica URLs y secretos al .env LAN del backend (secretos vía variables de entorno).
+# Uso:
+#   export CLOUD_SYNC_SECRET='...'
+#   export KEYCLOAK_ADMIN_USER='...'
+#   export KEYCLOAK_ADMIN_PASSWORD='...'
+#   bash scripts/apply-lan-secrets.sh [IP_LAN]
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -26,16 +30,26 @@ set_kv() {
   fi
 }
 
-# Valores compartidos nube ↔ labs (ver docs/SECRETOS_DESPLIEGUE.md)
-set_kv 'CLOUD_SYNC_SECRET' 'HtBMifjaMJASDmfFJASO1DSJa3!'
 set_kv 'ORTHANC_URL' 'https://pacs.healthticloud.cl'
 set_kv 'PACS_DICOM_HOST' '170.246.172.84'
 set_kv 'VIEWER_URL' 'https://viewer.healthticloud.cl'
 set_kv 'PATIENT_PORTAL_URL' 'https://portal.healthticloud.cl'
 set_kv 'KEYCLOAK_BASE_URL' 'https://sso.healthticloud.cl'
 set_kv 'KEYCLOAK_REALM' 'patient-portal'
-set_kv 'KEYCLOAK_ADMIN_USER' 'htcloud'
-set_kv 'KEYCLOAK_ADMIN_PASSWORD' 'mNgD0\og8N5EkG9UQ'
 
-echo "Secretos LAN aplicados en $ENV_FILE (IP: ${LAN_IP:-sin cambio})"
-echo "Revise APP_KEY, DB_PASSWORD y DB_SEED_CLASS si es instalación ECOTEMUCO."
+if [ -z "${CLOUD_SYNC_SECRET:-}" ]; then
+  echo "AVISO: CLOUD_SYNC_SECRET no definido; no se modifica en .env" >&2
+else
+  set_kv 'CLOUD_SYNC_SECRET' "$CLOUD_SYNC_SECRET"
+fi
+
+if [ -n "${KEYCLOAK_ADMIN_USER:-}" ]; then
+  set_kv 'KEYCLOAK_ADMIN_USER' "$KEYCLOAK_ADMIN_USER"
+fi
+
+if [ -n "${KEYCLOAK_ADMIN_PASSWORD:-}" ]; then
+  set_kv 'KEYCLOAK_ADMIN_PASSWORD' "$KEYCLOAK_ADMIN_PASSWORD"
+fi
+
+echo "Configuración LAN aplicada en $ENV_FILE (IP: ${LAN_IP:-sin cambio})"
+echo "Revise APP_KEY, DB_PASSWORD y DB_SEED_CLASS si es instalación nueva."

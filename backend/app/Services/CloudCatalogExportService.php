@@ -92,7 +92,8 @@ class CloudCatalogExportService
                 ->get();
 
             $payload['users'] = $users->map(function (User $user) {
-                $row = $user->makeVisible(['password'])->toArray();
+                $row = $user->toArray();
+                unset($row['password']);
                 $row['persona'] = $user->persona?->toArray();
 
                 return $row;

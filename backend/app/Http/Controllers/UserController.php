@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ChecksRisAuthorization;
 use App\Models\User;
 use App\Models\Persona;
 use App\Services\KeycloakService;
@@ -13,6 +14,8 @@ use Illuminate\Support\Facades\Storage;
 
 class UserController extends Controller
 {
+    use ChecksRisAuthorization;
+
     protected $keycloakService;
 
     public function __construct(KeycloakService $keycloakService)
@@ -39,14 +42,16 @@ class UserController extends Controller
         return $query;
     }
 
-    public function index()
+    public function index(Request $request)
     {
+        $this->assertAdmin($request);
         $users = $this->getSecureUserQuery()->get();
         return response()->json(['success' => true, 'data' => $users]);
     }
 
     public function store(Request $request)
     {
+        $this->assertAdmin($request);
         $allowedLabs = config('app.allowed_lab_ids');
 
         $isUpdate = $request->filled('id');
@@ -199,8 +204,9 @@ class UserController extends Controller
             'keycloak_synced' => $this->shouldSyncKeycloak(),
         ]);
     }
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
+        $this->assertAdmin($request);
         $user = $this->getSecureUserQuery()->findOrFail($id);
 
         $user->is_active = false;
@@ -210,8 +216,9 @@ class UserController extends Controller
         return response()->json(['success' => true]);
     }
 
-    public function getRoles()
+    public function getRoles(Request $request)
     {
+        $this->assertAdmin($request);
         $roles = \App\Models\TipoUsuario::assignableQuery()
             ->orderBy('name')
             ->get();

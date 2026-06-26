@@ -78,10 +78,6 @@ class User extends Authenticatable
     {
         $this->loadMissing('tipoUsuario');
 
-        if (strcasecmp((string) $this->username, 'admin') === 0) {
-            return true;
-        }
-
         if (in_array($this->tipoUsuario?->name, self::SYSTEM_WIDE_ROLE_NAMES, true)) {
             return true;
         }

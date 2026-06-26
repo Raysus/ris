@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ChecksRisAuthorization;
 use App\Models\Exam;
 use App\Support\ModalityCode;
 use App\Models\ExamInstruction;
@@ -10,6 +11,8 @@ use Illuminate\Http\Request;
 
 class ExamController extends Controller
 {
+    use ChecksRisAuthorization;
+
     public function index(Request $request)
     {
         $query = Exam::query();
@@ -36,6 +39,7 @@ class ExamController extends Controller
 
     public function store(Request $request)
     {
+        $this->assertAdmin($request);
         $validated = $request->validate([
             'id' => 'nullable|string',
             'group_code' => 'required|string',
@@ -66,6 +70,13 @@ class ExamController extends Controller
         ];
 
         if (!empty($validated['id'])) {
+            $existing = Exam::query()
+                ->where('id', $validated['id'])
+                ->where('laboratory_id', $labId)
+                ->first();
+            if (!$existing) {
+                return response()->json(['success' => false, 'message' => 'Examen no encontrado en este laboratorio.'], 404);
+            }
             $exam = Exam::updateOrCreate(['id' => $validated['id']], $payload);
         } else {
             $exam = Exam::updateOrCreate(
@@ -119,6 +130,7 @@ class ExamController extends Controller
 
     public function importExams(Request $request)
     {
+        $this->assertAdmin($request);
         $request->validate([
             'file' => 'required|mimes:xlsx,xls,csv,txt'
         ]);
@@ -169,9 +181,20 @@ class ExamController extends Controller
         ]);
     }
 
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
-        $exam = Exam::find($id);
+        $this->assertAdmin($request);
+        $allowedLabs = config('app.allowed_lab_ids');
+        $query = Exam::query()->where('id', $id);
+
+        if (!\App\Models\Laboratory::allowsAllLabs($allowedLabs)) {
+            if (empty($allowedLabs)) {
+                return response()->json(['success' => false, 'message' => 'Examen no encontrado'], 404);
+            }
+            $query->whereIn('laboratory_id', $allowedLabs);
+        }
+
+        $exam = $query->first();
 
         if ($exam) {
             $exam->delete();

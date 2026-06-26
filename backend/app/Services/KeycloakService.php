@@ -74,15 +74,16 @@ class KeycloakService
             ]
         ];
 
-        Log::info('--- INTENTO DE CREACIÓN EN KEYCLOAK ---');
-        Log::info('Payload enviado:', $keycloakUser);
+        Log::info('Keycloak createUser', [
+            'username' => $rutNormalizado,
+            'realm' => $this->targetRealm,
+        ]);
 
         $response = Http::withoutVerifying()
             ->withToken($token)
             ->post("{$this->baseUrl}/admin/realms/{$this->targetRealm}/users", $keycloakUser);
 
-        Log::info('Status Keycloak: ' . $response->status());
-        Log::info('---------------------------------------');
+        Log::info('Keycloak createUser status: ' . $response->status());
 
         if ($response->created()) {
             return true;

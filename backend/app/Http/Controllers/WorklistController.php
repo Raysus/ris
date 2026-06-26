@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ChecksRisAuthorization;
 use Illuminate\Http\Request;
 use App\Models\Appointment;
 use App\Models\AppointmentStudy;
@@ -25,6 +26,15 @@ use App\Services\LaboratoryProfileService;
 
 class WorklistController extends Controller
 {
+    use ChecksRisAuthorization;
+
+    private const WORKLIST_ROLES = ['admin', 'sis_admin', 'tecnologo'];
+
+    private function assertWorklistAccess(Request $request): void
+    {
+        $this->assertAnyRole($request, self::WORKLIST_ROLES);
+    }
+
     private function getSecureAppointmentQuery()
     {
         $allowedLabs = config('app.allowed_lab_ids');
@@ -42,6 +52,7 @@ class WorklistController extends Controller
 
     public function index(Request $request)
     {
+        $this->assertWorklistAccess($request);
         $query = $this->getSecureAppointmentQuery()
             ->with([
                 'studies.machine',
@@ -93,6 +104,7 @@ class WorklistController extends Controller
 
     public function sendToDicom(Request $request, $appointmentId, DicomImportService $dicomImport)
     {
+        $this->assertWorklistAccess($request);
         $profile = LaboratoryProfileService::resolve();
         if (!($profile['uses_dicom_worklist'] ?? true)) {
             return response()->json([
@@ -234,6 +246,7 @@ class WorklistController extends Controller
      */
     public function uploadDicomStudy(Request $request, $appointmentId, DicomImportService $dicomImport)
     {
+        $this->assertWorklistAccess($request);
         $profile = LaboratoryProfileService::resolve();
         if ($profile['uses_dicom_worklist'] ?? true) {
             return response()->json([
@@ -334,6 +347,7 @@ class WorklistController extends Controller
      */
     public function markDicomReceived(Request $request, $appointmentId)
     {
+        $this->assertWorklistAccess($request);
         $request->validate(['accession' => 'required|string|max:64']);
 
         $appointment = $this->getSecureAppointmentQuery()->findOrFail($appointmentId);
@@ -351,6 +365,7 @@ class WorklistController extends Controller
 
     public function complete(Request $request, $appointmentId)
     {
+        $this->assertWorklistAccess($request);
         $request->validate([
             'anamnesis' => 'required|string',
             'supplies' => 'array',
@@ -431,6 +446,7 @@ class WorklistController extends Controller
 
     public function updateStatus(Request $request, $appointmentId)
     {
+        $this->assertWorklistAccess($request);
         $request->validate([
             'status' => 'required|string',
             'needs_review' => 'nullable|boolean',
