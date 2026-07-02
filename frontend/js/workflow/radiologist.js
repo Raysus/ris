@@ -716,25 +716,27 @@ async function devolverATecnologo() {
 async function enviarATranscripcion() {
     if (!currentReportingChain || !currentRadioStudy) return;
 
-    if (!audioBlob) {
-        return showToast("⚠️ Operación cancelada: Debe grabar un audio antes de enviar a transcripción.", "warning");
-    }
-
     const texto = $("#textoInforme").val().trim();
+    const tieneAudio = !!audioBlob;
+    const mensajeConfirm = tieneAudio
+        ? `¿Enviar el audio grabado para el examen "${currentRadioStudy.exam}" a la bandeja de transcripción?`
+        : `¿Enviar el examen "${currentRadioStudy.exam}" a transcripción sin audio adjunto? El dictado puede entregarse después (p. ej. tarjeta SD).`;
 
-    if (!(await showConfirm(`¿Enviar el audio grabado para el examen "${currentRadioStudy.exam}" a la bandeja de la secretaria?`, { title: "Enviar a transcripción", confirmText: "Enviar" }))) return;
+    if (!(await showConfirm(mensajeConfirm, { title: "Enviar a transcripción", confirmText: "Enviar" }))) return;
 
         const token = localStorage.getItem('ris_token');
         const labId = localStorage.getItem('ris_lab_id');
         const btn = $("#btnEnviarTranscripcion");
 
         try {
-            btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Subiendo...');
+            btn.prop('disabled', true).html(`<span class="spinner-border spinner-border-sm"></span> ${tieneAudio ? 'Subiendo...' : 'Enviando...'}`);
 
             const formData = new FormData();
             formData.append('study_id', currentRadioStudy.study_id);
             formData.append('report_text', texto);
-            formData.append('audio', audioBlob, `dictado_${currentRadioStudy.study_id}.webm`);
+            if (tieneAudio) {
+                formData.append('audio', audioBlob, `dictado_${currentRadioStudy.study_id}.webm`);
+            }
 
             const response = await fetch(`${API_URL}/radiologist/appointments/${currentReportingChain.id}/transcribe`, {
                 method: 'POST',
@@ -743,14 +745,19 @@ async function enviarATranscripcion() {
             });
 
             if (response.ok) {
-                showToast("🎙️ Audio subido y transferido a Transcripción exitosamente.", "success");
+                showToast(
+                    tieneAudio
+                        ? "🎙️ Audio subido y transferido a Transcripción exitosamente."
+                        : "✅ Examen enviado a Transcripción. Puede adjuntar el audio más tarde.",
+                    "success"
+                );
                 limpiarPantallaRadiologo();
                 cargarEstudiosRadiologo();
             } else {
                 throw new Error("Error en el servidor");
             }
         } catch (e) {
-            showToast("❌ Error al subir el archivo de audio", "danger");
+            showToast(tieneAudio ? "❌ Error al subir el archivo de audio" : "❌ Error al enviar a transcripción", "danger");
         } finally {
             btn.prop('disabled', false).html('<i class="bi bi-headphones me-1"></i> Enviar a Transcripción');
         }
