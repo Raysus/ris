@@ -6,9 +6,18 @@
                 <div class="card-header bg-dark text-white py-3">
                     <h6 class="mb-0 fw-bold"><i class="bi bi-headphones me-2"></i>Audios Pendientes</h6>
                     <small class="opacity-75">Dictados por transcribir (<span id="contadorAudios">0</span>)</small>
+                    <div class="mt-2" data-ris-exam-date-filter>
+                        <label class="small fw-bold opacity-75 mb-1 d-block"><i class="bi bi-calendar3 me-1"></i>Fecha examen</label>
+                        <div class="d-flex flex-wrap gap-1 align-items-center">
+                            <input type="date" data-ris-exam-date-input class="form-control form-control-sm bg-dark text-white border-secondary" style="max-width:9.5rem">
+                            <button type="button" class="btn btn-sm btn-outline-light" data-ris-exam-date-preset="today">Hoy</button>
+                            <button type="button" class="btn btn-sm btn-outline-light" data-ris-exam-date-preset="tomorrow">Mañana</button>
+                            <button type="button" class="btn btn-sm btn-outline-light" data-ris-exam-date-preset="all">Todos</button>
+                        </div>
+                    </div>
                 </div>
                 <div class="list-group list-group-flush overflow-auto flex-grow-1" id="listaTranscripcion"
-                    style="max-height: calc(100vh - 180px);">
+                    style="max-height: calc(100vh - 240px);">
                 </div>
             </div>
         </div>

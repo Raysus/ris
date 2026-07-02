@@ -5,6 +5,7 @@
 let currentValidationData = [];
 let currentValidationChain = null;
 let currentValStudy = null;
+let validationExamDateFilter = null;
 let colorInformeGlobalValidation = "#111111";
 let labInfoValidacion = { name: '', address: '', city: '', settings: {} };
 
@@ -94,6 +95,14 @@ function actualizarHeaderPacienteValidacion(chain) {
 }
 
 function initValidation() {
+    if (typeof risInitWorkflowExamDateFilter === "function") {
+        validationExamDateFilter = risInitWorkflowExamDateFilter({
+            moduleKey: "validation",
+            rootSelector: "[data-ris-exam-date-filter]",
+            onChange: () => cargarListaValidacion(),
+        });
+    }
+
     cargarAjustesVisualesValidacion();
     cargarListaValidacion();
     setInterval(() => {
@@ -137,7 +146,11 @@ async function cargarListaValidacion() {
     }
 
     try {
-        const response = await fetch(`${API_URL}/radiologist/validations`, {
+        const dateQuery = typeof risWorkflowExamDateQueryParam === "function" && validationExamDateFilter
+            ? risWorkflowExamDateQueryParam(validationExamDateFilter.getState())
+            : "";
+        const url = `${API_URL}/radiologist/validations${dateQuery ? `?${dateQuery}` : ""}`;
+        const response = await fetch(url, {
             headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders() : {}
         });
         const data = await response.json();
@@ -159,16 +172,16 @@ async function cargarListaValidacion() {
 
 function renderValidationStudies() {
     const lista = $("#validationStudies");
-    lista.empty();
+    const emptyHtml = '<div class="p-4 text-center text-muted"><i class="bi bi-check-circle fs-2 d-block mb-2 text-success"></i>Bandeja al día.</div>';
 
     $("#badgeParaFirma").text(currentValidationData.length);
 
     if (currentValidationData.length === 0) {
-        lista.append('<div class="p-4 text-center text-muted"><i class="bi bi-check-circle fs-2 d-block mb-2 text-success"></i>Bandeja al día.</div>');
+        lista.empty().append(emptyHtml);
         return;
     }
 
-    currentValidationData.forEach(cadena => {
+    const renderItem = (cadena) => {
         const isActive = currentValidationChain && currentValidationChain.id === cadena.id ? 'active bg-primary text-white border-primary' : '';
         const textColor = isActive ? 'text-white' : 'text-primary';
         const mutedColor = isActive ? 'text-white-50' : 'text-muted';
@@ -180,17 +193,29 @@ function renderValidationStudies() {
         const nombreLista = apellidos
             ? `${apellidos}, ${patient.name || 'Sin nombre'}`
             : (patient.name || 'Sin nombre');
+        const fechaBadge = typeof risWorkflowExamDateBadgeHtml === "function"
+            ? risWorkflowExamDateBadgeHtml(cadena)
+            : "";
 
-        lista.append(`
+        return `
             <button type="button" class="list-group-item list-group-item-action ${isActive} p-3 border-bottom" onclick="abrirValidacion('${cadena.id}')">
-                <div class="d-flex justify-content-between align-items-center mb-1">
-                    <strong class="text-truncate">${nombreLista}</strong>
+                <div class="d-flex justify-content-between align-items-start gap-1 mb-1">
+                    <strong class="text-truncate">${typeof risEscapeHtml === "function" ? risEscapeHtml(nombreLista) : nombreLista}</strong>
+                    ${fechaBadge}
                 </div>
                 <div class="small ${mutedColor} mb-2">A.N.: ${cadena.accessionNumber}</div>
-                <div class="small fw-bold ${textColor} text-truncate"><i class="bi bi-file-medical me-1"></i>${nombresExamenes}</div>
+                <div class="small fw-bold ${textColor} text-truncate"><i class="bi bi-file-medical me-1"></i>${typeof risEscapeHtml === "function" ? risEscapeHtml(nombresExamenes) : nombresExamenes}</div>
             </button>
-        `);
-    });
+        `;
+    };
+
+    if (typeof risRenderWorkflowInboxGrouped === "function") {
+        risRenderWorkflowInboxGrouped(lista, currentValidationData, renderItem, emptyHtml);
+        return;
+    }
+
+    lista.empty();
+    currentValidationData.forEach((cadena) => lista.append(renderItem(cadena)));
 }
 
 function abrirValidacion(citaId) {

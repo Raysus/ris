@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ChecksRisAuthorization;
+use App\Http\Controllers\Concerns\FormatsAppointmentInbox;
 use Illuminate\Http\Request;
 use App\Models\Appointment;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +14,7 @@ use Carbon\Carbon;
 class TranscriptionController extends Controller
 {
     use ChecksRisAuthorization;
+    use FormatsAppointmentInbox;
 
     private const TRANSCRIPTION_ROLES = ['admin', 'sis_admin', 'transcriptor'];
 
@@ -39,10 +41,13 @@ class TranscriptionController extends Controller
     public function index(Request $request)
     {
         $this->assertTranscriptionAccess($request);
-        $appointments = $this->getSecureAppointmentQuery()
-            ->with(['patient.persona', 'studies'])
-            ->where('status', 'en_transcripcion')
-            ->orderBy('updated_at', 'desc')
+        $appointments = $this->applyExamDateFilter(
+            $this->getSecureAppointmentQuery()
+                ->with(['patient.persona', 'studies'])
+                ->where('status', 'en_transcripcion'),
+            $request
+        )
+            ->orderBy('start_time', 'asc')
             ->get();
 
         $formattedData = $appointments->map(function ($app) {
@@ -54,7 +59,7 @@ class TranscriptionController extends Controller
                 return !empty($study->audio_path);
             });
 
-            return [
+            return array_merge([
                 'id' => $app->id,
                 'accessionNumber' => $app->accession_number ?? 'ACC-' . $app->id,
                 'destinationDoctorId' => $app->destination_doctor_id,
@@ -81,7 +86,7 @@ class TranscriptionController extends Controller
                         'audioUrl' => $study->audio_path ? asset('storage/' . $study->audio_path) : null,
                     ];
                 })
-            ];
+            ], $this->examInboxTimingFields($app));
         });
 
         return response()->json(['success' => true, 'data' => $formattedData]);

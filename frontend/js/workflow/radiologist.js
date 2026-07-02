@@ -5,6 +5,7 @@
 let currentReportingChain = null;
 let currentRadioStudy = null;
 let currentRadiologistData = [];
+let radiologistExamDateFilter = null;
 let audioBlob = null;
 let mediaRecorder;
 let audioChunks = [];
@@ -229,6 +230,14 @@ function initRadiologist() {
         $("#filtroAdminContainer").removeClass("d-none");
     }
 
+    if (typeof risInitWorkflowExamDateFilter === "function") {
+        radiologistExamDateFilter = risInitWorkflowExamDateFilter({
+            moduleKey: "radiologist",
+            rootSelector: "[data-ris-exam-date-filter]",
+            onChange: () => cargarEstudiosRadiologo(),
+        });
+    }
+
     cargarPlantillasRadiologo();
     cargarEstudiosRadiologo();
     setupAudioEvents();
@@ -432,7 +441,11 @@ async function cargarEstudiosRadiologo() {
     }
 
     try {
-        const response = await fetch(`${API_URL}/radiologist/studies?view=${viewMode}`, {
+        const dateQuery = typeof risWorkflowExamDateQueryParam === "function" && radiologistExamDateFilter
+            ? risWorkflowExamDateQueryParam(radiologistExamDateFilter.getState())
+            : "";
+        const url = `${API_URL}/radiologist/studies?view=${viewMode}${dateQuery ? `&${dateQuery}` : ""}`;
+        const response = await fetch(url, {
             headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders() : {}
         });
         
@@ -501,17 +514,17 @@ function abrirRadiologo(id) {
 
 function renderRadiologistStudies() {
     const contenedor = $("#radiologistStudies");
-    contenedor.empty();
+    const emptyHtml = '<div class="p-4 text-center text-muted small"><i class="bi bi-check2-circle fs-3 d-block mb-2 text-success"></i>Bandeja al día. No tienes pacientes pendientes.</div>';
 
     if (currentRadiologistData.length === 0) {
-        contenedor.append('<div class="p-4 text-center text-muted small"><i class="bi bi-check2-circle fs-3 d-block mb-2 text-success"></i>Bandeja al día. No tienes pacientes pendientes.</div>');
+        contenedor.empty().append(emptyHtml);
         $("#badgePendientesInformar").text(0);
         return;
     }
 
     $("#badgePendientesInformar").text(currentRadiologistData.length);
 
-    currentRadiologistData.forEach(app => {
+    const renderItem = (app) => {
         const selectedClass = (currentReportingChain && currentReportingChain.id === app.id) ? 'active bg-primary text-white' : '';
 
         let badgeEstado = '';
@@ -526,11 +539,15 @@ function renderRadiologistStudies() {
         }
 
         const nombreCompleto = `${app.patient.name} ${app.patient.lastName} ${app.patient.secondLastName || ''}`.trim();
+        const fechaBadge = typeof risWorkflowExamDateBadgeHtml === "function"
+            ? risWorkflowExamDateBadgeHtml(app)
+            : "";
 
-        const item = `
+        return `
             <button type="button" class="list-group-item list-group-item-action p-3 d-flex flex-column align-items-start gap-1 ${selectedClass} ${claseBorde}" onclick="abrirRadiologo('${app.id}')">
-                <div class="d-flex w-100 justify-content-between align-items-center">
+                <div class="d-flex w-100 justify-content-between align-items-center gap-1">
                     <h6 class="mb-0 fw-bold font-monospace text-truncate" style="max-width: 150px;">${risEscapeHtml(app.accessionNumber)}</h6>
+                    ${fechaBadge}
                 </div>
                 <strong class="m-0 text-truncate w-100" style="font-size: 0.95rem;">${risEscapeHtml(nombreCompleto)}</strong>
                 <div class="d-flex w-100 justify-content-between align-items-center mt-1 opacity-75 small">
@@ -540,8 +557,15 @@ function renderRadiologistStudies() {
                 ${badgeEstado}
             </button>
         `;
-        contenedor.append(item);
-    });
+    };
+
+    if (typeof risRenderWorkflowInboxGrouped === "function") {
+        risRenderWorkflowInboxGrouped(contenedor, currentRadiologistData, renderItem, emptyHtml);
+        return;
+    }
+
+    contenedor.empty();
+    currentRadiologistData.forEach((app) => contenedor.append(renderItem(app)));
 }
 
 function abrirInforme(citaId) {

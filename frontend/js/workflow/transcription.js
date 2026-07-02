@@ -6,6 +6,7 @@ let currentTranscriptionData = [];
 let currentTranscriptionChain = null;
 let currentTransStudy = null;
 let colorInformeGlobal = "#333333";
+let transcriptionExamDateFilter = null;
 
 // Declaración global para evitar el Uncaught ReferenceError
 let autoSaveIntervalTrans = null;
@@ -13,6 +14,14 @@ let autoSaveIntervalTrans = null;
 let audioDurationFallback = 0;
 
 function initTranscription() {
+    if (typeof risInitWorkflowExamDateFilter === "function") {
+        transcriptionExamDateFilter = risInitWorkflowExamDateFilter({
+            moduleKey: "transcription",
+            rootSelector: "[data-ris-exam-date-filter]",
+            onChange: () => cargarListaTranscripcion(),
+        });
+    }
+
     cargarAjustesVisuales();
     cargarListaTranscripcion();
     cargarPlantillasTranscripcion();
@@ -49,7 +58,11 @@ async function cargarListaTranscripcion() {
         return;
     }
     try {
-        const response = await fetch(`${API_URL}/transcription/appointments`, {
+        const dateQuery = typeof risWorkflowExamDateQueryParam === "function" && transcriptionExamDateFilter
+            ? risWorkflowExamDateQueryParam(transcriptionExamDateFilter.getState())
+            : "";
+        const url = `${API_URL}/transcription/appointments${dateQuery ? `?${dateQuery}` : ""}`;
+        const response = await fetch(url, {
             headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders() : {}
         });
         const result = await response.json();
@@ -64,19 +77,20 @@ async function cargarListaTranscripcion() {
 
 function renderListaTranscripcion() {
     const contenedor = $("#listaTranscripcion");
-    contenedor.empty();
+    const emptyHtml = '<div class="p-4 text-center text-muted small"><i class="bi bi-check2-circle fs-3 d-block mb-2 text-success"></i>Bandeja al día. No hay dictados.</div>';
 
     if (currentTranscriptionData.length === 0) {
-        contenedor.append('<div class="p-4 text-center text-muted small"><i class="bi bi-check2-circle fs-3 d-block mb-2 text-success"></i>Bandeja al día. No hay dictados.</div>');
+        contenedor.empty().append(emptyHtml);
         $("#contadorAudios").text(0);
         return;
     }
 
-    currentTranscriptionData.forEach(app => {
+    $("#contadorAudios").text(currentTranscriptionData.length);
+
+    const renderItem = (app) => {
         const selectedClass = (currentTranscriptionChain && currentTranscriptionChain.id === app.id) ? 'active bg-primary text-white' : '';
         const badgeAudio = app.hasAudio ? '<span class="badge bg-success small"><i class="bi bi-mic-fill"></i> Audio</span>' : '<span class="badge bg-secondary small">Sin Audio</span>';
 
-        // 💡 LÓGICA VISUAL: Identificar si viene devuelto de validación o es flujo normal
         let badgeEstado = '';
         let claseBorde = 'border-start border-4 border-primary';
 
@@ -91,12 +105,15 @@ function renderListaTranscripcion() {
         }
 
         const nombreCompleto = `${app.patient.name} ${app.patient.lastName} ${app.patient.secondLastName || ''}`.trim();
+        const fechaBadge = typeof risWorkflowExamDateBadgeHtml === "function"
+            ? risWorkflowExamDateBadgeHtml(app)
+            : "";
 
-        const item = `
+        return `
             <button type="button" class="list-group-item list-group-item-action p-3 d-flex flex-column align-items-start gap-1 ${selectedClass} ${claseBorde}" onclick="abrirTranscripcion('${app.id}')">
-                <div class="d-flex w-100 justify-content-between align-items-center">
+                <div class="d-flex w-100 justify-content-between align-items-center gap-1 flex-wrap">
                     <h6 class="mb-0 fw-bold font-monospace text-truncate" style="max-width: 150px;">${risEscapeHtml(app.accessionNumber)}</h6>
-                    ${badgeAudio}
+                    <div class="d-flex gap-1 align-items-center">${fechaBadge} ${badgeAudio}</div>
                 </div>
                 <strong class="m-0 text-truncate w-100" style="font-size: 0.95rem;">${risEscapeHtml(nombreCompleto)}</strong>
                 <div class="d-flex w-100 justify-content-between align-items-center mt-1 opacity-75 small">
@@ -106,8 +123,15 @@ function renderListaTranscripcion() {
                 ${badgeEstado}
             </button>
         `;
-        contenedor.append(item);
-    });
+    };
+
+    if (typeof risRenderWorkflowInboxGrouped === "function") {
+        risRenderWorkflowInboxGrouped(contenedor, currentTranscriptionData, renderItem, emptyHtml);
+        return;
+    }
+
+    contenedor.empty();
+    currentTranscriptionData.forEach((app) => contenedor.append(renderItem(app)));
 }
 
 function abrirTranscripcion(id) {
