@@ -253,7 +253,7 @@ class RadiologistController extends Controller
         $this->assertRadiologistAccess($request);
         $request->validate([
             'study_id' => 'required|string',
-            'audio' => 'required|file|mimes:webm,mp3,wav,ogg,mp4|max:15360',
+            'audio' => 'nullable|file|mimes:webm,mp3,wav,ogg,mp4|max:15360',
             'reason' => 'nullable|string'
         ]);
 
@@ -290,12 +290,17 @@ class RadiologistController extends Controller
                     ]);
             }
 
+            $logMotivo = $request->reason
+                ?? ($audioPath
+                    ? 'Derivado a transcripción con audio adjunto.'
+                    : 'Derivado a transcripción sin audio (dictado externo o pendiente).');
+
             DB::table('appointment_logs')->insert([
                 'id' => (string) Str::orderedUuid(),
                 'appointment_id' => $appointment->id,
                 'user_id' => $userId,
                 'action' => 'SENT_TO_TRANSCRIPTION',
-                'details' => json_encode(['motivo' => $request->reason ?? 'Derivado a transcripción con audio adjunto.']),
+                'details' => json_encode(['motivo' => $logMotivo]),
                 'ip_address' => $request->ip(),
                 'created_at' => now(),
                 'updated_at' => now()
