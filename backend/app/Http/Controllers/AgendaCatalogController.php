@@ -40,7 +40,7 @@ class AgendaCatalogController extends Controller
 
         $insurancesQuery = Insurance::with('plans')->where('is_active', true);
         LaboratoryProfileService::filterInsurancesForProfile($insurancesQuery);
-        $examsQuery = Exam::with('subExams')->where('is_active', true);
+        $examsQuery = Exam::with(['subExams', 'tariffs'])->where('is_active', true);
         $suppliesQuery = Supply::where('stock', '>', 0)->where('is_active', true);
         $supplyPacksQuery = SupplyPack::with('items.supply')->where('is_active', true);
         $machinesQuery = Machine::where('is_active', true);

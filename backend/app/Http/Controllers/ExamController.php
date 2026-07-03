@@ -27,7 +27,7 @@ class ExamController extends Controller
             }
         }
 
-        $data = $query->with(['instruction', 'subExams'])->orderBy('name')->get()->map(function (Exam $exam) {
+        $data = $query->with(['instruction', 'subExams', 'tariffs'])->orderBy('name')->get()->map(function (Exam $exam) {
             $arr = $exam->toArray();
             $arr['sub_exams'] = ExamSubExamService::serializeForAgenda($exam);
 
