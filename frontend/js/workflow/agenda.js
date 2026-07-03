@@ -719,6 +719,33 @@ function risObtenerPorcentajeCopagoPlan() {
     return parseFloat(plan?.percentage) || 0;
 }
 
+function risObtenerPlanPrevisionSeleccionado() {
+    return risNullableUuid($('#pPlan').val());
+}
+
+function risResolverPrecioExamen(exam, planId = null) {
+    if (!exam) return 0;
+    const plan = planId ?? risObtenerPlanPrevisionSeleccionado();
+    if (plan && Array.isArray(exam.tariffs)) {
+        const tariff = exam.tariffs.find((t) => String(t.insurance_plan_id) === String(plan));
+        if (tariff && tariff.price != null) {
+            return parseFloat(tariff.price) || 0;
+        }
+    }
+    return parseFloat(exam.price) || 0;
+}
+
+function risActualizarPreciosFilasPorPlan() {
+    $('.study-entry').each(function () {
+        const examId = $(this).find('.eExam').val();
+        if (!examId) return;
+        const examData = risObtenerExamenCatalogo(examId);
+        if (!examData) return;
+        $(this).find('.ePrice').val(risResolverPrecioExamen(examData));
+    });
+    calculateTotal();
+}
+
 function risFormatPesoAgenda(valor) {
     return `$${Math.round(Number(valor) || 0).toLocaleString('es-CL')}`;
 }
@@ -3094,10 +3121,11 @@ function setupProEventListeners() {
         poblarPlanesPrevision(insId, null);
         window._risBonoMontos = null;
         risSincronizarEntidadPagadoraDesdePrevision(true);
+        risActualizarPreciosFilasPorPlan();
     });
 
     $(document).on('change.agendaPro', '#pPlan', function () {
-        calculateTotal();
+        risActualizarPreciosFilasPorPlan();
     });
 
     $(document).on('keydown.agendaRis', '#risQuickExamCode', function (e) {
@@ -3200,7 +3228,7 @@ function setupProEventListeners() {
 
         const examData = risObtenerExamenCatalogo(examId);
         if (examData) {
-            row.find(".ePrice").val(examData.price || 0);
+            row.find(".ePrice").val(risResolverPrecioExamen(examData));
             row.find(".eCode").val(examData.fonasa_code || '');
             risSyncExamQueryLabel(row, examData);
             risPoblarVariantesEnFila(row, examData);
@@ -3229,7 +3257,7 @@ function setupProEventListeners() {
                 poblarSelectExamenesAgenda($exam, row.find('.eMachine').val());
             }
             $exam.val(examId);
-            row.find('.ePrice').val(examData.price || 0);
+            row.find('.ePrice').val(risResolverPrecioExamen(examData));
             row.find('.eCode').val(examData.fonasa_code || '');
             risSyncExamQueryLabel(row, examData);
             risPoblarVariantesEnFila(row, examData);
