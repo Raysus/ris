@@ -15,6 +15,97 @@ class ExamSubExamService
     public static function predefinedVariantsByFonasaCode(): array
     {
         return [
+            '0401031' => [
+                'Cavidades perinasales',
+                'Órbitas',
+                'ATM derecho',
+                'ATM izquierdo',
+                'Maxilar',
+                'Cara',
+                'Malar derecho',
+                'Malar izquierdo',
+                'Arco cigomático derecho',
+                'Arco cigomático izquierdo',
+            ],
+            '0401035' => [
+                'Oído derecho',
+                'Oído izquierdo',
+                'Ambos oídos',
+            ],
+            '0401042' => [
+                'Columna cervical frontal',
+                'Columna cervical lateral',
+            ],
+            '0401043' => [
+                'Columna cervical oblicua derecha',
+                'Columna cervical oblicua izquierda',
+            ],
+            '0401044' => [
+                'Columna cervical dinámica flexión',
+                'Columna cervical dinámica extensión',
+            ],
+            '0401045' => [
+                'Columna dorsal frontal y lateral',
+                'Parrilla costal derecha',
+                'Parrilla costal izquierda',
+            ],
+            '0401047' => [
+                'Columna lumbar flexión',
+                'Columna lumbar extensión',
+            ],
+            '0401048' => [
+                'Columna lumbar oblicua derecha',
+                'Columna lumbar oblicua izquierda',
+            ],
+            '0401051' => [
+                'Pelvis AP',
+                'Pelvis frontal y lateral',
+                'Cadera derecha frontal y lateral',
+                'Cadera izquierda frontal y lateral',
+                'Coxofemoral derecha',
+                'Coxofemoral izquierda',
+            ],
+            '0401052' => [
+                'Rotación interna cadera derecha',
+                'Rotación interna cadera izquierda',
+                'Abducción cadera derecha',
+                'Abducción cadera izquierda',
+                'Proyección lateral cadera derecha',
+                'Proyección lateral cadera izquierda',
+                'Lawenstein cadera derecha',
+                'Lawenstein cadera izquierda',
+            ],
+            '0401053' => [
+                'Sacro-coxis AP y lateral',
+                'Articulación sacroilíaca derecha',
+                'Articulación sacroilíaca izquierda',
+            ],
+            '0401054' => [
+                'Brazo derecho frontal y lateral',
+                'Brazo izquierdo frontal y lateral',
+                'Antebrazo derecho frontal y lateral',
+                'Antebrazo izquierdo frontal y lateral',
+                'Codo derecho frontal y lateral',
+                'Codo izquierdo frontal y lateral',
+                'Muñeca derecha frontal y lateral',
+                'Muñeca izquierda frontal y lateral',
+                'Mano derecha frontal y lateral',
+                'Mano izquierda frontal y lateral',
+                'Dedos mano derecha',
+                'Dedos mano izquierda',
+                'Pie derecho frontal y lateral',
+                'Pie izquierdo frontal y lateral',
+            ],
+            '0401055' => [
+                'Clavícula derecha',
+                'Clavícula izquierda',
+            ],
+            '0401059' => [
+                'Muñeca derecha frontal, lateral y oblicuas',
+                'Muñeca izquierda frontal, lateral y oblicuas',
+                'Tobillo derecho frontal, lateral y oblicuas',
+                'Tobillo izquierdo frontal, lateral y oblicuas',
+            ],
             '0401060' => [
                 'Hombro derecho frontal y lateral',
                 'Hombro izquierdo frontal y lateral',
@@ -29,27 +120,6 @@ class ExamSubExamService
                 'Esternón frontal y lateral',
                 'Escápula derecha',
                 'Escápula izquierda',
-            ],
-            '0401031' => [
-                'Cavidades perinasales',
-                'Órbitas',
-                'ATM derecho',
-                'ATM izquierdo',
-                'Maxilar',
-                'Cara',
-                'Malar derecho',
-                'Malar izquierdo',
-                'Arco cigomático derecho',
-                'Arco cigomático izquierdo',
-            ],
-            '0401045' => [
-                'Columna dorsal frontal y lateral',
-                'Parrilla costal derecha',
-                'Parrilla costal izquierda',
-            ],
-            '0401042' => [
-                'Columna cervical frontal',
-                'Columna cervical lateral',
             ],
             '0401062' => [
                 'Hombro derecho — proyección oblicua',
@@ -72,13 +142,54 @@ class ExamSubExamService
                 'Túnel intercondíleo rodilla derecha',
                 'Túnel intercondíleo rodilla izquierda',
             ],
-            '0401043' => [
-                'Columna cervical oblicua derecha',
-                'Columna cervical oblicua izquierda',
+            '0401130' => [
+                'Proyección axilar derecha',
+                'Proyección axilar izquierda',
+                'Magnificación',
+                'Otra proyección complementaria',
             ],
-            '0401044' => [
-                'Columna cervical dinámica flexión',
-                'Columna cervical dinámica extensión',
+            '0401151' => [
+                'Pelvis AP',
+                'Cadera derecha',
+                'Cadera izquierda',
+            ],
+            '0404005' => [
+                'Ecografía transvaginal',
+                'Ecografía transrectal',
+            ],
+            '0404010' => [
+                'Ecografía renal bilateral',
+                'Ecografía de bazo',
+            ],
+            '0404013' => [
+                'Ecografía ocular derecha',
+                'Ecografía ocular izquierda',
+                'Ecografía ocular bilateral',
+            ],
+            '0404014' => [
+                'Ecografía testicular derecha',
+                'Ecografía testicular izquierda',
+                'Ecografía testicular bilateral',
+            ],
+            '0404016' => [
+                'Hombro',
+                'Codo',
+                'Muñeca',
+                'Mano',
+                'Cadera',
+                'Muslo',
+                'Rodilla',
+                'Pierna',
+                'Tobillo',
+                'Pie',
+                'Espalda / región dorsal',
+                'Región axilar',
+                'Región inguinal',
+            ],
+            '0407020' => [
+                'Densitometría columna lumbar',
+                'Densitometría cadera',
+                'Densitometría extremidades',
             ],
         ];
     }
