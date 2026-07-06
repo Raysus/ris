@@ -1959,53 +1959,58 @@ function sanitizarNombreArchivoCentro(centro) {
         .substring(0, 40) || 'Centro';
 }
 
-const COLUMNAS_NOMINA = 17;
+const COLUMNAS_NOMINA_COMPLETA = 17;
+const COLUMNAS_NOMINA_DIARIA = 8;
 
-function anchosColumnasNomina() {
-    return [
-        { wch: 4 }, { wch: 20 }, { wch: 11 }, { wch: 4 },
-        { wch: 13 }, { wch: 13 }, { wch: 9 }, { wch: 10 },
+function anchosColumnasNomina(numColumnas = COLUMNAS_NOMINA_COMPLETA) {
+    const anchos = [
+        { wch: 4 }, { wch: 22 }, { wch: 12 }, { wch: 5 },
+        { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 12 },
         { wch: 9 }, { wch: 9 }, { wch: 10 }, { wch: 8 },
         { wch: 11 }, { wch: 9 }, { wch: 11 }, { wch: 11 }, { wch: 16 },
     ];
+    return anchos.slice(0, numColumnas);
 }
 
-function aplicarEstiloHojaNomina(hoja, matriz) {
-    hoja['!cols'] = anchosColumnasNomina();
+function aplicarEstiloHojaNomina(hoja, matriz, numColumnas = COLUMNAS_NOMINA_COMPLETA) {
+    hoja['!cols'] = anchosColumnasNomina(numColumnas);
     hoja['!margins'] = { left: 0.2, right: 0.2, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 };
     hoja['!pageSetup'] = {
         paperSize: 9,
-        orientation: 'landscape',
+        orientation: numColumnas <= COLUMNAS_NOMINA_DIARIA ? 'portrait' : 'landscape',
         fitToWidth: 1,
         fitToHeight: 1,
     };
-    hoja['!print'] = { orientation: 'landscape' };
+    hoja['!print'] = { orientation: numColumnas <= COLUMNAS_NOMINA_DIARIA ? 'portrait' : 'landscape' };
 
+    const ultimaCol = numColumnas - 1;
     const merges = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: COLUMNAS_NOMINA - 1 } },
-        { s: { r: 1, c: 0 }, e: { r: 1, c: COLUMNAS_NOMINA - 1 } },
-        { s: { r: 2, c: 0 }, e: { r: 2, c: COLUMNAS_NOMINA - 1 } },
+        { s: { r: 0, c: 0 }, e: { r: 0, c: ultimaCol } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: ultimaCol } },
+        { s: { r: 2, c: 0 }, e: { r: 2, c: ultimaCol } },
     ];
     const filaResponsable = (matriz || []).findIndex((fila, idx) => (
         idx > 3 && String(fila[0] || '').startsWith('RESPONSABLE')
     ));
     if (filaResponsable >= 0) {
-        merges.push({ s: { r: filaResponsable, c: 0 }, e: { r: filaResponsable, c: COLUMNAS_NOMINA - 1 } });
+        merges.push({ s: { r: filaResponsable, c: 0 }, e: { r: filaResponsable, c: ultimaCol } });
     }
     hoja['!merges'] = merges;
 }
 
-function encabezadosNomina() {
-    return [
+function encabezadosNomina(maxColumnas = COLUMNAS_NOMINA_COMPLETA) {
+    const columnas = [
         'N°', 'NOMBRE PACIENTE', 'RUT', 'EDAD', 'RX INTRACORAL', 'CONE BEAM',
         'BOLETA', 'TOTAL BOLETA', 'EFECTIVO', 'TRANSBANK', 'TRANSFERENCIA', 'BONO',
         'RADIOLOGO', 'OPERADOR', 'DENTISTAS', 'INSTITUCION', 'OBSERVACION'
     ];
+    return columnas.slice(0, maxColumnas);
 }
 
-function construirMatrizNomina(nomina) {
+function construirMatrizNomina(nomina, opciones = {}) {
     if (!nomina || !nomina.data) return [];
 
+    const maxColumnas = opciones.maxColumnas || COLUMNAS_NOMINA_COMPLETA;
     const centro = obtenerNombreCentroNomina(nomina);
     const ciudad = String(nomina.ciudad || '').trim();
     const matriz = [];
@@ -2013,10 +2018,10 @@ function construirMatrizNomina(nomina) {
     matriz.push(['NOMINA PACIENTES PARA INFORME']);
     matriz.push([nomina.fecha_formato || nomina.fecha]);
     matriz.push([]);
-    matriz.push(encabezadosNomina());
+    matriz.push(encabezadosNomina(maxColumnas));
 
     nomina.data.forEach(row => {
-        matriz.push([
+        const filaCompleta = [
             row.numero,
             row.nombre_paciente,
             row.rut,
@@ -2034,33 +2039,37 @@ function construirMatrizNomina(nomina) {
             row.dentistas,
             row.institucion,
             row.observacion
-        ]);
+        ];
+        matriz.push(filaCompleta.slice(0, maxColumnas));
     });
 
     const t = nomina.totales || {};
-    matriz.push([
-        'TOTAL', '', '', '', '', '', '',
-        t.total_boleta || 0,
-        t.efectivo || 0,
-        t.transbank || 0,
-        t.transferencia || 0,
-        t.bono || 0,
-        '', '', '', '', ''
-    ]);
+    const filaTotal = maxColumnas <= COLUMNAS_NOMINA_DIARIA
+        ? ['TOTAL', '', '', '', '', '', '', t.total_boleta || 0]
+        : [
+            'TOTAL', '', '', '', '', '', '',
+            t.total_boleta || 0,
+            t.efectivo || 0,
+            t.transbank || 0,
+            t.transferencia || 0,
+            t.bono || 0,
+            '', '', '', '', ''
+        ];
+    matriz.push(filaTotal.slice(0, maxColumnas));
     matriz.push([]);
     matriz.push([`RESPONSABLE: ${obtenerResponsableReporte()}`]);
 
     return matriz;
 }
 
-function descargarExcelNomina(matriz, nombreArchivo, nombreHoja = 'Nomina') {
+function descargarExcelNomina(matriz, nombreArchivo, nombreHoja = 'Nomina', numColumnas = COLUMNAS_NOMINA_COMPLETA) {
     if (typeof XLSX === 'undefined') {
         descargarMatrizCSV(matriz, nombreArchivo.replace(/\.xlsx$/i, '.csv'));
         return;
     }
     const libro = XLSX.utils.book_new();
     const hoja = XLSX.utils.aoa_to_sheet(matriz);
-    aplicarEstiloHojaNomina(hoja, matriz);
+    aplicarEstiloHojaNomina(hoja, matriz, numColumnas);
     XLSX.utils.book_append_sheet(libro, hoja, nombreHoja.substring(0, 31));
     XLSX.writeFile(libro, nombreArchivo);
 }
@@ -2099,9 +2108,14 @@ function exportarNominaDiariaExcel() {
         return showToast('No hay datos de nómina para exportar.', 'warning');
     }
     const centro = sanitizarNombreArchivoCentro(obtenerNombreCentroNomina(currentNominaDiaria));
-    const matriz = construirMatrizNomina(currentNominaDiaria);
-    descargarExcelNomina(matriz, `Nomina_${centro}_${currentNominaDiaria.fecha}.xlsx`, 'Nomina');
-    showToast('Nómina exportada a Excel (ajustada a 1 hoja al imprimir)', 'success');
+    const matriz = construirMatrizNomina(currentNominaDiaria, { maxColumnas: COLUMNAS_NOMINA_DIARIA });
+    descargarExcelNomina(
+        matriz,
+        `Nomina_${centro}_${currentNominaDiaria.fecha}.xlsx`,
+        'Nomina',
+        COLUMNAS_NOMINA_DIARIA
+    );
+    showToast('Nómina diaria exportada (columnas A–H, 1 hoja al imprimir)', 'success');
 }
 
 function sanitizarNombreHojaExcel(nombre) {
@@ -2131,7 +2145,7 @@ function descargarExcelMultihoja(hojas, nombreArchivo) {
         nombresUsados.add(nombreHoja);
 
         const hoja = XLSX.utils.aoa_to_sheet(matriz);
-        aplicarEstiloHojaNomina(hoja, matriz);
+        aplicarEstiloHojaNomina(hoja, matriz, COLUMNAS_NOMINA_COMPLETA);
         XLSX.utils.book_append_sheet(libro, hoja, nombreHoja);
     });
 
