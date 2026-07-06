@@ -2,9 +2,10 @@
  * RIS Local Bridge — corre en cada PC de recepción / radiología (no en el servidor).
  * Puerto: 127.0.0.1:8181
  *
- * - GET  /escanear        → NAPS2 → PDF base64 (Agenda)
- * - POST /open-dicom      → RadiAnt, Horos, OsiriX, Weasis (Radiólogo / Validación)
- * - GET  /health          → estado del servicio
+ * - GET  /escanear              → NAPS2 → PDF base64 (Agenda)
+ * - POST /open-dicom            → RadiAnt, Horos, OsiriX, Weasis (Radiólogo / Validación)
+ * - POST /imprimir-comprobante  → Epson térmica ESC/POS (Agenda)
+ * - GET  /health                → estado del servicio
  */
 const express = require('express');
 const cors = require('cors');
@@ -12,6 +13,7 @@ const { exec } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { printComprobante } = require('./lib/ticketComprobante');
 
 const app = express();
 app.use(cors());
@@ -35,6 +37,12 @@ const getLocalConfig = () => {
                         : 'C:\\Program Files\\NAPS2\\NAPS2.Console.exe',
                     profile: 'Default',
                 },
+                printer: {
+                    enabled: false,
+                    interface: '',
+                    width_chars: 48,
+                    copies: 1,
+                },
             };
         }
         return JSON.parse(fs.readFileSync(configPath, 'utf8'));
@@ -51,6 +59,7 @@ app.get('/health', (req, res) => {
         service: 'ris-local-bridge',
         port: 8181,
         viewer: config?.viewer || null,
+        printer: config?.printer?.enabled ? config.printer.interface : null,
         config_path: path.join(process.cwd(), 'config.json'),
     });
 });
@@ -174,6 +183,29 @@ app.post('/open-dicom', (req, res) => {
         }
         res.json({ success: true, viewer: type });
     });
+});
+
+app.post('/imprimir-comprobante', async (req, res) => {
+    const config = getLocalConfig();
+    if (!config) {
+        return res.status(500).json({ success: false, message: 'config.json inválido' });
+    }
+
+    const ticket = req.body?.ticket || req.body;
+    if (!ticket || !Array.isArray(ticket.sections)) {
+        return res.status(400).json({ success: false, message: 'Falta ticket.sections en el cuerpo JSON' });
+    }
+
+    try {
+        const result = await printComprobante(config, ticket);
+        res.json({ success: true, ...result });
+    } catch (err) {
+        console.error('Error imprimiendo comprobante:', err);
+        res.status(500).json({
+            success: false,
+            message: err.message || 'Error al imprimir',
+        });
+    }
 });
 
 const PORT = 8181;

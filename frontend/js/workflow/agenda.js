@@ -2507,7 +2507,7 @@ async function guardarCita() {
 
         // IMPRESIÓN DEL COMPROBANTE
         if (await showConfirm("¿Desea imprimir el comprobante para el paciente?", { title: "Imprimir comprobante", confirmText: "Imprimir" })) {
-            imprimirComprobantePaciente(payloadCitaGlobal);
+            await imprimirComprobantePaciente(payloadCitaGlobal, data.appointment);
         }
 
         cargarAgendaDesdeServidor();
@@ -2532,37 +2532,208 @@ function risNombreLaboratorioImpresion() {
     return 'Centro de diagnóstico';
 }
 
-function imprimirComprobantePaciente(data) {
-    const printWindow = window.open('', '_blank', 'width=400,height=600');
-    const nombreLab = risEscapeHtml(risNombreLaboratorioImpresion());
-    const html = `
-        <html><head><title>Comprobante de Atención</title>
-        <style>
-            body { font-family: monospace; text-align: center; padding: 20px; }
-            .ticket { border: 1px dashed #000; padding: 15px; display: inline-block; width: 300px; text-align: left; }
-            h2 { margin-bottom: 5px; text-align: center; }
-            .sep { border-top: 1px dashed #ccc; margin: 10px 0; }
-        </style>
-        </head><body>
-        <div class="ticket">
-            <h2>${nombreLab}</h2>
-            <div class="sep"></div>
-            <b>Paciente:</b> ${data.patient.names} ${data.patient.last_name_1}<br>
-            <b>RUT:</b> ${data.patient.rut}<br>
-            <b>Fecha Cita:</b> ${new Date(data.start_time).toLocaleString('es-CL')}<br>
-            <div class="sep"></div>
-            <b>Exámenes a realizar:</b><br>
-            ${data.studies.map(s => `- ${s.exam_name}`).join('<br>')}<br>
-            <div class="sep"></div>
-            <b>Total a Pagar:</b> $${$("#totalCopay").text().replace('$', '')}<br>
-            <b>Estado:</b> ${data.payment_status}<br>
-            <div class="sep"></div>
-            <p style="font-size:11px; text-align:justify;">Recuerde llegar 15 minutos antes. Traer exámenes previos.</p>
-        </div>
-        <script>setTimeout(() => { window.print(); window.close(); }, 500);</script>
-        </body></html>
-    `;
-    printWindow.document.write(html);
+function risFormatValorTicket(valor) {
+    return Math.round(Number(valor) || 0).toLocaleString('es-CL');
+}
+
+function risFormatFechaTicket(fecha) {
+    if (!fecha) return '';
+    const m = String(fecha).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+    const dt = new Date(fecha);
+    if (Number.isNaN(dt.getTime())) return String(fecha);
+    const dd = String(dt.getDate()).padStart(2, '0');
+    const mm = String(dt.getMonth() + 1).padStart(2, '0');
+    return `${dd}-${mm}-${dt.getFullYear()}`;
+}
+
+function risFormatHoraTicket(fecha) {
+    const dt = fecha instanceof Date ? fecha : new Date(fecha);
+    if (Number.isNaN(dt.getTime())) return '00:00:00';
+    return dt.toLocaleTimeString('es-CL', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+    });
+}
+
+function risCalcularEdadTicket(birthDate) {
+    if (!birthDate) return '';
+    const m = String(birthDate).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    const dt = m
+        ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+        : new Date(birthDate);
+    if (Number.isNaN(dt.getTime())) return '';
+    const hoy = new Date();
+    let edad = hoy.getFullYear() - dt.getFullYear();
+    const md = hoy.getMonth() - dt.getMonth();
+    if (md < 0 || (md === 0 && hoy.getDate() < dt.getDate())) edad -= 1;
+    return String(edad);
+}
+
+function risOdtNumeroTicket(savedAppointment) {
+    if (savedAppointment?.accession_number) {
+        const digits = String(savedAppointment.accession_number).replace(/\D/g, '');
+        if (digits.length >= 4) return digits.slice(-8);
+    }
+    if (savedAppointment?.id) {
+        let hash = 0;
+        for (const ch of String(savedAppointment.id).replace(/-/g, '')) {
+            hash = (hash * 31 + ch.charCodeAt(0)) % 1000000;
+        }
+        return String(hash).padStart(6, '0');
+    }
+    return String(Date.now()).slice(-6);
+}
+
+function risTextoSelectAgenda(selector, fallback) {
+    const txt = $(selector).find('option:selected').text().replace(/^[\s—-]+/, '').trim();
+    if (!txt || txt === '-' || txt === '--') return fallback;
+    return txt;
+}
+
+function risTicketLabelLine(etiqueta, valor, ancho = 48) {
+    const lab = String(etiqueta || '').trim();
+    const val = String(valor || '').trim();
+    const maxVal = Math.max(1, ancho - lab.length - 1);
+    return (lab + ' ' + val.slice(0, maxVal)).slice(0, ancho);
+}
+
+function risTicketDosColumnas(izq, der, ancho = 48) {
+    const r = String(der);
+    const l = String(izq).slice(0, Math.max(1, ancho - r.length - 1)).padEnd(Math.max(1, ancho - r.length - 1));
+    return (l + ' ' + r).slice(0, ancho);
+}
+
+function risConstruirPayloadTicketComprobante(data, savedAppointment) {
+    const ancho = 48;
+    const paciente = data.patient || {};
+    const nombrePaciente = [
+        paciente.names,
+        paciente.last_name_1,
+        paciente.last_name_2,
+    ].filter(Boolean).join(' ').toUpperCase();
+
+    const marca = (risNombreLaboratorioImpresion() || 'SIRESA').toUpperCase();
+    const subtitulo = 'Centro de Diagnostico y Tratamiento Ltda.';
+
+    let userData = {};
+    try {
+        userData = JSON.parse(localStorage.getItem('ris_user_data') || '{}');
+    } catch (_) {
+        userData = {};
+    }
+
+    const usuario = (userData.username || userData.email || 'RECEPCION').toUpperCase();
+    const ahora = new Date();
+    const inicioCita = data.start_time ? new Date(data.start_time) : ahora;
+    const totalTexto = ($('#totalCopay').text() || '').replace(/<[^>]+>/g, '').trim();
+    const totalNum = parseInt(totalTexto.replace(/[^\d]/g, ''), 10) || 0;
+    const obs = ($('#agendaObservacion').val() || '').trim();
+
+    const filasExamenes = (data.studies || []).map((estudio) => {
+        const cod = String(estudio.fonasa_code || '').padEnd(8).slice(0, 8);
+        const nombre = String(estudio.exam_name || '').padEnd(24).slice(0, 24);
+        const cant = String(estudio.quantity || 1).padStart(3);
+        const valor = risFormatValorTicket((estudio.price || 0) * (estudio.quantity || 1)).padStart(8);
+        return cod + nombre + cant + valor;
+    });
+
+    return {
+        sections: [
+            { align: 'center', bold: true, lines: [marca] },
+            { align: 'center', lines: [subtitulo] },
+            {
+                align: 'left',
+                lines: [
+                    '',
+                    risTicketLabelLine('ODT. NUMERO', risOdtNumeroTicket(savedAppointment), ancho),
+                    risTicketLabelLine('RUT', (paciente.rut || '').toUpperCase(), ancho),
+                    risTicketLabelLine('PACIENTE', nombrePaciente, ancho),
+                    risTicketLabelLine('EDAD', risCalcularEdadTicket(paciente.birth_date), ancho),
+                    risTicketLabelLine('FONO', paciente.phone || '', ancho),
+                    risTicketLabelLine('FECHA NAC', risFormatFechaTicket(paciente.birth_date), ancho),
+                    '',
+                    risTicketLabelLine('UNIDAD', marca, ancho),
+                    risTicketLabelLine('USUARIO', usuario, ancho),
+                    risTicketLabelLine('FECHA', risFormatFechaTicket(ahora), ancho),
+                    risTicketDosColumnas(`HORA ING.: ${risFormatHoraTicket(ahora)}`, `HORA CITA: ${risFormatHoraTicket(inicioCita)}`, ancho),
+                    risTicketLabelLine('PREVISION', risTextoSelectAgenda('#pInsurance', 'SIN PREVISION'), ancho),
+                    risTicketLabelLine('MED. SOLC.', risTextoSelectAgenda('#mTratante', 'SIN ORDEN'), ancho),
+                    risTicketLabelLine('CONVENIO', risTextoSelectAgenda('#pPlan', 'SIN CONVENIO'), ancho),
+                    risTicketLabelLine('MED. EXAM.', risTextoSelectAgenda('#mDestinado', 'SIN ASIGNAR'), ancho),
+                ],
+            },
+        ],
+        separator: '-',
+        table_header: ['Cod.     Examen                    Cant.  Valor'],
+        table_rows: filasExamenes,
+        separator_after_table: '-',
+        total_line: `TOTAL : $ ${risFormatValorTicket(totalNum)}`,
+        obs_label: 'OBS:',
+        obs_text: obs,
+        footer: '- COPIA ESTADISTICA -',
+    };
+}
+
+function risTicketAlineasTexto(ticket) {
+    const lineas = [];
+    (ticket.sections || []).forEach((seccion) => {
+        (seccion.lines || []).forEach((linea) => lineas.push(linea));
+    });
+    lineas.push((ticket.separator || '-').repeat(48));
+    lineas.push(...(ticket.table_header || []));
+    lineas.push(...(ticket.table_rows || []));
+    lineas.push((ticket.separator_after_table || '-').repeat(48));
+    if (ticket.total_line) lineas.push(ticket.total_line);
+    lineas.push(ticket.obs_label || 'OBS:');
+    if (ticket.obs_text) lineas.push(ticket.obs_text);
+    lineas.push('');
+    const pie = Array.isArray(ticket.footer) ? ticket.footer : [ticket.footer];
+    pie.filter(Boolean).forEach((linea) => lineas.push(linea));
+    return lineas.join('\n');
+}
+
+function risHtmlComprobantePaciente(ticket) {
+    const esc = typeof risEscapeHtml === 'function' ? risEscapeHtml : (s) => String(s);
+    const texto = esc(risTicketAlineasTexto(ticket));
+    return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Comprobante paciente</title>
+<style>
+  @page { size: 80mm auto; margin: 3mm; }
+  body { margin: 0; padding: 4mm; background: #fff; }
+  pre { margin: 0; width: 72mm; font-family: "Courier New", Courier, monospace; font-size: 11px; line-height: 1.25; white-space: pre-wrap; word-break: break-word; }
+</style></head><body><pre>${texto}</pre>
+<script>setTimeout(() => { window.print(); window.close(); }, 500);</script></body></html>`;
+}
+
+async function imprimirComprobantePaciente(data, savedAppointment) {
+    const ticket = risConstruirPayloadTicketComprobante(data, savedAppointment);
+
+    try {
+        const response = await fetch(`${LOCAL_BRIDGE_URL}/imprimir-comprobante`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ticket }),
+        });
+        const result = await response.json();
+        if (response.ok && result.success) {
+            showToast('Comprobante enviado a la impresora térmica Epson.', 'success');
+            return;
+        }
+        throw new Error(result.message || 'No se pudo imprimir en la térmica');
+    } catch (error) {
+        console.warn('Bridge térmico:', error);
+        showToast('Bridge/impresora no disponible; abriendo vista de impresión…', 'warning');
+    }
+
+    const printWindow = window.open('', '_blank', 'width=420,height=720');
+    if (!printWindow) {
+        showToast('Permita ventanas emergentes para imprimir el comprobante.', 'warning');
+        return;
+    }
+    printWindow.document.write(risHtmlComprobantePaciente(ticket));
     printWindow.document.close();
 }
 async function eliminarCita() {

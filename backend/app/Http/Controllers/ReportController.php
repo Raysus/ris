@@ -205,14 +205,14 @@ class ReportController extends Controller
             }
         }
 
-        $lab = $appointments->first()?->laboratory;
+        $lab = $this->resolveNominaLaboratory($appointments);
 
         return response()->json([
             'success' => true,
             'mes' => $inicio->format('Y-m'),
             'mes_formato' => strtoupper($inicio->translatedFormat('F Y')),
-            'centro' => strtoupper($lab->name ?? 'RDOX PORTAL'),
-            'ciudad' => strtoupper($lab->city ?? 'TEMUCO'),
+            'centro' => strtoupper($lab?->name ?? 'CENTRO'),
+            'ciudad' => strtoupper($lab?->city ?? ''),
             'dias' => $dias,
             'totales_mes' => $totalesMes,
         ]);
@@ -318,15 +318,15 @@ class ReportController extends Controller
             $totales['bono'] += $fila['bono'];
         }
 
-        $lab = $appointments->first()?->laboratory;
+        $lab = $this->resolveNominaLaboratory($appointments);
         Carbon::setLocale('es');
 
         return [
             'success' => true,
             'fecha' => $carbon->format('Y-m-d'),
             'fecha_formato' => strtolower($carbon->translatedFormat('d M y')),
-            'centro' => strtoupper($lab->name ?? 'RDOX PORTAL'),
-            'ciudad' => strtoupper($lab->city ?? 'TEMUCO'),
+            'centro' => strtoupper($lab?->name ?? 'CENTRO'),
+            'ciudad' => strtoupper($lab?->city ?? ''),
             'data' => $filas,
             'totales' => $totales,
         ];
@@ -411,6 +411,22 @@ class ReportController extends Controller
         ]);
 
         return strtoupper(implode(' | ', $partes));
+    }
+
+    /**
+     * Laboratorio activo (sede seleccionada) o el de la primera cita del reporte.
+     */
+    private function resolveNominaLaboratory($appointments): ?Laboratory
+    {
+        $labId = config('app.current_lab_id');
+        if ($labId) {
+            $lab = Laboratory::find($labId);
+            if ($lab) {
+                return $lab;
+            }
+        }
+
+        return $appointments->first()?->laboratory;
     }
 
     /**

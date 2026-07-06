@@ -1934,7 +1934,68 @@ function obtenerResponsableReporte() {
     }
 }
 
-function encabezadosNominaRDOX() {
+function obtenerNombreCentroNomina(nomina) {
+    const desdeApi = String(nomina?.centro || '').trim();
+    if (desdeApi && !/^RDOX(\s+PORTAL)?$/i.test(desdeApi)) {
+        return desdeApi;
+    }
+    const labName = (localStorage.getItem('ris_lab_name') || '').trim();
+    if (labName) return labName.toUpperCase();
+    const opt = document.querySelector('#navLabSelector option:checked');
+    const desdeSelector = opt?.textContent?.replace(/^\s*—\s*/, '').trim();
+    if (desdeSelector && !/^(todas mis sucursales|visión global)/i.test(desdeSelector)) {
+        return desdeSelector.toUpperCase();
+    }
+    return desdeApi || 'CENTRO';
+}
+
+function sanitizarNombreArchivoCentro(centro) {
+    return String(centro || 'Centro')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^\w\s-]/g, '')
+        .trim()
+        .replace(/\s+/g, '_')
+        .substring(0, 40) || 'Centro';
+}
+
+const COLUMNAS_NOMINA = 17;
+
+function anchosColumnasNomina() {
+    return [
+        { wch: 4 }, { wch: 20 }, { wch: 11 }, { wch: 4 },
+        { wch: 13 }, { wch: 13 }, { wch: 9 }, { wch: 10 },
+        { wch: 9 }, { wch: 9 }, { wch: 10 }, { wch: 8 },
+        { wch: 11 }, { wch: 9 }, { wch: 11 }, { wch: 11 }, { wch: 16 },
+    ];
+}
+
+function aplicarEstiloHojaNomina(hoja, matriz) {
+    hoja['!cols'] = anchosColumnasNomina();
+    hoja['!margins'] = { left: 0.2, right: 0.2, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 };
+    hoja['!pageSetup'] = {
+        paperSize: 9,
+        orientation: 'landscape',
+        fitToWidth: 1,
+        fitToHeight: 1,
+    };
+    hoja['!print'] = { orientation: 'landscape' };
+
+    const merges = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: COLUMNAS_NOMINA - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: COLUMNAS_NOMINA - 1 } },
+        { s: { r: 2, c: 0 }, e: { r: 2, c: COLUMNAS_NOMINA - 1 } },
+    ];
+    const filaResponsable = (matriz || []).findIndex((fila, idx) => (
+        idx > 3 && String(fila[0] || '').startsWith('RESPONSABLE')
+    ));
+    if (filaResponsable >= 0) {
+        merges.push({ s: { r: filaResponsable, c: 0 }, e: { r: filaResponsable, c: COLUMNAS_NOMINA - 1 } });
+    }
+    hoja['!merges'] = merges;
+}
+
+function encabezadosNomina() {
     return [
         'N°', 'NOMBRE PACIENTE', 'RUT', 'EDAD', 'RX INTRACORAL', 'CONE BEAM',
         'BOLETA', 'TOTAL BOLETA', 'EFECTIVO', 'TRANSBANK', 'TRANSFERENCIA', 'BONO',
@@ -1942,15 +2003,17 @@ function encabezadosNominaRDOX() {
     ];
 }
 
-function construirMatrizNominaRDOX(nomina) {
+function construirMatrizNomina(nomina) {
     if (!nomina || !nomina.data) return [];
 
+    const centro = obtenerNombreCentroNomina(nomina);
+    const ciudad = String(nomina.ciudad || '').trim();
     const matriz = [];
-    matriz.push([`AGENDA DIARIA ${nomina.centro} ${nomina.ciudad}`]);
+    matriz.push([`AGENDA DIARIA ${centro}${ciudad ? ` ${ciudad}` : ''}`]);
     matriz.push(['NOMINA PACIENTES PARA INFORME']);
     matriz.push([nomina.fecha_formato || nomina.fecha]);
     matriz.push([]);
-    matriz.push(encabezadosNominaRDOX());
+    matriz.push(encabezadosNomina());
 
     nomina.data.forEach(row => {
         matriz.push([
@@ -1990,6 +2053,18 @@ function construirMatrizNominaRDOX(nomina) {
     return matriz;
 }
 
+function descargarExcelNomina(matriz, nombreArchivo, nombreHoja = 'Nomina') {
+    if (typeof XLSX === 'undefined') {
+        descargarMatrizCSV(matriz, nombreArchivo.replace(/\.xlsx$/i, '.csv'));
+        return;
+    }
+    const libro = XLSX.utils.book_new();
+    const hoja = XLSX.utils.aoa_to_sheet(matriz);
+    aplicarEstiloHojaNomina(hoja, matriz);
+    XLSX.utils.book_append_sheet(libro, hoja, nombreHoja.substring(0, 31));
+    XLSX.writeFile(libro, nombreArchivo);
+}
+
 function descargarMatrizCSV(datos, nombreArchivo) {
     let csv = '\uFEFF';
     datos.forEach(fila => {
@@ -2013,8 +2088,9 @@ function exportarNominaDiariaCSV() {
     if (!currentNominaDiaria || !currentNominaDiaria.data?.length) {
         return showToast('No hay datos de nómina para exportar.', 'warning');
     }
-    const matriz = construirMatrizNominaRDOX(currentNominaDiaria);
-    descargarMatrizCSV(matriz, `Nomina_RDOX_${currentNominaDiaria.fecha}.csv`);
+    const centro = sanitizarNombreArchivoCentro(obtenerNombreCentroNomina(currentNominaDiaria));
+    const matriz = construirMatrizNomina(currentNominaDiaria);
+    descargarMatrizCSV(matriz, `Nomina_${centro}_${currentNominaDiaria.fecha}.csv`);
     showToast('Nómina exportada a CSV', 'success');
 }
 
@@ -2022,9 +2098,10 @@ function exportarNominaDiariaExcel() {
     if (!currentNominaDiaria || !currentNominaDiaria.data?.length) {
         return showToast('No hay datos de nómina para exportar.', 'warning');
     }
-    const matriz = construirMatrizNominaRDOX(currentNominaDiaria);
-    descargarExcelXLSX(matriz, `Nomina_RDOX_${currentNominaDiaria.fecha}.xlsx`, 'Nomina');
-    showToast('Nómina exportada a Excel', 'success');
+    const centro = sanitizarNombreArchivoCentro(obtenerNombreCentroNomina(currentNominaDiaria));
+    const matriz = construirMatrizNomina(currentNominaDiaria);
+    descargarExcelNomina(matriz, `Nomina_${centro}_${currentNominaDiaria.fecha}.xlsx`, 'Nomina');
+    showToast('Nómina exportada a Excel (ajustada a 1 hoja al imprimir)', 'success');
 }
 
 function sanitizarNombreHojaExcel(nombre) {
@@ -2054,7 +2131,7 @@ function descargarExcelMultihoja(hojas, nombreArchivo) {
         nombresUsados.add(nombreHoja);
 
         const hoja = XLSX.utils.aoa_to_sheet(matriz);
-        hoja['!cols'] = Array(17).fill({ wch: 16 });
+        aplicarEstiloHojaNomina(hoja, matriz);
         XLSX.utils.book_append_sheet(libro, hoja, nombreHoja);
     });
 
@@ -2092,11 +2169,12 @@ async function exportarNominaMensualExcel() {
 
         const hojas = res.dias.map(dia => ({
             nombre: dia.hoja_nombre || dia.fecha_formato || dia.fecha,
-            matriz: construirMatrizNominaRDOX(dia)
+            matriz: construirMatrizNomina(dia)
         }));
 
-        descargarExcelMultihoja(hojas, `Nomina_Mensual_RDOX_${mes}.xlsx`);
-        showToast(`Excel generado: ${hojas.length} hoja(s)`, 'success');
+        const centro = sanitizarNombreArchivoCentro(obtenerNombreCentroNomina(res));
+        descargarExcelMultihoja(hojas, `Nomina_Mensual_${centro}_${mes}.xlsx`);
+        showToast(`Excel generado: ${hojas.length} hoja(s), cada una ajustada a 1 página`, 'success');
     } catch (e) {
         console.error(e);
         showToast(e.message || 'Error al exportar nómina mensual.', 'danger');
@@ -2119,9 +2197,10 @@ async function exportarNominaMensualCSV() {
             return showToast('No hay citas registradas en ese mes.', 'warning');
         }
 
+        const centro = obtenerNombreCentroNomina(res);
+        const ciudad = String(res.ciudad || '').trim();
         let matrizCompleta = [];
-        matrizCompleta.push([`NOMINAS DIARIAS RDOX PORTAL - ${res.mes_formato || mes}`]);
-        matrizCompleta.push([`${res.centro} ${res.ciudad}`]);
+        matrizCompleta.push([`NOMINAS DIARIAS ${centro}${ciudad ? ` ${ciudad}` : ''} - ${res.mes_formato || mes}`]);
         matrizCompleta.push([]);
 
         res.dias.forEach((dia, idx) => {
@@ -2130,7 +2209,7 @@ async function exportarNominaMensualCSV() {
                 matrizCompleta.push(['========================================']);
                 matrizCompleta.push([]);
             }
-            matrizCompleta = matrizCompleta.concat(construirMatrizNominaRDOX(dia));
+            matrizCompleta = matrizCompleta.concat(construirMatrizNomina(dia));
         });
 
         if (res.totales_mes) {
@@ -2146,7 +2225,7 @@ async function exportarNominaMensualCSV() {
             ]);
         }
 
-        descargarMatrizCSV(matrizCompleta, `Nomina_Mensual_RDOX_${mes}.csv`);
+        descargarMatrizCSV(matrizCompleta, `Nomina_Mensual_${sanitizarNombreArchivoCentro(centro)}_${mes}.csv`);
         showToast(`CSV generado: ${res.dias.length} día(s)`, 'success');
     } catch (e) {
         console.error(e);
