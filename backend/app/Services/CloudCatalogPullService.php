@@ -25,9 +25,23 @@ class CloudCatalogPullService
      *
      * @return array{counts: array<string, int>, source: string}
      */
-    public function pull(?string $laboratoryId, bool $includePatients = false, ?array $remotePayload = null, bool $includeUsers = false): array
-    {
-        $payload = $remotePayload ?? $this->fetchFromCloud($laboratoryId, $includePatients, $includeUsers);
+    public function pull(
+        ?string $laboratoryId,
+        bool $includePatients = false,
+        ?array $remotePayload = null,
+        bool $includeUsers = false,
+        bool $includeAppointments = false,
+        ?string $appointmentsFrom = null,
+        ?string $appointmentsTo = null,
+    ): array {
+        $payload = $remotePayload ?? $this->fetchFromCloud(
+            $laboratoryId,
+            $includePatients,
+            $includeUsers,
+            $includeAppointments,
+            $appointmentsFrom,
+            $appointmentsTo,
+        );
 
         $counts = [];
 
@@ -120,6 +134,23 @@ class CloudCatalogPullService
             }
         }
 
+        if ($includeAppointments && !empty($payload['appointments'])) {
+            $counts['appointments'] = 0;
+            $counts['appointments_failed'] = 0;
+            foreach ($payload['appointments'] as $row) {
+                if (empty($row['id'])) {
+                    continue;
+                }
+                try {
+                    $this->entitySync->apply('App\Models\Appointment', 'updated', $row);
+                    $counts['appointments']++;
+                } catch (\Throwable $e) {
+                    $counts['appointments_failed']++;
+                    Log::warning('cloud pull appointment ' . $row['id'] . ': ' . $e->getMessage());
+                }
+            }
+        }
+
         return [
             'counts' => $counts,
             'source' => $remotePayload ? 'payload' : 'remote',
@@ -127,14 +158,42 @@ class CloudCatalogPullService
     }
 
     /** Aplica catálogo de la misma BD (nube leyendo a sí misma — prueba / matriz). */
-    public function pullLocalSnapshot(?string $laboratoryId, bool $includePatients = false, bool $includeUsers = false): array
-    {
-        $payload = $this->exporter->export($laboratoryId, $includePatients, $includeUsers);
-        return $this->pull($laboratoryId, $includePatients, $payload, $includeUsers);
+    public function pullLocalSnapshot(
+        ?string $laboratoryId,
+        bool $includePatients = false,
+        bool $includeUsers = false,
+        bool $includeAppointments = false,
+        ?string $appointmentsFrom = null,
+        ?string $appointmentsTo = null,
+    ): array {
+        $payload = $this->exporter->export(
+            $laboratoryId,
+            $includePatients,
+            $includeUsers,
+            $includeAppointments,
+            $appointmentsFrom,
+            $appointmentsTo,
+        );
+
+        return $this->pull(
+            $laboratoryId,
+            $includePatients,
+            $payload,
+            $includeUsers,
+            $includeAppointments,
+            $appointmentsFrom,
+            $appointmentsTo,
+        );
     }
 
-    private function fetchFromCloud(?string $laboratoryId, bool $includePatients, bool $includeUsers = false): array
-    {
+    private function fetchFromCloud(
+        ?string $laboratoryId,
+        bool $includePatients,
+        bool $includeUsers = false,
+        bool $includeAppointments = false,
+        ?string $appointmentsFrom = null,
+        ?string $appointmentsTo = null,
+    ): array {
         $url = config('cloud_sync.export_url');
         $secret = config('cloud_sync.secret');
 
@@ -142,13 +201,16 @@ class CloudCatalogPullService
             throw new \RuntimeException('Configure CLOUD_EXPORT_URL y CLOUD_SYNC_SECRET en el .env del laboratorio.');
         }
 
-        $http = RisHttp::client(60)->withToken($secret)->acceptJson();
+        $http = RisHttp::client(120)->withToken($secret)->acceptJson();
 
-        $response = $http->get($url, [
+        $response = $http->get($url, array_filter([
             'laboratory_id' => $laboratoryId,
             'include_patients' => $includePatients ? '1' : '0',
             'include_users' => $includeUsers ? '1' : '0',
-        ]);
+            'include_appointments' => $includeAppointments ? '1' : '0',
+            'appointments_from' => $appointmentsFrom,
+            'appointments_to' => $appointmentsTo,
+        ], fn ($value) => $value !== null && $value !== ''));
 
         if ($response->failed()) {
             if ($response->status() === 401) {

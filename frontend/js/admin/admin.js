@@ -423,6 +423,40 @@ async function cargarCloudSyncLogs() {
     }
 }
 
+async function pullAgendaDesdeNube() {
+    const labId = typeof risRequireConcreteLabId === 'function'
+        ? risRequireConcreteLabId()
+        : (localStorage.getItem('ris_lab_id') || '');
+    if (!labId) {
+        return;
+    }
+    if (!(await showConfirm(
+        '¿Importar catálogo, pacientes y citas de la agenda desde la nube? Las citas existentes se actualizan por UUID.',
+        { title: 'Importar agenda desde nube', confirmText: 'Importar' }
+    ))) {
+        return;
+    }
+    try {
+        const res = await fetch(`${API_URL}/integrations/cloud-sync/pull-catalog`, {
+            method: 'POST',
+            headers: { ...adminAuthHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                laboratory_id: labId,
+                include_patients: true,
+                include_users: true,
+                include_appointments: true,
+            }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.message || 'Error al importar');
+        const counts = json.data?.counts || {};
+        const detail = Object.entries(counts).map(([k, v]) => `${k}: ${v}`).join(', ');
+        showToast(`${json.message} ${detail ? '(' + detail + ')' : ''}`, 'success', 10000);
+    } catch (e) {
+        showToast(e.message, 'danger');
+    }
+}
+
 async function pullCatalogoDesdeNube(includePatients, includeUsers = true) {
     const labId = typeof risRequireConcreteLabId === 'function'
         ? risRequireConcreteLabId()
