@@ -219,6 +219,79 @@ function tryOpenCustomViewerUrl(url) {
     }
 }
 
+/**
+ * Rectángulo de la pantalla principal (Window Placement API si está disponible).
+ */
+async function risResolvePrimaryScreenRect() {
+    const fallback = {
+        left: window.screen?.availLeft ?? 0,
+        top: window.screen?.availTop ?? 0,
+        width: window.screen?.availWidth ?? 1280,
+        height: window.screen?.availHeight ?? 800,
+    };
+
+    if (typeof window.getScreenDetails !== "function") {
+        return fallback;
+    }
+
+    try {
+        const details = await window.getScreenDetails();
+        const primary = details.screens.find((s) => s.isPrimary) || details.screens[0];
+        if (!primary) {
+            return fallback;
+        }
+        return {
+            left: primary.availLeft,
+            top: primary.availTop,
+            width: primary.availWidth,
+            height: primary.availHeight,
+        };
+    } catch (e) {
+        console.warn("[OHIF] Pantalla principal no disponible, usando pantalla actual:", e);
+        return fallback;
+    }
+}
+
+/**
+ * Abre visor web en ventana nueva maximizada en la pantalla principal del equipo.
+ */
+async function risOpenViewerWindow(url, options = {}) {
+    const windowName = options.windowName || "ris_ohif_viewer";
+    const rect = options.preferPrimaryScreen
+        ? await risResolvePrimaryScreenRect()
+        : {
+            left: window.screen?.availLeft ?? 0,
+            top: window.screen?.availTop ?? 0,
+            width: window.screen?.availWidth ?? 1280,
+            height: window.screen?.availHeight ?? 800,
+        };
+
+    const features = [
+        "noopener",
+        "noreferrer",
+        `left=${rect.left}`,
+        `top=${rect.top}`,
+        `width=${rect.width}`,
+        `height=${rect.height}`,
+    ].join(",");
+
+    const win = window.open(url, windowName, features);
+    if (!win) {
+        window.open(url, "_blank");
+        return null;
+    }
+
+    try {
+        win.moveTo(rect.left, rect.top);
+        win.resizeTo(rect.width, rect.height);
+        win.focus();
+    } catch (e) {
+        console.warn("[OHIF] No se pudo posicionar la ventana:", e);
+    }
+
+    return win;
+}
+
 async function abrirVisorOHIF(accessionNumber, cfg, extra = {}) {
     const config = cfg || (await getViewerConfig());
     const opts = viewerOpenOptions(accessionNumber, extra);
@@ -252,7 +325,10 @@ async function abrirVisorOHIF(accessionNumber, cfg, extra = {}) {
     }
 
     console.info("[OHIF]", urlWeb);
-    window.open(urlWeb, "_blank");
+    await risOpenViewerWindow(urlWeb, {
+        preferPrimaryScreen: !!extra.preferPrimaryScreen,
+        windowName: extra.windowName || "ris_ohif_viewer",
+    });
 
     if (typeof showToast === "function") {
         showToast(`Visor OHIF: StudyInstanceUID ${studyUid}`, "success");

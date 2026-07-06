@@ -2,11 +2,13 @@
 
 namespace App\Services;
 
+use App\Models\Exam;
 use App\Models\Insurance;
 use App\Models\InsurancePlan;
 use App\Models\Laboratory;
 use App\Models\Paciente;
 use App\Models\Persona;
+use App\Models\SubExam;
 use App\Models\User;
 use App\Support\RisHttp;
 use Illuminate\Support\Arr;
@@ -135,8 +137,11 @@ class CloudCatalogPullService
         }
 
         if ($includeAppointments && !empty($payload['appointments'])) {
+            $this->pullReferencedExamCatalog($payload, $counts);
+
             $counts['appointments'] = 0;
             $counts['appointments_failed'] = 0;
+            $counts['appointment_studies'] = 0;
             foreach ($payload['appointments'] as $row) {
                 if (empty($row['id'])) {
                     continue;
@@ -144,6 +149,7 @@ class CloudCatalogPullService
                 try {
                     $this->entitySync->apply('App\Models\Appointment', 'updated', $row);
                     $counts['appointments']++;
+                    $counts['appointment_studies'] += count($row['studies'] ?? []);
                 } catch (\Throwable $e) {
                     $counts['appointments_failed']++;
                     Log::warning('cloud pull appointment ' . $row['id'] . ': ' . $e->getMessage());
@@ -228,5 +234,68 @@ class CloudCatalogPullService
         }
 
         return $json['data'] ?? [];
+    }
+
+    /**
+     * Importa exámenes/subexámenes referenciados por citas que aún no existen localmente.
+     *
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, int>  $counts
+     */
+    private function pullReferencedExamCatalog(array $payload, array &$counts): void
+    {
+        $examsById = [];
+        foreach ($payload['appointment_exams'] ?? [] as $row) {
+            if (!empty($row['id'])) {
+                $examsById[(string) $row['id']] = $row;
+            }
+        }
+        $subExamsById = [];
+        foreach ($payload['appointment_sub_exams'] ?? [] as $row) {
+            if (!empty($row['id'])) {
+                $subExamsById[(string) $row['id']] = $row;
+            }
+        }
+
+        foreach ($payload['appointments'] ?? [] as $appointment) {
+            foreach ($appointment['studies'] ?? [] as $study) {
+                if (!empty($study['exam']['id'])) {
+                    $examsById[(string) $study['exam']['id']] = $study['exam'];
+                }
+                if (!empty($study['sub_exam']['id'])) {
+                    $subExamsById[(string) $study['sub_exam']['id']] = $study['sub_exam'];
+                }
+            }
+        }
+
+        $counts['appointment_exams'] = 0;
+        $counts['appointment_exams_skipped'] = 0;
+        foreach ($examsById as $row) {
+            try {
+                if ($this->entitySync->catalogRowIsUnchanged(Exam::class, $row)) {
+                    $counts['appointment_exams_skipped']++;
+                    continue;
+                }
+                $this->entitySync->apply('Exam', 'updated', $row);
+                $counts['appointment_exams']++;
+            } catch (\Throwable $e) {
+                Log::warning('cloud pull appointment exam ' . ($row['id'] ?? '') . ': ' . $e->getMessage());
+            }
+        }
+
+        $counts['appointment_sub_exams'] = 0;
+        $counts['appointment_sub_exams_skipped'] = 0;
+        foreach ($subExamsById as $row) {
+            try {
+                if ($this->entitySync->catalogRowIsUnchanged(SubExam::class, $row)) {
+                    $counts['appointment_sub_exams_skipped']++;
+                    continue;
+                }
+                $this->entitySync->apply('SubExam', 'updated', $row);
+                $counts['appointment_sub_exams']++;
+            } catch (\Throwable $e) {
+                Log::warning('cloud pull appointment sub_exam ' . ($row['id'] ?? '') . ': ' . $e->getMessage());
+            }
+        }
     }
 }

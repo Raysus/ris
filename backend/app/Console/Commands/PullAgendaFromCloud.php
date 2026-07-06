@@ -14,7 +14,7 @@ class PullAgendaFromCloud extends Command
         {--to= : Fecha fin YYYY-MM-DD (por defecto +6 meses)}
         {--no-users : No importar usuarios de la sede}';
 
-    protected $description = 'Importa catálogo, pacientes y citas de la agenda desde la nube al laboratorio local';
+    protected $description = 'Importa catálogo, pacientes, citas (con documentos escaneados) y exámenes desde la nube al laboratorio local';
 
     public function handle(CloudCatalogPullService $pull): int
     {

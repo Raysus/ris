@@ -146,10 +146,14 @@ class AppointmentController extends Controller
                 $ordenPath = null;
                 if ($request->hasFile('order_file')) {
                     $ordenPath = '/storage/' . $request->file('order_file')->store('documents', 'public');
+                } elseif (!empty($data['medical_order_base64'])) {
+                    $ordenPath = $this->saveBase64Document($data['medical_order_base64']);
                 }
                 $encuestaPath = null;
                 if ($request->hasFile('survey_file')) {
                     $encuestaPath = '/storage/' . $request->file('survey_file')->store('documents', 'public');
+                } elseif (!empty($data['survey_base64'])) {
+                    $encuestaPath = $this->saveBase64Document($data['survey_base64']);
                 }
 
                 // === 3. CREACIÓN DE LA CITA ===
@@ -261,10 +265,14 @@ class AppointmentController extends Controller
             $ordenPath = $appointment->medical_order_path;
             if ($request->hasFile('order_file')) {
                 $ordenPath = '/storage/' . $request->file('order_file')->store('documents', 'public');
+            } elseif (!empty($data['medical_order_base64'])) {
+                $ordenPath = $this->saveBase64Document($data['medical_order_base64']);
             }
             $encuestaPath = $appointment->survey_path;
             if ($request->hasFile('survey_file')) {
                 $encuestaPath = '/storage/' . $request->file('survey_file')->store('documents', 'public');
+            } elseif (!empty($data['survey_base64'])) {
+                $encuestaPath = $this->saveBase64Document($data['survey_base64']);
             }
 
             $appointment->update([

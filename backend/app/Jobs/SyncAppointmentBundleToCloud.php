@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Appointment;
 use App\Models\CloudSyncLog;
+use App\Services\CloudSyncFilePackager;
 use App\Services\CloudSyncLogger;
 use App\Support\CloudSyncMode;
 use App\Support\CloudSyncTransport;
@@ -56,6 +57,7 @@ class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommi
         $appointment = Appointment::with([
             'patient.persona',
             'studies.exam',
+            'studies.subExam',
             'studies.machine',
             'supplies',
             'machine',
@@ -68,6 +70,18 @@ class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommi
         }
 
         $payload = $appointment->toArray();
+        if ($appointment->relationLoaded('supplies')) {
+            $payload['supplies'] = $appointment->supplies
+                ->map(fn ($supply) => [
+                    'id' => $supply->id,
+                    'quantity' => (int) ($supply->pivot->quantity ?? 1),
+                    'price' => (float) ($supply->pivot->price_charged ?? 0),
+                    'price_charged' => (float) ($supply->pivot->price_charged ?? 0),
+                ])
+                ->values()
+                ->all();
+        }
+        CloudSyncFilePackager::packAppointmentPayload($payload);
         if (!$this->syncLogId) {
             $this->syncLogId = CloudSyncLogger::startPending('App\Models\Appointment', $this->action, $payload)->id;
         } else {

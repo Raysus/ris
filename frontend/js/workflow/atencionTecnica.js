@@ -13,6 +13,8 @@ let currentWorklistFromDB = [];
 let currentCadenas = {};
 let currentSuppliesFromDB = [];
 let _atencionRefreshTimer = null;
+/** Borradores locales de anamnesis por cadena (paciente+día) mientras se atiende la worklist. */
+let anamnesisDrafts = {};
 
 const pesosPrioridad = {
     "Urgencia": 3,
@@ -55,6 +57,9 @@ function initAtencionTecnicaModule(config = {}) {
             if ($("#modalAtencion").is(":visible") || currentAtencionChain) return;
             cargarWorklistDesdeServidor();
         }, 30000);
+
+        $(document).off('hidden.bs.modal.risAnamnesis', '#modalAtencion')
+            .on('hidden.bs.modal.risAnamnesis', '#modalAtencion', risPersistirBorradorAnamnesis);
     };
 
     if (typeof refreshLabProfileFromApi === 'function') {
@@ -65,6 +70,7 @@ function initAtencionTecnicaModule(config = {}) {
 }
 
 window.initAtencionTecnicaModule = initAtencionTecnicaModule;
+window.guardarAnamnesisWorklist = guardarAnamnesisWorklist;
 
 async function cargarMaquinasFiltro() {
     if (typeof risRequireConcreteLabId === 'function' && !risRequireConcreteLabId(false)) return;
@@ -132,6 +138,8 @@ async function cargarWorklistDesdeServidor() {
             if ($("#modalAtencion").is(":visible") && currentAtencionChain) {
                 syncAtencionChainFromWorklist();
                 applyWorklistDicomUI(currentAtencionChain);
+                risActualizarBotonesDocumentosWorklist(currentAtencionChain);
+                $("#txtAnamnesis").val(risAnamnesisParaCadena(currentAtencionChain));
             }
         } else {
             tbody.html('<tr><td colspan="7" class="text-center text-muted p-4">No se pudo cargar la lista.</td></tr>');
@@ -142,7 +150,52 @@ async function cargarWorklistDesdeServidor() {
     }
 }
 
-function getBadgePrioridad(prioridad) {
+function risActualizarBotonesDocumentosWorklist(chain) {
+    if (!chain) return;
+    if (chain.medicalOrder) {
+        $("#btnVerOrdenTM").prop("disabled", false).removeClass("btn-outline-success").addClass("btn-success text-white");
+    } else {
+        $("#btnVerOrdenTM").prop("disabled", true).removeClass("btn-success text-white").addClass("btn-outline-success");
+    }
+    if (chain.survey) {
+        $("#btnVerEncuestaTM").prop("disabled", false).removeClass("btn-outline-danger").addClass("btn-danger text-white");
+    } else {
+        $("#btnVerEncuestaTM").prop("disabled", true).removeClass("btn-danger text-white").addClass("btn-outline-danger");
+    }
+}
+
+function risResolverUrlDocumento(path) {
+    if (!path) return null;
+    const raw = String(path).trim();
+    if (!raw) return null;
+    if (raw.startsWith('data:')) return raw;
+    if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+    const normalized = raw.startsWith('/') ? raw : `/${raw}`;
+    return `${window.location.origin}${normalized}`;
+}
+
+function risAbrirDocumentoEnNuevaVentana(path) {
+    const fullUrl = risResolverUrlDocumento(path);
+    if (!fullUrl) return false;
+
+    if (fullUrl.startsWith('data:')) {
+        const match = fullUrl.match(/data:([^;]+);base64,(.+)/);
+        if (!match) return false;
+        const mimeType = match[1];
+        const byteString = atob(match[2]);
+        const ab = new ArrayBuffer(byteString.length);
+        const ia = new Uint8Array(ab);
+        for (let i = 0; i < byteString.length; i++) {
+            ia[i] = byteString.charCodeAt(i);
+        }
+        const blob = new Blob([ab], { type: mimeType });
+        window.open(URL.createObjectURL(blob), '_blank');
+        return true;
+    }
+
+    window.open(fullUrl, '_blank');
+    return true;
+}
     if (prioridad === 'Urgencia') return '<span class="badge bg-danger fw-bold shadow-sm" style="animation: pulse 1.5s infinite;">🚨 Urgencia</span>';
     if (prioridad === 'Alta') return '<span class="badge bg-warning text-dark fw-bold">Alta</span>';
     return '<span class="badge bg-light text-secondary border">Normal</span>';
@@ -187,6 +240,13 @@ function renderWorklist() {
                 medicalOrder: app.medical_order_path,
                 survey: app.survey_path
             };
+        }
+
+        if (app.medical_order_path) {
+            currentCadenas[chainId].medicalOrder = app.medical_order_path;
+        }
+        if (app.survey_path) {
+            currentCadenas[chainId].survey = app.survey_path;
         }
 
         currentCadenas[chainId].items.push(study);
@@ -263,7 +323,36 @@ function renderWorklist() {
     });
 }
 
+function risPersistirBorradorAnamnesis() {
+    if (!currentAtencionChain?.chainId) return;
+    anamnesisDrafts[currentAtencionChain.chainId] = $("#txtAnamnesis").val();
+}
+
+function risAnamnesisParaCadena(chain) {
+    if (!chain) return '';
+    if (Object.prototype.hasOwnProperty.call(anamnesisDrafts, chain.chainId)) {
+        return anamnesisDrafts[chain.chainId];
+    }
+    for (const item of chain.items || []) {
+        const texto = item.anamnesis;
+        if (texto && String(texto).trim()) {
+            return String(texto).trim();
+        }
+    }
+    return '';
+}
+
+function risActualizarAnamnesisEnCadena(chain, texto) {
+    if (!chain) return;
+    anamnesisDrafts[chain.chainId] = texto;
+    (chain.items || []).forEach((item) => {
+        item.anamnesis = texto;
+    });
+}
+
 function abrirAtencion(chainId) {
+    risPersistirBorradorAnamnesis();
+
     currentAtencionChain = currentCadenas[chainId];
     if (!currentAtencionChain) return;
 
@@ -286,27 +375,15 @@ function abrirAtencion(chainId) {
     `).join('');
     $("#atencionEstudios").html(listaHtml);
 
-    $("#txtAnamnesis").val("");
+    $("#txtAnamnesis").val(risAnamnesisParaCadena(currentAtencionChain));
     $("#insumoSelect").val("");
     $("#insumoQty").val("1");
     renderInsumosUsados();
 
     configureDicomIntegrationUI();
     applyWorklistDicomUI(currentAtencionChain);
+    risActualizarBotonesDocumentosWorklist(currentAtencionChain);
 
-
-    // === Habilitar Botones de Documentos ===
-    if (currentAtencionChain.medicalOrder) {
-        $("#btnVerOrdenTM").prop("disabled", false).removeClass("btn-outline-success").addClass("btn-success text-white");
-    } else {
-        $("#btnVerOrdenTM").prop("disabled", true).removeClass("btn-success text-white").addClass("btn-outline-success");
-    }
-
-    if (currentAtencionChain.survey) {
-        $("#btnVerEncuestaTM").prop("disabled", false).removeClass("btn-outline-danger").addClass("btn-danger text-white");
-    } else {
-        $("#btnVerEncuestaTM").prop("disabled", true).removeClass("btn-danger text-white").addClass("btn-outline-danger");
-    }
     openModal("modalAtencion");
 }
 
@@ -633,6 +710,49 @@ function renderAlertasInsumos() {
     }
 }
 
+async function guardarAnamnesisWorklist() {
+    if (!currentAtencionChain) return;
+
+    const anamnesis = $("#txtAnamnesis").val().trim();
+    if (!anamnesis) {
+        return showToast('Escriba los síntomas o la anamnesis antes de guardar.', 'warning');
+    }
+
+    const btn = $("#btnGuardarAnamnesis");
+    const labelOriginal = btn.html();
+    btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span>');
+
+    const citasInvolucradas = Array.from(currentAtencionChain.citasIds);
+
+    try {
+        for (const citaId of citasInvolucradas) {
+            const response = await fetch(`${API_URL}/appointments/${citaId}/save-anamnesis`, {
+                method: 'POST',
+                headers: typeof risBuildAuthHeaders === 'function'
+                    ? risBuildAuthHeaders({ 'Content-Type': 'application/json' })
+                    : { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ anamnesis }),
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.success) {
+                throw new Error(data.message || `Error al guardar (${response.status})`);
+            }
+        }
+
+        risActualizarAnamnesisEnCadena(currentAtencionChain, anamnesis);
+        if (typeof showToast === 'function') {
+            showToast('Síntomas / anamnesis guardados.', 'success');
+        }
+    } catch (error) {
+        console.error('guardarAnamnesisWorklist:', error);
+        if (typeof showToast === 'function') {
+            showToast(`No se pudo guardar: ${error.message}`, 'danger');
+        }
+    } finally {
+        btn.prop('disabled', false).html(labelOriginal);
+    }
+}
+
 async function finalizarAtencion() {
     if (!currentAtencionChain) return;
 
@@ -667,6 +787,9 @@ async function finalizarAtencion() {
         }
 
         closeModal("modalAtencion");
+        if (currentAtencionChain?.chainId) {
+            delete anamnesisDrafts[currentAtencionChain.chainId];
+        }
         cargarWorklistDesdeServidor();
         cargarInsumosBodega();
         if (typeof showToast === 'function') showToast("✅ Estudios finalizados y derivados al Radiólogo.", "success");
@@ -682,17 +805,14 @@ async function finalizarAtencion() {
 function abrirDocWorklist(tipo) {
     if (!currentAtencionChain) return;
 
-    let path = tipo === 'orden' ? currentAtencionChain.medicalOrder : currentAtencionChain.survey;
-    if (!path) return showToast("Este documento no fue escaneado en recepción.", "warning");
-
-    let fullUrl = path;
-    if (!fullUrl.startsWith('http')) {
-        // Asume la IP de tu nube o ajusta según corresponda
-        const baseUrl = "https://ris.healthticloud.cl";
-        fullUrl = `${baseUrl}${path}`;
+    const path = tipo === 'orden' ? currentAtencionChain.medicalOrder : currentAtencionChain.survey;
+    if (!path) {
+        return showToast("Este documento no fue escaneado en recepción.", "warning");
     }
 
-    window.open(fullUrl, '_blank');
+    if (!risAbrirDocumentoEnNuevaVentana(path)) {
+        showToast("No se pudo abrir el documento.", "danger");
+    }
 }
 async function devolverAAgenda() {
     if (!currentAtencionChain) return;

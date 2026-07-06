@@ -14,6 +14,7 @@ use App\Models\ReferringDoctor;
 use App\Models\ReportTemplate;
 use App\Models\Service;
 use App\Models\Supply;
+use App\Models\SubExam;
 use App\Models\User;
 
 class CloudCatalogExportService
@@ -124,17 +125,30 @@ class CloudCatalogExportService
                 : now()->addMonths(6)->endOfDay();
 
             $appointments = Appointment::query()
-                ->with(['patient.persona', 'studies'])
+                ->with([
+                    'patient.persona',
+                    'studies.exam',
+                    'studies.subExam',
+                    'supplies',
+                    'insurance',
+                    'insurancePlan',
+                    'referringDoctor',
+                    'machine',
+                ])
                 ->whereIn('laboratory_id', $labIds)
                 ->whereBetween('start_time', [$from, $to])
                 ->orderBy('start_time')
                 ->limit(3000)
                 ->get();
 
+            $referenced = $this->collectReferencedExamCatalog($appointments);
+
             $payload['appointments'] = $appointments
                 ->map(fn (Appointment $appointment) => $this->serializeAppointmentForExport($appointment))
                 ->values()
                 ->all();
+            $payload['appointment_exams'] = $referenced['exams'];
+            $payload['appointment_sub_exams'] = $referenced['sub_exams'];
             $payload['appointments_range'] = [
                 'from' => $from->toIso8601String(),
                 'to' => $to->toIso8601String(),
@@ -158,10 +172,73 @@ class CloudCatalogExportService
         }
 
         if ($appointment->relationLoaded('studies')) {
-            $row['studies'] = $appointment->studies->map->toArray()->values()->all();
+            $row['studies'] = $appointment->studies
+                ->map(function ($study) {
+                    $studyRow = $study->toArray();
+                    if ($study->relationLoaded('exam') && $study->exam) {
+                        $studyRow['exam'] = $study->exam->toArray();
+                    }
+                    if ($study->relationLoaded('subExam') && $study->subExam) {
+                        $studyRow['sub_exam'] = $study->subExam->toArray();
+                    }
+
+                    return $studyRow;
+                })
+                ->values()
+                ->all();
         }
 
+        if ($appointment->relationLoaded('supplies')) {
+            $row['supplies'] = $appointment->supplies
+                ->map(fn (Supply $supply) => [
+                    'id' => $supply->id,
+                    'quantity' => (int) ($supply->pivot->quantity ?? 1),
+                    'price' => (float) ($supply->pivot->price_charged ?? 0),
+                    'price_charged' => (float) ($supply->pivot->price_charged ?? 0),
+                ])
+                ->values()
+                ->all();
+        }
+
+        CloudSyncFilePackager::packAppointmentPayload($row);
+
         return $row;
+    }
+
+    /**
+     * Exámenes y subexámenes referenciados por citas (incluye soft-deleted en catálogo).
+     *
+     * @param  \Illuminate\Support\Collection<int, Appointment>  $appointments
+     * @return array{exams: list<array<string, mixed>>, sub_exams: list<array<string, mixed>>}
+     */
+    private function collectReferencedExamCatalog($appointments): array
+    {
+        $examIds = [];
+        $subExamIds = [];
+
+        foreach ($appointments as $appointment) {
+            foreach ($appointment->studies as $study) {
+                if ($study->exam_id) {
+                    $examIds[(string) $study->exam_id] = true;
+                }
+                if ($study->sub_exam_id) {
+                    $subExamIds[(string) $study->sub_exam_id] = true;
+                }
+            }
+        }
+
+        $exams = $examIds === []
+            ? collect()
+            : Exam::withTrashed()->whereIn('id', array_keys($examIds))->get();
+
+        $subExams = $subExamIds === []
+            ? collect()
+            : SubExam::query()->whereIn('id', array_keys($subExamIds))->get();
+
+        return [
+            'exams' => $exams->map->toArray()->values()->all(),
+            'sub_exams' => $subExams->map->toArray()->values()->all(),
+        ];
     }
 
     /**

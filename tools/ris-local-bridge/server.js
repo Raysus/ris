@@ -11,6 +11,7 @@ const cors = require('cors');
 const { exec } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 const app = express();
 app.use(cors());
@@ -20,15 +21,19 @@ const getLocalConfig = () => {
     try {
         const configPath = path.join(process.cwd(), 'config.json');
         if (!fs.existsSync(configPath)) {
+            const isMac = os.platform() === 'darwin';
             return {
-                viewer: 'radiant',
+                viewer: isMac ? 'horos' : 'radiant',
                 paths: {
                     radiant: 'C:\\Program Files\\RadiAntViewer64bit\\RadiAntViewer.exe',
-                    horos: 'C:\\Program Files\\Horos\\Horos.exe',
+                    horos: isMac ? '/Applications/Horos.app' : 'C:\\Program Files\\Horos\\Horos.exe',
+                    osirix: '/Applications/OsiriX.app',
                 },
                 scanner: {
-                    naps2_path: 'C:\\Program Files\\NAPS2\\NAPS2.Console.exe',
-                    profile: 'Brother',
+                    naps2_path: isMac
+                        ? '/Applications/NAPS2.app/Contents/MacOS/NAPS2.Console'
+                        : 'C:\\Program Files\\NAPS2\\NAPS2.Console.exe',
+                    profile: 'Default',
                 },
             };
         }
@@ -81,6 +86,43 @@ app.get('/escanear', (req, res) => {
     });
 });
 
+function resolveMacAppName(viewerPath, fallback) {
+    const base = path.basename(String(viewerPath || '').replace(/\/$/, ''));
+    if (base.endsWith('.app')) {
+        return base.slice(0, -4);
+    }
+    return fallback;
+}
+
+function buildOpenDicomCommand(config, accession_number, pacs_ip, pacs_port, pacs_aet) {
+    const type = (config.viewer || 'radiant').toLowerCase();
+    const viewerPath = config.paths?.[type];
+    const ip = pacs_ip || '127.0.0.1';
+    const port = pacs_port || 4242;
+    const aet = pacs_aet || 'ORTHANC';
+    const isMac = os.platform() === 'darwin';
+    const safeAcc = String(accession_number).replace(/"/g, '');
+
+    switch (type) {
+        case 'radiant':
+            return `"${viewerPath}" -pae ${aet} -pait ${ip} -papt ${port} -v ${safeAcc}`;
+        case 'horos':
+        case 'osirix':
+            if (isMac) {
+                const appName = resolveMacAppName(viewerPath, type === 'horos' ? 'Horos' : 'OsiriX');
+                if (viewerPath && fs.existsSync(viewerPath)) {
+                    return `open -a "${viewerPath}" --args "${safeAcc}"`;
+                }
+                return `open -a "${appName}" --args "${safeAcc}"`;
+            }
+            return `"${viewerPath}" "${safeAcc}"`;
+        case 'weasis':
+            return `"${viewerPath}" "$dicom:rs --url http://${ip}:${port}/dicom-web -r AccessionNumber=${safeAcc}"`;
+        default:
+            return null;
+    }
+}
+
 app.post('/open-dicom', (req, res) => {
     const config = getLocalConfig();
     if (!config) {
@@ -95,18 +137,10 @@ app.post('/open-dicom', (req, res) => {
     const type = (config.viewer || 'radiant').toLowerCase();
     const viewerPath = config.paths?.[type];
 
-    if (!viewerPath) {
+    if (!viewerPath && !(os.platform() === 'darwin' && (type === 'horos' || type === 'osirix'))) {
         return res.status(400).json({
             success: false,
             message: `Visor "${type}" sin ruta en config.json → paths.${type}`,
-        });
-    }
-
-    if (!fs.existsSync(viewerPath)) {
-        return res.status(404).json({
-            success: false,
-            message: `Ejecutable no encontrado: ${viewerPath}`,
-            fallback: 'ohif',
         });
     }
 
@@ -114,21 +148,19 @@ app.post('/open-dicom', (req, res) => {
     const port = pacs_port || 4242;
     const aet = pacs_aet || 'ORTHANC';
 
-    let cmd = '';
+    const cmd = buildOpenDicomCommand(config, accession_number, ip, port, aet);
+    if (!cmd) {
+        return res.status(400).json({ success: false, message: `Visor no soportado: ${type}` });
+    }
 
-    switch (type) {
-        case 'radiant':
-            cmd = `"${viewerPath}" -pae ${aet} -pait ${ip} -papt ${port} -v ${accession_number}`;
-            break;
-        case 'horos':
-        case 'osirix':
-            cmd = `"${viewerPath}" "${accession_number}"`;
-            break;
-        case 'weasis':
-            cmd = `"${viewerPath}" "$dicom:rs --url http://${ip}:${port}/dicom-web -r AccessionNumber=${accession_number}"`;
-            break;
-        default:
-            return res.status(400).json({ success: false, message: `Visor no soportado: ${type}` });
+    const existsCheckPath = viewerPath || '';
+    const macHorosFallback = os.platform() === 'darwin' && (type === 'horos' || type === 'osirix');
+    if (existsCheckPath && !fs.existsSync(existsCheckPath) && !macHorosFallback) {
+        return res.status(404).json({
+            success: false,
+            message: `Ejecutable no encontrado: ${viewerPath}`,
+            fallback: 'ohif',
+        });
     }
 
     exec(cmd, (error) => {

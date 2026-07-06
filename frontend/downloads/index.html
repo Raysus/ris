@@ -11,7 +11,7 @@
         <h1 class="h3 fw-bold text-primary mb-4">Descargas RIS</h1>
         <div class="card shadow-sm border-0 mb-3">
             <div class="card-body">
-                <h2 class="h6 fw-bold">Instalacion escaner (recepcion)</h2>
+                <h2 class="h6 fw-bold">Instalacion escaner (recepcion Windows)</h2>
                 <p class="small text-muted mb-3">
                     Para la PC con escaner USB: ejecute el .bat como administrador y siga el PDF.
                 </p>
@@ -20,6 +20,19 @@
                 </a>
                 <a class="btn btn-outline-primary btn-sm mb-2" href="INSTRUCTIVO_Escaner_RIS_Bridge.pdf" target="_blank">
                     Instructivo PDF
+                </a>
+            </div>
+        </div>
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-body">
+                <h2 class="h6 fw-bold">Bridge macOS (Horos + escaner)</h2>
+                <p class="small text-muted mb-3">
+                    En el Mac: copie el script a <code>tools/ris-local-bridge</code>, ejecute en Terminal
+                    <code>chmod +x setup-scanner-macos.sh &amp;&amp; ./setup-scanner-macos.sh</code>.
+                    Configura Horos como visor DICOM local.
+                </p>
+                <a class="btn btn-primary btn-sm me-2 mb-2" href="setup-scanner-macos.sh" download>
+                    setup-scanner-macos.sh
                 </a>
             </div>
         </div>

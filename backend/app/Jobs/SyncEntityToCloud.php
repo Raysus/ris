@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\CloudSyncLog;
+use App\Services\CloudSyncFilePackager;
 use App\Services\CloudEntitySyncService;
 use App\Services\CloudSyncLogger;
 use App\Support\CloudSyncMode;
@@ -16,7 +17,6 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 
 class SyncEntityToCloud implements ShouldQueue, ShouldBeUnique
 {
@@ -175,41 +175,6 @@ class SyncEntityToCloud implements ShouldQueue, ShouldBeUnique
 
     private function packFiles(): void
     {
-        $columns = ['medical_order_path', 'survey_path', 'signature_path', 'audio_path'];
-
-        foreach ($columns as $col) {
-            if (!empty($this->payload[$col])) {
-                $base64 = $this->fileToBase64($this->payload[$col]);
-                if ($base64) {
-                    $this->payload[$col . '_base64'] = $base64;
-                }
-            }
-        }
-
-        if (isset($this->payload['studies']) && is_array($this->payload['studies'])) {
-            foreach ($this->payload['studies'] as $key => $study) {
-                if (!empty($study['audio_path'])) {
-                    $base64 = $this->fileToBase64($study['audio_path']);
-                    if ($base64) {
-                        $this->payload['studies'][$key]['audio_path_base64'] = $base64;
-                    }
-                }
-            }
-        }
-    }
-
-    private function fileToBase64($path)
-    {
-        $cleanPath = str_replace('/storage/', '', $path);
-
-        if (Storage::disk('public')->exists($cleanPath)) {
-            $content = Storage::disk('public')->get($cleanPath);
-            $absolutePath = Storage::disk('public')->path($cleanPath);
-            $mime = mime_content_type($absolutePath);
-
-            return 'data:' . $mime . ';base64,' . base64_encode($content);
-        }
-
-        return null;
+        CloudSyncFilePackager::packEntityPayload($this->payload);
     }
 }

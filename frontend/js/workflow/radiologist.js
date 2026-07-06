@@ -1532,6 +1532,8 @@ function abrirVisorDicomSoloOhif() {
     if (!currentReportingChain) return;
     abrirVisorSoloOHIF(currentReportingChain.accessionNumber, {
         chain: currentReportingChain,
+        preferPrimaryScreen: true,
+        windowName: "ris_ohif_radiologo",
     });
 }
 

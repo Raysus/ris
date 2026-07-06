@@ -2104,7 +2104,14 @@ async function cargarAgendaDesdeServidor() {
                         qty: s.quantity,
                         code: s.fonasa_code,
                         price: parseFloat(s.price_charged ?? s.price) || 0
-                    }))
+                    })),
+                    medicalOrderPath: app.medical_order_path || null,
+                    surveyPath: app.survey_path || null,
+                    supplies: (app.supplies || []).map((s) => ({
+                        id: s.id,
+                        quantity: s.pivot?.quantity ?? s.quantity ?? 1,
+                        price: parseFloat(s.pivot?.price_charged ?? s.price_charged ?? s.price) || 0,
+                    })),
                 };
             });
 
@@ -2196,6 +2203,7 @@ function abrirModalCita(data) {
             currentInsumos = [...data.supplies];
         }
         renderInsumos();
+        risCargarDocumentosCitaModal(data.medicalOrderPath, data.surveyPath);
 
         if (data.studies && data.studies.length > 0) {
             data.studies.forEach(s => {
@@ -2220,6 +2228,7 @@ function abrirModalCita(data) {
         $("#btnEliminarCita").addClass("d-none");
         $("#agendaStatus").val("pre-agendado").trigger("change");
         actualizarCtaAtencionSalas();
+        risCargarDocumentosCitaModal(null, null);
 
         addStudyRow('principal', { machine: data.machine });
         renderInsumos();
@@ -2420,6 +2429,15 @@ async function guardarCita() {
         payment_status: $("#paymentStatus").val(),
     };
 
+    const ordenData = ($('#docOrdenMedica').val() || '').trim();
+    const encuestaData = ($('#docEncuesta').val() || '').trim();
+    if (ordenData.startsWith('data:')) {
+        payloadCitaGlobal.medical_order_base64 = ordenData;
+    }
+    if (encuestaData.startsWith('data:')) {
+        payloadCitaGlobal.survey_base64 = encuestaData;
+    }
+
     const formData = new FormData();
     formData.append('data', JSON.stringify(payloadCitaGlobal));
 
@@ -2501,8 +2519,22 @@ async function guardarCita() {
     }
 }
 
+function risNombreLaboratorioImpresion() {
+    const opt = document.querySelector('#navLabSelector option:checked');
+    const desdeSelector = opt?.textContent?.replace(/^\s*—\s*/, '').trim();
+    if (desdeSelector && !/^(todas mis sucursales|visión global)/i.test(desdeSelector)) {
+        return desdeSelector;
+    }
+    const almacenado = (localStorage.getItem('ris_lab_name') || '').trim();
+    if (almacenado) {
+        return almacenado;
+    }
+    return 'Centro de diagnóstico';
+}
+
 function imprimirComprobantePaciente(data) {
     const printWindow = window.open('', '_blank', 'width=400,height=600');
+    const nombreLab = risEscapeHtml(risNombreLaboratorioImpresion());
     const html = `
         <html><head><title>Comprobante de Atención</title>
         <style>
@@ -2513,7 +2545,7 @@ function imprimirComprobantePaciente(data) {
         </style>
         </head><body>
         <div class="ticket">
-            <h2>HealthTiCloud RIS</h2>
+            <h2>${nombreLab}</h2>
             <div class="sep"></div>
             <b>Paciente:</b> ${data.patient.names} ${data.patient.last_name_1}<br>
             <b>RUT:</b> ${data.patient.rut}<br>
@@ -3345,6 +3377,24 @@ function borrarDocumento(tipo) {
     if (typeof showToast === 'function') showToast('Documento eliminado.', 'info');
 }
 
+function risCargarDocumentosCitaModal(ordenPath, encuestaPath) {
+    if (ordenPath) {
+        $('#docOrdenMedica').val(ordenPath);
+        $('#btnVerOrden, #btnBorrarOrden').removeClass('d-none');
+    } else {
+        $('#docOrdenMedica').val('');
+        $('#btnVerOrden, #btnBorrarOrden').addClass('d-none');
+    }
+
+    if (encuestaPath) {
+        $('#docEncuesta').val(encuestaPath);
+        $('#btnVerEncuesta, #btnBorrarEncuesta').removeClass('d-none');
+    } else {
+        $('#docEncuesta').val('');
+        $('#btnVerEncuesta, #btnBorrarEncuesta').addClass('d-none');
+    }
+}
+
 function verDocumento(tipo) {
     const inputId = tipo === 'orden' ? '#docOrdenMedica' : '#docEncuesta';
     const docData = $(inputId).val();
@@ -3367,15 +3417,12 @@ function verDocumento(tipo) {
         const blobUrl = URL.createObjectURL(blob);
 
         window.open(blobUrl, '_blank');
-    }
-    else {
+    } else {
         let fullUrl = docData;
-
         if (!fullUrl.startsWith('http')) {
-            const baseUrl = "http://170.246.172.83";
-            fullUrl = `${baseUrl}/${docData}`;
+            const path = fullUrl.startsWith('/') ? fullUrl : `/${fullUrl}`;
+            fullUrl = `${window.location.origin}${path}`;
         }
-
         window.open(fullUrl, '_blank');
     }
 }

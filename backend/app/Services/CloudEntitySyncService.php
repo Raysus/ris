@@ -14,6 +14,7 @@ use App\Models\Persona;
 use App\Models\ReferringDoctor;
 use App\Models\ReportTemplate;
 use App\Models\Service;
+use App\Models\SubExam;
 use App\Models\Supply;
 use App\Models\User;
 use App\Support\CloudSyncMode;
@@ -477,6 +478,7 @@ class CloudEntitySyncService
     private function syncAppointment(array $data): void
     {
         $studies = $data['studies'] ?? null;
+        $supplies = $data['supplies'] ?? null;
         $patient = $data['patient'] ?? null;
         $laboratoryId = $data['laboratory_id'] ?? null;
 
@@ -511,26 +513,34 @@ class CloudEntitySyncService
 
         if (is_array($studies)) {
             $syncedStudyIds = [];
+            $appointmentMachineId = $appointment->machine_id ?? ($data['machine_id'] ?? null);
             foreach ($studies as $row) {
                 if (empty($row['id'])) {
                     continue;
                 }
-                $studyAttrs = $this->filterAttributes(AppointmentStudy::class, $row);
-                $studyId = (string) ($studyAttrs['id'] ?? $row['id']);
-                unset($studyAttrs['id']);
-                $studyAttrs['appointment_id'] = $appointment->id;
-                $this->sanitizeAppointmentStudyForeignKeys($studyAttrs);
+                try {
+                    $this->ensureReferencedCatalogForStudy($row);
+                    $studyAttrs = $this->filterAttributes(AppointmentStudy::class, $row);
+                    $studyId = (string) ($studyAttrs['id'] ?? $row['id']);
+                    unset($studyAttrs['id']);
+                    $studyAttrs['appointment_id'] = $appointment->id;
+                    $this->sanitizeAppointmentStudyForeignKeys($studyAttrs, $appointmentMachineId);
 
-                $existingStudy = AppointmentStudy::find($studyId);
-                if ($existingStudy) {
-                    if (!$this->catalogEntityIsUnchanged($existingStudy, $studyAttrs, AppointmentStudy::class)) {
-                        $existingStudy->fill($studyAttrs);
-                        $existingStudy->save();
+                    $existingStudy = AppointmentStudy::find($studyId);
+                    if ($existingStudy) {
+                        if (!$this->catalogEntityIsUnchanged($existingStudy, $studyAttrs, AppointmentStudy::class)) {
+                            $existingStudy->fill($studyAttrs);
+                            $existingStudy->save();
+                        }
+                    } else {
+                        $this->saveWithIncomingId(AppointmentStudy::class, $studyId, $studyAttrs);
                     }
-                } else {
-                    $this->saveWithIncomingId(AppointmentStudy::class, $studyId, $studyAttrs);
+                    $syncedStudyIds[] = $studyId;
+                } catch (\Throwable $e) {
+                    Log::warning('cloud sync appointment study ' . ($row['id'] ?? '') . ': ' . $e->getMessage(), [
+                        'appointment_id' => $appointment->id,
+                    ]);
                 }
-                $syncedStudyIds[] = $studyId;
             }
 
             if ($syncedStudyIds !== []) {
@@ -538,6 +548,58 @@ class CloudEntitySyncService
                     ->where('appointment_id', $appointment->id)
                     ->whereNotIn('id', $syncedStudyIds)
                     ->delete();
+            }
+        }
+
+        if (is_array($supplies)) {
+            $this->syncAppointmentSupplies($appointment, $supplies);
+        }
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $supplies
+     */
+    private function syncAppointmentSupplies(Appointment $appointment, array $supplies): void
+    {
+        $syncMap = [];
+
+        foreach ($supplies as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $supplyId = (string) ($row['supply_id'] ?? $row['id'] ?? '');
+            if ($supplyId === '' || !Supply::query()->whereKey($supplyId)->exists()) {
+                Log::warning('cloud sync appointment supply omitido (no existe en destino)', [
+                    'appointment_id' => $appointment->id,
+                    'supply_id' => $supplyId,
+                ]);
+                continue;
+            }
+
+            $syncMap[$supplyId] = [
+                'quantity' => (int) ($row['pivot']['quantity'] ?? $row['quantity'] ?? 1),
+                'price_charged' => (float) ($row['pivot']['price_charged'] ?? $row['price_charged'] ?? $row['price'] ?? 0),
+            ];
+        }
+
+        $appointment->supplies()->sync($syncMap);
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    private function ensureReferencedCatalogForStudy(array $row): void
+    {
+        if (!empty($row['exam']) && is_array($row['exam']) && !empty($row['exam']['id'])) {
+            if (!$this->catalogRowIsUnchanged(Exam::class, $row['exam'])) {
+                $this->apply('Exam', 'updated', $row['exam']);
+            }
+        }
+
+        if (!empty($row['sub_exam']) && is_array($row['sub_exam']) && !empty($row['sub_exam']['id'])) {
+            if (!$this->catalogRowIsUnchanged(SubExam::class, $row['sub_exam'])) {
+                $this->apply('SubExam', 'updated', $row['sub_exam']);
             }
         }
     }
@@ -622,13 +684,24 @@ class CloudEntitySyncService
     /**
      * @param  array<string, mixed>  $attrs
      */
-    private function sanitizeAppointmentStudyForeignKeys(array &$attrs): void
+    private function sanitizeAppointmentStudyForeignKeys(array &$attrs, ?string $fallbackMachineId = null): void
     {
+        $machineId = $attrs['machine_id'] ?? null;
+        if ($machineId && !Machine::query()->whereKey($machineId)->exists()) {
+            if ($fallbackMachineId && Machine::query()->whereKey($fallbackMachineId)->exists()) {
+                Log::warning('cloud sync appointment study: machine_id reemplazado por sala de la cita', [
+                    'study_machine_id' => $machineId,
+                    'appointment_machine_id' => $fallbackMachineId,
+                ]);
+                $attrs['machine_id'] = $fallbackMachineId;
+            }
+        }
+
         $optional = [
             'exam_id' => Exam::class,
             'machine_id' => Machine::class,
             'radiologist_user_id' => User::class,
-            'sub_exam_id' => \App\Models\SubExam::class,
+            'sub_exam_id' => SubExam::class,
         ];
 
         foreach ($optional as $column => $class) {
@@ -749,7 +822,16 @@ class CloudEntitySyncService
             default => 'bin',
         };
 
-        $relative = 'cloud-sync/' . $prefix . '_' . uniqid('', true) . '.' . $ext;
+        $folder = in_array($prefix, ['medical_order_path', 'survey_path'], true)
+            ? 'documents'
+            : 'cloud-sync';
+        $name = match ($prefix) {
+            'medical_order_path' => 'orden',
+            'survey_path' => 'encuesta',
+            default => $prefix,
+        };
+
+        $relative = $folder . '/' . $name . '_' . uniqid('', true) . '.' . $ext;
         try {
             Storage::disk('public')->put($relative, $raw);
             return '/storage/' . $relative;

@@ -73,6 +73,7 @@ class WorklistController extends Controller
                     'id' => $study->id,
                     'exam_name' => $study->exam_name,
                     'sub_exam_name' => $study->sub_exam_name,
+                    'anamnesis' => $study->anamnesis,
                     'quantity' => $study->quantity,
                     'machine_id' => $study->machine_id,
                     'machine_name' => $study->machine?->name ?? $appointment->machine?->name ?? 'Sala Desconocida',
@@ -361,6 +362,47 @@ class WorklistController extends Controller
         \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
 
         return response()->json(['success' => true, 'accession' => $appointment->accession_number]);
+    }
+
+    /**
+     * Guarda síntomas/anamnesis sin finalizar la atención (borrador persistente en worklist).
+     */
+    public function saveAnamnesis(Request $request, $appointmentId)
+    {
+        $this->assertWorklistAccess($request);
+        $request->validate([
+            'anamnesis' => 'required|string|max:2000',
+        ]);
+
+        $appointment = $this->getSecureAppointmentQuery()->findOrFail($appointmentId);
+
+        if (!in_array($appointment->status, ['confirmado', 'en_atencion', 'dicom_enviado', 'devuelto_worklist'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'La cita no está en un estado que permita editar la anamnesis.',
+            ], 422);
+        }
+
+        $anamnesis = trim((string) $request->input('anamnesis'));
+
+        DB::table('appointment_studies')
+            ->where('appointment_id', $appointment->id)
+            ->update([
+                'anamnesis' => $anamnesis,
+                'updated_at' => now(),
+            ]);
+
+        if ($appointment->status === 'confirmado') {
+            $appointment->status = 'en_atencion';
+            $appointment->save();
+        } else {
+            $appointment->touch();
+        }
+
+        $appointment->load(['patient.persona', 'studies', 'supplies']);
+        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+
+        return response()->json(['success' => true]);
     }
 
     public function complete(Request $request, $appointmentId)
