@@ -20,7 +20,7 @@ if [[ -z "${CERT_URL}" ]]; then
     echo "O URL del cert: RIS_CERT_URL=https://IP/ris-lan-cert.pem sudo bash $0" >&2
     exit 1
   fi
-  CERT_URL="https://${RIS_IP}/ris-lan-cert.pem"
+  CERT_URL="https://${RIS_IP}/ris-lan-ca.pem"
 fi
 
 echo "→ Descargando certificado desde ${CERT_URL} ..."

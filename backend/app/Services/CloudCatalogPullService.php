@@ -14,6 +14,7 @@ use App\Support\RisHttp;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class CloudCatalogPullService
 {
@@ -142,19 +143,29 @@ class CloudCatalogPullService
             $counts['appointments'] = 0;
             $counts['appointments_failed'] = 0;
             $counts['appointment_studies'] = 0;
+            $counts['appointment_documents'] = 0;
             foreach ($payload['appointments'] as $row) {
                 if (empty($row['id'])) {
                     continue;
                 }
                 try {
+                    $hadDocs = !empty($row['medical_order_path'])
+                        || !empty($row['medical_order_path_base64'])
+                        || !empty($row['survey_path'])
+                        || !empty($row['survey_path_base64']);
                     $this->entitySync->apply('App\Models\Appointment', 'updated', $row);
                     $counts['appointments']++;
                     $counts['appointment_studies'] += count($row['studies'] ?? []);
+                    if ($hadDocs) {
+                        $counts['appointment_documents']++;
+                    }
                 } catch (\Throwable $e) {
                     $counts['appointments_failed']++;
                     Log::warning('cloud pull appointment ' . $row['id'] . ': ' . $e->getMessage());
                 }
             }
+
+            $this->pullOrphanDocuments($payload, $counts, $laboratoryId);
         }
 
         return [
@@ -242,6 +253,62 @@ class CloudCatalogPullService
      * @param  array<string, mixed>  $payload
      * @param  array<string, int>  $counts
      */
+    /**
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, int>  $counts
+     */
+    private function pullOrphanDocuments(array $payload, array &$counts, ?string $laboratoryId): void
+    {
+        $orphans = $payload['orphan_documents'] ?? [];
+        $counts['orphan_documents'] = 0;
+        $counts['orphan_documents_stored'] = 0;
+
+        foreach ($orphans as $doc) {
+            if (empty($doc['base64']) || empty($doc['storage_path'])) {
+                continue;
+            }
+
+            $counts['orphan_documents']++;
+            $storedPath = $this->storeImportedDocument((string) $doc['base64'], (string) $doc['storage_path']);
+            if ($storedPath !== null) {
+                $counts['orphan_documents_stored']++;
+                Log::info('cloud pull orphan document stored', [
+                    'source' => $doc['storage_path'],
+                    'local_path' => $storedPath,
+                    'laboratory_id' => $laboratoryId,
+                ]);
+            }
+        }
+    }
+
+    private function storeImportedDocument(string $base64, string $sourcePath): ?string
+    {
+        if (!preg_match('#^data:([^;]+);base64,(.+)$#', $base64, $matches)) {
+            return null;
+        }
+
+        $raw = base64_decode($matches[2], true);
+        if ($raw === false) {
+            return null;
+        }
+
+        $basename = basename($sourcePath);
+        $relative = 'documents/' . $basename;
+        if (Storage::disk('public')->exists($relative)) {
+            $relative = 'documents/cloud_' . uniqid('', true) . '_' . $basename;
+        }
+
+        try {
+            Storage::disk('public')->put($relative, $raw);
+        } catch (\Throwable $e) {
+            Log::warning('cloud pull orphan document store failed: ' . $e->getMessage());
+
+            return null;
+        }
+
+        return '/storage/' . $relative;
+    }
+
     private function pullReferencedExamCatalog(array $payload, array &$counts): void
     {
         $examsById = [];

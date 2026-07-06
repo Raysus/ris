@@ -28,6 +28,7 @@
 
         <div class="card-body p-4 pt-2">
             <div id="loginError" class="alert alert-danger d-none small p-2 text-center fw-bold rounded-3"></div>
+            <div id="lanCertHint" class="alert alert-warning d-none small rounded-3 mb-3"></div>
 
             <div class="mb-3">
                 <label class="small fw-bold text-muted-modern mb-1" for="username">Usuario</label>
@@ -94,6 +95,21 @@
     <script src="js/config.js?v=20260624a"></script>
     <script src="js/core/ui.js"></script>
     <script src="js/core/password-toggle.js"></script>
+    <script>
+    (function () {
+        const host = window.location.hostname;
+        const isLan = /^(192\.168\.|10\.|100\.)/.test(host);
+        if (!isLan || window.isSecureContext) return;
+        const caUrl = 'https://' + host + '/ris-lan-ca.pem';
+        const el = document.getElementById('lanCertHint');
+        if (!el) return;
+        el.classList.remove('d-none');
+        el.innerHTML = 'El navegador muestra «No es seguro» hasta instalar el certificado del laboratorio. '
+            + '<a href="' + caUrl + '" class="alert-link fw-bold">Descargar certificado</a> '
+            + '→ doble clic → Instalar en «Equipo local» → «Autoridades de certificación raíz de confianza». '
+            + 'Cierre y vuelva a abrir el navegador.';
+    })();
+    </script>
     <script src="js/auth.js?v=20260624a"></script>
 
 </body>

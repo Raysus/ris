@@ -153,6 +153,17 @@ class CloudCatalogExportService
                 'from' => $from->toIso8601String(),
                 'to' => $to->toIso8601String(),
             ];
+
+            $referencedPaths = [];
+            foreach ($appointments as $appointment) {
+                if ($appointment->medical_order_path) {
+                    $referencedPaths[] = $appointment->medical_order_path;
+                }
+                if ($appointment->survey_path) {
+                    $referencedPaths[] = $appointment->survey_path;
+                }
+            }
+            $payload['orphan_documents'] = CloudSyncFilePackager::collectOrphanDocuments($referencedPaths);
         }
 
         return $payload;

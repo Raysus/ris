@@ -196,6 +196,8 @@ function risAbrirDocumentoEnNuevaVentana(path) {
     window.open(fullUrl, '_blank');
     return true;
 }
+
+function getBadgePrioridad(prioridad) {
     if (prioridad === 'Urgencia') return '<span class="badge bg-danger fw-bold shadow-sm" style="animation: pulse 1.5s infinite;">🚨 Urgencia</span>';
     if (prioridad === 'Alta') return '<span class="badge bg-warning text-dark fw-bold">Alta</span>';
     return '<span class="badge bg-light text-secondary border">Normal</span>';

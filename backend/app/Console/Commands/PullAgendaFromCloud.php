@@ -66,7 +66,17 @@ class PullAgendaFromCloud extends Command
 
         $imported = (int) ($counts['appointments'] ?? 0);
         $failed = (int) ($counts['appointments_failed'] ?? 0);
+        $docs = (int) ($counts['appointment_documents'] ?? 0);
+        $orphans = (int) ($counts['orphan_documents'] ?? 0);
+        $orphansStored = (int) ($counts['orphan_documents_stored'] ?? 0);
         $this->info("Listo: {$imported} citas importadas" . ($failed > 0 ? ", {$failed} con error (ver log)" : '') . '.');
+        if ($docs > 0) {
+            $this->line("  citas con documentos embebidos: {$docs}");
+        }
+        if ($orphans > 0) {
+            $this->line("  documentos huérfanos en nube: {$orphans} (copiados localmente: {$orphansStored})");
+            $this->warn('  Los huérfanos no se vinculan solos. Use ris:link-appointment-document si conoce la cita.');
+        }
 
         return $failed > 0 && $imported === 0 ? self::FAILURE : self::SUCCESS;
     }

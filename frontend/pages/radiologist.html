@@ -1,8 +1,8 @@
-<div class="container-fluid p-3 h-100">
-    <div class="row h-100">
+<div class="container-fluid p-3 ris-radiologist-page">
+    <div class="row g-3 ris-radiologist-row">
 
-        <div class="col-md-3 h-100 d-flex flex-column">
-            <div class="card shadow-sm border-0 flex-grow-1">
+        <div class="col-12 col-lg-3 d-flex flex-column ris-radiologist-col-list">
+            <div class="card shadow-sm border-0 flex-grow-1 ris-radiologist-card">
                 <div class="card-header bg-dark text-white py-3">
                     <h6 class="mb-0 fw-bold"><i class="bi bi-inbox me-2"></i>Bandeja de Informes</h6>
                     <small class="opacity-75">Estudios listos para lectura (<span
@@ -27,14 +27,13 @@
                         </div>
                     </div>
                 </div>
-                <div class="list-group list-group-flush overflow-auto flex-grow-1" id="radiologistStudies"
-                    style="max-height: calc(100vh - 240px);">
+                <div class="list-group list-group-flush overflow-auto flex-grow-1 ris-radiologist-studies" id="radiologistStudies">
                 </div>
             </div>
         </div>
 
-        <div class="col-md-9 h-100 d-flex flex-column">
-            <div class="card shadow-sm border-0 flex-grow-1 d-flex flex-column">
+        <div class="col-12 col-lg-9 d-flex flex-column ris-radiologist-col-main">
+            <div class="card shadow-sm border-0 flex-grow-1 d-flex flex-column ris-radiologist-card">
 
                 <div class="card-header bg-white py-3 border-bottom" id="infoPacienteRadiologo">
                     <div class="text-center text-muted p-5">
@@ -43,7 +42,7 @@
                     </div>
                 </div>
 
-                <div class="card-body d-flex bg-light p-3 flex-grow-1 overflow-hidden" id="workspaceContainer">
+                <div class="card-body d-flex bg-light p-3 flex-grow-1 overflow-hidden ris-radiologist-workspace" id="workspaceContainer">
 
                     <div class="d-flex flex-column transition-all w-100 h-100" id="colEditor">
                         <div class="d-flex justify-content-between align-items-center mb-2">
@@ -93,7 +92,7 @@
                             placeholder="Redacte aquí el informe, dictado por voz o Dragon..." disabled></textarea>
 
                         <div class="row g-2 mb-1">
-                            <div class="col-md-6">
+                            <div class="col-12 col-xl-6">
                                 <div
                                     class="bg-white p-3 rounded border border-primary shadow-sm mb-2 d-flex flex-column text-center">
                                     <h6 class="fw-bold mb-2 text-primary"><i class="bi bi-mic-fill me-1"></i>Dictado por
@@ -129,7 +128,7 @@
                                 </div>
                             </div>
 
-                            <div class="col-md-6">
+                            <div class="col-12 col-xl-6">
                                 <div
                                     class="bg-white p-3 rounded border shadow-sm h-100 d-flex flex-column justify-content-center text-center">
                                     <h6 class="fw-bold mb-1 text-danger"><i class="bi bi-mic-fill me-1"></i>Audio a
@@ -188,7 +187,7 @@
                         </div>
                     </div>
 
-                    <div class="d-none h-100 border-start ms-3 ps-3 flex-column" id="colHistorial" style="width: 50%;">
+                    <div class="d-none h-100 border-start ms-3 ps-3 flex-column ris-radiologist-history" id="colHistorial" style="width: 50%;">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h6 class="fw-bold text-primary mb-0"><i class="bi bi-clock-history me-1"></i> Informes
                                 Anteriores</h6>
@@ -201,12 +200,12 @@
                     </div>
                 </div>
 
-                <div class="card-footer bg-white py-3 d-flex justify-content-between border-top">
+                <div class="card-footer bg-white py-3 d-flex justify-content-between border-top flex-wrap gap-2">
                     <button class="btn btn-outline-danger fw-bold" id="btnDevolver" onclick="devolverATecnologo()"
                         disabled title="Si la imagen está mal tomada, devolver al Tecnólogo">
                         <i class="bi bi-arrow-return-left me-1"></i> Devolver a T.M.
                     </button>
-                    <div class="d-flex gap-2">
+                    <div class="d-flex gap-2 flex-wrap">
                         <button type="button" class="btn btn-outline-info fw-bold text-dark" id="btnEnviarTranscripcion"
                             disabled
                             title="Envía el examen a la bandeja de transcripción. El audio es opcional (puede entregarse después, p. ej. tarjeta SD).">

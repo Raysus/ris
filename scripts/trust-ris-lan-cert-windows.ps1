@@ -6,8 +6,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$certUrl = "https://${RisIp}/ris-lan-cert.pem"
-$tempCert = Join-Path $env:TEMP "ris-lan-cert.pem"
+$certUrl = "https://${RisIp}/ris-lan-ca.pem"
+$tempCert = Join-Path $env:TEMP "healthticloud-ris-lan-ca.pem"
 
 Write-Host "-> Descargando $certUrl ..."
 # Ignorar aviso SSL la primera vez
