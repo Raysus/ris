@@ -78,7 +78,11 @@ class RadiologistController extends Controller
             ->get();
 
         $formattedData = $appointments->map(function ($app) {
-            $anamnesisGlobal = $app->studies->first()->anamnesis ?? 'Sin anamnesis registrada.';
+            $anamnesisGlobal = $app->studies
+                ->pluck('anamnesis')
+                ->map(fn ($value) => trim((string) $value))
+                ->filter(fn ($value) => $value !== '')
+                ->first() ?? 'Sin anamnesis registrada.';
 
             return array_merge([
                 'id' => $app->id,

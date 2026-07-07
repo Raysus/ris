@@ -257,6 +257,11 @@ body {
     min-height: 0;
 }
 
+.ris-anamnesis-radiologo-text {
+    white-space: pre-wrap;
+    line-height: 1.45;
+}
+
 /* Split pages: transcription / validation (lista izquierda + panel principal) */
 .ris-split-page {
     display: flex;
