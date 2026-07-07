@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\LabScheduleDatetime;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Traits\BelongsToLaboratory;
@@ -40,8 +41,8 @@ class Appointment extends Model
         'images_received_at',
     ];
     protected $casts = [
-        'start_time' => 'datetime',
-        'end_time' => 'datetime',
+        'start_time' => LabScheduleDatetime::class,
+        'end_time' => LabScheduleDatetime::class,
         'needs_review' => 'boolean',
         'reminder_sent_at' => 'datetime',
         'images_received_at' => 'datetime',

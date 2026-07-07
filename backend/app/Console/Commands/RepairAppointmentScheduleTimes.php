@@ -12,6 +12,7 @@ class RepairAppointmentScheduleTimes extends Command
 {
     protected $signature = 'ris:repair-appointment-times
         {--lab= : UUID del laboratorio (opcional)}
+        {--wall-as-utc : Reinterpretar la hora en BD como hora local del lab (citas con desfase −4 h)}
         {--dry-run : Solo mostrar cambios sin guardar}';
 
     protected $description = 'Corrige citas guardadas con hora local en columna UTC y normaliza duración al intervalo del lab';
@@ -31,7 +32,7 @@ class RepairAppointmentScheduleTimes extends Command
 
         $query->orderBy('start_time')->chunk(100, function ($appointments) use ($dryRun, &$fixed, &$skipped) {
             foreach ($appointments as $appointment) {
-                $result = $this->repairAppointment($appointment, $dryRun);
+                $result = $this->repairAppointment($appointment, $dryRun, (bool) $this->option('wall-as-utc'));
                 if ($result) {
                     $fixed++;
                 } else {
@@ -45,7 +46,7 @@ class RepairAppointmentScheduleTimes extends Command
         return self::SUCCESS;
     }
 
-    private function repairAppointment(Appointment $appointment, bool $dryRun): bool
+    private function repairAppointment(Appointment $appointment, bool $dryRun, bool $wallAsUtc): bool
     {
         $lab = $appointment->laboratory ?? Laboratory::find($appointment->laboratory_id);
         $schedule = $lab?->resolveScheduleSettings() ?? ['intervalo' => '00:10:00', 'horaInicio' => '08:00:00'];
@@ -70,6 +71,9 @@ class RepairAppointmentScheduleTimes extends Command
         if ($displayMinutes < $openMinutes && $localWallMinutes >= $openMinutes) {
             $start = $asLocalWall->copy()->utc();
             $reason = 'hora local guardada como UTC';
+        } elseif ($wallAsUtc && !$asUtc->equalTo($asLocalWall->utc())) {
+            $start = $asLocalWall->copy()->utc();
+            $reason = 'hora mural guardada como UTC (--wall-as-utc)';
         }
 
         $end = $start->copy()->addMinutes($intervalMinutes);
