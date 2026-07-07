@@ -13,6 +13,8 @@ let currentSucursalesAdmin = [];
 let currentPlanesFromDB = [];
 let catalogInsurances = [];
 let catalogReferringDoctors = [];
+let catalogDestinationDoctors = [];
+let currentAgendaSemanal = null;
 let currentPacientesAdmin = [];
 let patientsAdminPage = 1;
 let patientsAdminLastPage = 1;
@@ -197,6 +199,7 @@ function initAdmin() {
     if (typeof cargarPacientes === "function") cargarPacientes();
     if (typeof refreshPacientesAdminActions === 'function') refreshPacientesAdminActions();
     if (typeof cargarMedicosReferentesAdmin === 'function') cargarMedicosReferentesAdmin();
+    cargarCatalogosAgendaSemanal();
 
     const fechaActual = new Date();
     const mesActual = `${fechaActual.getFullYear()}-${String(fechaActual.getMonth() + 1).padStart(2, '0')}`;
@@ -206,6 +209,7 @@ function initAdmin() {
     $("#mesNomina").val(mesActual);
     $("#fechaCierreCaja").val(new Date().toISOString().split('T')[0]);
     $("#mesConsolidado").val(mesActual);
+    $("#fechaAgendaSemanal").val(new Date().toISOString().split('T')[0]);
 
     renderReporteHonorarios();
     renderReporteExamenes();
@@ -1920,6 +1924,292 @@ async function renderNominaDiaria() {
         currentNominaDiaria = null;
         tbody.empty().append(`<tr><td colspan="9" class="text-center text-danger p-4">Error de conexión al cargar nómina.</td></tr>`);
         $("#totalNominaDia").text('0');
+    }
+}
+
+function nombreCompletoMedicoDestinatarioAgenda(doc) {
+    const p = doc.persona || {};
+    const apellidos = [p.last_name_1, p.last_name_2].filter(Boolean).join(' ').trim();
+    const nombres = String(p.names || '').trim();
+    if (apellidos && nombres) {
+        return `Dr(a). ${apellidos}, ${nombres}`;
+    }
+    const nombre = [apellidos, nombres].filter(Boolean).join(' ').trim();
+    return nombre ? `Dr(a). ${nombre}` : 'Médico destinatario';
+}
+
+async function cargarCatalogosAgendaSemanal() {
+    const select = $("#medicoDestinatarioAgendaSemanal");
+    if (!select.length) return;
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(`${API_URL}/agenda-catalogs`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
+        });
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            catalogDestinationDoctors = data.data?.destination_doctors || [];
+            poblarSelectMedicosDestinatariosAgendaSemanal();
+        }
+    } catch (e) {
+        console.error('Error cargando médicos destinatarios para agenda semanal', e);
+    }
+}
+
+function poblarSelectMedicosDestinatariosAgendaSemanal() {
+    const select = $("#medicoDestinatarioAgendaSemanal");
+    if (!select.length) return;
+
+    const valorActual = select.val();
+    select.empty().append('<option value="">— Seleccione médico —</option>');
+
+    const ordenados = [...catalogDestinationDoctors].sort((a, b) =>
+        nombreCompletoMedicoDestinatarioAgenda(a).localeCompare(nombreCompletoMedicoDestinatarioAgenda(b), 'es')
+    );
+
+    ordenados.forEach((doc) => {
+        select.append(`<option value="${doc.id}">${nombreCompletoMedicoDestinatarioAgenda(doc)}</option>`);
+    });
+
+    if (valorActual && ordenados.some((d) => String(d.id) === String(valorActual))) {
+        select.val(valorActual);
+    }
+}
+
+function subtituloMedicoDestinatarioAgenda(data) {
+    const medico = data.medico_destinatario || data.medico;
+    return medico?.nombre ? `Médico destinatario: ${medico.nombre}` : '';
+}
+
+$(document).on('change', '#fechaAgendaSemanal, #medicoDestinatarioAgendaSemanal', renderAgendaSemanalMedico);
+
+async function renderAgendaSemanalMedico() {
+    const contenedor = $("#contenedorAgendaSemanal");
+    if (!contenedor.length) return;
+
+    const fecha = $("#fechaAgendaSemanal").val();
+    const destinationDoctorId = $("#medicoDestinatarioAgendaSemanal").val();
+
+    if (!fecha || !destinationDoctorId) {
+        currentAgendaSemanal = null;
+        $("#totalAgendaSemanal").text('0');
+        $("#rangoAgendaSemanal").text('');
+        $("#btnAgendaSemanalPdf").prop('disabled', true);
+        contenedor.html('<div class="p-5 text-center text-muted">Seleccione semana y médico destinatario (ej. Dr. Riedel).</div>');
+        return;
+    }
+
+    contenedor.html('<div class="p-5 text-center"><span class="spinner-border spinner-border-sm text-primary"></span> Cargando agenda...</div>');
+    $("#btnAgendaSemanalPdf").prop('disabled', true);
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const params = new URLSearchParams({
+            week: fecha,
+            destination_doctor_id: destinationDoctorId,
+        });
+
+        const response = await fetch(`${API_URL}/reports/agenda-semanal?${params}`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
+        });
+        const res = await response.json();
+
+        if (!res.success) {
+            currentAgendaSemanal = null;
+            contenedor.html(`<div class="p-5 text-center text-danger">${res.message || 'No se pudo cargar la agenda.'}</div>`);
+            $("#totalAgendaSemanal").text('0');
+            $("#rangoAgendaSemanal").text('');
+            return;
+        }
+
+        currentAgendaSemanal = res;
+        $("#totalAgendaSemanal").text(res.total_citas ?? 0);
+        const subtitulo = subtituloMedicoDestinatarioAgenda(res);
+        $("#rangoAgendaSemanal").text(`Semana del ${res.semana_formato || ''}${subtitulo ? ` · ${subtitulo}` : ''}`);
+        $("#btnAgendaSemanalPdf").prop('disabled', false);
+
+        let html = '';
+        (res.dias || []).forEach((dia) => {
+            const citas = dia.citas || [];
+            html += `
+                <div class="border-bottom">
+                    <div class="bg-light px-3 py-2 d-flex justify-content-between align-items-center">
+                        <span class="fw-bold text-primary">${dia.dia_formato}</span>
+                        <span class="badge bg-secondary">${citas.length} cita${citas.length === 1 ? '' : 's'}</span>
+                    </div>
+            `;
+
+            if (!citas.length) {
+                html += '<div class="px-3 py-3 small text-muted">Sin citas programadas.</div>';
+            } else {
+                html += `
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead class="small text-muted">
+                                <tr>
+                                    <th style="width:5rem">Hora</th>
+                                    <th>Paciente</th>
+                                    <th style="width:7rem">RUT</th>
+                                    <th>Exámenes</th>
+                                    <th>Sala</th>
+                                    <th>Méd. referente</th>
+                                    <th>Estado</th>
+                                    <th>Previsión</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                citas.forEach((cita) => {
+                    const hora = cita.hora_fin ? `${cita.hora} – ${cita.hora_fin}` : cita.hora;
+                    html += `
+                        <tr>
+                            <td class="fw-bold text-nowrap">${hora}</td>
+                            <td class="fw-bold">${cita.paciente}</td>
+                            <td class="small">${cita.rut || ''}</td>
+                            <td class="small">${(cita.examenes || []).join(' / ')}</td>
+                            <td class="small">${cita.sala || ''}</td>
+                            <td class="small">${cita.medico_referente || '—'}</td>
+                            <td class="small">${cita.estado || ''}</td>
+                            <td class="small">${cita.institucion || ''}</td>
+                        </tr>
+                    `;
+                });
+                html += '</tbody></table></div>';
+            }
+            html += '</div>';
+        });
+
+        contenedor.html(html);
+    } catch (e) {
+        console.error('Error cargando agenda semanal', e);
+        currentAgendaSemanal = null;
+        contenedor.html('<div class="p-5 text-center text-danger">Error de conexión al cargar la agenda.</div>');
+        $("#totalAgendaSemanal").text('0');
+        $("#rangoAgendaSemanal").text('');
+    }
+}
+
+function construirHtmlAgendaSemanalPdf(data) {
+    const centro = data.centro || obtenerNombreCentroNomina(data);
+    const ciudad = data.ciudad || '';
+    const responsable = obtenerResponsableReporte();
+    const medico = data.medico_destinatario || data.medico || {};
+
+    let cuerpoDias = '';
+    (data.dias || []).forEach((dia) => {
+        const citas = dia.citas || [];
+        cuerpoDias += `
+            <div style="margin-top:14px; page-break-inside:avoid;">
+                <div style="background:#e9ecef; padding:6px 10px; font-weight:bold; font-size:11px; color:#0d6efd;">
+                    ${dia.dia_formato}
+                    <span style="float:right; color:#6c757d; font-weight:normal;">${citas.length} cita${citas.length === 1 ? '' : 's'}</span>
+                </div>
+        `;
+
+        if (!citas.length) {
+            cuerpoDias += '<p style="margin:8px 10px; font-size:10px; color:#6c757d;">Sin citas programadas.</p>';
+        } else {
+            cuerpoDias += `
+                <table style="width:100%; border-collapse:collapse; font-size:8px;">
+                    <thead>
+                        <tr style="background:#f8f9fa;">
+                            <th style="border:1px solid #dee2e6; padding:4px; text-align:left; width:7%;">Hora</th>
+                            <th style="border:1px solid #dee2e6; padding:4px; text-align:left; width:18%;">Paciente</th>
+                            <th style="border:1px solid #dee2e6; padding:4px; text-align:left; width:10%;">RUT</th>
+                            <th style="border:1px solid #dee2e6; padding:4px; text-align:left; width:22%;">Exámenes</th>
+                            <th style="border:1px solid #dee2e6; padding:4px; text-align:left; width:8%;">Sala</th>
+                            <th style="border:1px solid #dee2e6; padding:4px; text-align:left; width:14%;">Méd. referente</th>
+                            <th style="border:1px solid #dee2e6; padding:4px; text-align:left; width:8%;">Estado</th>
+                            <th style="border:1px solid #dee2e6; padding:4px; text-align:left; width:9%;">Previsión</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            citas.forEach((cita) => {
+                const hora = cita.hora_fin ? `${cita.hora} – ${cita.hora_fin}` : cita.hora;
+                cuerpoDias += `
+                    <tr>
+                        <td style="border:1px solid #dee2e6; padding:4px; font-weight:bold;">${hora}</td>
+                        <td style="border:1px solid #dee2e6; padding:4px;">${cita.paciente}</td>
+                        <td style="border:1px solid #dee2e6; padding:4px;">${cita.rut || ''}</td>
+                        <td style="border:1px solid #dee2e6; padding:4px;">${(cita.examenes || []).join(' / ')}</td>
+                        <td style="border:1px solid #dee2e6; padding:4px;">${cita.sala || ''}</td>
+                        <td style="border:1px solid #dee2e6; padding:4px;">${cita.medico_referente || '—'}</td>
+                        <td style="border:1px solid #dee2e6; padding:4px;">${cita.estado || ''}</td>
+                        <td style="border:1px solid #dee2e6; padding:4px;">${cita.institucion || ''}</td>
+                    </tr>
+                `;
+            });
+            cuerpoDias += '</tbody></table>';
+        }
+        cuerpoDias += '</div>';
+    });
+
+    return `
+        <div style="font-family:Arial,Helvetica,sans-serif; color:#212529; padding:8px;">
+            <div style="text-align:center; border-bottom:2px solid #0d6efd; padding-bottom:8px; margin-bottom:10px;">
+                <div style="font-size:14px; font-weight:bold;">${centro}</div>
+                ${ciudad ? `<div style="font-size:10px; color:#6c757d;">${ciudad}</div>` : ''}
+                <div style="font-size:12px; font-weight:bold; margin-top:8px;">AGENDA SEMANAL — MÉDICO DESTINATARIO</div>
+                <div style="font-size:11px; margin-top:4px;">${medico.nombre || ''}</div>
+                <div style="font-size:10px; color:#6c757d; margin-top:4px;">Semana del ${data.semana_formato || ''}</div>
+            </div>
+            ${cuerpoDias}
+            <div style="margin-top:16px; font-size:9px; color:#6c757d; border-top:1px solid #dee2e6; padding-top:8px;">
+                Total citas: ${data.total_citas ?? 0} · Generado: ${new Date().toLocaleString('es-CL')} · ${responsable}
+            </div>
+        </div>
+    `;
+}
+
+async function descargarAgendaSemanalPdf() {
+    if (!currentAgendaSemanal) {
+        if (typeof showAlert === 'function') {
+            showAlert('Cargue primero la agenda de la semana.', 'Agenda semanal', 'warning');
+        }
+        return;
+    }
+
+    if (typeof html2pdf === 'undefined') {
+        if (typeof showAlert === 'function') {
+            showAlert('Librería html2pdf no cargada.', 'Error', 'danger');
+        }
+        return;
+    }
+
+    const medico = currentAgendaSemanal.medico_destinatario || currentAgendaSemanal.medico || {};
+    const nombreArchivo = `Agenda_Semanal_${sanitizarNombreArchivoCentro(medico.nombre || 'Medico')}_${currentAgendaSemanal.semana_inicio || 'semana'}.pdf`;
+
+    const host = document.getElementById('agendaSemanalPdfHost');
+    if (!host) return;
+
+    host.innerHTML = construirHtmlAgendaSemanalPdf(currentAgendaSemanal);
+    const elemento = host.firstElementChild;
+    if (!elemento) return;
+
+    if (typeof showLoader === 'function') showLoader();
+
+    try {
+        await html2pdf().set({
+            margin: [10, 10, 10, 10],
+            filename: nombreArchivo,
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' },
+        }).from(elemento).save();
+    } catch (e) {
+        console.error('Error generando PDF agenda semanal', e);
+        if (typeof showAlert === 'function') {
+            showAlert('No se pudo generar el PDF.', 'Error', 'danger');
+        }
+    } finally {
+        host.innerHTML = '';
+        if (typeof hideLoader === 'function') hideLoader();
     }
 }
 

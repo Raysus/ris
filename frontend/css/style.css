@@ -606,12 +606,55 @@ body {
 
 .agenda-calendar .fc-timeline-slot-minor,
 #calendar .fc-timeline-slot-minor {
-    border-left-color: #e8e4ed !important;
+    border-left: 1px solid #b8b3c4 !important;
 }
 
 .agenda-calendar .fc-timeline-slot-major,
 #calendar .fc-timeline-slot-major {
-    border-left-color: var(--htc-purple-light) !important;
+    border-left: 2px solid #7d6b8f !important;
+}
+
+.agenda-calendar .fc-timeline-lane-frame,
+#calendar .fc-timeline-lane-frame {
+    border-bottom: 1px solid #b8b3c4;
+}
+
+.agenda-calendar .fc-scrollgrid,
+#calendar .fc-scrollgrid {
+    border: 2px solid #9ca3af !important;
+}
+
+.agenda-calendar .fc-scrollgrid td,
+.agenda-calendar .fc-scrollgrid th,
+#calendar .fc-scrollgrid td,
+#calendar .fc-scrollgrid th {
+    border-color: #b8b3c4 !important;
+}
+
+.fc-resourceTimeGridWeek-view .fc-timegrid-slot,
+.fc-agendaMes-view .fc-timegrid-slot {
+    border-bottom: 1px solid #b8b3c4 !important;
+}
+
+.fc-resourceTimeGridWeek-view .fc-timegrid-slot.fc-timegrid-slot-minor,
+.fc-agendaMes-view .fc-timegrid-slot.fc-timegrid-slot-minor {
+    border-bottom-style: dashed;
+    border-bottom-color: #c9c4d4 !important;
+}
+
+.fc-resourceTimeGridWeek-view .fc-timegrid-slot.fc-timegrid-slot-label,
+.fc-agendaMes-view .fc-timegrid-slot.fc-timegrid-slot-label {
+    border-right: 2px solid #9ca3af !important;
+}
+
+.fc-resourceTimeGridWeek-view .fc-timegrid-col,
+.fc-agendaMes-view .fc-timegrid-col {
+    border-right: 1px solid #b8b3c4 !important;
+}
+
+.fc-resourceTimeGridWeek-view .fc-col-header-cell,
+.fc-agendaMes-view .fc-col-header-cell {
+    border-bottom: 2px solid #9ca3af !important;
 }
 
 .agenda-calendar .fc-timeline-now-indicator-arrow,
@@ -960,7 +1003,7 @@ body {
 
 #calendar.fc-resourceTimelineDay-view .fc-datagrid-body .fc-datagrid-cell:not(:last-child),
 #calendar.fc-resourceTimelineDay-view .fc-timeline-body td.fc-timeline-lane.fc-resource:not(:last-child) {
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 2px solid #9ca3af;
 }
 
 /* Vista semana: grilla horaria (horas a la izquierda, días arriba) */
@@ -1040,6 +1083,12 @@ body {
     transform: translateY(-2px);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
     cursor: pointer;
+}
+
+.fc-event.ris-agenda-cita-bloqueada,
+.fc-event.ris-agenda-cita-bloqueada:hover {
+    cursor: not-allowed;
+    transform: none;
 }
 
 .fc-event-main {

@@ -3,6 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\Exam;
+use App\Models\Paciente;
+use App\Models\Persona;
+use App\Models\TipoUsuario;
 use App\Models\User;
 use Tests\Concerns\InteractsWithRis;
 use Tests\TestCase;
@@ -108,6 +111,51 @@ class SmokeTest extends TestCase
         $usernames = collect($response->json('data'))->pluck('username');
         $this->assertFalse($usernames->contains('admin'));
         $this->assertTrue($usernames->contains('rgutierrez'));
+    }
+
+    public function test_patients_list_hides_sis_admin_users(): void
+    {
+        $persona = Persona::create([
+            'rut' => '88.888.888-8',
+            'names' => 'Sys',
+            'last_name_1' => 'Admin',
+        ]);
+
+        $sisAdminType = TipoUsuario::where('name', 'sis_admin')->firstOrFail();
+
+        User::create([
+            'persona_id' => $persona->id,
+            'tipo_usuario_id' => $sisAdminType->id,
+            'username' => 'sis_admin_patient_test',
+            'password' => 'secret1234',
+            'settings' => ['roles' => ['sis_admin']],
+            'is_active' => true,
+        ]);
+
+        $hiddenPatient = Paciente::create([
+            'persona_id' => $persona->id,
+            'laboratory_id' => $this->risLab->id,
+        ]);
+
+        $visiblePersona = Persona::create([
+            'rut' => '77.777.777-7',
+            'names' => 'Paciente',
+            'last_name_1' => 'Visible',
+        ]);
+
+        $visiblePatient = Paciente::create([
+            'persona_id' => $visiblePersona->id,
+            'laboratory_id' => $this->risLab->id,
+        ]);
+
+        $response = $this->withHeaders($this->authHeaders())
+            ->getJson('/api/patients?per_page=100');
+
+        $response->assertOk()->assertJsonPath('success', true);
+
+        $ids = collect($response->json('data.data'))->pluck('id');
+        $this->assertFalse($ids->contains($hiddenPatient->id));
+        $this->assertTrue($ids->contains($visiblePatient->id));
     }
 
     public function test_exam_instructions_can_be_created(): void

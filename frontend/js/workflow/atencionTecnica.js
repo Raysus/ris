@@ -47,10 +47,10 @@ function initAtencionTecnicaModule(config = {}) {
         $('#atencionPageSubtitle').text(config.listSubtitle);
     }
 
-    const boot = () => {
-        cargarMaquinasFiltro();
+    const boot = async () => {
+        await cargarMaquinasFiltro();
         cargarInsumosBodega();
-        cargarWorklistDesdeServidor();
+        await cargarWorklistDesdeServidor();
 
         if (_atencionRefreshTimer) clearInterval(_atencionRefreshTimer);
         _atencionRefreshTimer = setInterval(() => {
@@ -75,20 +75,46 @@ window.guardarAnamnesisWorklist = guardarAnamnesisWorklist;
 async function cargarMaquinasFiltro() {
     if (typeof risRequireConcreteLabId === 'function' && !risRequireConcreteLabId(false)) return;
     const select = $("#filterMachine");
+    if (!select.length) return;
+
+    const valorActual = select.val() || sessionStorage.getItem('ris_worklist_machine_filter') || '';
+
     try {
         const response = await fetch(`${API_URL}/machines`, {
             headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders() : {}
         });
         const data = await response.json();
-        select.find('option:not(:first)').remove();
+        select.empty().append('<option value="">Todas las máquinas</option>');
         if (response.ok && data.data) {
-            data.data.filter(m => m.is_active !== false).forEach(m => {
-                select.append(`<option value="${m.id}">${m.name}</option>`);
-            });
+            data.data
+                .filter(m => m.is_active !== false)
+                .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'es'))
+                .forEach(m => {
+                    const grupo = m.group ? ` [${m.group}]` : '';
+                    select.append(`<option value="${m.id}">${m.name}${grupo}</option>`);
+                });
+        }
+        if (valorActual && select.find(`option[value="${valorActual}"]`).length) {
+            select.val(valorActual);
         }
     } catch (e) {
         console.error("Error cargando salas para filtro", e);
     }
+}
+
+function risMachineIdEstudioWorklist(study) {
+    if (!study) return '';
+    return String(study.machine_id || study.appointment?.machine_id || '');
+}
+
+function onWorklistMachineFilterChange() {
+    const machineId = $("#filterMachine").val() || '';
+    if (machineId) {
+        sessionStorage.setItem('ris_worklist_machine_filter', machineId);
+    } else {
+        sessionStorage.removeItem('ris_worklist_machine_filter');
+    }
+    cargarWorklistDesdeServidor();
 }
 
 async function cargarInsumosBodega() {
@@ -125,7 +151,12 @@ async function cargarWorklistDesdeServidor() {
     }
 
     try {
-        const response = await fetch(`${API_URL}/worklist`, {
+        const machineId = $("#filterMachine").val();
+        const params = new URLSearchParams();
+        if (machineId) params.set('machine_id', machineId);
+
+        const url = params.toString() ? `${API_URL}/worklist?${params}` : `${API_URL}/worklist`;
+        const response = await fetch(url, {
             headers: typeof risBuildAuthHeaders === 'function'
                 ? risBuildAuthHeaders()
                 : { Authorization: `Bearer ${localStorage.getItem('ris_token')}`, 'X-Lab-Id': labId, Accept: 'application/json' }
@@ -211,11 +242,13 @@ function renderWorklist() {
     tbody.empty();
     currentCadenas = {};
 
+    const estadosVisibles = ['confirmado', 'en_atencion', 'devuelto_worklist', 'dicom_enviado'];
+
     currentWorklistFromDB.forEach(study => {
         const app = study.appointment;
         if (!app) return;
-        if (!['confirmado', 'devuelto_worklist', 'dicom_enviado'].includes(app.status)) return;
-        if (filter && String(study.machine_id) !== String(filter)) return;
+        if (!estadosVisibles.includes(app.status)) return;
+        if (filter && risMachineIdEstudioWorklist(study) !== String(filter)) return;
 
         const p = app.patient?.persona || {};
         const nombreCompleto = `${p.names || ''} ${p.last_name_1 || ''}`.trim() || 'Paciente';
@@ -276,7 +309,7 @@ function renderWorklist() {
     cadenasArray.sort((a, b) => new Date(a.cleanTime).getTime() - new Date(b.cleanTime).getTime());
 
     cadenasArray.forEach(cadena => {
-        const salas = [...new Set(cadena.items.map(i => i.machine ? i.machine.name : `Sala ${i.machine_name}`))];
+        const salas = [...new Set(cadena.items.map(i => i.machine_name || 'Sala'))];
         const examenes = cadena.items.map(i => `<i class="bi bi-check2 me-1"></i>${i.exam_name}`).join("<br>");
         const badgesSalas = salas.map(s => `<span class="badge bg-secondary me-1">${s}</span>`).join('');
         const horaStr = new Date(cadena.cleanTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -363,7 +396,7 @@ function abrirAtencion(chainId) {
 
     $("#atencionId").text(chainId + ` (${currentAtencionChain.citasIds.size} Cita/s)`);
 
-    const salas = [...new Set(currentAtencionChain.items.map(i => i.machine ? i.machine.name : `Sala ${i.machine_name}`))];
+    const salas = [...new Set(currentAtencionChain.items.map(i => i.machine_name || 'Sala'))];
     $("#atencionSala").text(salas.join(" + "));
 
     const listaHtml = currentAtencionChain.items.map(item => `

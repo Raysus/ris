@@ -43,6 +43,9 @@ function resolveRisApiUrl() {
 
     // Mismo hostname que la página (localhost ≠ 127.0.0.1 para CORS).
     if (host === 'localhost' || host === '127.0.0.1') {
+        if (isStandardWebPort(port)) {
+            return `${proto}://${host}/api`;
+        }
         return `${proto}://${host}:8000/api`;
     }
     if (host === '') {
@@ -71,4 +74,4 @@ var API_URL = resolveRisApiUrl();
 window.API_URL = API_URL;
 
 /** Incrementar al desplegar frontend para evitar HTML/JS en caché del navegador */
-window.RIS_BUILD = '20260706n';
+window.RIS_BUILD = '20260706o';

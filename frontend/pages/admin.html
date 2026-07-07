@@ -72,6 +72,10 @@
                     <i class="bi bi-table me-2 text-success"></i>Nómina Diaria
                 </button>
                 <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
+                    data-bs-target="#tab-agenda-semanal" type="button" role="tab">
+                    <i class="bi bi-calendar-week me-2 text-info"></i>Agenda Semanal
+                </button>
+                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
                     data-bs-target="#tab-caja" type="button" role="tab">
                     <i class="bi bi-wallet2 me-2 text-warning"></i>Cierre de Caja
                 </button>
@@ -450,6 +454,50 @@
                             </button>
                         </div>
                     </div>
+                </div>
+
+                <div class="tab-pane fade h-100" id="tab-agenda-semanal" role="tabpanel">
+                    <div class="d-flex flex-column h-100">
+                        <div class="card bg-white border-0 shadow-sm mb-3">
+                            <div class="card-body py-3">
+                                <div class="row g-3 align-items-end">
+                                    <div class="col-md-3">
+                                        <label class="form-label small fw-bold text-muted mb-1">
+                                            <i class="bi bi-calendar-week me-1"></i>Semana (cualquier día)
+                                        </label>
+                                        <input type="date" id="fechaAgendaSemanal" class="form-control fw-bold text-primary"
+                                            onchange="renderAgendaSemanalMedico()">
+                                    </div>
+                                    <div class="col-md-5">
+                                        <label class="form-label small fw-bold text-muted mb-1">
+                                            <i class="bi bi-person-check me-1"></i>Médico destinatario
+                                        </label>
+                                        <select id="medicoDestinatarioAgendaSemanal" class="form-select fw-bold"
+                                            onchange="renderAgendaSemanalMedico()">
+                                            <option value="">— Seleccione médico —</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <h6 class="small fw-bold text-muted mb-1">Citas en la semana</h6>
+                                        <h3 class="mb-0 fw-bold text-info" id="totalAgendaSemanal">0</h3>
+                                    </div>
+                                    <div class="col-md-2 text-md-end">
+                                        <button type="button" class="btn btn-danger fw-bold shadow-sm w-100"
+                                            onclick="descargarAgendaSemanalPdf()" id="btnAgendaSemanalPdf" disabled>
+                                            <i class="bi bi-file-earmark-pdf-fill me-2"></i>PDF
+                                        </button>
+                                    </div>
+                                </div>
+                                <p class="small text-muted mb-0 mt-2" id="rangoAgendaSemanal"></p>
+                            </div>
+                        </div>
+                        <div class="card shadow-sm border-0 flex-grow-1 overflow-auto" id="contenedorAgendaSemanal">
+                            <div class="p-5 text-center text-muted" id="placeholderAgendaSemanal">
+                                Seleccione semana y médico destinatario (ej. Dr. Riedel).
+                            </div>
+                        </div>
+                    </div>
+                    <div id="agendaSemanalPdfHost" class="d-none"></div>
                 </div>
 
                 <div class="tab-pane fade h-100" id="tab-caja" role="tabpanel">

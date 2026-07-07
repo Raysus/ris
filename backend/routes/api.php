@@ -180,6 +180,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::get('/reports/examenes', [ReportController::class, 'getExamenesMensuales']);
     Route::get('/reports/nomina-diaria', [ReportController::class, 'getNominaDiaria']);
     Route::get('/reports/nomina-mensual', [ReportController::class, 'getNominaMensual']);
+    Route::get('/reports/agenda-semanal', [ReportController::class, 'getAgendaSemanalMedico']);
     Route::get('/reports/consolidated-matrix', [ReportController::class, 'getConsolidatedMatrix']);
 
     // MÓDULO DASHBOARD (ADMIN)

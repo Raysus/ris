@@ -53,6 +53,8 @@ class WorklistController extends Controller
     public function index(Request $request)
     {
         $this->assertWorklistAccess($request);
+        $machineFilter = $request->query('machine_id');
+
         $query = $this->getSecureAppointmentQuery()
             ->with([
                 'studies.machine',
@@ -62,6 +64,13 @@ class WorklistController extends Controller
             ])
             ->whereIn('status', ['confirmado', 'en_atencion', 'dicom_enviado', 'devuelto_worklist']);
 
+        if ($machineFilter) {
+            $query->where(function ($builder) use ($machineFilter) {
+                $builder->where('machine_id', $machineFilter)
+                    ->orWhereHas('studies', fn ($studies) => $studies->where('machine_id', $machineFilter));
+            });
+        }
+
         $appointments = $query->get();
         $formattedData = [];
 
@@ -69,18 +78,27 @@ class WorklistController extends Controller
             $persona = $appointment->patient?->persona;
 
             foreach ($appointment->studies as $study) {
+                $effectiveMachineId = $this->resolveStudyMachineId($study, $appointment);
+
+                if ($machineFilter && (string) $effectiveMachineId !== (string) $machineFilter) {
+                    continue;
+                }
+
+                $machine = $study->machine ?? $appointment->machine;
+
                 $formattedData[] = [
                     'id' => $study->id,
                     'exam_name' => $study->exam_name,
                     'sub_exam_name' => $study->sub_exam_name,
                     'anamnesis' => $study->anamnesis,
                     'quantity' => $study->quantity,
-                    'machine_id' => $study->machine_id,
-                    'machine_name' => $study->machine?->name ?? $appointment->machine?->name ?? 'Sala Desconocida',
-                    'machine_group' => $study->machine?->group ?? $appointment->machine?->group,
-                    'machine_ae_title' => $study->machine?->ae_title ?? $appointment->machine?->ae_title,
+                    'machine_id' => $effectiveMachineId,
+                    'machine_name' => $machine?->name ?? 'Sala Desconocida',
+                    'machine_group' => $machine?->group,
+                    'machine_ae_title' => $machine?->ae_title,
                     'appointment' => [
                         'id' => $appointment->id,
+                        'machine_id' => $appointment->machine_id,
                         'start_time' => LabTimezone::formatScheduleForApi($appointment->start_time),
                         'status' => strtolower($appointment->status),
                         'priority' => $appointment->priority,
@@ -101,6 +119,11 @@ class WorklistController extends Controller
         }
 
         return response()->json(['success' => true, 'data' => $formattedData]);
+    }
+
+    private function resolveStudyMachineId($study, Appointment $appointment): ?string
+    {
+        return $study->machine_id ?? $appointment->machine_id;
     }
 
     public function sendToDicom(Request $request, $appointmentId, DicomImportService $dicomImport)

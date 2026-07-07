@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 use App\Models\Appointment;
 use App\Models\Laboratory;
 use App\Models\Payment;
+use App\Models\ReferringDoctor;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
@@ -427,6 +429,161 @@ class ReportController extends Controller
         }
 
         return $appointments->first()?->laboratory;
+    }
+
+    /**
+     * Agenda semanal de citas para un médico destinatario (radiólogo asignado en agenda).
+     * GET /api/reports/agenda-semanal?week=2026-07-07&destination_doctor_id=uuid
+     */
+    public function getAgendaSemanalMedico(Request $request)
+    {
+        $destinationDoctorId = $request->query('destination_doctor_id');
+        if (!$destinationDoctorId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Seleccione un médico destinatario.',
+            ], 422);
+        }
+
+        $destinationDoctor = User::with('persona')->find($destinationDoctorId);
+        if (!$destinationDoctor) {
+            return response()->json(['success' => false, 'message' => 'Médico destinatario no encontrado.'], 404);
+        }
+
+        try {
+            $ref = Carbon::parse($request->query('week', date('Y-m-d')));
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Fecha inválida.'], 422);
+        }
+
+        Carbon::setLocale('es');
+        $inicio = $ref->copy()->startOfWeek(Carbon::MONDAY);
+        $fin = $ref->copy()->endOfWeek(Carbon::SUNDAY);
+
+        $appointments = $this->getSecureAppointmentQuery()
+            ->with([
+                'patient.persona',
+                'studies',
+                'machine',
+                'insurance',
+                'laboratory',
+                'referringDoctor',
+                'destinationDoctor.persona',
+            ])
+            ->where('status', '!=', 'anulado')
+            ->whereBetween('start_time', [$inicio->copy()->startOfDay(), $fin->copy()->endOfDay()])
+            ->where(function ($query) use ($destinationDoctorId) {
+                $query->where('destination_doctor_id', $destinationDoctorId)
+                    ->orWhereHas('studies', fn ($studies) => $studies->where('radiologist_user_id', $destinationDoctorId));
+            })
+            ->orderBy('start_time')
+            ->get();
+
+        $dias = [];
+        for ($cursor = $inicio->copy(); $cursor->lte($fin); $cursor->addDay()) {
+            $fecha = $cursor->format('Y-m-d');
+            $dias[$fecha] = [
+                'fecha' => $fecha,
+                'dia_formato' => ucfirst($cursor->translatedFormat('l j \d\e F')),
+                'citas' => [],
+            ];
+        }
+
+        foreach ($appointments as $app) {
+            $fecha = Carbon::parse($app->start_time)->format('Y-m-d');
+            if (!isset($dias[$fecha])) {
+                continue;
+            }
+
+            $persona = $app->patient?->persona;
+            $nombrePaciente = $persona
+                ? trim("{$persona->names} {$persona->last_name_1} {$persona->last_name_2}")
+                : 'Sin nombre';
+
+            $examenes = $app->studies
+                ->map(function ($study) {
+                    $nombre = trim(($study->exam_name ?? '') . ($study->sub_exam_name ? ' ' . $study->sub_exam_name : ''));
+                    return $nombre !== '' ? $nombre : null;
+                })
+                ->filter()
+                ->values()
+                ->all();
+
+            $dias[$fecha]['citas'][] = [
+                'hora' => Carbon::parse($app->start_time)->format('H:i'),
+                'hora_fin' => $app->end_time ? Carbon::parse($app->end_time)->format('H:i') : '',
+                'paciente' => $nombrePaciente,
+                'rut' => $persona->rut ?? '',
+                'examenes' => $examenes,
+                'sala' => $app->machine->name ?? '—',
+                'estado' => $this->etiquetaEstadoAgenda($app->status),
+                'institucion' => $app->insurance?->name ?? ($app->entidad_pagadora ?: 'Particular'),
+                'medico_referente' => $this->nombreMedicoReferenteAgenda($app->referringDoctor),
+                'observacion' => trim((string) ($app->origin ?? '')),
+            ];
+        }
+
+        $lab = $this->resolveNominaLaboratory($appointments);
+        $medicoDestinatario = [
+            'id' => $destinationDoctor->id,
+            'nombre' => $this->nombreRadiologoAgenda($destinationDoctor),
+        ];
+
+        return response()->json([
+            'success' => true,
+            'semana_inicio' => $inicio->format('Y-m-d'),
+            'semana_fin' => $fin->format('Y-m-d'),
+            'semana_formato' => $inicio->translatedFormat('j \d\e F') . ' — ' . $fin->translatedFormat('j \d\e F Y'),
+            'centro' => strtoupper($lab?->name ?? 'CENTRO'),
+            'ciudad' => strtoupper($lab?->city ?? ''),
+            'medico_destinatario' => $medicoDestinatario,
+            'medico' => $medicoDestinatario,
+            'total_citas' => $appointments->count(),
+            'dias' => array_values($dias),
+        ]);
+    }
+
+    private function nombreMedicoReferenteAgenda(?ReferringDoctor $doctor): string
+    {
+        if (!$doctor) {
+            return '';
+        }
+
+        return trim("{$doctor->names} {$doctor->last_name_1} {$doctor->last_name_2}");
+    }
+
+    private function nombreRadiologoAgenda(?User $doctor): string
+    {
+        if (!$doctor?->persona) {
+            return '';
+        }
+
+        $p = $doctor->persona;
+        $apellidos = trim("{$p->last_name_1} {$p->last_name_2}");
+        $nombres = trim((string) ($p->names ?? ''));
+
+        if ($apellidos !== '' && $nombres !== '') {
+            return "Dr(a). {$apellidos}, {$nombres}";
+        }
+
+        return trim("Dr(a). {$apellidos} {$nombres}");
+    }
+
+    private function etiquetaEstadoAgenda(?string $status): string
+    {
+        return match (strtolower((string) $status)) {
+            'pre-agendado' => 'Pre-agendado',
+            'agendado' => 'Agendado',
+            'confirmado' => 'Confirmado',
+            'espera' => 'En espera',
+            'atencion' => 'En atención',
+            'realizado' => 'Realizado',
+            'informe' => 'En informe',
+            'entregable' => 'Entregable',
+            'entregado' => 'Entregado',
+            'cancelado' => 'Cancelado',
+            default => ucfirst((string) $status),
+        };
     }
 
     /**

@@ -7,6 +7,7 @@ use App\Http\Requests\StorePatientRequest;
 use App\Models\Appointment;
 use App\Models\Paciente;
 use App\Models\Persona;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -29,7 +30,21 @@ class PatientController extends Controller
                 $query->whereIn('laboratory_id', $allowedLabs);
             }
         }
-        return $query;
+
+        return $this->excludeSystemAdminPersonas($query);
+    }
+
+    /**
+     * No listar como pacientes a personas que son usuarios sis_admin del sistema.
+     */
+    private function excludeSystemAdminPersonas($query)
+    {
+        return $query->whereDoesntHave('persona.user', function ($userQuery) {
+            $userQuery->where(function ($q) {
+                $q->whereHas('tipoUsuario', fn ($tipo) => $tipo->whereIn('name', User::SYSTEM_WIDE_ROLE_NAMES))
+                    ->orWhereJsonContains('settings->roles', 'sis_admin');
+            });
+        });
     }
 
     public function index(Request $request)

@@ -13,10 +13,10 @@
                     aria-label="Actualizar lista de worklist">
                     <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
                 </button>
-                <label for="filterMachine" class="visually-hidden">Filtrar por sala</label>
+                <label for="filterMachine" class="visually-hidden">Filtrar por máquina</label>
                 <select id="filterMachine" class="form-select form-select-sm filter-machine-select"
-                    onchange="renderWorklist()" aria-label="Filtrar por sala">
-                    <option value="">Todas las Salas</option>
+                    onchange="onWorklistMachineFilterChange()" aria-label="Filtrar por máquina">
+                    <option value="">Todas las máquinas</option>
                 </select>
                 <label for="searchPatient" class="visually-hidden">Buscar paciente</label>
                 <input type="search" id="searchPatient" class="form-control form-control-sm search-patient-input"

@@ -279,6 +279,75 @@ class AdminAgendaWorkflowTest extends TestCase
         $this->assertEquals($this->risLab->id, $appointment->laboratory_id);
     }
 
+    public function test_appointment_store_shifts_to_next_slot_when_machine_is_busy(): void
+    {
+        $machine = Machine::where('laboratory_id', $this->risLab->id)->firstOrFail();
+        $exam = Exam::where('laboratory_id', $this->risLab->id)->firstOrFail();
+
+        $slotStart = now()->addDays(25)->setTime(10, 0, 0);
+        $slotEnd = $slotStart->copy()->addMinutes(15);
+
+        $buildPayload = function (string $rut, string $names) use ($machine, $exam, $slotStart, $slotEnd) {
+            return [
+                'start_time' => $slotStart->format('Y-m-d\TH:i:s'),
+                'end_time' => $slotEnd->format('Y-m-d\TH:i:s'),
+                'machine_id' => $machine->id,
+                'status' => 'pre-agendado',
+                'patient' => [
+                    'rut' => $rut,
+                    'names' => $names,
+                    'last_name_1' => 'Choque',
+                    'last_name_2' => null,
+                    'gender' => 'M',
+                    'birth_date' => '1990-01-01',
+                    'email' => strtolower(str_replace('.', '', $rut)) . '@test.local',
+                    'phone' => '+56900000000',
+                    'insurance_id' => null,
+                    'insurance_plan_id' => null,
+                ],
+                'studies' => [
+                    [
+                        'machine_id' => $machine->id,
+                        'exam_id' => $exam->id,
+                        'exam_name' => $exam->name,
+                        'sub_exam_id' => null,
+                        'sub_exam_name' => null,
+                        'fonasa_code' => $exam->fonasa_code,
+                        'quantity' => 1,
+                        'price' => (float) $exam->price,
+                    ],
+                ],
+                'supplies' => [],
+                'origin' => 'Ambulatorio',
+                'priority' => 'Normal',
+                'payment_method' => 'Efectivo',
+                'payment_status' => 'Pendiente',
+            ];
+        };
+
+        $headers = $this->authHeaders();
+
+        $this->withHeaders($headers)
+            ->post('/api/appointments', ['data' => json_encode($buildPayload('11.111.111-1', 'Primera'))])
+            ->assertCreated();
+
+        $second = $this->withHeaders($headers)
+            ->post('/api/appointments', ['data' => json_encode($buildPayload('22.222.222-2', 'Segunda'))]);
+
+        $second->assertCreated()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('schedule_adjusted', true);
+
+        $appointment = Appointment::findOrFail($second->json('appointment.id'));
+        $expectedStart = $slotStart->copy()->addMinutes(15);
+        $savedStart = $appointment->start_time->copy()->timezone(LabTimezone::name());
+
+        $this->assertTrue(
+            $savedStart->equalTo(LabTimezone::parseScheduleTime($expectedStart->format('Y-m-d H:i:s'))),
+            sprintf('Se esperaba %s y se guardó %s', $expectedStart->toDateTimeString(), $savedStart->toDateTimeString())
+        );
+    }
+
     public function test_appointment_store_treats_dash_insurance_plan_as_null(): void
     {
         $machine = Machine::where('laboratory_id', $this->risLab->id)->firstOrFail();
@@ -432,5 +501,48 @@ class AdminAgendaWorkflowTest extends TestCase
         $this->assertNotNull($examPayload);
         $this->assertCount(2, $examPayload['sub_exams']);
         $this->assertNotEmpty($examPayload['sub_exams'][0]['id'] ?? null);
+    }
+
+    public function test_agenda_semanal_requires_destination_doctor(): void
+    {
+        $this->withHeaders($this->authHeaders())
+            ->getJson('/api/reports/agenda-semanal')
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Seleccione un médico destinatario.');
+    }
+
+    public function test_agenda_semanal_report_lists_appointments_for_destination_doctor(): void
+    {
+        $machine = Machine::where('laboratory_id', $this->risLab->id)->firstOrFail();
+        $patient = Paciente::where('laboratory_id', $this->risLab->id)->firstOrFail();
+        $radiologo = $this->risUser;
+
+        $inicioSemana = Carbon::now(LabTimezone::resolve())->startOfWeek(Carbon::MONDAY)->setTime(11, 30);
+
+        Appointment::create([
+            'laboratory_id' => $this->risLab->id,
+            'patient_id' => $patient->id,
+            'machine_id' => $machine->id,
+            'destination_doctor_id' => $radiologo->id,
+            'start_time' => $inicioSemana,
+            'end_time' => $inicioSemana->copy()->addMinutes(30),
+            'status' => 'agendado',
+        ]);
+
+        $response = $this->withHeaders($this->authHeaders())
+            ->getJson('/api/reports/agenda-semanal?' . http_build_query([
+                'week' => $inicioSemana->toDateString(),
+                'destination_doctor_id' => $radiologo->id,
+            ]));
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('medico_destinatario.id', $radiologo->id)
+            ->assertJsonPath('total_citas', 1);
+
+        $dias = collect($response->json('dias'));
+        $diaConCita = $dias->firstWhere('fecha', $inicioSemana->toDateString());
+        $this->assertNotNull($diaConCita);
+        $this->assertSame('11:30', $diaConCita['citas'][0]['hora']);
     }
 }
