@@ -1522,7 +1522,8 @@ function desmontarLineaFinSalasAgenda() {
 /** Línea horizontal bajo la última sala (FC recorta border-bottom en scrollers). */
 function dibujarLineaFinSalasAgenda() {
     const root = document.getElementById('calendar');
-    if (!root?.classList.contains('fc-resourceTimelineDay-view')) {
+    const viewType = calendar?.view?.type;
+    if (!root || !esVistaTimelineSalas(viewType)) {
         desmontarLineaFinSalasAgenda();
         return;
     }
@@ -1548,7 +1549,7 @@ function dibujarLineaFinSalasAgenda() {
     if (!agendaLineaFinSalasObserver) {
         agendaLineaFinSalasObserver = new ResizeObserver(() => {
             const cal = document.getElementById('calendar');
-            if (!cal?.classList.contains('fc-resourceTimelineDay-view')) return;
+            if (!esVistaTimelineSalas(calendar?.view?.type)) return;
             const fila =
                 cal.querySelector('.fc-datagrid-body tr.fc-datagrid-row:last-child') ||
                 cal.querySelector('.fc-datagrid-body tbody > tr:last-child');
@@ -1747,20 +1748,34 @@ function horaActualScrollOffset(minutosAntes = 45) {
     return `${pad(t.getHours())}:${pad(t.getMinutes())}:00`;
 }
 
-function esDiaVisibleHoy(view) {
-    if (!view?.currentStart) return false;
+function esHoyEnRangoVista(view) {
+    if (!view?.currentStart || !view?.currentEnd) return false;
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
-    const dia = new Date(view.currentStart);
-    dia.setHours(0, 0, 0, 0);
-    return dia.getTime() === hoy.getTime();
+    const inicio = new Date(view.currentStart);
+    inicio.setHours(0, 0, 0, 0);
+    const fin = new Date(view.currentEnd);
+    fin.setHours(0, 0, 0, 0);
+    return hoy >= inicio && hoy < fin;
 }
 
-/** Vista día: centra el scroll en la hora actual (hoy) o al inicio del horario del lab. */
-function scrollAgendaVistaDia(view) {
-    if (!calendar || view?.type !== 'resourceTimelineDay') return;
+function esVistaTimelineHoraria(viewType) {
+    return viewType === 'resourceTimelineDay';
+}
+
+function esVistaTimelineSalas(viewType) {
+    return viewType === 'resourceTimelineDay';
+}
+
+function esVistaGrillaPorDia(viewType) {
+    return viewType === 'resourceTimeGridWeek' || viewType === 'agendaMes';
+}
+
+/** Día: centra el scroll en la hora actual (si hoy está visible) o al inicio del horario. */
+function scrollAgendaVistaTimeline(view) {
+    if (!calendar || !esVistaTimelineHoraria(view?.type)) return;
     const cfg = getAgendaScheduleConfig();
-    const destino = esDiaVisibleHoy(view)
+    const destino = esHoyEnRangoVista(view)
         ? horaActualScrollOffset(45)
         : (cfg.horaInicio || '08:00:00');
     window.requestAnimationFrame(() => {
@@ -1772,7 +1787,30 @@ function scrollAgendaVistaDia(view) {
     });
 }
 
-/** Vistas Día (timeline por sala) · Semana (grilla horaria) · Mes (resumen por día). */
+/** Semana/Mes (grilla): scroll vertical a la hora actual y, en mes, horizontal al día de hoy. */
+function scrollAgendaVistaGrilla(view) {
+    if (!calendar || !esVistaGrillaPorDia(view?.type)) return;
+    const cfg = getAgendaScheduleConfig();
+    const destino = esHoyEnRangoVista(view)
+        ? horaActualScrollOffset(45)
+        : (cfg.horaInicio || '08:00:00');
+    window.requestAnimationFrame(() => {
+        try {
+            calendar.scrollToTime(destino);
+        } catch (e) {
+            /* vista aún renderizando */
+        }
+        if (view.type === 'agendaMes') {
+            const root = document.getElementById('calendar');
+            const hoy = root?.querySelector(
+                '.fc-agendaMes-view .fc-timegrid-col.fc-day-today, .fc-agendaMes-view .fc-col-header-cell.fc-day-today'
+            );
+            hoy?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'auto' });
+        }
+    });
+}
+
+/** Vistas Día (timeline) · Semana/Mes (grilla por día). */
 function buildAgendaCalendarViews(config) {
     const schedule = typeof config === 'string'
         ? { intervalo: config, horaInicio: '08:00:00', horaFin: '20:00:00' }
@@ -1811,11 +1849,13 @@ function buildAgendaCalendarViews(config) {
                 hour12: false,
             },
             dayHeaderFormat: {
-                weekday: 'short',
+                weekday: 'long',
                 day: 'numeric',
-                month: 'numeric',
+                month: 'short',
                 omitCommas: true,
             },
+            dayMinWidth: 155,
+            resourceAreaWidth: '11%',
             allDaySlot: false,
         },
         agendaMes: {
@@ -1835,7 +1875,8 @@ function buildAgendaCalendarViews(config) {
                 day: 'numeric',
                 omitCommas: true,
             },
-            dayMinWidth: 44,
+            dayMinWidth: 72,
+            resourceAreaWidth: '11%',
             allDaySlot: false,
         },
     };
@@ -1845,9 +1886,9 @@ function actualizarContextoVistaAgenda(view) {
     const el = document.getElementById('agendaVistaContexto');
     if (!el || !view) return;
     const hints = {
-        resourceTimelineDay: 'Día: filas = salas · columnas = horas del laboratorio (de izquierda a derecha).',
-        resourceTimeGridWeek: 'Semana: filas = salas · columnas = días · reloj a la izquierda indica la hora de cada cita.',
-        agendaMes: 'Mes: misma grilla que Semana — horas a la izquierda, un día por columna (desplácese horizontalmente). Filas = salas.',
+        resourceTimelineDay: 'Día: cada fila es una sala; las horas avanzan de izquierda a derecha.',
+        resourceTimeGridWeek: 'Semana: reloj a la izquierda · cada columna es un día (lun–dom) · cada fila es una sala.',
+        agendaMes: 'Mes: reloj a la izquierda · una columna por día del mes · cada fila es una sala (desplácese horizontalmente).',
     };
     el.textContent = hints[view.type] || '';
 }
@@ -1891,22 +1932,27 @@ function setupCalendar(el) {
             refrescarEventosCalendario($('#searchAgenda').val() || '');
             if (arg.view.type === 'resourceTimelineDay') {
                 setTimeout(() => {
-                    scrollAgendaVistaDia(arg.view);
+                    scrollAgendaVistaTimeline(arg.view);
                     dibujarLineaFinSalasAgenda();
                 }, 80);
+            } else if (esVistaGrillaPorDia(arg.view.type)) {
+                setTimeout(() => scrollAgendaVistaGrilla(arg.view), 80);
+                desmontarLineaFinSalasAgenda();
             } else {
                 desmontarLineaFinSalasAgenda();
             }
         },
         windowResize: function () {
-            dibujarLineaFinSalasAgenda();
+            if (esVistaTimelineSalas(calendar?.view?.type)) {
+                dibujarLineaFinSalasAgenda();
+            }
         },
         views: buildAgendaCalendarViews(configRIS),
         resourceAreaWidth: '18%',
         resourceAreaHeaderContent: 'Salas / equipos',
         expandRows: false,
         resourceLaneDidMount: function () {
-            if (calendar?.view?.type === 'resourceTimelineDay') {
+            if (esVistaTimelineSalas(calendar?.view?.type)) {
                 requestAnimationFrame(() => dibujarLineaFinSalasAgenda());
             }
         },
@@ -2037,18 +2083,16 @@ function setupCalendar(el) {
             const lockIcon = isLocked ? '<i class="bi bi-lock-fill text-white me-1"></i>' : '';
 
             const bgColor = arg.event.backgroundColor || arg.event.borderColor || '#7d2181';
+            const rangoHora = formatearRangoHoraEvento(arg.event.start, arg.event.end);
+            const alert = needsReview ? '<span class="badge bg-danger rounded-pill ms-1" style="font-size:8px">!</span>' : '';
 
-            if (arg.view.type === 'agendaMes') {
-                const alert = needsReview ? '<span class="badge bg-danger rounded-pill ms-1" style="font-size:8px">!</span>' : '';
-                const rangoHora = formatearRangoHoraEvento(arg.event.start, arg.event.end);
+            if (arg.view.type === 'agendaMes' || arg.view.type === 'resourceTimeGridWeek') {
                 return {
-                    html: `<div class="agenda-evento-mes-grilla px-1 py-0 text-white text-truncate fw-semibold" style="font-size:0.62rem;line-height:1.2;background:${bgColor};border-radius:3px;">${lockIcon}${rangoHora} ${arg.event.title}${alert}</div>`,
+                    html: `<div class="agenda-evento-compacto px-1 py-0 text-white fw-semibold" style="font-size:0.72rem;line-height:1.25;background:${bgColor};border-radius:3px;height:100%;"><div class="text-truncate">${lockIcon}<i class="bi bi-clock me-1"></i>${rangoHora}</div><div class="text-truncate opacity-90" style="font-size:0.68rem;">${arg.event.title}${alert}</div></div>`,
                 };
             }
 
             if (!patient) return { html: `<div class="p-1" style="background-color:${bgColor}; color:white; border-radius:3px;">${lockIcon}${arg.event.title}</div>` };
-
-            const rangoHora = formatearRangoHoraEvento(arg.event.start, arg.event.end);
 
             const alertIcon = needsReview
                 ? `<span class="blink-icon me-2 shadow-sm" title="Devuelto por Tecnólogo - Revisar" 
@@ -2084,9 +2128,11 @@ function setupCalendar(el) {
     sincronizarRecursosCalendario();
     if (calendar.view?.type === 'resourceTimelineDay') {
         setTimeout(() => {
-            scrollAgendaVistaDia(calendar.view);
+            scrollAgendaVistaTimeline(calendar.view);
             dibujarLineaFinSalasAgenda();
         }, 120);
+    } else if (esVistaGrillaPorDia(calendar.view?.type)) {
+        setTimeout(() => scrollAgendaVistaGrilla(calendar.view), 120);
     }
     } catch (err) {
         console.error('Error inicializando FullCalendar:', err);
