@@ -20,11 +20,10 @@
                     aria-label="Actualizar lista">
                     <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
                 </button>
-                <label for="filterMachine" class="visually-hidden">Filtrar por máquina</label>
-                <select id="filterMachine" class="form-select form-select-sm filter-machine-select"
-                    onchange="onWorklistMachineFilterChange()" aria-label="Filtrar por máquina">
-                    <option value="">Todas las máquinas</option>
-                </select>
+                <div id="filtroEquiposWorklist" class="d-flex flex-wrap gap-2 align-items-center worklist-filter-equipos"
+                    role="group" aria-label="Filtrar por equipo">
+                    <span class="small text-muted">Equipos:</span>
+                </div>
                 <label for="searchPatient" class="visually-hidden">Buscar paciente</label>
                 <input type="search" id="searchPatient" class="form-control form-control-sm search-patient-input"
                     placeholder="Buscar RUT o Nombre..." onkeyup="renderWorklist()" aria-label="Buscar paciente por RUT o nombre">

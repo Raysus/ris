@@ -483,10 +483,16 @@
                                         <h3 class="mb-0 fw-bold text-info" id="totalAgendaSemanal">0</h3>
                                     </div>
                                     <div class="col-md-3 text-md-end">
-                                        <button type="button" class="btn btn-danger fw-bold shadow-sm w-100"
-                                            onclick="descargarAgendaSemanalPdf()" id="btnAgendaSemanalPdf" disabled>
-                                            <i class="bi bi-file-earmark-pdf-fill me-2"></i>PDF
-                                        </button>
+                                        <div class="btn-group w-100" role="group" aria-label="Exportar agenda en PDF">
+                                            <button type="button" class="btn btn-danger fw-bold shadow-sm"
+                                                onclick="descargarAgendaSemanalPdf('diario')" id="btnAgendaSemanalPdfDia" disabled>
+                                                <i class="bi bi-file-earmark-pdf me-1"></i>PDF día
+                                            </button>
+                                            <button type="button" class="btn btn-outline-danger fw-bold shadow-sm"
+                                                onclick="descargarAgendaSemanalPdf('semanal')" id="btnAgendaSemanalPdf" disabled>
+                                                <i class="bi bi-file-earmark-pdf-fill me-1"></i>PDF semana
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="mt-3">

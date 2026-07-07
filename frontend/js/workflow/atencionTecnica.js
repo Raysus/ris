@@ -61,6 +61,8 @@ function initAtencionTecnicaModule(config = {}) {
 
         $(document).off('hidden.bs.modal.risAnamnesis', '#modalAtencion')
             .on('hidden.bs.modal.risAnamnesis', '#modalAtencion', risPersistirBorradorAnamnesis);
+        $(document).off('change.risWorklistEquipos', '.filtro-equipo-worklist')
+            .on('change.risWorklistEquipos', '.filtro-equipo-worklist', onWorklistMachineFilterChange);
     };
 
     if (typeof refreshLabProfileFromApi === 'function') {
@@ -72,35 +74,96 @@ function initAtencionTecnicaModule(config = {}) {
 
 window.initAtencionTecnicaModule = initAtencionTecnicaModule;
 window.guardarAnamnesisWorklist = guardarAnamnesisWorklist;
+window.onWorklistMachineFilterChange = onWorklistMachineFilterChange;
 
 async function cargarMaquinasFiltro() {
     if (typeof risRequireConcreteLabId === 'function' && !risRequireConcreteLabId(false)) return;
-    const select = $("#filterMachine");
-    if (!select.length) return;
+    const cont = $('#filtroEquiposWorklist');
+    if (!cont.length) return;
 
-    const valorActual = select.val() || sessionStorage.getItem('ris_worklist_machine_filter') || '';
+    let prevSeleccion = [];
+    try {
+        const raw = sessionStorage.getItem('ris_worklist_machine_filter');
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            prevSeleccion = Array.isArray(parsed) ? parsed.map(String) : (raw ? [String(raw)] : []);
+        }
+    } catch (_) {
+        prevSeleccion = [];
+    }
 
     try {
-        const response = await fetch(`${API_URL}/machines`, {
+        const response = await fetch(`${API_URL}/agenda-catalogs`, {
             headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders() : {}
         });
         const data = await response.json();
-        select.empty().append('<option value="">Todas las máquinas</option>');
-        if (response.ok && data.data) {
-            currentMachinesFromDB = data.data.filter(m => m.is_active !== false);
-            currentMachinesFromDB
-                .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'es'))
-                .forEach(m => {
-                    const grupo = m.group ? ` [${m.group}]` : '';
-                    select.append(`<option value="${m.id}">${m.name}${grupo}</option>`);
-                });
+
+        currentMachinesFromDB = [];
+        if (response.ok && data.success && data.data?.machines) {
+            currentMachinesFromDB = data.data.machines
+                .filter((m) => m.is_active !== false)
+                .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'es'));
         }
-        if (valorActual && select.find(`option[value="${valorActual}"]`).length) {
-            select.val(valorActual);
+
+        if (!currentMachinesFromDB.length) {
+            cont.html('<span class="small text-warning">Sin equipos activos en esta sede.</span>');
+            return;
         }
+
+        const todosMarcados = prevSeleccion.length === 0;
+        const html = currentMachinesFromDB.map((m) => {
+            const id = String(m.id);
+            const grupo = m.group_code || m.group;
+            const label = grupo ? `${m.name} [${grupo}]` : m.name;
+            const checked = todosMarcados || prevSeleccion.includes(id) ? 'checked' : '';
+            return `
+                <div class="form-check form-check-inline mb-0">
+                    <input class="form-check-input filtro-equipo-worklist" type="checkbox"
+                        id="filtroEquipoWl_${id}" value="${id}" ${checked}>
+                    <label class="form-check-label small" for="filtroEquipoWl_${id}">${label}</label>
+                </div>
+            `;
+        }).join('');
+
+        cont.html(`<span class="small text-muted align-self-center">Equipos:</span>${html}`);
     } catch (e) {
-        console.error("Error cargando salas para filtro", e);
+        console.error('Error cargando salas para filtro', e);
+        cont.html('<span class="small text-danger">No se pudieron cargar los equipos.</span>');
     }
+}
+
+function obtenerEquiposWorklistSeleccionados() {
+    const ids = [];
+    $('.filtro-equipo-worklist:checked').each(function () {
+        const v = String($(this).val() || '').trim();
+        if (v) ids.push(v);
+    });
+    return ids;
+}
+
+function guardarFiltroEquiposWorklist() {
+    const ids = obtenerEquiposWorklistSeleccionados();
+    const total = currentMachinesFromDB.length;
+    if (!ids.length || (total > 0 && ids.length >= total)) {
+        sessionStorage.removeItem('ris_worklist_machine_filter');
+    } else {
+        sessionStorage.setItem('ris_worklist_machine_filter', JSON.stringify(ids));
+    }
+}
+
+function citaPasaFiltroEquipoWorklist(study) {
+    const seleccionados = obtenerEquiposWorklistSeleccionados();
+    const total = currentMachinesFromDB.length;
+    if (!seleccionados.length || (total > 0 && seleccionados.length >= total)) {
+        return true;
+    }
+    const machineId = risMachineIdEstudioWorklist(study);
+    return seleccionados.includes(machineId);
+}
+
+function onWorklistMachineFilterChange() {
+    guardarFiltroEquiposWorklist();
+    renderWorklist();
 }
 
 function risMachineIdEstudioWorklist(study) {
@@ -142,16 +205,6 @@ function risMergePreviousReports(chain, paths) {
     });
 }
 
-function onWorklistMachineFilterChange() {
-    const machineId = $("#filterMachine").val() || '';
-    if (machineId) {
-        sessionStorage.setItem('ris_worklist_machine_filter', machineId);
-    } else {
-        sessionStorage.removeItem('ris_worklist_machine_filter');
-    }
-    cargarWorklistDesdeServidor();
-}
-
 async function cargarInsumosBodega() {
     if (typeof risRequireConcreteLabId === 'function' && !risRequireConcreteLabId(false)) return;
     try {
@@ -186,12 +239,7 @@ async function cargarWorklistDesdeServidor() {
     }
 
     try {
-        const machineId = $("#filterMachine").val();
-        const params = new URLSearchParams();
-        if (machineId) params.set('machine_id', machineId);
-
-        const url = params.toString() ? `${API_URL}/worklist?${params}` : `${API_URL}/worklist`;
-        const response = await fetch(url, {
+        const response = await fetch(`${API_URL}/worklist`, {
             headers: typeof risBuildAuthHeaders === 'function'
                 ? risBuildAuthHeaders()
                 : { Authorization: `Bearer ${localStorage.getItem('ris_token')}`, 'X-Lab-Id': labId, Accept: 'application/json' }
@@ -284,7 +332,6 @@ function getBadgePrioridad(prioridad) {
 
 function renderWorklist() {
     const tbody = $("#worklistTable tbody");
-    const filter = $("#filterMachine").val();
     const search = $("#searchPatient").val() ? $("#searchPatient").val().toLowerCase() : "";
 
     tbody.empty();
@@ -296,7 +343,7 @@ function renderWorklist() {
         const app = study.appointment;
         if (!app) return;
         if (!estadosVisibles.includes(app.status)) return;
-        if (filter && risMachineIdEstudioWorklist(study) !== String(filter)) return;
+        if (!citaPasaFiltroEquipoWorklist(study)) return;
 
         const p = app.patient?.persona || {};
         const nombreCompleto = `${p.names || ''} ${p.last_name_1 || ''}`.trim() || 'Paciente';

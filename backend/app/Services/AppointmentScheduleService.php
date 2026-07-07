@@ -55,8 +55,10 @@ class AppointmentScheduleService
                 $end = $candidateBlocks[array_key_last($candidateBlocks)]['end'];
 
                 return [
-                    'start' => $cursor->copy(),
-                    'end' => $end->copy(),
+                    // Persistir siempre en UTC: Eloquent con app.timezone=UTC no convierte
+                    // Carbon en TZ del lab y guardaría la hora mural como UTC (13:00 → 09:00 al mostrar).
+                    'start' => $cursor->copy()->utc(),
+                    'end' => $end->copy()->utc(),
                     'adjusted' => $shiftMinutes > 0,
                     'shift_minutes' => $shiftMinutes,
                 ];
@@ -82,8 +84,30 @@ class AppointmentScheduleService
         $cursor = $start instanceof CarbonInterface
             ? $start->copy()->timezone(LabTimezone::name())
             : LabTimezone::parseScheduleTime((string) $start);
+        $blocks = [];
 
-        $machineId = $this->resolvePrimaryMachineId($studies, $fallbackMachineId);
+        if ($studies !== []) {
+            foreach ($studies as $study) {
+                $machineId = (string) ($study['machine_id'] ?? $fallbackMachineId ?? '');
+                if ($machineId === '') {
+                    continue;
+                }
+                $qty = max(1, (int) ($study['quantity'] ?? 1));
+                $mins = $intervalMinutes * $qty;
+                $blockStart = $cursor->copy();
+                $blockEnd = $cursor->copy()->addMinutes($mins);
+                $blocks[] = [
+                    'machine_id' => $machineId,
+                    'start' => $blockStart,
+                    'end' => $blockEnd,
+                ];
+                $cursor = $blockEnd;
+            }
+
+            return $blocks;
+        }
+
+        $machineId = (string) ($fallbackMachineId ?? '');
         if ($machineId === '') {
             return [];
         }
@@ -96,21 +120,6 @@ class AppointmentScheduleService
             'start' => $blockStart,
             'end' => $blockEnd,
         ]];
-    }
-
-    /**
-     * @param  list<array{machine_id?: string|null, quantity?: int|float|string|null}>  $studies
-     */
-    private function resolvePrimaryMachineId(array $studies, ?string $fallbackMachineId): string
-    {
-        foreach ($studies as $study) {
-            $machineId = (string) ($study['machine_id'] ?? '');
-            if ($machineId !== '') {
-                return $machineId;
-            }
-        }
-
-        return (string) ($fallbackMachineId ?? '');
     }
 
     /**

@@ -2128,12 +2128,14 @@ async function renderAgendaSemanalMedico() {
         $("#totalAgendaSemanal").text('0');
         $("#rangoAgendaSemanal").text('');
         $("#btnAgendaSemanalPdf").prop('disabled', true);
+        $("#btnAgendaSemanalPdfDia").prop('disabled', true);
         contenedor.html('<div class="p-5 text-center text-muted">Seleccione semana y médico destinatario (ej. Dr. Riedel).</div>');
         return;
     }
 
     contenedor.html('<div class="p-5 text-center"><span class="spinner-border spinner-border-sm text-primary"></span> Cargando agenda...</div>');
     $("#btnAgendaSemanalPdf").prop('disabled', true);
+    $("#btnAgendaSemanalPdfDia").prop('disabled', true);
 
     const token = localStorage.getItem('ris_token');
     const labId = localStorage.getItem('ris_lab_id');
@@ -2159,6 +2161,7 @@ async function renderAgendaSemanalMedico() {
 
         currentAgendaSemanal = res;
         $("#btnAgendaSemanalPdf").prop('disabled', false);
+        $("#btnAgendaSemanalPdfDia").prop('disabled', false);
         pintarAgendaSemanalMedico(res);
     } catch (e) {
         console.error('Error cargando agenda semanal', e);
@@ -2169,11 +2172,42 @@ async function renderAgendaSemanalMedico() {
     }
 }
 
-function construirHtmlAgendaSemanalPdf(data) {
+function filtrarAgendaSemanalPorDia(data, fechaYmd) {
+    if (!data?.dias || !fechaYmd) return data;
+    const dia = (data.dias || []).find((d) => d.fecha === fechaYmd);
+    const citas = dia?.citas || [];
+    return {
+        ...data,
+        dias: dia ? [dia] : [{
+            fecha: fechaYmd,
+            dia_formato: formatearDiaAgendaSemanal(fechaYmd),
+            citas: [],
+        }],
+        total_citas: citas.length,
+        dia_seleccionado: fechaYmd,
+        dia_seleccionado_formato: dia?.dia_formato || formatearDiaAgendaSemanal(fechaYmd),
+    };
+}
+
+function formatearDiaAgendaSemanal(fechaYmd) {
+    if (!fechaYmd) return '';
+    const d = new Date(`${fechaYmd}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return fechaYmd;
+    return d.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
+function construirHtmlAgendaSemanalPdf(data, modo = 'semanal') {
     const centro = data.centro || obtenerNombreCentroNomina(data);
     const ciudad = data.ciudad || '';
     const responsable = obtenerResponsableReporte();
     const medico = data.medico_destinatario || data.medico || {};
+    const esDiario = modo === 'diario';
+    const tituloReporte = esDiario
+        ? 'AGENDA DIARIA — MÉDICO DESTINATARIO'
+        : 'AGENDA SEMANAL — MÉDICO DESTINATARIO';
+    const rangoFecha = esDiario
+        ? (data.dia_seleccionado_formato || data.dia_seleccionado || '')
+        : `Semana del ${data.semana_formato || ''}`;
 
     let cuerpoDias = '';
     (data.dias || []).forEach((dia) => {
@@ -2230,9 +2264,9 @@ function construirHtmlAgendaSemanalPdf(data) {
             <div style="text-align:center; border-bottom:2px solid #0d6efd; padding-bottom:8px; margin-bottom:10px;">
                 <div style="font-size:14px; font-weight:bold;">${centro}</div>
                 ${ciudad ? `<div style="font-size:10px; color:#6c757d;">${ciudad}</div>` : ''}
-                <div style="font-size:12px; font-weight:bold; margin-top:8px;">AGENDA SEMANAL — MÉDICO DESTINATARIO</div>
+                <div style="font-size:12px; font-weight:bold; margin-top:8px;">${tituloReporte}</div>
                 <div style="font-size:11px; margin-top:4px;">${medico.nombre || ''}</div>
-                <div style="font-size:10px; color:#6c757d; margin-top:4px;">Semana del ${data.semana_formato || ''}</div>
+                <div style="font-size:10px; color:#6c757d; margin-top:4px;">${rangoFecha}</div>
             </div>
             ${cuerpoDias}
             <div style="margin-top:16px; font-size:9px; color:#6c757d; border-top:1px solid #dee2e6; padding-top:8px;">
@@ -2242,7 +2276,7 @@ function construirHtmlAgendaSemanalPdf(data) {
     `;
 }
 
-async function descargarAgendaSemanalPdf() {
+async function descargarAgendaSemanalPdf(modo = 'semanal') {
     if (!currentAgendaSemanal) {
         if (typeof showAlert === 'function') {
             showAlert('Cargue primero la agenda de la semana.', 'Agenda semanal', 'warning');
@@ -2257,13 +2291,30 @@ async function descargarAgendaSemanalPdf() {
         return;
     }
 
+    const esDiario = modo === 'diario';
+    const fechaSeleccionada = $('#fechaAgendaSemanal').val();
     const medico = currentAgendaSemanal.medico_destinatario || currentAgendaSemanal.medico || {};
-    const nombreArchivo = `Agenda_Semanal_${sanitizarNombreArchivoCentro(medico.nombre || 'Medico')}_${currentAgendaSemanal.semana_inicio || 'semana'}.pdf`;
+    const nombreMedico = sanitizarNombreArchivoCentro(medico.nombre || 'Medico');
+
+    let dataPdf = filtrarAgendaSemanalPorEquipo(currentAgendaSemanal);
+    if (esDiario) {
+        if (!fechaSeleccionada) {
+            if (typeof showAlert === 'function') {
+                showAlert('Seleccione el día en el calendario.', 'Agenda diaria', 'warning');
+            }
+            return;
+        }
+        dataPdf = filtrarAgendaSemanalPorDia(dataPdf, fechaSeleccionada);
+    }
+
+    const nombreArchivo = esDiario
+        ? `Agenda_Diaria_${nombreMedico}_${fechaSeleccionada || 'dia'}.pdf`
+        : `Agenda_Semanal_${nombreMedico}_${currentAgendaSemanal.semana_inicio || 'semana'}.pdf`;
 
     const host = document.getElementById('agendaSemanalPdfHost');
     if (!host) return;
 
-    host.innerHTML = construirHtmlAgendaSemanalPdf(filtrarAgendaSemanalPorEquipo(currentAgendaSemanal));
+    host.innerHTML = construirHtmlAgendaSemanalPdf(dataPdf, modo);
     const elemento = host.firstElementChild;
     if (!elemento) return;
 
@@ -2277,7 +2328,7 @@ async function descargarAgendaSemanalPdf() {
             jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' },
         }).from(elemento).save();
     } catch (e) {
-        console.error('Error generando PDF agenda semanal', e);
+        console.error(`Error generando PDF agenda ${modo}`, e);
         if (typeof showAlert === 'function') {
             showAlert('No se pudo generar el PDF.', 'Error', 'danger');
         }
