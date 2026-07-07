@@ -12,7 +12,10 @@ let currentAtencionChain = null;
 let currentWorklistFromDB = [];
 let currentCadenas = {};
 let currentSuppliesFromDB = [];
+let currentMachinesFromDB = [];
 let _atencionRefreshTimer = null;
+/** Borradores locales de anamnesis por cadena (paciente+día) mientras se atiende la worklist. */
+let anamnesisDrafts = {};
 
 const pesosPrioridad = {
     "Urgencia": 3,
@@ -45,16 +48,21 @@ function initAtencionTecnicaModule(config = {}) {
         $('#atencionPageSubtitle').text(config.listSubtitle);
     }
 
-    const boot = () => {
-        cargarMaquinasFiltro();
+    const boot = async () => {
+        await cargarMaquinasFiltro();
         cargarInsumosBodega();
-        cargarWorklistDesdeServidor();
+        await cargarWorklistDesdeServidor();
 
         if (_atencionRefreshTimer) clearInterval(_atencionRefreshTimer);
         _atencionRefreshTimer = setInterval(() => {
             if ($("#modalAtencion").is(":visible") || currentAtencionChain) return;
             cargarWorklistDesdeServidor();
         }, 30000);
+
+        $(document).off('hidden.bs.modal.risAnamnesis', '#modalAtencion')
+            .on('hidden.bs.modal.risAnamnesis', '#modalAtencion', risPersistirBorradorAnamnesis);
+        $(document).off('change.risWorklistEquipos', '.filtro-equipo-worklist')
+            .on('change.risWorklistEquipos', '.filtro-equipo-worklist', onWorklistMachineFilterChange);
     };
 
     if (typeof refreshLabProfileFromApi === 'function') {
@@ -65,24 +73,136 @@ function initAtencionTecnicaModule(config = {}) {
 }
 
 window.initAtencionTecnicaModule = initAtencionTecnicaModule;
+window.guardarAnamnesisWorklist = guardarAnamnesisWorklist;
+window.onWorklistMachineFilterChange = onWorklistMachineFilterChange;
 
 async function cargarMaquinasFiltro() {
     if (typeof risRequireConcreteLabId === 'function' && !risRequireConcreteLabId(false)) return;
-    const select = $("#filterMachine");
+    const cont = $('#filtroEquiposWorklist');
+    if (!cont.length) return;
+
+    let prevSeleccion = [];
     try {
-        const response = await fetch(`${API_URL}/machines`, {
+        const raw = sessionStorage.getItem('ris_worklist_machine_filter');
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            prevSeleccion = Array.isArray(parsed) ? parsed.map(String) : (raw ? [String(raw)] : []);
+        }
+    } catch (_) {
+        prevSeleccion = [];
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/agenda-catalogs`, {
             headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders() : {}
         });
         const data = await response.json();
-        select.find('option:not(:first)').remove();
-        if (response.ok && data.data) {
-            data.data.filter(m => m.is_active !== false).forEach(m => {
-                select.append(`<option value="${m.id}">${m.name}</option>`);
-            });
+
+        currentMachinesFromDB = [];
+        if (response.ok && data.success && data.data?.machines) {
+            currentMachinesFromDB = data.data.machines
+                .filter((m) => m.is_active !== false)
+                .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'es'));
         }
+
+        if (!currentMachinesFromDB.length) {
+            cont.html('<span class="small text-warning">Sin equipos activos en esta sede.</span>');
+            return;
+        }
+
+        const todosMarcados = prevSeleccion.length === 0;
+        const html = currentMachinesFromDB.map((m) => {
+            const id = String(m.id);
+            const grupo = m.group_code || m.group;
+            const label = grupo ? `${m.name} [${grupo}]` : m.name;
+            const checked = todosMarcados || prevSeleccion.includes(id) ? 'checked' : '';
+            return `
+                <div class="form-check form-check-inline mb-0">
+                    <input class="form-check-input filtro-equipo-worklist" type="checkbox"
+                        id="filtroEquipoWl_${id}" value="${id}" ${checked}>
+                    <label class="form-check-label small" for="filtroEquipoWl_${id}">${label}</label>
+                </div>
+            `;
+        }).join('');
+
+        cont.html(`<span class="small text-muted align-self-center">Equipos:</span>${html}`);
     } catch (e) {
-        console.error("Error cargando salas para filtro", e);
+        console.error('Error cargando salas para filtro', e);
+        cont.html('<span class="small text-danger">No se pudieron cargar los equipos.</span>');
     }
+}
+
+function obtenerEquiposWorklistSeleccionados() {
+    const ids = [];
+    $('.filtro-equipo-worklist:checked').each(function () {
+        const v = String($(this).val() || '').trim();
+        if (v) ids.push(v);
+    });
+    return ids;
+}
+
+function guardarFiltroEquiposWorklist() {
+    const ids = obtenerEquiposWorklistSeleccionados();
+    const total = currentMachinesFromDB.length;
+    if (!ids.length || (total > 0 && ids.length >= total)) {
+        sessionStorage.removeItem('ris_worklist_machine_filter');
+    } else {
+        sessionStorage.setItem('ris_worklist_machine_filter', JSON.stringify(ids));
+    }
+}
+
+function citaPasaFiltroEquipoWorklist(study) {
+    const seleccionados = obtenerEquiposWorklistSeleccionados();
+    const total = currentMachinesFromDB.length;
+    if (!seleccionados.length || (total > 0 && seleccionados.length >= total)) {
+        return true;
+    }
+    const machineId = risMachineIdEstudioWorklist(study);
+    return seleccionados.includes(machineId);
+}
+
+function onWorklistMachineFilterChange() {
+    guardarFiltroEquiposWorklist();
+    renderWorklist();
+}
+
+function risMachineIdEstudioWorklist(study) {
+    if (!study) return '';
+    return String(study.machine_id || study.appointment?.machine_id || '');
+}
+
+function risNormalizeMachineGroup(group) {
+    const g = String(group || '').trim().toUpperCase();
+    const map = {
+        ECO: 'US',
+        SCANNER: 'CT',
+        TC: 'CT',
+        RM: 'MRI',
+        MR: 'MRI',
+        MG: 'MAMO',
+        DENSITO: 'DEXA',
+    };
+    return map[g] || g;
+}
+
+function risMaquinasMismoGrupo(machineGroup) {
+    const norm = risNormalizeMachineGroup(machineGroup);
+    if (!norm) return [];
+    return currentMachinesFromDB.filter(
+        (m) => risNormalizeMachineGroup(m.group) === norm
+    );
+}
+
+function risMergePreviousReports(chain, paths) {
+    if (!chain) return;
+    if (!Array.isArray(chain.previousReports)) {
+        chain.previousReports = [];
+    }
+    (paths || []).forEach((path) => {
+        if (path && !chain.previousReports.includes(path)) {
+            chain.previousReports.push(path);
+        }
+    });
 }
 
 async function cargarInsumosBodega() {
@@ -131,7 +251,10 @@ async function cargarWorklistDesdeServidor() {
             renderWorklist();
             if ($("#modalAtencion").is(":visible") && currentAtencionChain) {
                 syncAtencionChainFromWorklist();
+                renderAtencionEstudios(currentAtencionChain);
                 applyWorklistDicomUI(currentAtencionChain);
+                risActualizarBotonesDocumentosWorklist(currentAtencionChain);
+                $("#txtAnamnesis").val(risAnamnesisParaCadena(currentAtencionChain));
             }
         } else {
             tbody.html('<tr><td colspan="7" class="text-center text-muted p-4">No se pudo cargar la lista.</td></tr>');
@@ -142,6 +265,65 @@ async function cargarWorklistDesdeServidor() {
     }
 }
 
+function risActualizarBotonesDocumentosWorklist(chain) {
+    if (!chain) return;
+    if (chain.medicalOrder) {
+        $("#btnVerOrdenTM").prop("disabled", false).removeClass("btn-outline-success").addClass("btn-success text-white");
+    } else {
+        $("#btnVerOrdenTM").prop("disabled", true).removeClass("btn-success text-white").addClass("btn-outline-success");
+    }
+    if (chain.survey) {
+        $("#btnVerEncuestaTM").prop("disabled", false).removeClass("btn-outline-danger").addClass("btn-danger text-white");
+    } else {
+        $("#btnVerEncuestaTM").prop("disabled", true).removeClass("btn-danger text-white").addClass("btn-outline-danger");
+    }
+
+    const previos = Array.isArray(chain.previousReports) ? chain.previousReports : [];
+    const badge = $("#badgeInformesPrevios");
+    if (previos.length > 0) {
+        $("#btnVerInformesPreviosTM").prop("disabled", false)
+            .removeClass("btn-outline-secondary").addClass("btn-secondary text-white");
+        badge.removeClass("d-none").text(previos.length);
+    } else {
+        $("#btnVerInformesPreviosTM").prop("disabled", true)
+            .removeClass("btn-secondary text-white").addClass("btn-outline-secondary");
+        badge.addClass("d-none").text("0");
+    }
+}
+
+function risResolverUrlDocumento(path) {
+    if (!path) return null;
+    const raw = String(path).trim();
+    if (!raw) return null;
+    if (raw.startsWith('data:')) return raw;
+    if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+    const normalized = raw.startsWith('/') ? raw : `/${raw}`;
+    return `${window.location.origin}${normalized}`;
+}
+
+function risAbrirDocumentoEnNuevaVentana(path) {
+    const fullUrl = risResolverUrlDocumento(path);
+    if (!fullUrl) return false;
+
+    if (fullUrl.startsWith('data:')) {
+        const match = fullUrl.match(/data:([^;]+);base64,(.+)/);
+        if (!match) return false;
+        const mimeType = match[1];
+        const byteString = atob(match[2]);
+        const ab = new ArrayBuffer(byteString.length);
+        const ia = new Uint8Array(ab);
+        for (let i = 0; i < byteString.length; i++) {
+            ia[i] = byteString.charCodeAt(i);
+        }
+        const blob = new Blob([ab], { type: mimeType });
+        window.open(URL.createObjectURL(blob), '_blank');
+        return true;
+    }
+
+    window.open(fullUrl, '_blank');
+    return true;
+}
+
 function getBadgePrioridad(prioridad) {
     if (prioridad === 'Urgencia') return '<span class="badge bg-danger fw-bold shadow-sm" style="animation: pulse 1.5s infinite;">🚨 Urgencia</span>';
     if (prioridad === 'Alta') return '<span class="badge bg-warning text-dark fw-bold">Alta</span>';
@@ -150,17 +332,18 @@ function getBadgePrioridad(prioridad) {
 
 function renderWorklist() {
     const tbody = $("#worklistTable tbody");
-    const filter = $("#filterMachine").val();
     const search = $("#searchPatient").val() ? $("#searchPatient").val().toLowerCase() : "";
 
     tbody.empty();
     currentCadenas = {};
 
+    const estadosVisibles = ['confirmado', 'en_atencion', 'devuelto_worklist', 'dicom_enviado'];
+
     currentWorklistFromDB.forEach(study => {
         const app = study.appointment;
         if (!app) return;
-        if (!['confirmado', 'devuelto_worklist', 'dicom_enviado'].includes(app.status)) return;
-        if (filter && String(study.machine_id) !== String(filter)) return;
+        if (!estadosVisibles.includes(app.status)) return;
+        if (!citaPasaFiltroEquipoWorklist(study)) return;
 
         const p = app.patient?.persona || {};
         const nombreCompleto = `${p.names || ''} ${p.last_name_1 || ''}`.trim() || 'Paciente';
@@ -185,9 +368,18 @@ function renderWorklist() {
                 returnReason: app.return_reason,
                 // --- NUEVO ---
                 medicalOrder: app.medical_order_path,
-                survey: app.survey_path
+                survey: app.survey_path,
+                previousReports: Array.isArray(app.previous_reports_paths) ? [...app.previous_reports_paths] : []
             };
         }
+
+        if (app.medical_order_path) {
+            currentCadenas[chainId].medicalOrder = app.medical_order_path;
+        }
+        if (app.survey_path) {
+            currentCadenas[chainId].survey = app.survey_path;
+        }
+        risMergePreviousReports(currentCadenas[chainId], app.previous_reports_paths);
 
         currentCadenas[chainId].items.push(study);
         currentCadenas[chainId].citasIds.add(app.id); // Registramos el ID de la cita
@@ -214,7 +406,7 @@ function renderWorklist() {
     cadenasArray.sort((a, b) => new Date(a.cleanTime).getTime() - new Date(b.cleanTime).getTime());
 
     cadenasArray.forEach(cadena => {
-        const salas = [...new Set(cadena.items.map(i => i.machine ? i.machine.name : `Sala ${i.machine_name}`))];
+        const salas = [...new Set(cadena.items.map(i => i.machine_name || 'Sala'))];
         const examenes = cadena.items.map(i => `<i class="bi bi-check2 me-1"></i>${i.exam_name}`).join("<br>");
         const badgesSalas = salas.map(s => `<span class="badge bg-secondary me-1">${s}</span>`).join('');
         const horaStr = new Date(cadena.cleanTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -263,7 +455,36 @@ function renderWorklist() {
     });
 }
 
+function risPersistirBorradorAnamnesis() {
+    if (!currentAtencionChain?.chainId) return;
+    anamnesisDrafts[currentAtencionChain.chainId] = $("#txtAnamnesis").val();
+}
+
+function risAnamnesisParaCadena(chain) {
+    if (!chain) return '';
+    if (Object.prototype.hasOwnProperty.call(anamnesisDrafts, chain.chainId)) {
+        return anamnesisDrafts[chain.chainId];
+    }
+    for (const item of chain.items || []) {
+        const texto = item.anamnesis;
+        if (texto && String(texto).trim()) {
+            return String(texto).trim();
+        }
+    }
+    return '';
+}
+
+function risActualizarAnamnesisEnCadena(chain, texto) {
+    if (!chain) return;
+    anamnesisDrafts[chain.chainId] = texto;
+    (chain.items || []).forEach((item) => {
+        item.anamnesis = texto;
+    });
+}
+
 function abrirAtencion(chainId) {
+    risPersistirBorradorAnamnesis();
+
     currentAtencionChain = currentCadenas[chainId];
     if (!currentAtencionChain) return;
 
@@ -272,42 +493,124 @@ function abrirAtencion(chainId) {
 
     $("#atencionId").text(chainId + ` (${currentAtencionChain.citasIds.size} Cita/s)`);
 
-    const salas = [...new Set(currentAtencionChain.items.map(i => i.machine ? i.machine.name : `Sala ${i.machine_name}`))];
+    const salas = [...new Set(currentAtencionChain.items.map(i => i.machine_name || 'Sala'))];
     $("#atencionSala").text(salas.join(" + "));
 
-    const listaHtml = currentAtencionChain.items.map(item => `
-        <div class="list-group-item d-flex justify-content-between align-items-center bg-white border-primary border-start border-4 mb-1">
-            <div>
-                <strong class="text-dark">${item.exam_name}</strong>
-                <small class="d-block text-muted">Sub-examen: ${item.sub_exam_name || 'N/A'}</small>
-            </div>
-            <span class="badge bg-primary rounded-pill">Cant: ${item.quantity}</span>
-        </div>
-    `).join('');
-    $("#atencionEstudios").html(listaHtml);
+    renderAtencionEstudios(currentAtencionChain);
 
-    $("#txtAnamnesis").val("");
+    $("#txtAnamnesis").val(risAnamnesisParaCadena(currentAtencionChain));
     $("#insumoSelect").val("");
     $("#insumoQty").val("1");
     renderInsumosUsados();
 
     configureDicomIntegrationUI();
     applyWorklistDicomUI(currentAtencionChain);
+    risActualizarBotonesDocumentosWorklist(currentAtencionChain);
 
-
-    // === Habilitar Botones de Documentos ===
-    if (currentAtencionChain.medicalOrder) {
-        $("#btnVerOrdenTM").prop("disabled", false).removeClass("btn-outline-success").addClass("btn-success text-white");
-    } else {
-        $("#btnVerOrdenTM").prop("disabled", true).removeClass("btn-success text-white").addClass("btn-outline-success");
-    }
-
-    if (currentAtencionChain.survey) {
-        $("#btnVerEncuestaTM").prop("disabled", false).removeClass("btn-outline-danger").addClass("btn-danger text-white");
-    } else {
-        $("#btnVerEncuestaTM").prop("disabled", true).removeClass("btn-danger text-white").addClass("btn-outline-danger");
-    }
     openModal("modalAtencion");
+}
+
+function renderAtencionEstudios(chain) {
+    if (!chain?.items?.length) {
+        $("#atencionEstudios").empty();
+        return;
+    }
+
+    const listaHtml = chain.items.map(item => {
+        const currentMachineId = risMachineIdEstudioWorklist(item);
+        const opciones = risMaquinasMismoGrupo(item.machine_group);
+        const puedeCambiar = opciones.length > 1;
+        const optionsHtml = opciones.map((m) => {
+            const selected = String(m.id) === String(currentMachineId) ? 'selected' : '';
+            return `<option value="${m.id}" ${selected}>${m.name}</option>`;
+        }).join('');
+
+        return `
+        <div class="list-group-item bg-white border-primary border-start border-4 mb-1">
+            <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+                <div class="flex-grow-1">
+                    <strong class="text-dark">${item.exam_name}</strong>
+                    <small class="d-block text-muted">Sub-examen: ${item.sub_exam_name || 'N/A'}</small>
+                    <div class="mt-2" style="max-width: 280px;">
+                        <label class="form-label small text-muted fw-bold mb-0">Sala</label>
+                        <select class="form-select form-select-sm wl-study-machine"
+                            data-study-id="${item.id}"
+                            data-prev-machine="${currentMachineId}"
+                            ${puedeCambiar ? '' : 'disabled title="No hay otra sala del mismo grupo"'}>
+                            ${optionsHtml || `<option value="${currentMachineId}">${item.machine_name || 'Sala'}</option>`}
+                        </select>
+                    </div>
+                </div>
+                <span class="badge bg-primary rounded-pill align-self-center">Cant: ${item.quantity}</span>
+            </div>
+        </div>`;
+    }).join('');
+
+    $("#atencionEstudios").html(listaHtml);
+    $("#atencionEstudios .wl-study-machine")
+        .off('change.wlRoom focus.wlRoom')
+        .on('focus.wlRoom', function () {
+            $(this).data('prev-machine', $(this).val());
+        })
+        .on('change.wlRoom', onWorklistStudyMachineChange);
+}
+
+async function onWorklistStudyMachineChange() {
+    const $select = $(this);
+    const studyId = $select.data('study-id');
+    const machineId = $select.val();
+    const prevMachineId = $select.data('prev-machine');
+
+    if (!studyId || !machineId || String(machineId) === String(prevMachineId)) {
+        return;
+    }
+
+    $select.prop('disabled', true);
+
+    try {
+        const response = await fetch(`${API_URL}/worklist/studies/${studyId}/reassign-machine`, {
+            method: 'POST',
+            headers: typeof risBuildAuthHeaders === 'function'
+                ? risBuildAuthHeaders({ 'Content-Type': 'application/json' })
+                : {},
+            body: JSON.stringify({ machine_id: machineId }),
+        });
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok || !data.success) {
+            throw new Error(data.message || 'No se pudo cambiar la sala');
+        }
+
+        const item = (currentAtencionChain?.items || []).find((s) => String(s.id) === String(studyId));
+        if (item) {
+            item.machine_id = data.machine_id;
+            item.machine_name = data.machine_name;
+            item.machine_group = data.machine_group;
+        }
+
+        $select.data('prev-machine', machineId);
+        const salas = [...new Set((currentAtencionChain?.items || []).map(i => i.machine_name || 'Sala'))];
+        $("#atencionSala").text(salas.join(" + "));
+
+        if (typeof showToast === 'function') {
+            showToast(`Sala actualizada: ${data.machine_name}`, 'success');
+        }
+
+        await cargarWorklistDesdeServidor();
+        if (currentAtencionChain) {
+            renderAtencionEstudios(currentAtencionChain);
+        }
+    } catch (e) {
+        console.error(e);
+        $select.val(prevMachineId);
+        if (typeof showToast === 'function') {
+            showToast(`❌ ${e.message}`, 'danger');
+        }
+    } finally {
+        const item = (currentAtencionChain?.items || []).find((s) => String(s.id) === String(studyId));
+        const opciones = risMaquinasMismoGrupo(item?.machine_group);
+        $select.prop('disabled', opciones.length <= 1);
+    }
 }
 
 function usesDicomWorklist() {
@@ -633,6 +936,49 @@ function renderAlertasInsumos() {
     }
 }
 
+async function guardarAnamnesisWorklist() {
+    if (!currentAtencionChain) return;
+
+    const anamnesis = $("#txtAnamnesis").val().trim();
+    if (!anamnesis) {
+        return showToast('Escriba los síntomas o la anamnesis antes de guardar.', 'warning');
+    }
+
+    const btn = $("#btnGuardarAnamnesis");
+    const labelOriginal = btn.html();
+    btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span>');
+
+    const citasInvolucradas = Array.from(currentAtencionChain.citasIds);
+
+    try {
+        for (const citaId of citasInvolucradas) {
+            const response = await fetch(`${API_URL}/appointments/${citaId}/save-anamnesis`, {
+                method: 'POST',
+                headers: typeof risBuildAuthHeaders === 'function'
+                    ? risBuildAuthHeaders({ 'Content-Type': 'application/json' })
+                    : { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ anamnesis }),
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.success) {
+                throw new Error(data.message || `Error al guardar (${response.status})`);
+            }
+        }
+
+        risActualizarAnamnesisEnCadena(currentAtencionChain, anamnesis);
+        if (typeof showToast === 'function') {
+            showToast('Síntomas / anamnesis guardados.', 'success');
+        }
+    } catch (error) {
+        console.error('guardarAnamnesisWorklist:', error);
+        if (typeof showToast === 'function') {
+            showToast(`No se pudo guardar: ${error.message}`, 'danger');
+        }
+    } finally {
+        btn.prop('disabled', false).html(labelOriginal);
+    }
+}
+
 async function finalizarAtencion() {
     if (!currentAtencionChain) return;
 
@@ -667,6 +1013,9 @@ async function finalizarAtencion() {
         }
 
         closeModal("modalAtencion");
+        if (currentAtencionChain?.chainId) {
+            delete anamnesisDrafts[currentAtencionChain.chainId];
+        }
         cargarWorklistDesdeServidor();
         cargarInsumosBodega();
         if (typeof showToast === 'function') showToast("✅ Estudios finalizados y derivados al Radiólogo.", "success");
@@ -682,17 +1031,114 @@ async function finalizarAtencion() {
 function abrirDocWorklist(tipo) {
     if (!currentAtencionChain) return;
 
-    let path = tipo === 'orden' ? currentAtencionChain.medicalOrder : currentAtencionChain.survey;
-    if (!path) return showToast("Este documento no fue escaneado en recepción.", "warning");
-
-    let fullUrl = path;
-    if (!fullUrl.startsWith('http')) {
-        // Asume la IP de tu nube o ajusta según corresponda
-        const baseUrl = "https://ris.healthticloud.cl";
-        fullUrl = `${baseUrl}${path}`;
+    if (tipo === 'previos') {
+        const paths = Array.isArray(currentAtencionChain.previousReports)
+            ? currentAtencionChain.previousReports
+            : [];
+        if (!paths.length) {
+            return showToast("No hay informes previos escaneados.", "warning");
+        }
+        paths.forEach((path, index) => {
+            setTimeout(() => risAbrirDocumentoEnNuevaVentana(path), index * 350);
+        });
+        if (paths.length > 1 && typeof showToast === 'function') {
+            showToast(`Abriendo ${paths.length} documento(s) de informes previos.`, "info");
+        }
+        return;
     }
 
-    window.open(fullUrl, '_blank');
+    const path = tipo === 'orden' ? currentAtencionChain.medicalOrder : currentAtencionChain.survey;
+    if (!path) {
+        const label = tipo === 'orden' ? 'orden médica' : 'encuesta';
+        return showToast(`Este documento (${label}) no fue escaneado aún.`, "warning");
+    }
+
+    if (!risAbrirDocumentoEnNuevaVentana(path)) {
+        showToast("No se pudo abrir el documento.", "danger");
+    }
+}
+
+async function escanearDocumentoWorklist(tipo) {
+    if (!currentAtencionChain) return;
+
+    const isEncuesta = tipo === 'encuesta';
+    const btn = isEncuesta ? $("#btnEscanearEncuestaTM") : $("#btnEscanearInformesPreviosTM");
+    const textoOriginal = btn.html();
+
+    btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>Escaneando...');
+
+    try {
+        const bridgeUrl = typeof LOCAL_BRIDGE_URL !== 'undefined' ? LOCAL_BRIDGE_URL : 'http://127.0.0.1:8181';
+        const response = await fetch(`${bridgeUrl}/escanear`);
+        const data = await response.json();
+
+        if (!response.ok || !data.success || !data.file) {
+            throw new Error(data.message || 'Error al escanear');
+        }
+
+        await subirDocumentoWorklistToCitas(tipo, data.file);
+
+        const msg = isEncuesta
+            ? 'Encuesta digitalizada y guardada.'
+            : 'Hoja de informe previo agregada.';
+        if (typeof showToast === 'function') showToast(`✅ ${msg}`, 'success');
+    } catch (error) {
+        console.error('Error del puente:', error);
+        if (typeof showToast === 'function') {
+            showToast("❌ No se detectó el escáner. Asegúrese de tener el RIS Bridge abierto en su PC.", "danger");
+        }
+    } finally {
+        btn.prop('disabled', false).html(textoOriginal);
+    }
+}
+
+async function subirDocumentoWorklistToCitas(tipo, base64Data) {
+    const citas = currentAtencionChain?.citasIds
+        ? Array.from(currentAtencionChain.citasIds)
+        : [];
+
+    if (!citas.length) {
+        throw new Error('No hay citas asociadas al paciente.');
+    }
+
+    const apiType = tipo === 'encuesta' ? 'survey' : 'previous_report';
+    let ultimoPath = null;
+    let ultimosPrevios = [];
+
+    for (const citaId of citas) {
+        const response = await fetch(`${API_URL}/appointments/${citaId}/worklist-document`, {
+            method: 'POST',
+            headers: typeof risBuildAuthHeaders === 'function'
+                ? risBuildAuthHeaders({ 'Content-Type': 'application/json' })
+                : {},
+            body: JSON.stringify({
+                type: apiType,
+                document_base64: base64Data,
+            }),
+        });
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok || !data.success) {
+            throw new Error(data.message || 'Error al guardar el documento');
+        }
+
+        ultimoPath = data.path;
+        if (Array.isArray(data.previous_reports_paths)) {
+            ultimosPrevios = data.previous_reports_paths;
+        }
+        if (data.survey_path) {
+            currentAtencionChain.survey = data.survey_path;
+        }
+    }
+
+    if (tipo === 'encuesta' && ultimoPath) {
+        currentAtencionChain.survey = ultimoPath;
+    } else if (tipo === 'previos') {
+        risMergePreviousReports(currentAtencionChain, ultimosPrevios.length ? ultimosPrevios : [ultimoPath]);
+    }
+
+    risActualizarBotonesDocumentosWorklist(currentAtencionChain);
+    await cargarWorklistDesdeServidor();
 }
 async function devolverAAgenda() {
     if (!currentAtencionChain) return;

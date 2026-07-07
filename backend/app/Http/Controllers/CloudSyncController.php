@@ -80,6 +80,9 @@ class CloudSyncController extends Controller
             'laboratory_id' => 'nullable|uuid',
             'include_patients' => 'sometimes|boolean',
             'include_users' => 'sometimes|boolean',
+            'include_appointments' => 'sometimes|boolean',
+            'appointments_from' => 'nullable|date',
+            'appointments_to' => 'nullable|date|after_or_equal:appointments_from',
         ]);
 
         $labId = $validated['laboratory_id']
@@ -92,12 +95,34 @@ class CloudSyncController extends Controller
 
         $includePatients = (bool) ($validated['include_patients'] ?? false);
         $includeUsers = (bool) ($validated['include_users'] ?? true);
+        $includeAppointments = (bool) ($validated['include_appointments'] ?? false);
+        $appointmentsFrom = $validated['appointments_from'] ?? null;
+        $appointmentsTo = $validated['appointments_to'] ?? null;
+
+        if ($includeAppointments) {
+            $includePatients = true;
+        }
 
         try {
             if (CloudSyncMode::acceptsInbound()) {
-                $result = $pull->pullLocalSnapshot($labId, $includePatients, $includeUsers);
+                $result = $pull->pullLocalSnapshot(
+                    $labId,
+                    $includePatients,
+                    $includeUsers,
+                    $includeAppointments,
+                    $appointmentsFrom,
+                    $appointmentsTo,
+                );
             } else {
-                $result = $pull->pull($labId, $includePatients, null, $includeUsers);
+                $result = $pull->pull(
+                    $labId,
+                    $includePatients,
+                    null,
+                    $includeUsers,
+                    $includeAppointments,
+                    $appointmentsFrom,
+                    $appointmentsTo,
+                );
             }
 
             return response()->json([

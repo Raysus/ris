@@ -107,7 +107,10 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::post('/appointments/{id}/dicom', [WorklistController::class, 'sendToDicom']);
     Route::post('/appointments/{id}/upload-dicom', [WorklistController::class, 'uploadDicomStudy']);
     Route::post('/appointments/{id}/mark-dicom-received', [WorklistController::class, 'markDicomReceived']);
+    Route::post('/appointments/{id}/save-anamnesis', [WorklistController::class, 'saveAnamnesis']);
     Route::post('/appointments/{id}/complete-worklist', [WorklistController::class, 'complete']);
+    Route::post('/appointments/{id}/worklist-document', [WorklistController::class, 'uploadWorklistDocument']);
+    Route::post('/worklist/studies/{studyId}/reassign-machine', [WorklistController::class, 'reassignStudyMachine']);
 
     // MÓDULO RADIÓLOGO
     Route::get('/radiologist/studies', [RadiologistController::class, 'index']);
@@ -179,6 +182,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::get('/reports/examenes', [ReportController::class, 'getExamenesMensuales']);
     Route::get('/reports/nomina-diaria', [ReportController::class, 'getNominaDiaria']);
     Route::get('/reports/nomina-mensual', [ReportController::class, 'getNominaMensual']);
+    Route::get('/reports/agenda-semanal', [ReportController::class, 'getAgendaSemanalMedico']);
     Route::get('/reports/consolidated-matrix', [ReportController::class, 'getConsolidatedMatrix']);
 
     // MÓDULO DASHBOARD (ADMIN)

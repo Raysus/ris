@@ -11,6 +11,7 @@ use App\Models\Supply;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use App\Services\DicomImportService;
 use App\Services\LocalMwlFileWriter;
@@ -53,6 +54,8 @@ class WorklistController extends Controller
     public function index(Request $request)
     {
         $this->assertWorklistAccess($request);
+        $machineFilter = $request->query('machine_id');
+
         $query = $this->getSecureAppointmentQuery()
             ->with([
                 'studies.machine',
@@ -62,6 +65,13 @@ class WorklistController extends Controller
             ])
             ->whereIn('status', ['confirmado', 'en_atencion', 'dicom_enviado', 'devuelto_worklist']);
 
+        if ($machineFilter) {
+            $query->where(function ($builder) use ($machineFilter) {
+                $builder->where('machine_id', $machineFilter)
+                    ->orWhereHas('studies', fn ($studies) => $studies->where('machine_id', $machineFilter));
+            });
+        }
+
         $appointments = $query->get();
         $formattedData = [];
 
@@ -69,17 +79,27 @@ class WorklistController extends Controller
             $persona = $appointment->patient?->persona;
 
             foreach ($appointment->studies as $study) {
+                $effectiveMachineId = $this->resolveStudyMachineId($study, $appointment);
+
+                if ($machineFilter && (string) $effectiveMachineId !== (string) $machineFilter) {
+                    continue;
+                }
+
+                $machine = $study->machine ?? $appointment->machine;
+
                 $formattedData[] = [
                     'id' => $study->id,
                     'exam_name' => $study->exam_name,
                     'sub_exam_name' => $study->sub_exam_name,
+                    'anamnesis' => $study->anamnesis,
                     'quantity' => $study->quantity,
-                    'machine_id' => $study->machine_id,
-                    'machine_name' => $study->machine?->name ?? $appointment->machine?->name ?? 'Sala Desconocida',
-                    'machine_group' => $study->machine?->group ?? $appointment->machine?->group,
-                    'machine_ae_title' => $study->machine?->ae_title ?? $appointment->machine?->ae_title,
+                    'machine_id' => $effectiveMachineId,
+                    'machine_name' => $machine?->name ?? 'Sala Desconocida',
+                    'machine_group' => $machine?->group,
+                    'machine_ae_title' => $machine?->ae_title,
                     'appointment' => [
                         'id' => $appointment->id,
+                        'machine_id' => $appointment->machine_id,
                         'start_time' => LabTimezone::formatScheduleForApi($appointment->start_time),
                         'status' => strtolower($appointment->status),
                         'priority' => $appointment->priority,
@@ -87,6 +107,7 @@ class WorklistController extends Controller
                         'return_reason' => $appointment->return_reason,
                         'medical_order_path' => $appointment->medical_order_path,
                         'survey_path' => $appointment->survey_path,
+                        'previous_reports_paths' => $appointment->previous_reports_paths ?? [],
                         'patient' => [
                             'persona' => [
                                 'names' => $persona?->names,
@@ -100,6 +121,11 @@ class WorklistController extends Controller
         }
 
         return response()->json(['success' => true, 'data' => $formattedData]);
+    }
+
+    private function resolveStudyMachineId($study, Appointment $appointment): ?string
+    {
+        return $study->machine_id ?? $appointment->machine_id;
     }
 
     public function sendToDicom(Request $request, $appointmentId, DicomImportService $dicomImport)
@@ -361,6 +387,47 @@ class WorklistController extends Controller
         \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
 
         return response()->json(['success' => true, 'accession' => $appointment->accession_number]);
+    }
+
+    /**
+     * Guarda síntomas/anamnesis sin finalizar la atención (borrador persistente en worklist).
+     */
+    public function saveAnamnesis(Request $request, $appointmentId)
+    {
+        $this->assertWorklistAccess($request);
+        $request->validate([
+            'anamnesis' => 'required|string|max:2000',
+        ]);
+
+        $appointment = $this->getSecureAppointmentQuery()->findOrFail($appointmentId);
+
+        if (!in_array($appointment->status, ['confirmado', 'en_atencion', 'dicom_enviado', 'devuelto_worklist'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'La cita no está en un estado que permita editar la anamnesis.',
+            ], 422);
+        }
+
+        $anamnesis = trim((string) $request->input('anamnesis'));
+
+        DB::table('appointment_studies')
+            ->where('appointment_id', $appointment->id)
+            ->update([
+                'anamnesis' => $anamnesis,
+                'updated_at' => now(),
+            ]);
+
+        if ($appointment->status === 'confirmado') {
+            $appointment->status = 'en_atencion';
+            $appointment->save();
+        } else {
+            $appointment->touch();
+        }
+
+        $appointment->load(['patient.persona', 'studies', 'supplies']);
+        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+
+        return response()->json(['success' => true]);
     }
 
     public function complete(Request $request, $appointmentId)
@@ -771,5 +838,158 @@ class WorklistController extends Controller
         }
 
         return false;
+    }
+
+    /**
+     * Cambia la sala de un estudio en worklist (solo dentro del mismo grupo/modalidad).
+     */
+    public function reassignStudyMachine(Request $request, string $studyId)
+    {
+        $this->assertWorklistAccess($request);
+        $request->validate([
+            'machine_id' => 'required|uuid',
+        ]);
+
+        $study = AppointmentStudy::with(['appointment.machine', 'machine'])->findOrFail($studyId);
+        $appointment = $this->getSecureAppointmentQuery()->findOrFail($study->appointment_id);
+
+        if (!in_array($appointment->status, ['confirmado', 'en_atencion', 'devuelto_worklist'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No se puede cambiar la sala en el estado actual de la cita.',
+            ], 422);
+        }
+
+        $newMachine = Machine::query()
+            ->where('id', $request->machine_id)
+            ->where('laboratory_id', $appointment->laboratory_id)
+            ->where('is_active', true)
+            ->firstOrFail();
+
+        $oldMachine = $study->machine ?? $appointment->machine;
+        $oldGroup = ModalityCode::normalizeGroup($oldMachine?->group);
+        $newGroup = ModalityCode::normalizeGroup($newMachine->group);
+
+        if ($oldGroup === '' || $newGroup === '' || $oldGroup !== $newGroup) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Solo puede cambiar a otra sala del mismo grupo (modalidad).',
+            ], 422);
+        }
+
+        $effectiveOldMachineId = $study->machine_id ?? $appointment->machine_id;
+
+        DB::transaction(function () use ($study, $appointment, $newMachine, $effectiveOldMachineId) {
+            $study->machine_id = $newMachine->id;
+            $study->save();
+
+            if ((string) $appointment->machine_id === (string) $effectiveOldMachineId) {
+                $appointment->machine_id = $newMachine->id;
+                $appointment->save();
+            }
+        });
+
+        $appointment->load(['patient.persona', 'studies', 'supplies']);
+        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+
+        return response()->json([
+            'success' => true,
+            'study_id' => $study->id,
+            'machine_id' => $newMachine->id,
+            'machine_name' => $newMachine->name,
+            'machine_group' => $newMachine->group,
+        ]);
+    }
+
+    /**
+     * Sube encuesta o informes previos desde el módulo worklist.
+     */
+    public function uploadWorklistDocument(Request $request, $appointmentId)
+    {
+        $this->assertWorklistAccess($request);
+        $request->validate([
+            'type' => 'required|in:survey,previous_report',
+            'document_base64' => 'required|string',
+        ]);
+
+        $appointment = $this->getSecureAppointmentQuery()->findOrFail($appointmentId);
+
+        if (!in_array($appointment->status, ['confirmado', 'en_atencion', 'dicom_enviado', 'devuelto_worklist'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'La cita no está en un estado que permita adjuntar documentos.',
+            ], 422);
+        }
+
+        $path = $this->saveBase64Document($request->input('document_base64'));
+        if (!$path) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Documento inválido o formato no permitido.',
+            ], 422);
+        }
+
+        if ($request->input('type') === 'survey') {
+            $appointment->survey_path = $path;
+        } else {
+            $paths = $appointment->previous_reports_paths ?? [];
+            if (!is_array($paths)) {
+                $paths = [];
+            }
+            $paths[] = $path;
+            $appointment->previous_reports_paths = array_values($paths);
+        }
+
+        $appointment->save();
+        $appointment->load(['patient.persona', 'studies', 'supplies']);
+        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+
+        return response()->json([
+            'success' => true,
+            'path' => $path,
+            'survey_path' => $appointment->survey_path,
+            'previous_reports_paths' => $appointment->previous_reports_paths ?? [],
+        ]);
+    }
+
+    private function saveBase64Document($base64String, $folder = 'documents')
+    {
+        if (!$base64String || !str_starts_with($base64String, 'data:')) {
+            return null;
+        }
+
+        $parts = explode(';', $base64String);
+        if (count($parts) < 2) {
+            return null;
+        }
+
+        $mimePart = explode(':', $parts[0]);
+        $mimeType = $mimePart[1] ?? '';
+
+        $dataPart = explode(',', $parts[1]);
+        $fileData = isset($dataPart[1]) ? base64_decode($dataPart[1]) : null;
+
+        if (!$fileData) {
+            return null;
+        }
+
+        $allowedMimes = [
+            'image/jpeg' => 'jpg',
+            'image/jpg' => 'jpg',
+            'image/png' => 'png',
+            'application/pdf' => 'pdf',
+        ];
+
+        if (!array_key_exists($mimeType, $allowedMimes)) {
+            return null;
+        }
+
+        $extension = $allowedMimes[$mimeType];
+        $fileName = Str::uuid() . '.' . $extension;
+        $path = $folder . '/' . $fileName;
+
+        Storage::disk('public')->put($path, $fileData);
+
+        return '/storage/' . $path;
     }
 }

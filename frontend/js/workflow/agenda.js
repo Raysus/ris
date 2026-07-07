@@ -131,6 +131,18 @@ const AGENDA_ESTADOS_ATENDIDO = new Set([
     'atendido',
 ]);
 
+/** Estados que recepción puede editar / mover en agenda. */
+const AGENDA_ESTADOS_RECEPCION_EDITABLES = ['pre-agendado', 'agendado', 'confirmado', 'espera'];
+
+function risCitaRecepcionBloqueada(statusRaw, statusVisual) {
+    const raw = String(statusRaw || '').trim().toLowerCase();
+    if (raw) {
+        return !AGENDA_ESTADOS_RECEPCION_EDITABLES.includes(raw);
+    }
+    const visual = String(statusVisual || '').trim().toLowerCase();
+    return !AGENDA_ESTADOS_RECEPCION_EDITABLES.includes(visual);
+}
+
 /** Clave visual para color de cita en la agenda. */
 function risNormalizarEstadoAgendaVisual(status) {
     const s = String(status || '').trim().toLowerCase();
@@ -710,7 +722,15 @@ function risAgregarExamenDesdeCodigo() {
     $('#risQuickExamCode').trigger('focus');
 }
 
+function risEsPrevisionFonasa(insuranceId = null) {
+    const insId = insuranceId ?? $('#pInsurance').val();
+    if (!insId || !catalogosAgenda?.insurances) return false;
+    const seguro = catalogosAgenda.insurances.find((i) => String(i.id) === String(insId));
+    return /fonasa/i.test(seguro?.name || '');
+}
+
 function risObtenerPorcentajeCopagoPlan() {
+    if (risEsPrevisionFonasa()) return 0;
     const insId = $('#pInsurance').val();
     const planId = $('#pPlan').val();
     if (!insId || !planId || !catalogosAgenda.insurances) return 0;
@@ -725,6 +745,9 @@ function risObtenerPlanPrevisionSeleccionado() {
 
 function risResolverPrecioExamen(exam, planId = null) {
     if (!exam) return 0;
+    if (risEsPrevisionFonasa() && exam.fonasa_price != null && exam.fonasa_price !== '') {
+        return parseFloat(exam.fonasa_price) || 0;
+    }
     const plan = planId ?? risObtenerPlanPrevisionSeleccionado();
     if (plan && Array.isArray(exam.tariffs)) {
         const tariff = exam.tariffs.find((t) => String(t.insurance_plan_id) === String(plan));
@@ -967,18 +990,27 @@ function montarUiInternaCalendario() {
     pintarLeyendaEstadosAgenda(root);
 }
 
-function calcularDuracionCita(machineId, cantidadExamenes) {
-    const sala = (window.RIS?.resources || []).find((r) => String(r.id) === String(machineId));
-    const tiempos = { ...TIEMPOS_POR_GRUPO_DEFAULT, ...(window.RIS?.tiemposPorGrupo || {}) };
-    const group = sala?.group;
-    const minutosBase = group != null && tiempos[group] != null ? tiempos[group] : 15;
+function risResolveMachineId(raw) {
+    const mid = String(raw ?? '').trim();
+    if (!mid || mid === 'null' || mid === 'undefined') return '';
+    return mid;
+}
+
+function calcularDuracionCita(_machineId, cantidadExamenes) {
+    const minsPorBloque = intervaloAMinutos(getAgendaScheduleConfig().intervalo);
     const qty = Math.max(1, Number(cantidadExamenes) || 1);
-    return minutosBase * qty;
+    return minsPorBloque * qty;
+}
+
+function risSnapDuracionMinutos(minutos) {
+    const paso = intervaloAMinutos(getAgendaScheduleConfig().intervalo);
+    const total = Math.max(paso, Number(minutos) || paso);
+    return Math.ceil(total / paso) * paso;
 }
 
 /**
- * Bloques secuenciales por sala (orden de filas de exámenes).
- * @returns {{ machineId: string, start: Date, end: Date }[]}
+ * Bloques secuenciales por examen (10 min c/u según intervalo del laboratorio).
+ * @returns {{ machineId: string, start: Date, end: Date, studyLabel?: string }[]}
  */
 function risCalcularBloquesPorSala(item) {
     if (!item?.start) return [];
@@ -987,43 +1019,35 @@ function risCalcularBloquesPorSala(item) {
     if (Number.isNaN(startMs)) return [];
 
     const studies = item.studies || [];
-    const machineOrder = [];
-    const qtyByMachine = {};
-
-    studies.forEach((s) => {
-        const mid = String(s.machine || s.machine_id || '').trim();
-        if (!mid) return;
-        if (!Object.prototype.hasOwnProperty.call(qtyByMachine, mid)) {
-            qtyByMachine[mid] = 0;
-            machineOrder.push(mid);
-        }
-        qtyByMachine[mid] += parseInt(s.qty ?? s.quantity, 10) || 1;
-    });
-
-    if (machineOrder.length === 0) {
-        const mid = String(item.machine || '').trim();
-        if (!mid) return [];
-        machineOrder.push(mid);
-        qtyByMachine[mid] = 1;
-    }
-
     let cursor = startMs;
-    const blocks = machineOrder.map((machineId) => {
-        const mins = calcularDuracionCita(machineId, qtyByMachine[machineId]);
-        const blockStart = new Date(cursor);
-        const blockEnd = new Date(cursor + mins * 60000);
-        cursor = blockEnd.getTime();
-        return { machineId, start: blockStart, end: blockEnd };
-    });
+    const blocks = [];
 
-    if (item.end && blocks.length > 0) {
-        const endDate = new Date(normalizeApiDateTime(item.end));
-        if (!Number.isNaN(endDate.getTime()) && endDate.getTime() >= blocks[blocks.length - 1].start.getTime()) {
-            blocks[blocks.length - 1].end = endDate;
-        }
+    if (studies.length > 0) {
+        studies.forEach((s) => {
+            const mid = risResolveMachineId(s.machine || s.machine_id);
+            if (!mid) return;
+            const qty = parseInt(s.qty ?? s.quantity, 10) || 1;
+            const mins = calcularDuracionCita(mid, qty);
+            const blockStart = new Date(cursor);
+            const blockEnd = new Date(cursor + mins * 60000);
+            cursor = blockEnd.getTime();
+            const sub = String(s.subExamName || s.subExam || '').trim();
+            const exam = String(s.examName || '').trim();
+            const studyLabel = sub || exam.replace(/^\[[^\]]+\]\s*/, '') || '';
+            blocks.push({ machineId: mid, start: blockStart, end: blockEnd, studyLabel });
+        });
+        return blocks;
     }
 
-    return blocks;
+    const mid = risResolveMachineId(item.machine);
+    if (!mid) return [];
+
+    const mins = calcularDuracionCita(mid, 1);
+    return [{
+        machineId: mid,
+        start: new Date(startMs),
+        end: new Date(startMs + mins * 60000),
+    }];
 }
 
 function risHayColisionEnSala(machineId, start, end, excludeAppointmentId = null) {
@@ -1036,6 +1060,61 @@ function risHayColisionEnSala(machineId, start, end, excludeAppointmentId = null
             return startMs < block.end.getTime() && endMs > block.start.getTime();
         });
     });
+}
+
+/** Busca el primer inicio libre (mismo criterio que el servidor) a partir de una hora preferida. */
+function risResolverInicioDisponible(preferredStart, estudios, excludeAppointmentId = null) {
+    const cfg = getAgendaScheduleConfig();
+    const intervaloMin = intervaloAMinutos(cfg.intervalo);
+    let candidato = redondearDatetimeAlIntervalo(new Date(preferredStart), cfg.intervalo);
+    if (Number.isNaN(candidato.getTime())) return null;
+
+    for (let i = 0; i < 240; i++) {
+        let duracionTotalMinutos = 0;
+        estudios.forEach((s) => {
+            duracionTotalMinutos += calcularDuracionCita(s.machine_id, s.quantity);
+        });
+        duracionTotalMinutos = risSnapDuracionMinutos(duracionTotalMinutos);
+
+        const bloques = risCalcularBloquesPorSala({
+            start: candidato,
+            machine: estudios[0]?.machine_id,
+            studies: estudios.map((s) => ({
+                machine_id: s.machine_id,
+                quantity: s.quantity,
+            })),
+        });
+
+        const hayColision = bloques.some((block) =>
+            risHayColisionEnSala(block.machineId, block.start, block.end, excludeAppointmentId)
+        );
+
+        if (!hayColision) {
+            const ultimoBloque = bloques[bloques.length - 1];
+            return {
+                start: candidato,
+                end: ultimoBloque?.end || new Date(candidato.getTime() + duracionTotalMinutos * 60000),
+                adjusted: i > 0,
+            };
+        }
+
+        candidato = new Date(candidato.getTime() + intervaloMin * 60000);
+    }
+
+    return null;
+}
+
+function risMensajeHorarioAjustado(data) {
+    if (!data?.schedule_adjusted) return null;
+    const asignado = data.assigned_start_time || data.appointment?.start_time;
+    if (!asignado) {
+        return 'El horario solicitado ya no estaba libre; se asignó el siguiente disponible.';
+    }
+    const hora = new Date(normalizeApiDateTime(asignado)).toLocaleTimeString('es-CL', {
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+    return `El horario ya no estaba disponible. Se asignó ${hora}.`;
 }
 
 function risResolverIdCitaDesdeEvento(event) {
@@ -1199,23 +1278,21 @@ function actualizarResumenBloquesCita() {
             const diffMin = Math.max(mins, Math.round((fin - inicio) / 60000));
             const bloques = Math.max(1, Math.ceil(diffMin / mins));
             const finFmt = fin.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
-            $resumen.text(`Término estimado ${finFmt} · ~${bloques} bloque(s) de ${mins} min (${diffMin} min total).`);
+            $resumen.text(`Término estimado ${finFmt} · ${bloques} bloque(s) de ${mins} min (${diffMin} min total).`);
             return;
         }
     }
-    $resumen.text(`Duración según exámenes · bloques de ${mins} min en el calendario.`);
+    $resumen.text(`Cada examen = 1 bloque de ${mins} min en el calendario.`);
 }
 
 function actualizarTerminoEstimadoDesdeExamenes() {
     const startVal = $('#manualStartTime').val() || $('#selectedStart').val();
     if (!startVal) return;
 
-    const salas = new Set();
     let totalMin = 0;
     $('.study-entry').each(function () {
         const machine = $(this).find('.eMachine').val();
         if (!machine) return;
-        salas.add(machine);
         const qty = parseInt($(this).find('.eQty').val(), 10) || 1;
         totalMin += calcularDuracionCita(machine, qty);
     });
@@ -1271,9 +1348,24 @@ function actualizarCtaAtencionSalas() {
     $("#agendaIrAtencionBtn").text(`Ir a ${moduloLabel}`);
 }
 
+function destroyAgenda() {
+    if (calendar) {
+        try {
+            calendar.destroy();
+        } catch (e) {
+            console.warn('destroyAgenda:', e);
+        }
+        calendar = null;
+    }
+    window.risAgendaCalendar = null;
+    if (typeof desmontarLineaFinSalasAgenda === 'function') {
+        desmontarLineaFinSalasAgenda();
+    }
+}
+
 async function initAgenda() {
     window.RIS = window.RIS || {};
-    window.RIS.agenda = window.RIS.agenda || [];
+    window.RIS.agenda = [];
     window.RIS.config = window.RIS.config || {};
     window.RIS.resources = window.RIS.resources || [];
     window.RIS.tiemposPorGrupo = { ...TIEMPOS_POR_GRUPO_DEFAULT, ...(window.RIS.tiemposPorGrupo || {}) };
@@ -1286,6 +1378,8 @@ async function initAgenda() {
         console.error('Agenda: no se encontró #calendar en la página.');
         return;
     }
+
+    destroyAgenda();
 
     if (typeof initPaymentManager === 'function') initPaymentManager();
 
@@ -1428,7 +1522,8 @@ function desmontarLineaFinSalasAgenda() {
 /** Línea horizontal bajo la última sala (FC recorta border-bottom en scrollers). */
 function dibujarLineaFinSalasAgenda() {
     const root = document.getElementById('calendar');
-    if (!root?.classList.contains('fc-resourceTimelineDay-view')) {
+    const viewType = calendar?.view?.type;
+    if (!root || !esVistaTimelineSalas(viewType)) {
         desmontarLineaFinSalasAgenda();
         return;
     }
@@ -1454,7 +1549,7 @@ function dibujarLineaFinSalasAgenda() {
     if (!agendaLineaFinSalasObserver) {
         agendaLineaFinSalasObserver = new ResizeObserver(() => {
             const cal = document.getElementById('calendar');
-            if (!cal?.classList.contains('fc-resourceTimelineDay-view')) return;
+            if (!esVistaTimelineSalas(calendar?.view?.type)) return;
             const fila =
                 cal.querySelector('.fc-datagrid-body tr.fc-datagrid-row:last-child') ||
                 cal.querySelector('.fc-datagrid-body tbody > tr:last-child');
@@ -1653,20 +1748,34 @@ function horaActualScrollOffset(minutosAntes = 45) {
     return `${pad(t.getHours())}:${pad(t.getMinutes())}:00`;
 }
 
-function esDiaVisibleHoy(view) {
-    if (!view?.currentStart) return false;
+function esHoyEnRangoVista(view) {
+    if (!view?.currentStart || !view?.currentEnd) return false;
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
-    const dia = new Date(view.currentStart);
-    dia.setHours(0, 0, 0, 0);
-    return dia.getTime() === hoy.getTime();
+    const inicio = new Date(view.currentStart);
+    inicio.setHours(0, 0, 0, 0);
+    const fin = new Date(view.currentEnd);
+    fin.setHours(0, 0, 0, 0);
+    return hoy >= inicio && hoy < fin;
 }
 
-/** Vista día: centra el scroll en la hora actual (hoy) o al inicio del horario del lab. */
-function scrollAgendaVistaDia(view) {
-    if (!calendar || view?.type !== 'resourceTimelineDay') return;
+function esVistaTimelineHoraria(viewType) {
+    return viewType === 'resourceTimelineDay';
+}
+
+function esVistaTimelineSalas(viewType) {
+    return viewType === 'resourceTimelineDay';
+}
+
+function esVistaGrillaPorDia(viewType) {
+    return viewType === 'resourceTimeGridWeek' || viewType === 'agendaMes';
+}
+
+/** Día: centra el scroll en la hora actual (si hoy está visible) o al inicio del horario. */
+function scrollAgendaVistaTimeline(view) {
+    if (!calendar || !esVistaTimelineHoraria(view?.type)) return;
     const cfg = getAgendaScheduleConfig();
-    const destino = esDiaVisibleHoy(view)
+    const destino = esHoyEnRangoVista(view)
         ? horaActualScrollOffset(45)
         : (cfg.horaInicio || '08:00:00');
     window.requestAnimationFrame(() => {
@@ -1678,7 +1787,30 @@ function scrollAgendaVistaDia(view) {
     });
 }
 
-/** Vistas Día (timeline por sala) · Semana (grilla horaria) · Mes (resumen por día). */
+/** Semana/Mes (grilla): scroll vertical a la hora actual y, en mes, horizontal al día de hoy. */
+function scrollAgendaVistaGrilla(view) {
+    if (!calendar || !esVistaGrillaPorDia(view?.type)) return;
+    const cfg = getAgendaScheduleConfig();
+    const destino = esHoyEnRangoVista(view)
+        ? horaActualScrollOffset(45)
+        : (cfg.horaInicio || '08:00:00');
+    window.requestAnimationFrame(() => {
+        try {
+            calendar.scrollToTime(destino);
+        } catch (e) {
+            /* vista aún renderizando */
+        }
+        if (view.type === 'agendaMes') {
+            const root = document.getElementById('calendar');
+            const hoy = root?.querySelector(
+                '.fc-agendaMes-view .fc-timegrid-col.fc-day-today, .fc-agendaMes-view .fc-col-header-cell.fc-day-today'
+            );
+            hoy?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'auto' });
+        }
+    });
+}
+
+/** Vistas Día (timeline) · Semana/Mes (grilla por día). */
 function buildAgendaCalendarViews(config) {
     const schedule = typeof config === 'string'
         ? { intervalo: config, horaInicio: '08:00:00', horaFin: '20:00:00' }
@@ -1717,11 +1849,13 @@ function buildAgendaCalendarViews(config) {
                 hour12: false,
             },
             dayHeaderFormat: {
-                weekday: 'short',
+                weekday: 'long',
                 day: 'numeric',
-                month: 'numeric',
+                month: 'short',
                 omitCommas: true,
             },
+            dayMinWidth: 155,
+            resourceAreaWidth: '11%',
             allDaySlot: false,
         },
         agendaMes: {
@@ -1741,7 +1875,8 @@ function buildAgendaCalendarViews(config) {
                 day: 'numeric',
                 omitCommas: true,
             },
-            dayMinWidth: 44,
+            dayMinWidth: 72,
+            resourceAreaWidth: '11%',
             allDaySlot: false,
         },
     };
@@ -1751,9 +1886,9 @@ function actualizarContextoVistaAgenda(view) {
     const el = document.getElementById('agendaVistaContexto');
     if (!el || !view) return;
     const hints = {
-        resourceTimelineDay: 'Día: filas = salas · columnas = horas del laboratorio (de izquierda a derecha).',
-        resourceTimeGridWeek: 'Semana: filas = salas · columnas = días · reloj a la izquierda indica la hora de cada cita.',
-        agendaMes: 'Mes: misma grilla que Semana — horas a la izquierda, un día por columna (desplácese horizontalmente). Filas = salas.',
+        resourceTimelineDay: 'Día: cada fila es una sala; las horas avanzan de izquierda a derecha.',
+        resourceTimeGridWeek: 'Semana: reloj a la izquierda · cada columna es un día (lun–dom) · cada fila es una sala.',
+        agendaMes: 'Mes: reloj a la izquierda · una columna por día del mes · cada fila es una sala (desplácese horizontalmente).',
     };
     el.textContent = hints[view.type] || '';
 }
@@ -1797,22 +1932,27 @@ function setupCalendar(el) {
             refrescarEventosCalendario($('#searchAgenda').val() || '');
             if (arg.view.type === 'resourceTimelineDay') {
                 setTimeout(() => {
-                    scrollAgendaVistaDia(arg.view);
+                    scrollAgendaVistaTimeline(arg.view);
                     dibujarLineaFinSalasAgenda();
                 }, 80);
+            } else if (esVistaGrillaPorDia(arg.view.type)) {
+                setTimeout(() => scrollAgendaVistaGrilla(arg.view), 80);
+                desmontarLineaFinSalasAgenda();
             } else {
                 desmontarLineaFinSalasAgenda();
             }
         },
         windowResize: function () {
-            dibujarLineaFinSalasAgenda();
+            if (esVistaTimelineSalas(calendar?.view?.type)) {
+                dibujarLineaFinSalasAgenda();
+            }
         },
         views: buildAgendaCalendarViews(configRIS),
         resourceAreaWidth: '18%',
         resourceAreaHeaderContent: 'Salas / equipos',
         expandRows: false,
         resourceLaneDidMount: function () {
-            if (calendar?.view?.type === 'resourceTimelineDay') {
+            if (esVistaTimelineSalas(calendar?.view?.type)) {
                 requestAnimationFrame(() => dibujarLineaFinSalasAgenda());
             }
         },
@@ -1834,6 +1974,13 @@ function setupCalendar(el) {
         selectable: true,
         editable: true,
         eventResourceEditable: true,
+        eventClassNames: function (arg) {
+            const props = arg.event.extendedProps;
+            if (risCitaRecepcionBloqueada(props.statusRaw, props.status)) {
+                return ['ris-agenda-cita-bloqueada'];
+            }
+            return [];
+        },
         droppable: true,
         select: function (info) {
             if (typeof risRequireConcreteLabId === 'function' ? !risRequireConcreteLabId() : !localStorage.getItem("ris_lab_id")) {
@@ -1846,11 +1993,8 @@ function setupCalendar(el) {
             });
         },
         eventClick: function (info) {
-            const estadosIniciales = ['pre-agendado', 'agendado', 'confirmado', 'espera'];
-            const status = info.event.extendedProps.status || '';
-            const isLocked = !estadosIniciales.includes(status);
-
-            if (isLocked) {
+            const props = info.event.extendedProps;
+            if (risCitaRecepcionBloqueada(props.statusRaw, props.status)) {
                 showToast("🔒 Esta cita ya ingresó al flujo clínico y no puede ser modificada desde Recepción.", "warning");
                 return;
             }
@@ -1860,7 +2004,18 @@ function setupCalendar(el) {
             if (appointment) abrirModalCita(appointment);
         },
 
+        eventAllow: function (_dropInfo, draggedEvent) {
+            const props = draggedEvent.extendedProps;
+            return !risCitaRecepcionBloqueada(props.statusRaw, props.status);
+        },
         eventDrop: async function (info) {
+            const props = info.event.extendedProps;
+            if (risCitaRecepcionBloqueada(props.statusRaw, props.status)) {
+                info.revert();
+                showToast("🔒 Esta cita ya ingresó al flujo clínico y no puede moverse.", "warning");
+                return;
+            }
+
             const apptId = risResolverIdCitaDesdeEvento(info.event);
             const appointment = window.RIS.agenda.find((a) => a.id === apptId);
             const blocks = appointment ? risCalcularBloquesPorSala(appointment) : [];
@@ -1900,8 +2055,19 @@ function setupCalendar(el) {
                     })
                 });
 
-                if (!response.ok) throw new Error("Error en el servidor");
-                showToast("Cita re-agendada correctamente", "success");
+                let data = {};
+                try {
+                    data = await response.json();
+                } catch (e) {
+                    data = {};
+                }
+
+                if (!response.ok) {
+                    throw new Error(data.message || "Error en el servidor");
+                }
+
+                const msgAjuste = risMensajeHorarioAjustado(data);
+                showToast(msgAjuste || "Cita re-agendada correctamente", msgAjuste ? "warning" : "success");
                 cargarAgendaDesdeServidor();
             } catch (error) {
                 info.revert();
@@ -1913,23 +2079,20 @@ function setupCalendar(el) {
             const patient = props.patient;
             const needsReview = props.needsReview;
 
-            const estadosIniciales = ['pre-agendado', 'agendado', 'confirmado', 'espera'];
-            const isLocked = !estadosIniciales.includes(props.status);
+            const isLocked = risCitaRecepcionBloqueada(props.statusRaw, props.status);
             const lockIcon = isLocked ? '<i class="bi bi-lock-fill text-white me-1"></i>' : '';
 
             const bgColor = arg.event.backgroundColor || arg.event.borderColor || '#7d2181';
+            const rangoHora = formatearRangoHoraEvento(arg.event.start, arg.event.end);
+            const alert = needsReview ? '<span class="badge bg-danger rounded-pill ms-1" style="font-size:8px">!</span>' : '';
 
-            if (arg.view.type === 'agendaMes') {
-                const alert = needsReview ? '<span class="badge bg-danger rounded-pill ms-1" style="font-size:8px">!</span>' : '';
-                const rangoHora = formatearRangoHoraEvento(arg.event.start, arg.event.end);
+            if (arg.view.type === 'agendaMes' || arg.view.type === 'resourceTimeGridWeek') {
                 return {
-                    html: `<div class="agenda-evento-mes-grilla px-1 py-0 text-white text-truncate fw-semibold" style="font-size:0.62rem;line-height:1.2;background:${bgColor};border-radius:3px;">${lockIcon}${rangoHora} ${arg.event.title}${alert}</div>`,
+                    html: `<div class="agenda-evento-compacto px-1 py-0 text-white fw-semibold" style="font-size:0.72rem;line-height:1.25;background:${bgColor};border-radius:3px;height:100%;"><div class="text-truncate">${lockIcon}<i class="bi bi-clock me-1"></i>${rangoHora}</div><div class="text-truncate opacity-90" style="font-size:0.68rem;">${arg.event.title}${alert}</div></div>`,
                 };
             }
 
             if (!patient) return { html: `<div class="p-1" style="background-color:${bgColor}; color:white; border-radius:3px;">${lockIcon}${arg.event.title}</div>` };
-
-            const rangoHora = formatearRangoHoraEvento(arg.event.start, arg.event.end);
 
             const alertIcon = needsReview
                 ? `<span class="blink-icon me-2 shadow-sm" title="Devuelto por Tecnólogo - Revisar" 
@@ -1965,9 +2128,11 @@ function setupCalendar(el) {
     sincronizarRecursosCalendario();
     if (calendar.view?.type === 'resourceTimelineDay') {
         setTimeout(() => {
-            scrollAgendaVistaDia(calendar.view);
+            scrollAgendaVistaTimeline(calendar.view);
             dibujarLineaFinSalasAgenda();
         }, 120);
+    } else if (esVistaGrillaPorDia(calendar.view?.type)) {
+        setTimeout(() => scrollAgendaVistaGrilla(calendar.view), 120);
     }
     } catch (err) {
         console.error('Error inicializando FullCalendar:', err);
@@ -2003,16 +2168,24 @@ function mapearEventosCalendario(agendaItems, viewType) {
         if (!blocks.length) return;
 
         blocks.forEach((block, idx) => {
+            const bloqueada = risCitaRecepcionBloqueada(item.statusRaw, item.status);
+            const blockTitle = blocks.length > 1 && block.studyLabel
+                ? `${titulo} · ${block.studyLabel}`
+                : titulo;
             events.push({
-                id: blocks.length > 1 ? `${item.id}#${block.machineId}` : String(item.id),
+                id: blocks.length > 1 ? `${item.id}#${idx}` : String(item.id),
                 groupId: String(item.id),
-                title: titulo,
+                title: blockTitle,
                 start: block.start,
                 end: block.end,
                 resourceId: block.machineId,
                 color: colorEstado,
                 textColor: AGENDA_ESTADO_TEXTO,
                 display: 'block',
+                editable: !bloqueada,
+                resourceEditable: !bloqueada,
+                startEditable: !bloqueada,
+                durationEditable: !bloqueada,
                 extendedProps: {
                     ...baseProps,
                     blockIndex: idx,
@@ -2026,12 +2199,20 @@ function mapearEventosCalendario(agendaItems, viewType) {
     return events;
 }
 
+function risAjustarSlotMinTimeParaEventos(_events) {
+    if (!calendar) return;
+    const cfg = getAgendaScheduleConfig();
+    calendar.setOption('slotMinTime', cfg.horaInicio || '08:00:00');
+}
+
 function refrescarEventosCalendario(searchTerm) {
     if (!calendar || !window.RIS?.agenda) return;
     const viewType = calendar.view?.type || 'resourceTimelineDay';
     const items = filtrarAgendaItems(window.RIS.agenda, searchTerm);
+    const events = mapearEventosCalendario(items, viewType);
     calendar.getEventSources().forEach((src) => src.remove());
-    calendar.addEventSource(mapearEventosCalendario(items, viewType));
+    calendar.addEventSource(events);
+    risAjustarSlotMinTimeParaEventos(events);
 }
 
 function getEventsFromRIS() {
@@ -2066,7 +2247,7 @@ async function cargarAgendaDesdeServidor() {
                 }
                 return {
                     id: String(app.id),
-                    machine: String(app.machine_id),
+                    machine: risResolveMachineId(app.machine_id),
                     resourceIds: salasUnicas,
                     start: normalizeApiDateTime(app.start_time),
                     end: normalizeApiDateTime(app.end_time),
@@ -2097,20 +2278,32 @@ async function cargarAgendaDesdeServidor() {
                         plan: app.insurance_plan_id
                     },
                     studies: (app.studies || []).map(s => ({
-                        machine: String(s.machine_id),
+                        machine: risResolveMachineId(s.machine_id),
                         exam: s.exam_id,
                         examName: s.exam_name,
                         subExam: s.sub_exam_id,
+                        subExamName: s.sub_exam_name,
                         qty: s.quantity,
                         code: s.fonasa_code,
                         price: parseFloat(s.price_charged ?? s.price) || 0
-                    }))
+                    })),
+                    medicalOrderPath: app.medical_order_path || null,
+                    surveyPath: app.survey_path || null,
+                    supplies: (app.supplies || []).map((s) => ({
+                        id: s.id,
+                        quantity: s.pivot?.quantity ?? s.quantity ?? 1,
+                        price: parseFloat(s.pivot?.price_charged ?? s.price_charged ?? s.price) || 0,
+                    })),
                 };
             });
 
             if (typeof calendar !== 'undefined' && calendar) {
                 refrescarEventosCalendario($('#searchAgenda').val() || '');
             }
+        } else {
+            const msg = data?.message || `No se pudo cargar la agenda (${response.status}).`;
+            console.error('Agenda:', response.status, data);
+            showToast(msg, 'danger');
         }
     } catch (error) {
         console.error("Error cargando agenda real:", error);
@@ -2196,6 +2389,7 @@ function abrirModalCita(data) {
             currentInsumos = [...data.supplies];
         }
         renderInsumos();
+        risCargarDocumentosCitaModal(data.medicalOrderPath, data.surveyPath);
 
         if (data.studies && data.studies.length > 0) {
             data.studies.forEach(s => {
@@ -2220,6 +2414,7 @@ function abrirModalCita(data) {
         $("#btnEliminarCita").addClass("d-none");
         $("#agendaStatus").val("pre-agendado").trigger("change");
         actualizarCtaAtencionSalas();
+        risCargarDocumentosCitaModal(null, null);
 
         addStudyRow('principal', { machine: data.machine });
         renderInsumos();
@@ -2365,40 +2560,27 @@ async function guardarCita() {
     };
 
     let duracionTotalMinutos = 0;
-    salasInvolucradas.forEach(machineId => {
-        const cantEnSala = todosLosEstudios.filter(s => s.machine_id === machineId).reduce((sum, s) => sum + s.quantity, 0);
-        duracionTotalMinutos += calcularDuracionCita(machineId, cantEnSala);
+    todosLosEstudios.forEach((s) => {
+        duracionTotalMinutos += calcularDuracionCita(s.machine_id, s.quantity);
     });
+    duracionTotalMinutos = risSnapDuracionMinutos(duracionTotalMinutos);
 
-    const citaStart = new Date(startVal);
+    let citaStart = new Date(startVal);
     if (Number.isNaN(citaStart.getTime())) {
         return showToast("El horario seleccionado no es válido.", "danger");
     }
-    const citaEnd = new Date(citaStart.getTime() + (duracionTotalMinutos * 60000));
 
-    const bloquesNuevaCita = risCalcularBloquesPorSala({
-        start: citaStart,
-        end: citaEnd,
-        machine: Array.from(salasInvolucradas)[0],
-        studies: todosLosEstudios.map((s) => ({
-            machine_id: s.machine_id,
-            quantity: s.quantity,
-        })),
-    });
+    await cargarAgendaDesdeServidor();
 
-    let colisionDetectada = null;
-    bloquesNuevaCita.forEach((block) => {
-        if (colisionDetectada) return;
-        if (risHayColisionEnSala(block.machineId, block.start, block.end, idOriginal)) {
-            colisionDetectada = {
-                sala: window.RIS.resources.find((r) => r.id === block.machineId)?.title || block.machineId,
-                hora: block.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            };
-        }
-    });
+    const horarioResuelto = risResolverInicioDisponible(citaStart, todosLosEstudios, idOriginal);
+    if (!horarioResuelto) {
+        return showToast('No hay huecos disponibles en el horario del laboratorio para las salas seleccionadas.', 'danger');
+    }
 
-    if (colisionDetectada) {
-        return showToast(`Choque de horario: La sala "${colisionDetectada.sala}" está ocupada a las ${colisionDetectada.hora}.`, "danger");
+    citaStart = horarioResuelto.start;
+    const citaEnd = horarioResuelto.end;
+    if (horarioResuelto.adjusted) {
+        sincronizarHorariosCitaModal(citaStart, citaEnd);
     }
 
     const payloadCitaGlobal = {
@@ -2419,6 +2601,15 @@ async function guardarCita() {
         transaction_code: $("#pTransactionCode").val(),
         payment_status: $("#paymentStatus").val(),
     };
+
+    const ordenData = ($('#docOrdenMedica').val() || '').trim();
+    const encuestaData = ($('#docEncuesta').val() || '').trim();
+    if (ordenData.startsWith('data:')) {
+        payloadCitaGlobal.medical_order_base64 = ordenData;
+    }
+    if (encuestaData.startsWith('data:')) {
+        payloadCitaGlobal.survey_base64 = encuestaData;
+    }
 
     const formData = new FormData();
     formData.append('data', JSON.stringify(payloadCitaGlobal));
@@ -2465,7 +2656,8 @@ async function guardarCita() {
 
         closeModal("appointmentModal");
 
-        showToast("Cita guardada correctamente.", "success");
+        const msgAjuste = risMensajeHorarioAjustado(data);
+        showToast(msgAjuste || "Cita guardada correctamente.", msgAjuste ? "warning" : "success");
 
         if (!idOriginal && data.confirmation_email?.sent) {
             showToast(`📧 Confirmación de cita enviada a ${data.confirmation_email.email}.`, "info");
@@ -2489,7 +2681,7 @@ async function guardarCita() {
 
         // IMPRESIÓN DEL COMPROBANTE
         if (await showConfirm("¿Desea imprimir el comprobante para el paciente?", { title: "Imprimir comprobante", confirmText: "Imprimir" })) {
-            imprimirComprobantePaciente(payloadCitaGlobal);
+            await imprimirComprobantePaciente(payloadCitaGlobal, data.appointment);
         }
 
         cargarAgendaDesdeServidor();
@@ -2501,36 +2693,221 @@ async function guardarCita() {
     }
 }
 
-function imprimirComprobantePaciente(data) {
-    const printWindow = window.open('', '_blank', 'width=400,height=600');
-    const html = `
-        <html><head><title>Comprobante de Atención</title>
-        <style>
-            body { font-family: monospace; text-align: center; padding: 20px; }
-            .ticket { border: 1px dashed #000; padding: 15px; display: inline-block; width: 300px; text-align: left; }
-            h2 { margin-bottom: 5px; text-align: center; }
-            .sep { border-top: 1px dashed #ccc; margin: 10px 0; }
-        </style>
-        </head><body>
-        <div class="ticket">
-            <h2>HealthTiCloud RIS</h2>
-            <div class="sep"></div>
-            <b>Paciente:</b> ${data.patient.names} ${data.patient.last_name_1}<br>
-            <b>RUT:</b> ${data.patient.rut}<br>
-            <b>Fecha Cita:</b> ${new Date(data.start_time).toLocaleString('es-CL')}<br>
-            <div class="sep"></div>
-            <b>Exámenes a realizar:</b><br>
-            ${data.studies.map(s => `- ${s.exam_name}`).join('<br>')}<br>
-            <div class="sep"></div>
-            <b>Total a Pagar:</b> $${$("#totalCopay").text().replace('$', '')}<br>
-            <b>Estado:</b> ${data.payment_status}<br>
-            <div class="sep"></div>
-            <p style="font-size:11px; text-align:justify;">Recuerde llegar 15 minutos antes. Traer exámenes previos.</p>
-        </div>
-        <script>setTimeout(() => { window.print(); window.close(); }, 500);</script>
-        </body></html>
-    `;
-    printWindow.document.write(html);
+function risNombreLaboratorioImpresion() {
+    const opt = document.querySelector('#navLabSelector option:checked');
+    const desdeSelector = opt?.textContent?.replace(/^\s*—\s*/, '').trim();
+    if (desdeSelector && !/^(todas mis sucursales|visión global)/i.test(desdeSelector)) {
+        return desdeSelector;
+    }
+    const almacenado = (localStorage.getItem('ris_lab_name') || '').trim();
+    if (almacenado) {
+        return almacenado;
+    }
+    return 'Centro de diagnóstico';
+}
+
+function risFormatValorTicket(valor) {
+    return Math.round(Number(valor) || 0).toLocaleString('es-CL');
+}
+
+function risFormatFechaTicket(fecha) {
+    if (!fecha) return '';
+    const m = String(fecha).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+    const dt = new Date(fecha);
+    if (Number.isNaN(dt.getTime())) return String(fecha);
+    const dd = String(dt.getDate()).padStart(2, '0');
+    const mm = String(dt.getMonth() + 1).padStart(2, '0');
+    return `${dd}-${mm}-${dt.getFullYear()}`;
+}
+
+function risFormatHoraTicket(fecha) {
+    const dt = fecha instanceof Date ? fecha : new Date(fecha);
+    if (Number.isNaN(dt.getTime())) return '00:00:00';
+    return dt.toLocaleTimeString('es-CL', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+    });
+}
+
+function risCalcularEdadTicket(birthDate) {
+    if (!birthDate) return '';
+    const m = String(birthDate).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    const dt = m
+        ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+        : new Date(birthDate);
+    if (Number.isNaN(dt.getTime())) return '';
+    const hoy = new Date();
+    let edad = hoy.getFullYear() - dt.getFullYear();
+    const md = hoy.getMonth() - dt.getMonth();
+    if (md < 0 || (md === 0 && hoy.getDate() < dt.getDate())) edad -= 1;
+    return String(edad);
+}
+
+function risOdtNumeroTicket(savedAppointment) {
+    if (savedAppointment?.accession_number) {
+        const digits = String(savedAppointment.accession_number).replace(/\D/g, '');
+        if (digits.length >= 4) return digits.slice(-8);
+    }
+    if (savedAppointment?.id) {
+        let hash = 0;
+        for (const ch of String(savedAppointment.id).replace(/-/g, '')) {
+            hash = (hash * 31 + ch.charCodeAt(0)) % 1000000;
+        }
+        return String(hash).padStart(6, '0');
+    }
+    return String(Date.now()).slice(-6);
+}
+
+function risTextoSelectAgenda(selector, fallback) {
+    const txt = $(selector).find('option:selected').text().replace(/^[\s—-]+/, '').trim();
+    if (!txt || txt === '-' || txt === '--') return fallback;
+    return txt;
+}
+
+function risTicketLabelLine(etiqueta, valor, ancho = 48) {
+    const lab = String(etiqueta || '').trim();
+    const val = String(valor || '').trim();
+    const maxVal = Math.max(1, ancho - lab.length - 1);
+    return (lab + ' ' + val.slice(0, maxVal)).slice(0, ancho);
+}
+
+function risTicketDosColumnas(izq, der, ancho = 48) {
+    const r = String(der);
+    const l = String(izq).slice(0, Math.max(1, ancho - r.length - 1)).padEnd(Math.max(1, ancho - r.length - 1));
+    return (l + ' ' + r).slice(0, ancho);
+}
+
+function risConstruirPayloadTicketComprobante(data, savedAppointment) {
+    const ancho = 48;
+    const paciente = data.patient || {};
+    const nombrePaciente = [
+        paciente.names,
+        paciente.last_name_1,
+        paciente.last_name_2,
+    ].filter(Boolean).join(' ').toUpperCase();
+
+    const marca = (risNombreLaboratorioImpresion() || 'SIRESA').toUpperCase();
+    const subtitulo = 'Centro de Diagnostico y Tratamiento Ltda.';
+
+    let userData = {};
+    try {
+        userData = JSON.parse(localStorage.getItem('ris_user_data') || '{}');
+    } catch (_) {
+        userData = {};
+    }
+
+    const usuario = (userData.username || userData.email || 'RECEPCION').toUpperCase();
+    const ahora = new Date();
+    const inicioCita = data.start_time ? new Date(data.start_time) : ahora;
+    const totalTexto = ($('#totalCopay').text() || '').replace(/<[^>]+>/g, '').trim();
+    const totalNum = parseInt(totalTexto.replace(/[^\d]/g, ''), 10) || 0;
+    const obs = ($('#agendaObservacion').val() || '').trim();
+
+    const filasExamenes = (data.studies || []).map((estudio) => {
+        const cod = String(estudio.fonasa_code || '').padEnd(8).slice(0, 8);
+        const nombre = String(estudio.exam_name || '').padEnd(24).slice(0, 24);
+        const cant = String(estudio.quantity || 1).padStart(3);
+        const valor = risFormatValorTicket((estudio.price || 0) * (estudio.quantity || 1)).padStart(8);
+        return cod + nombre + cant + valor;
+    });
+
+    return {
+        sections: [
+            { align: 'center', bold: true, lines: [marca] },
+            { align: 'center', lines: [subtitulo] },
+            {
+                align: 'left',
+                lines: [
+                    '',
+                    risTicketLabelLine('ODT. NUMERO', risOdtNumeroTicket(savedAppointment), ancho),
+                    risTicketLabelLine('RUT', (paciente.rut || '').toUpperCase(), ancho),
+                    risTicketLabelLine('PACIENTE', nombrePaciente, ancho),
+                    risTicketLabelLine('EDAD', risCalcularEdadTicket(paciente.birth_date), ancho),
+                    risTicketLabelLine('FONO', paciente.phone || '', ancho),
+                    risTicketLabelLine('FECHA NAC', risFormatFechaTicket(paciente.birth_date), ancho),
+                    '',
+                    risTicketLabelLine('UNIDAD', marca, ancho),
+                    risTicketLabelLine('USUARIO', usuario, ancho),
+                    risTicketLabelLine('FECHA', risFormatFechaTicket(ahora), ancho),
+                    risTicketDosColumnas(`HORA ING.: ${risFormatHoraTicket(ahora)}`, `HORA CITA: ${risFormatHoraTicket(inicioCita)}`, ancho),
+                    risTicketLabelLine('PREVISION', risTextoSelectAgenda('#pInsurance', 'SIN PREVISION'), ancho),
+                    risTicketLabelLine('MED. SOLC.', risTextoSelectAgenda('#mTratante', 'SIN ORDEN'), ancho),
+                    risTicketLabelLine('CONVENIO', risTextoSelectAgenda('#pPlan', 'SIN CONVENIO'), ancho),
+                    risTicketLabelLine('MED. EXAM.', risTextoSelectAgenda('#mDestinado', 'SIN ASIGNAR'), ancho),
+                ],
+            },
+        ],
+        separator: '-',
+        table_header: ['Cod.     Examen                    Cant.  Valor'],
+        table_rows: filasExamenes,
+        separator_after_table: '-',
+        total_line: `TOTAL : $ ${risFormatValorTicket(totalNum)}`,
+        obs_label: 'OBS:',
+        obs_text: obs,
+        footer: '- COPIA ESTADISTICA -',
+    };
+}
+
+function risTicketAlineasTexto(ticket) {
+    const lineas = [];
+    (ticket.sections || []).forEach((seccion) => {
+        (seccion.lines || []).forEach((linea) => lineas.push(linea));
+    });
+    lineas.push((ticket.separator || '-').repeat(48));
+    lineas.push(...(ticket.table_header || []));
+    lineas.push(...(ticket.table_rows || []));
+    lineas.push((ticket.separator_after_table || '-').repeat(48));
+    if (ticket.total_line) lineas.push(ticket.total_line);
+    lineas.push(ticket.obs_label || 'OBS:');
+    if (ticket.obs_text) lineas.push(ticket.obs_text);
+    lineas.push('');
+    const pie = Array.isArray(ticket.footer) ? ticket.footer : [ticket.footer];
+    pie.filter(Boolean).forEach((linea) => lineas.push(linea));
+    return lineas.join('\n');
+}
+
+function risHtmlComprobantePaciente(ticket) {
+    const esc = typeof risEscapeHtml === 'function' ? risEscapeHtml : (s) => String(s);
+    const texto = esc(risTicketAlineasTexto(ticket));
+    return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Comprobante paciente</title>
+<style>
+  @page { size: 80mm auto; margin: 3mm; }
+  body { margin: 0; padding: 4mm; background: #fff; }
+  pre { margin: 0; width: 72mm; font-family: "Courier New", Courier, monospace; font-size: 11px; line-height: 1.25; white-space: pre-wrap; word-break: break-word; }
+</style></head><body><pre>${texto}</pre>
+<script>setTimeout(() => { window.print(); window.close(); }, 500);</script></body></html>`;
+}
+
+async function imprimirComprobantePaciente(data, savedAppointment) {
+    const ticket = risConstruirPayloadTicketComprobante(data, savedAppointment);
+
+    try {
+        const response = await fetch(`${LOCAL_BRIDGE_URL}/imprimir-comprobante`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ticket }),
+        });
+        const result = await response.json();
+        if (response.ok && result.success) {
+            showToast('Comprobante enviado a la impresora térmica Epson.', 'success');
+            return;
+        }
+        throw new Error(result.message || 'No se pudo imprimir en la térmica');
+    } catch (error) {
+        console.warn('Bridge térmico:', error);
+        showToast('Bridge/impresora no disponible; abriendo vista de impresión…', 'warning');
+    }
+
+    const printWindow = window.open('', '_blank', 'width=420,height=720');
+    if (!printWindow) {
+        showToast('Permita ventanas emergentes para imprimir el comprobante.', 'warning');
+        return;
+    }
+    printWindow.document.write(risHtmlComprobantePaciente(ticket));
     printWindow.document.close();
 }
 async function eliminarCita() {
@@ -3345,6 +3722,24 @@ function borrarDocumento(tipo) {
     if (typeof showToast === 'function') showToast('Documento eliminado.', 'info');
 }
 
+function risCargarDocumentosCitaModal(ordenPath, encuestaPath) {
+    if (ordenPath) {
+        $('#docOrdenMedica').val(ordenPath);
+        $('#btnVerOrden, #btnBorrarOrden').removeClass('d-none');
+    } else {
+        $('#docOrdenMedica').val('');
+        $('#btnVerOrden, #btnBorrarOrden').addClass('d-none');
+    }
+
+    if (encuestaPath) {
+        $('#docEncuesta').val(encuestaPath);
+        $('#btnVerEncuesta, #btnBorrarEncuesta').removeClass('d-none');
+    } else {
+        $('#docEncuesta').val('');
+        $('#btnVerEncuesta, #btnBorrarEncuesta').addClass('d-none');
+    }
+}
+
 function verDocumento(tipo) {
     const inputId = tipo === 'orden' ? '#docOrdenMedica' : '#docEncuesta';
     const docData = $(inputId).val();
@@ -3367,15 +3762,12 @@ function verDocumento(tipo) {
         const blobUrl = URL.createObjectURL(blob);
 
         window.open(blobUrl, '_blank');
-    }
-    else {
+    } else {
         let fullUrl = docData;
-
         if (!fullUrl.startsWith('http')) {
-            const baseUrl = "http://170.246.172.83";
-            fullUrl = `${baseUrl}/${docData}`;
+            const path = fullUrl.startsWith('/') ? fullUrl : `/${fullUrl}`;
+            fullUrl = `${window.location.origin}${path}`;
         }
-
         window.open(fullUrl, '_blank');
     }
 }
@@ -3496,6 +3888,7 @@ function refreshAgendaExamSelects() {
 }
 
 window.initAgenda = initAgenda;
+window.destroyAgenda = destroyAgenda;
 window.aplicarConfigAgendaHorario = aplicarConfigAgendaHorario;
 window.abrirModalCita = abrirModalCita;
 window.guardarCita = guardarCita;

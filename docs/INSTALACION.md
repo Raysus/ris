@@ -346,6 +346,16 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned -Force
 **macOS:**
 
 ```bash
+cd RIS/tools/ris-local-bridge
+chmod +x setup-scanner-macos.sh install-macos-startup.sh start-bridge.sh
+./setup-scanner-macos.sh
+```
+
+Configura **Horos** como visor (`viewer: horos`). Requiere Horos en `/Applications/Horos.app`.
+
+Alternativa manual (solo arranque automático):
+
+```bash
 chmod +x install-macos-startup.sh
 ./install-macos-startup.sh
 ```

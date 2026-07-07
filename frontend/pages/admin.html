@@ -72,6 +72,10 @@
                     <i class="bi bi-table me-2 text-success"></i>Nómina Diaria
                 </button>
                 <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
+                    data-bs-target="#tab-agenda-semanal" type="button" role="tab">
+                    <i class="bi bi-calendar-week me-2 text-info"></i>Agenda Semanal
+                </button>
+                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
                     data-bs-target="#tab-caja" type="button" role="tab">
                     <i class="bi bi-wallet2 me-2 text-warning"></i>Cierre de Caja
                 </button>
@@ -292,7 +296,8 @@
                                         <th class="ps-4">Grupo (Modalidad)</th>
                                         <th>Nombre del Examen</th>
                                         <th>Código FONASA/Interno</th>
-                                        <th class="text-end">Arancel (Precio Base)</th>
+                                        <th class="text-end">Arancel Particular</th>
+                                        <th class="text-end">Arancel FONASA</th>
                                         <th class="text-center">Instrucciones</th>
                                         <th class="text-center pe-4">Acciones</th>
                                     </tr>
@@ -452,6 +457,64 @@
                     </div>
                 </div>
 
+                <div class="tab-pane fade h-100" id="tab-agenda-semanal" role="tabpanel">
+                    <div class="d-flex flex-column h-100">
+                        <div class="card bg-white border-0 shadow-sm mb-3">
+                            <div class="card-body py-3">
+                                <div class="row g-3 align-items-end">
+                                    <div class="col-md-3">
+                                        <label class="form-label small fw-bold text-muted mb-1">
+                                            <i class="bi bi-calendar-week me-1"></i>Semana (cualquier día)
+                                        </label>
+                                        <input type="date" id="fechaAgendaSemanal" class="form-control fw-bold text-primary"
+                                            onchange="renderAgendaSemanalMedico()">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small fw-bold text-muted mb-1">
+                                            <i class="bi bi-person-check me-1"></i>Médico destinatario
+                                        </label>
+                                        <select id="medicoDestinatarioAgendaSemanal" class="form-select fw-bold"
+                                            onchange="renderAgendaSemanalMedico()">
+                                            <option value="">— Seleccione médico —</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <h6 class="small fw-bold text-muted mb-1">Citas en la semana</h6>
+                                        <h3 class="mb-0 fw-bold text-info" id="totalAgendaSemanal">0</h3>
+                                    </div>
+                                    <div class="col-md-3 text-md-end">
+                                        <div class="btn-group w-100" role="group" aria-label="Exportar agenda en PDF">
+                                            <button type="button" class="btn btn-danger fw-bold shadow-sm"
+                                                onclick="descargarAgendaSemanalPdf('diario')" id="btnAgendaSemanalPdfDia" disabled>
+                                                <i class="bi bi-file-earmark-pdf me-1"></i>PDF día
+                                            </button>
+                                            <button type="button" class="btn btn-outline-danger fw-bold shadow-sm"
+                                                onclick="descargarAgendaSemanalPdf('semanal')" id="btnAgendaSemanalPdf" disabled>
+                                                <i class="bi bi-file-earmark-pdf-fill me-1"></i>PDF semana
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <label class="form-label small fw-bold text-muted mb-1">
+                                        <i class="bi bi-hdd-stack me-1"></i>Equipos / salas
+                                    </label>
+                                    <div id="filtroEquiposAgendaSemanal" class="d-flex flex-wrap gap-2">
+                                        <span class="small text-muted">Cargando equipos…</span>
+                                    </div>
+                                </div>
+                                <p class="small text-muted mb-0 mt-2" id="rangoAgendaSemanal"></p>
+                            </div>
+                        </div>
+                        <div class="card shadow-sm border-0 flex-grow-1 overflow-auto" id="contenedorAgendaSemanal">
+                            <div class="p-5 text-center text-muted" id="placeholderAgendaSemanal">
+                                Seleccione semana y médico destinatario (ej. Dr. Riedel).
+                            </div>
+                        </div>
+                    </div>
+                    <div id="agendaSemanalPdfHost" class="d-none"></div>
+                </div>
+
                 <div class="tab-pane fade h-100" id="tab-caja" role="tabpanel">
                     <div class="d-flex flex-column h-100">
                         <div class="card bg-white border-0 shadow-sm mb-3">
@@ -543,6 +606,9 @@
                                 </button>
                                 <button type="button" class="btn btn-sm btn-outline-success fw-bold" onclick="pullCatalogoDesdeNube(true, true)">
                                     <i class="bi bi-people me-1"></i>+ Pacientes
+                                </button>
+                                <button type="button" class="btn btn-sm btn-info fw-bold text-dark" onclick="pullAgendaDesdeNube()">
+                                    <i class="bi bi-calendar-check me-1"></i>Agenda (citas)
                                 </button>
                                 <button type="button" class="btn btn-sm btn-warning fw-bold" onclick="reintentarCloudSyncFallidos()">
                                     <i class="bi bi-upload me-1"></i>Enviar pendientes
@@ -1120,9 +1186,16 @@
                             <input type="text" class="form-control req-cat" id="catCodigo" placeholder="Ej. 04-02-005">
                         </div>
                         <div class="col-6">
-                            <label class="form-label fw-bold small text-muted">Arancel Base ($)</label>
+                            <label class="form-label fw-bold small text-muted">Arancel Particular ($)</label>
                             <input type="number" class="form-control req-cat" id="catPrecio" min="0"
                                 placeholder="Ej. 120000">
+                        </div>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold small text-muted">Arancel FONASA ($)</label>
+                            <input type="number" class="form-control" id="catFonasaPrecio" min="0"
+                                placeholder="Valor arancel Fonasa (sin % de plan)">
                         </div>
                     </div>
                     <div class="mb-3">

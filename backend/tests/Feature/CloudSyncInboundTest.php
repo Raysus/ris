@@ -523,4 +523,143 @@ class CloudSyncInboundTest extends TestCase
         ]);
         $this->assertDatabaseMissing('personas', ['id' => $incomingPersonaId]);
     }
+
+    public function test_pull_agenda_imports_missing_exams_and_appointment_studies(): void
+    {
+        config(['cloud_sync.role' => 'local']);
+
+        $lab = $this->risLab;
+        $machine = Machine::where('laboratory_id', $lab->id)->firstOrFail();
+        $personaId = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+        $pacienteId = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+        $appointmentId = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
+        $studyId = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+        $examId = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+        $subExamId = '10101010-1010-1010-1010-101010101010';
+        $start = now()->addDays(3);
+
+        $payload = [
+            'appointments' => [[
+                'id' => $appointmentId,
+                'laboratory_id' => $lab->id,
+                'patient_id' => $pacienteId,
+                'machine_id' => $machine->id,
+                'accession_number' => 'ACC-PULL-EXAMS',
+                'start_time' => $start->toIso8601String(),
+                'end_time' => $start->copy()->addMinutes(30)->toIso8601String(),
+                'status' => 'confirmado',
+                'payment_status' => 'Pendiente',
+                'origin' => 'Ambulatorio',
+                'patient' => [
+                    'id' => $pacienteId,
+                    'laboratory_id' => $lab->id,
+                    'persona_id' => $personaId,
+                    'persona' => [
+                        'id' => $personaId,
+                        'rut' => '16.666.666-6',
+                        'names' => 'Pull',
+                        'last_name_1' => 'Exams',
+                    ],
+                ],
+                'studies' => [[
+                    'id' => $studyId,
+                    'appointment_id' => $appointmentId,
+                    'machine_id' => $machine->id,
+                    'exam_id' => $examId,
+                    'sub_exam_id' => $subExamId,
+                    'exam_name' => 'Rx Tórax',
+                    'sub_exam_name' => 'PA y LAT',
+                    'quantity' => 1,
+                    'price' => 15000,
+                    'status' => 'espera',
+                    'exam' => [
+                        'id' => $examId,
+                        'laboratory_id' => $lab->id,
+                        'group_code' => 'CR',
+                        'name' => 'Rx Tórax',
+                        'fonasa_code' => '0401001',
+                        'price' => 15000,
+                        'is_active' => true,
+                    ],
+                    'sub_exam' => [
+                        'id' => $subExamId,
+                        'exam_id' => $examId,
+                        'name' => 'PA y LAT',
+                        'fonasa_code' => '0401001',
+                        'additional_price' => 0,
+                    ],
+                ]],
+            ]],
+            'appointment_exams' => [[
+                'id' => $examId,
+                'laboratory_id' => $lab->id,
+                'group_code' => 'CR',
+                'name' => 'Rx Tórax',
+                'fonasa_code' => '0401001',
+                'price' => 15000,
+                'is_active' => true,
+            ]],
+            'appointment_sub_exams' => [[
+                'id' => $subExamId,
+                'exam_id' => $examId,
+                'name' => 'PA y LAT',
+                'fonasa_code' => '0401001',
+                'additional_price' => 0,
+            ]],
+        ];
+
+        $this->assertDatabaseMissing('exams', ['id' => $examId]);
+        $this->assertDatabaseMissing('sub_exams', ['id' => $subExamId]);
+
+        $result = app(CloudCatalogPullService::class)->pull(
+            $lab->id,
+            true,
+            $payload,
+            false,
+            true,
+        );
+
+        $this->assertSame(1, $result['counts']['appointment_exams'] ?? 0);
+        $this->assertSame(1, $result['counts']['appointment_sub_exams'] ?? 0);
+        $this->assertSame(1, $result['counts']['appointments'] ?? 0);
+        $this->assertDatabaseHas('exams', ['id' => $examId, 'name' => 'Rx Tórax']);
+        $this->assertDatabaseHas('sub_exams', ['id' => $subExamId, 'name' => 'PA y LAT']);
+        $this->assertDatabaseHas('appointment_studies', [
+            'id' => $studyId,
+            'appointment_id' => $appointmentId,
+            'exam_id' => $examId,
+            'sub_exam_id' => $subExamId,
+        ]);
+    }
+
+    public function test_export_appointment_includes_document_base64(): void
+    {
+        $lab = $this->risLab;
+        $machine = Machine::where('laboratory_id', $lab->id)->firstOrFail();
+        $relativePath = 'documents/test_orden_sync.pdf';
+        \Illuminate\Support\Facades\Storage::disk('public')->put(
+            $relativePath,
+            '%PDF-1.4 test orden medica'
+        );
+
+        $appointment = Appointment::create([
+            'laboratory_id' => $lab->id,
+            'patient_id' => Paciente::where('laboratory_id', $lab->id)->value('id'),
+            'machine_id' => $machine->id,
+            'start_time' => now()->addDay(),
+            'end_time' => now()->addDay()->addMinutes(30),
+            'status' => 'agendado',
+            'payment_status' => 'Pendiente',
+            'origin' => 'Ambulatorio',
+            'medical_order_path' => '/storage/' . $relativePath,
+        ]);
+
+        $exporter = app(\App\Services\CloudCatalogExportService::class);
+        $payload = $exporter->export($lab->id, false, false, true);
+
+        $exported = collect($payload['appointments'] ?? [])->firstWhere('id', $appointment->id);
+        $this->assertNotNull($exported);
+        $this->assertNotEmpty($exported['medical_order_path_base64'] ?? null);
+        $this->assertStringStartsWith('data:application/pdf;base64,', $exported['medical_order_path_base64']);
+    }
 }

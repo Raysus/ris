@@ -13,6 +13,9 @@ let currentSucursalesAdmin = [];
 let currentPlanesFromDB = [];
 let catalogInsurances = [];
 let catalogReferringDoctors = [];
+let catalogDestinationDoctors = [];
+let catalogAgendaSemanalMachines = [];
+let currentAgendaSemanal = null;
 let currentPacientesAdmin = [];
 let patientsAdminPage = 1;
 let patientsAdminLastPage = 1;
@@ -197,6 +200,7 @@ function initAdmin() {
     if (typeof cargarPacientes === "function") cargarPacientes();
     if (typeof refreshPacientesAdminActions === 'function') refreshPacientesAdminActions();
     if (typeof cargarMedicosReferentesAdmin === 'function') cargarMedicosReferentesAdmin();
+    cargarCatalogosAgendaSemanal();
 
     const fechaActual = new Date();
     const mesActual = `${fechaActual.getFullYear()}-${String(fechaActual.getMonth() + 1).padStart(2, '0')}`;
@@ -206,6 +210,7 @@ function initAdmin() {
     $("#mesNomina").val(mesActual);
     $("#fechaCierreCaja").val(new Date().toISOString().split('T')[0]);
     $("#mesConsolidado").val(mesActual);
+    $("#fechaAgendaSemanal").val(new Date().toISOString().split('T')[0]);
 
     renderReporteHonorarios();
     renderReporteExamenes();
@@ -418,6 +423,40 @@ async function cargarCloudSyncLogs() {
         if (!json.data.logs?.length) {
             tbody.append('<tr><td colspan="7" class="text-center text-muted py-3">Sin registros de sincronización</td></tr>');
         }
+    } catch (e) {
+        showToast(e.message, 'danger');
+    }
+}
+
+async function pullAgendaDesdeNube() {
+    const labId = typeof risRequireConcreteLabId === 'function'
+        ? risRequireConcreteLabId()
+        : (localStorage.getItem('ris_lab_id') || '');
+    if (!labId) {
+        return;
+    }
+    if (!(await showConfirm(
+        '¿Importar catálogo, pacientes y citas de la agenda desde la nube? Las citas existentes se actualizan por UUID.',
+        { title: 'Importar agenda desde nube', confirmText: 'Importar' }
+    ))) {
+        return;
+    }
+    try {
+        const res = await fetch(`${API_URL}/integrations/cloud-sync/pull-catalog`, {
+            method: 'POST',
+            headers: { ...adminAuthHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                laboratory_id: labId,
+                include_patients: true,
+                include_users: true,
+                include_appointments: true,
+            }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.message || 'Error al importar');
+        const counts = json.data?.counts || {};
+        const detail = Object.entries(counts).map(([k, v]) => `${k}: ${v}`).join(', ');
+        showToast(`${json.message} ${detail ? '(' + detail + ')' : ''}`, 'success', 10000);
     } catch (e) {
         showToast(e.message, 'danger');
     }
@@ -1598,7 +1637,7 @@ async function renderCatalogoAdmin() {
             currentExamsFromDB.forEach(ex => {
                 if (!examTypes[ex.group_code]) examTypes[ex.group_code] = { exams: {} };
                 examTypes[ex.group_code].exams[ex.name] = {
-                    id: ex.id, code: ex.fonasa_code, price: ex.price, subs: ex.sub_exams || [],
+                    id: ex.id, code: ex.fonasa_code, price: ex.price, fonasa_price: ex.fonasa_price, subs: ex.sub_exams || [],
                     instruction: ex.instruction || null
                 };
             });
@@ -1627,6 +1666,7 @@ async function renderCatalogoAdmin() {
                             </td>
                             <td class="font-monospace text-secondary">${exData.code || '--'}</td>
                             <td class="text-end fw-bold text-success">$${parseFloat(exData.price).toLocaleString('es-CL')}</td>
+                            <td class="text-end fw-bold text-primary">$${parseFloat(exData.fonasa_price ?? exData.price).toLocaleString('es-CL')}</td>
                             <td class="text-center">${instrBadge}</td>
                             <td class="text-center pe-4">
                                 <button class="btn btn-sm btn-outline-danger fw-bold" onclick="cargarExamen('${exData.id}')">
@@ -1638,10 +1678,10 @@ async function renderCatalogoAdmin() {
                 });
             });
 
-            if (totalExamenes === 0) tbody.append(`<tr><td colspan="6" class="text-center text-muted p-4">No se encontraron prestaciones.</td></tr>`);
+            if (totalExamenes === 0) tbody.append(`<tr><td colspan="7" class="text-center text-muted p-4">No se encontraron prestaciones.</td></tr>`);
         }
     } catch (error) {
-        tbody.empty().append(`<tr><td colspan="6" class="text-center text-danger p-4">Error de conexión.</td></tr>`);
+        tbody.empty().append(`<tr><td colspan="7" class="text-center text-danger p-4">Error de conexión.</td></tr>`);
     }
 }
 
@@ -1669,6 +1709,7 @@ function cargarExamen(id) {
     $("#catNombre").val(ex.name);
     $("#catCodigo").val(ex.fonasa_code);
     $("#catPrecio").val(ex.price);
+    $("#catFonasaPrecio").val(ex.fonasa_price ?? ex.price ?? '');
     $("#catSubs").val((ex.sub_exams || []).map(risNombreSubExamenAdmin).filter(Boolean).join(", "));
 
     const instr = ex.instruction;
@@ -1697,6 +1738,7 @@ async function guardarExamen() {
         name: $("#catNombre").val().trim(),
         fonasa_code: $("#catCodigo").val().trim(),
         price: $("#catPrecio").val(),
+        fonasa_price: $("#catFonasaPrecio").val() || $("#catPrecio").val(),
         sub_exams: subsArray,
         instruction: {
             subject: $("#catInstrSubject").val().trim() || null,
@@ -1889,6 +1931,413 @@ async function renderNominaDiaria() {
     }
 }
 
+function nombreCompletoMedicoDestinatarioAgenda(doc) {
+    const p = doc.persona || {};
+    const apellidos = [p.last_name_1, p.last_name_2].filter(Boolean).join(' ').trim();
+    const nombres = String(p.names || '').trim();
+    if (apellidos && nombres) {
+        return `Dr(a). ${apellidos}, ${nombres}`;
+    }
+    const nombre = [apellidos, nombres].filter(Boolean).join(' ').trim();
+    return nombre ? `Dr(a). ${nombre}` : 'Médico destinatario';
+}
+
+async function cargarCatalogosAgendaSemanal() {
+    const select = $("#medicoDestinatarioAgendaSemanal");
+    if (!select.length) return;
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const response = await fetch(`${API_URL}/agenda-catalogs`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
+        });
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            catalogDestinationDoctors = data.data?.destination_doctors || [];
+            catalogAgendaSemanalMachines = (data.data?.machines || []).map((m) => ({
+                id: String(m.id),
+                name: m.name || 'Sala',
+            }));
+            poblarSelectMedicosDestinatariosAgendaSemanal();
+            poblarFiltroEquiposAgendaSemanal();
+        }
+    } catch (e) {
+        console.error('Error cargando médicos destinatarios para agenda semanal', e);
+    }
+}
+
+function poblarFiltroEquiposAgendaSemanal() {
+    const cont = $('#filtroEquiposAgendaSemanal');
+    if (!cont.length) return;
+
+    if (!catalogAgendaSemanalMachines.length) {
+        cont.html('<span class="small text-muted">Sin equipos configurados.</span>');
+        return;
+    }
+
+    const prev = new Set(obtenerEquiposAgendaSemanalSeleccionados());
+    const html = catalogAgendaSemanalMachines.map((m) => {
+        const checked = prev.size === 0 || prev.has(m.id) ? 'checked' : '';
+        return `
+            <div class="form-check form-check-inline mb-0">
+                <input class="form-check-input filtro-equipo-agenda-semanal" type="checkbox"
+                    id="filtroEquipoAgenda_${m.id}" value="${m.id}" ${checked}>
+                <label class="form-check-label small" for="filtroEquipoAgenda_${m.id}">${m.name}</label>
+            </div>
+        `;
+    }).join('');
+
+    cont.html(html);
+}
+
+function obtenerEquiposAgendaSemanalSeleccionados() {
+    const ids = [];
+    $('.filtro-equipo-agenda-semanal:checked').each(function () {
+        const v = String($(this).val() || '').trim();
+        if (v) ids.push(v);
+    });
+    return ids;
+}
+
+function citaPasaFiltroEquipoAgendaSemanal(cita) {
+    const seleccionados = obtenerEquiposAgendaSemanalSeleccionados();
+    if (!seleccionados.length) return true;
+    const ids = (cita.machine_ids || []).map(String);
+    if (!ids.length && cita.machine_id) ids.push(String(cita.machine_id));
+    return ids.some((id) => seleccionados.includes(id));
+}
+
+function filtrarAgendaSemanalPorEquipo(data) {
+    if (!data?.dias) return data;
+    const dias = data.dias.map((dia) => {
+        const citas = (dia.citas || []).filter(citaPasaFiltroEquipoAgendaSemanal);
+        return { ...dia, citas };
+    });
+    const total = dias.reduce((sum, d) => sum + (d.citas?.length || 0), 0);
+    return { ...data, dias, total_citas: total };
+}
+
+$(document).on('change', '.filtro-equipo-agenda-semanal', function () {
+    if (currentAgendaSemanal) {
+        pintarAgendaSemanalMedico(currentAgendaSemanal);
+    }
+});
+
+function poblarSelectMedicosDestinatariosAgendaSemanal() {
+    const select = $("#medicoDestinatarioAgendaSemanal");
+    if (!select.length) return;
+
+    const valorActual = select.val();
+    select.empty().append('<option value="">— Seleccione médico —</option>');
+
+    const ordenados = [...catalogDestinationDoctors].sort((a, b) =>
+        nombreCompletoMedicoDestinatarioAgenda(a).localeCompare(nombreCompletoMedicoDestinatarioAgenda(b), 'es')
+    );
+
+    ordenados.forEach((doc) => {
+        select.append(`<option value="${doc.id}">${nombreCompletoMedicoDestinatarioAgenda(doc)}</option>`);
+    });
+
+    if (valorActual && ordenados.some((d) => String(d.id) === String(valorActual))) {
+        select.val(valorActual);
+    }
+}
+
+function subtituloMedicoDestinatarioAgenda(data) {
+    const medico = data.medico_destinatario || data.medico;
+    return medico?.nombre ? `Médico destinatario: ${medico.nombre}` : '';
+}
+
+$(document).on('change', '#fechaAgendaSemanal, #medicoDestinatarioAgendaSemanal', renderAgendaSemanalMedico);
+
+function pintarAgendaSemanalMedico(res) {
+    const contenedor = $("#contenedorAgendaSemanal");
+    if (!contenedor.length) return;
+
+    const data = filtrarAgendaSemanalPorEquipo(res);
+    $("#totalAgendaSemanal").text(data.total_citas ?? 0);
+    const subtitulo = subtituloMedicoDestinatarioAgenda(data);
+    $("#rangoAgendaSemanal").text(`Semana del ${data.semana_formato || ''}${subtitulo ? ` · ${subtitulo}` : ''}`);
+
+    let html = '';
+    (data.dias || []).forEach((dia) => {
+        const citas = dia.citas || [];
+        html += `
+            <div class="border-bottom">
+                <div class="bg-light px-3 py-2 d-flex justify-content-between align-items-center">
+                    <span class="fw-bold text-primary">${dia.dia_formato}</span>
+                    <span class="badge bg-secondary">${citas.length} cita${citas.length === 1 ? '' : 's'}</span>
+                </div>
+        `;
+
+        if (!citas.length) {
+            html += '<div class="px-3 py-3 small text-muted">Sin citas programadas.</div>';
+        } else {
+            html += `
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="small text-muted">
+                            <tr>
+                                <th style="width:5rem">Hora</th>
+                                <th>Paciente</th>
+                                <th style="width:7rem">RUT</th>
+                                <th>Exámenes</th>
+                                <th>Sala</th>
+                                <th>Méd. referente</th>
+                                <th>Estado</th>
+                                <th>Previsión</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            citas.forEach((cita) => {
+                const hora = cita.hora_fin ? `${cita.hora} – ${cita.hora_fin}` : cita.hora;
+                html += `
+                    <tr>
+                        <td class="fw-bold text-nowrap">${hora}</td>
+                        <td class="fw-bold">${cita.paciente}</td>
+                        <td class="small">${cita.rut || ''}</td>
+                        <td class="small">${(cita.examenes || []).join(' / ')}</td>
+                        <td class="small">${cita.sala || ''}</td>
+                        <td class="small">${cita.medico_referente || '—'}</td>
+                        <td class="small">${cita.estado || ''}</td>
+                        <td class="small">${cita.institucion || ''}</td>
+                    </tr>
+                `;
+            });
+            html += '</tbody></table></div>';
+        }
+        html += '</div>';
+    });
+
+    contenedor.html(html);
+}
+
+async function renderAgendaSemanalMedico() {
+    const contenedor = $("#contenedorAgendaSemanal");
+    if (!contenedor.length) return;
+
+    const fecha = $("#fechaAgendaSemanal").val();
+    const destinationDoctorId = $("#medicoDestinatarioAgendaSemanal").val();
+
+    if (!fecha || !destinationDoctorId) {
+        currentAgendaSemanal = null;
+        $("#totalAgendaSemanal").text('0');
+        $("#rangoAgendaSemanal").text('');
+        $("#btnAgendaSemanalPdf").prop('disabled', true);
+        $("#btnAgendaSemanalPdfDia").prop('disabled', true);
+        contenedor.html('<div class="p-5 text-center text-muted">Seleccione semana y médico destinatario (ej. Dr. Riedel).</div>');
+        return;
+    }
+
+    contenedor.html('<div class="p-5 text-center"><span class="spinner-border spinner-border-sm text-primary"></span> Cargando agenda...</div>');
+    $("#btnAgendaSemanalPdf").prop('disabled', true);
+    $("#btnAgendaSemanalPdfDia").prop('disabled', true);
+
+    const token = localStorage.getItem('ris_token');
+    const labId = localStorage.getItem('ris_lab_id');
+
+    try {
+        const params = new URLSearchParams({
+            week: fecha,
+            destination_doctor_id: destinationDoctorId,
+        });
+
+        const response = await fetch(`${API_URL}/reports/agenda-semanal?${params}`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId, 'Accept': 'application/json' }
+        });
+        const res = await response.json();
+
+        if (!res.success) {
+            currentAgendaSemanal = null;
+            contenedor.html(`<div class="p-5 text-center text-danger">${res.message || 'No se pudo cargar la agenda.'}</div>`);
+            $("#totalAgendaSemanal").text('0');
+            $("#rangoAgendaSemanal").text('');
+            return;
+        }
+
+        currentAgendaSemanal = res;
+        $("#btnAgendaSemanalPdf").prop('disabled', false);
+        $("#btnAgendaSemanalPdfDia").prop('disabled', false);
+        pintarAgendaSemanalMedico(res);
+    } catch (e) {
+        console.error('Error cargando agenda semanal', e);
+        currentAgendaSemanal = null;
+        contenedor.html('<div class="p-5 text-center text-danger">Error de conexión al cargar la agenda.</div>');
+        $("#totalAgendaSemanal").text('0');
+        $("#rangoAgendaSemanal").text('');
+    }
+}
+
+function filtrarAgendaSemanalPorDia(data, fechaYmd) {
+    if (!data?.dias || !fechaYmd) return data;
+    const dia = (data.dias || []).find((d) => d.fecha === fechaYmd);
+    const citas = dia?.citas || [];
+    return {
+        ...data,
+        dias: dia ? [dia] : [{
+            fecha: fechaYmd,
+            dia_formato: formatearDiaAgendaSemanal(fechaYmd),
+            citas: [],
+        }],
+        total_citas: citas.length,
+        dia_seleccionado: fechaYmd,
+        dia_seleccionado_formato: dia?.dia_formato || formatearDiaAgendaSemanal(fechaYmd),
+    };
+}
+
+function formatearDiaAgendaSemanal(fechaYmd) {
+    if (!fechaYmd) return '';
+    const d = new Date(`${fechaYmd}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return fechaYmd;
+    return d.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
+function construirHtmlAgendaSemanalPdf(data, modo = 'semanal') {
+    const centro = data.centro || obtenerNombreCentroNomina(data);
+    const ciudad = data.ciudad || '';
+    const responsable = obtenerResponsableReporte();
+    const medico = data.medico_destinatario || data.medico || {};
+    const esDiario = modo === 'diario';
+    const tituloReporte = esDiario
+        ? 'AGENDA DIARIA — MÉDICO DESTINATARIO'
+        : 'AGENDA SEMANAL — MÉDICO DESTINATARIO';
+    const rangoFecha = esDiario
+        ? (data.dia_seleccionado_formato || data.dia_seleccionado || '')
+        : `Semana del ${data.semana_formato || ''}`;
+
+    let cuerpoDias = '';
+    (data.dias || []).forEach((dia) => {
+        const citas = dia.citas || [];
+        cuerpoDias += `
+            <div style="margin-top:14px; page-break-inside:avoid;">
+                <div style="background:#e9ecef; padding:6px 10px; font-weight:bold; font-size:11px; color:#0d6efd;">
+                    ${dia.dia_formato}
+                    <span style="float:right; color:#6c757d; font-weight:normal;">${citas.length} cita${citas.length === 1 ? '' : 's'}</span>
+                </div>
+        `;
+
+        if (!citas.length) {
+            cuerpoDias += '<p style="margin:8px 10px; font-size:10px; color:#6c757d;">Sin citas programadas.</p>';
+        } else {
+            cuerpoDias += `
+                <table style="width:100%; border-collapse:collapse; font-size:8px;">
+                    <thead>
+                        <tr style="background:#f8f9fa;">
+                            <th style="border:1px solid #dee2e6; padding:4px; text-align:left; width:7%;">Hora</th>
+                            <th style="border:1px solid #dee2e6; padding:4px; text-align:left; width:18%;">Paciente</th>
+                            <th style="border:1px solid #dee2e6; padding:4px; text-align:left; width:10%;">RUT</th>
+                            <th style="border:1px solid #dee2e6; padding:4px; text-align:left; width:22%;">Exámenes</th>
+                            <th style="border:1px solid #dee2e6; padding:4px; text-align:left; width:8%;">Sala</th>
+                            <th style="border:1px solid #dee2e6; padding:4px; text-align:left; width:14%;">Méd. referente</th>
+                            <th style="border:1px solid #dee2e6; padding:4px; text-align:left; width:8%;">Estado</th>
+                            <th style="border:1px solid #dee2e6; padding:4px; text-align:left; width:9%;">Previsión</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            citas.forEach((cita) => {
+                const hora = cita.hora_fin ? `${cita.hora} – ${cita.hora_fin}` : cita.hora;
+                cuerpoDias += `
+                    <tr>
+                        <td style="border:1px solid #dee2e6; padding:4px; font-weight:bold;">${hora}</td>
+                        <td style="border:1px solid #dee2e6; padding:4px;">${cita.paciente}</td>
+                        <td style="border:1px solid #dee2e6; padding:4px;">${cita.rut || ''}</td>
+                        <td style="border:1px solid #dee2e6; padding:4px;">${(cita.examenes || []).join(' / ')}</td>
+                        <td style="border:1px solid #dee2e6; padding:4px;">${cita.sala || ''}</td>
+                        <td style="border:1px solid #dee2e6; padding:4px;">${cita.medico_referente || '—'}</td>
+                        <td style="border:1px solid #dee2e6; padding:4px;">${cita.estado || ''}</td>
+                        <td style="border:1px solid #dee2e6; padding:4px;">${cita.institucion || ''}</td>
+                    </tr>
+                `;
+            });
+            cuerpoDias += '</tbody></table>';
+        }
+        cuerpoDias += '</div>';
+    });
+
+    return `
+        <div style="font-family:Arial,Helvetica,sans-serif; color:#212529; padding:8px;">
+            <div style="text-align:center; border-bottom:2px solid #0d6efd; padding-bottom:8px; margin-bottom:10px;">
+                <div style="font-size:14px; font-weight:bold;">${centro}</div>
+                ${ciudad ? `<div style="font-size:10px; color:#6c757d;">${ciudad}</div>` : ''}
+                <div style="font-size:12px; font-weight:bold; margin-top:8px;">${tituloReporte}</div>
+                <div style="font-size:11px; margin-top:4px;">${medico.nombre || ''}</div>
+                <div style="font-size:10px; color:#6c757d; margin-top:4px;">${rangoFecha}</div>
+            </div>
+            ${cuerpoDias}
+            <div style="margin-top:16px; font-size:9px; color:#6c757d; border-top:1px solid #dee2e6; padding-top:8px;">
+                Total citas: ${data.total_citas ?? 0} · Generado: ${new Date().toLocaleString('es-CL')} · ${responsable}
+            </div>
+        </div>
+    `;
+}
+
+async function descargarAgendaSemanalPdf(modo = 'semanal') {
+    if (!currentAgendaSemanal) {
+        if (typeof showAlert === 'function') {
+            showAlert('Cargue primero la agenda de la semana.', 'Agenda semanal', 'warning');
+        }
+        return;
+    }
+
+    if (typeof html2pdf === 'undefined') {
+        if (typeof showAlert === 'function') {
+            showAlert('Librería html2pdf no cargada.', 'Error', 'danger');
+        }
+        return;
+    }
+
+    const esDiario = modo === 'diario';
+    const fechaSeleccionada = $('#fechaAgendaSemanal').val();
+    const medico = currentAgendaSemanal.medico_destinatario || currentAgendaSemanal.medico || {};
+    const nombreMedico = sanitizarNombreArchivoCentro(medico.nombre || 'Medico');
+
+    let dataPdf = filtrarAgendaSemanalPorEquipo(currentAgendaSemanal);
+    if (esDiario) {
+        if (!fechaSeleccionada) {
+            if (typeof showAlert === 'function') {
+                showAlert('Seleccione el día en el calendario.', 'Agenda diaria', 'warning');
+            }
+            return;
+        }
+        dataPdf = filtrarAgendaSemanalPorDia(dataPdf, fechaSeleccionada);
+    }
+
+    const nombreArchivo = esDiario
+        ? `Agenda_Diaria_${nombreMedico}_${fechaSeleccionada || 'dia'}.pdf`
+        : `Agenda_Semanal_${nombreMedico}_${currentAgendaSemanal.semana_inicio || 'semana'}.pdf`;
+
+    const host = document.getElementById('agendaSemanalPdfHost');
+    if (!host) return;
+
+    host.innerHTML = construirHtmlAgendaSemanalPdf(dataPdf, modo);
+    const elemento = host.firstElementChild;
+    if (!elemento) return;
+
+    if (typeof showLoader === 'function') showLoader();
+
+    try {
+        await html2pdf().set({
+            margin: [10, 10, 10, 10],
+            filename: nombreArchivo,
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' },
+        }).from(elemento).save();
+    } catch (e) {
+        console.error(`Error generando PDF agenda ${modo}`, e);
+        if (typeof showAlert === 'function') {
+            showAlert('No se pudo generar el PDF.', 'Error', 'danger');
+        }
+    } finally {
+        host.innerHTML = '';
+        if (typeof hideLoader === 'function') hideLoader();
+    }
+}
+
 function obtenerResponsableReporte() {
     try {
         const user = JSON.parse(localStorage.getItem('ris_user_data') || '{}');
@@ -1900,26 +2349,94 @@ function obtenerResponsableReporte() {
     }
 }
 
-function encabezadosNominaRDOX() {
-    return [
+function obtenerNombreCentroNomina(nomina) {
+    const desdeApi = String(nomina?.centro || '').trim();
+    if (desdeApi && !/^RDOX(\s+PORTAL)?$/i.test(desdeApi)) {
+        return desdeApi;
+    }
+    const labName = (localStorage.getItem('ris_lab_name') || '').trim();
+    if (labName) return labName.toUpperCase();
+    const opt = document.querySelector('#navLabSelector option:checked');
+    const desdeSelector = opt?.textContent?.replace(/^\s*—\s*/, '').trim();
+    if (desdeSelector && !/^(todas mis sucursales|visión global)/i.test(desdeSelector)) {
+        return desdeSelector.toUpperCase();
+    }
+    return desdeApi || 'CENTRO';
+}
+
+function sanitizarNombreArchivoCentro(centro) {
+    return String(centro || 'Centro')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^\w\s-]/g, '')
+        .trim()
+        .replace(/\s+/g, '_')
+        .substring(0, 40) || 'Centro';
+}
+
+const COLUMNAS_NOMINA_COMPLETA = 17;
+const COLUMNAS_NOMINA_DIARIA = 8;
+
+function anchosColumnasNomina(numColumnas = COLUMNAS_NOMINA_COMPLETA) {
+    const anchos = [
+        { wch: 4 }, { wch: 22 }, { wch: 12 }, { wch: 5 },
+        { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 12 },
+        { wch: 9 }, { wch: 9 }, { wch: 10 }, { wch: 8 },
+        { wch: 11 }, { wch: 9 }, { wch: 11 }, { wch: 11 }, { wch: 16 },
+    ];
+    return anchos.slice(0, numColumnas);
+}
+
+function aplicarEstiloHojaNomina(hoja, matriz, numColumnas = COLUMNAS_NOMINA_COMPLETA) {
+    hoja['!cols'] = anchosColumnasNomina(numColumnas);
+    hoja['!margins'] = { left: 0.2, right: 0.2, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 };
+    hoja['!pageSetup'] = {
+        paperSize: 9,
+        orientation: numColumnas <= COLUMNAS_NOMINA_DIARIA ? 'portrait' : 'landscape',
+        fitToWidth: 1,
+        fitToHeight: 1,
+    };
+    hoja['!print'] = { orientation: numColumnas <= COLUMNAS_NOMINA_DIARIA ? 'portrait' : 'landscape' };
+
+    const ultimaCol = numColumnas - 1;
+    const merges = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: ultimaCol } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: ultimaCol } },
+        { s: { r: 2, c: 0 }, e: { r: 2, c: ultimaCol } },
+    ];
+    const filaResponsable = (matriz || []).findIndex((fila, idx) => (
+        idx > 3 && String(fila[0] || '').startsWith('RESPONSABLE')
+    ));
+    if (filaResponsable >= 0) {
+        merges.push({ s: { r: filaResponsable, c: 0 }, e: { r: filaResponsable, c: ultimaCol } });
+    }
+    hoja['!merges'] = merges;
+}
+
+function encabezadosNomina(maxColumnas = COLUMNAS_NOMINA_COMPLETA) {
+    const columnas = [
         'N°', 'NOMBRE PACIENTE', 'RUT', 'EDAD', 'RX INTRACORAL', 'CONE BEAM',
         'BOLETA', 'TOTAL BOLETA', 'EFECTIVO', 'TRANSBANK', 'TRANSFERENCIA', 'BONO',
         'RADIOLOGO', 'OPERADOR', 'DENTISTAS', 'INSTITUCION', 'OBSERVACION'
     ];
+    return columnas.slice(0, maxColumnas);
 }
 
-function construirMatrizNominaRDOX(nomina) {
+function construirMatrizNomina(nomina, opciones = {}) {
     if (!nomina || !nomina.data) return [];
 
+    const maxColumnas = opciones.maxColumnas || COLUMNAS_NOMINA_COMPLETA;
+    const centro = obtenerNombreCentroNomina(nomina);
+    const ciudad = String(nomina.ciudad || '').trim();
     const matriz = [];
-    matriz.push([`AGENDA DIARIA ${nomina.centro} ${nomina.ciudad}`]);
+    matriz.push([`AGENDA DIARIA ${centro}${ciudad ? ` ${ciudad}` : ''}`]);
     matriz.push(['NOMINA PACIENTES PARA INFORME']);
     matriz.push([nomina.fecha_formato || nomina.fecha]);
     matriz.push([]);
-    matriz.push(encabezadosNominaRDOX());
+    matriz.push(encabezadosNomina(maxColumnas));
 
     nomina.data.forEach(row => {
-        matriz.push([
+        const filaCompleta = [
             row.numero,
             row.nombre_paciente,
             row.rut,
@@ -1937,23 +2454,39 @@ function construirMatrizNominaRDOX(nomina) {
             row.dentistas,
             row.institucion,
             row.observacion
-        ]);
+        ];
+        matriz.push(filaCompleta.slice(0, maxColumnas));
     });
 
     const t = nomina.totales || {};
-    matriz.push([
-        'TOTAL', '', '', '', '', '', '',
-        t.total_boleta || 0,
-        t.efectivo || 0,
-        t.transbank || 0,
-        t.transferencia || 0,
-        t.bono || 0,
-        '', '', '', '', ''
-    ]);
+    const filaTotal = maxColumnas <= COLUMNAS_NOMINA_DIARIA
+        ? ['TOTAL', '', '', '', '', '', '', t.total_boleta || 0]
+        : [
+            'TOTAL', '', '', '', '', '', '',
+            t.total_boleta || 0,
+            t.efectivo || 0,
+            t.transbank || 0,
+            t.transferencia || 0,
+            t.bono || 0,
+            '', '', '', '', ''
+        ];
+    matriz.push(filaTotal.slice(0, maxColumnas));
     matriz.push([]);
     matriz.push([`RESPONSABLE: ${obtenerResponsableReporte()}`]);
 
     return matriz;
+}
+
+function descargarExcelNomina(matriz, nombreArchivo, nombreHoja = 'Nomina', numColumnas = COLUMNAS_NOMINA_COMPLETA) {
+    if (typeof XLSX === 'undefined') {
+        descargarMatrizCSV(matriz, nombreArchivo.replace(/\.xlsx$/i, '.csv'));
+        return;
+    }
+    const libro = XLSX.utils.book_new();
+    const hoja = XLSX.utils.aoa_to_sheet(matriz);
+    aplicarEstiloHojaNomina(hoja, matriz, numColumnas);
+    XLSX.utils.book_append_sheet(libro, hoja, nombreHoja.substring(0, 31));
+    XLSX.writeFile(libro, nombreArchivo);
 }
 
 function descargarMatrizCSV(datos, nombreArchivo) {
@@ -1979,8 +2512,9 @@ function exportarNominaDiariaCSV() {
     if (!currentNominaDiaria || !currentNominaDiaria.data?.length) {
         return showToast('No hay datos de nómina para exportar.', 'warning');
     }
-    const matriz = construirMatrizNominaRDOX(currentNominaDiaria);
-    descargarMatrizCSV(matriz, `Nomina_RDOX_${currentNominaDiaria.fecha}.csv`);
+    const centro = sanitizarNombreArchivoCentro(obtenerNombreCentroNomina(currentNominaDiaria));
+    const matriz = construirMatrizNomina(currentNominaDiaria);
+    descargarMatrizCSV(matriz, `Nomina_${centro}_${currentNominaDiaria.fecha}.csv`);
     showToast('Nómina exportada a CSV', 'success');
 }
 
@@ -1988,9 +2522,15 @@ function exportarNominaDiariaExcel() {
     if (!currentNominaDiaria || !currentNominaDiaria.data?.length) {
         return showToast('No hay datos de nómina para exportar.', 'warning');
     }
-    const matriz = construirMatrizNominaRDOX(currentNominaDiaria);
-    descargarExcelXLSX(matriz, `Nomina_RDOX_${currentNominaDiaria.fecha}.xlsx`, 'Nomina');
-    showToast('Nómina exportada a Excel', 'success');
+    const centro = sanitizarNombreArchivoCentro(obtenerNombreCentroNomina(currentNominaDiaria));
+    const matriz = construirMatrizNomina(currentNominaDiaria, { maxColumnas: COLUMNAS_NOMINA_DIARIA });
+    descargarExcelNomina(
+        matriz,
+        `Nomina_${centro}_${currentNominaDiaria.fecha}.xlsx`,
+        'Nomina',
+        COLUMNAS_NOMINA_DIARIA
+    );
+    showToast('Nómina diaria exportada (columnas A–H, 1 hoja al imprimir)', 'success');
 }
 
 function sanitizarNombreHojaExcel(nombre) {
@@ -2020,7 +2560,7 @@ function descargarExcelMultihoja(hojas, nombreArchivo) {
         nombresUsados.add(nombreHoja);
 
         const hoja = XLSX.utils.aoa_to_sheet(matriz);
-        hoja['!cols'] = Array(17).fill({ wch: 16 });
+        aplicarEstiloHojaNomina(hoja, matriz, COLUMNAS_NOMINA_COMPLETA);
         XLSX.utils.book_append_sheet(libro, hoja, nombreHoja);
     });
 
@@ -2058,11 +2598,12 @@ async function exportarNominaMensualExcel() {
 
         const hojas = res.dias.map(dia => ({
             nombre: dia.hoja_nombre || dia.fecha_formato || dia.fecha,
-            matriz: construirMatrizNominaRDOX(dia)
+            matriz: construirMatrizNomina(dia)
         }));
 
-        descargarExcelMultihoja(hojas, `Nomina_Mensual_RDOX_${mes}.xlsx`);
-        showToast(`Excel generado: ${hojas.length} hoja(s)`, 'success');
+        const centro = sanitizarNombreArchivoCentro(obtenerNombreCentroNomina(res));
+        descargarExcelMultihoja(hojas, `Nomina_Mensual_${centro}_${mes}.xlsx`);
+        showToast(`Excel generado: ${hojas.length} hoja(s), cada una ajustada a 1 página`, 'success');
     } catch (e) {
         console.error(e);
         showToast(e.message || 'Error al exportar nómina mensual.', 'danger');
@@ -2085,9 +2626,10 @@ async function exportarNominaMensualCSV() {
             return showToast('No hay citas registradas en ese mes.', 'warning');
         }
 
+        const centro = obtenerNombreCentroNomina(res);
+        const ciudad = String(res.ciudad || '').trim();
         let matrizCompleta = [];
-        matrizCompleta.push([`NOMINAS DIARIAS RDOX PORTAL - ${res.mes_formato || mes}`]);
-        matrizCompleta.push([`${res.centro} ${res.ciudad}`]);
+        matrizCompleta.push([`NOMINAS DIARIAS ${centro}${ciudad ? ` ${ciudad}` : ''} - ${res.mes_formato || mes}`]);
         matrizCompleta.push([]);
 
         res.dias.forEach((dia, idx) => {
@@ -2096,7 +2638,7 @@ async function exportarNominaMensualCSV() {
                 matrizCompleta.push(['========================================']);
                 matrizCompleta.push([]);
             }
-            matrizCompleta = matrizCompleta.concat(construirMatrizNominaRDOX(dia));
+            matrizCompleta = matrizCompleta.concat(construirMatrizNomina(dia));
         });
 
         if (res.totales_mes) {
@@ -2112,7 +2654,7 @@ async function exportarNominaMensualCSV() {
             ]);
         }
 
-        descargarMatrizCSV(matrizCompleta, `Nomina_Mensual_RDOX_${mes}.csv`);
+        descargarMatrizCSV(matrizCompleta, `Nomina_Mensual_${sanitizarNombreArchivoCentro(centro)}_${mes}.csv`);
         showToast(`CSV generado: ${res.dias.length} día(s)`, 'success');
     } catch (e) {
         console.error(e);

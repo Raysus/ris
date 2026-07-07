@@ -1,13 +1,22 @@
 {
-    "viewer": "radiant",
+    "viewer": "horos",
     "paths": {
         "radiant": "C:\\Program Files\\RadiAntViewer64bit\\RadiAntViewer.exe",
-        "horos": "C:\\Program Files\\Horos\\Horos.exe",
+        "horos": "/Applications/Horos.app",
         "osirix": "/Applications/OsiriX.app/Contents/MacOS/OsiriX",
         "weasis": "C:\\Program Files\\Weasis\\Weasis.exe"
     },
     "scanner": {
-        "naps2_path": "C:\\Program Files\\NAPS2\\NAPS2.Console.exe",
-        "profile": "Brother"
-    }
+        "naps2_path": "/Applications/NAPS2.app/Contents/MacOS/NAPS2.Console",
+        "profile": "Default"
+    },
+    "printer": {
+        "enabled": true,
+        "interface": "tcp://192.168.0.100",
+        "width_chars": 48,
+        "copies": 1,
+        "_comment_interface": "tcp://IP[:9100] red Epson | printer:EPSON TM-T20 nombre Windows | /dev/usb/lp0 Linux USB"
+    },
+    "_comment_windows": "En Windows use setup-scanner-windows.bat y cambie viewer a radiant si aplica",
+    "_comment_scanner_win": "naps2_path Windows: C:\\Program Files\\NAPS2\\NAPS2.Console.exe"
 }

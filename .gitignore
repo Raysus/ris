@@ -33,3 +33,8 @@ backend/storage/framework/cache/data/*
 backend/.phpunit.cache
 backend/tmp_*.json
 backend/tests/tmp_*.json
+
+# Certificados LAN / llaves copiadas accidentalmente
+backend/docker/certs/
+backend/:USERPROFILE.sshid_ed25519
+backend/:USERPROFILE.sshid_ed25519.pub

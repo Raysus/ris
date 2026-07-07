@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ChecksRisAuthorization;
+use App\Http\Controllers\Concerns\FormatsAppointmentInbox;
 use Illuminate\Http\Request;
 use App\Models\Appointment;
 use App\Services\ReportDocumentFormatter;
@@ -14,6 +15,7 @@ use Illuminate\Support\Str;
 class RadiologistController extends Controller
 {
     use ChecksRisAuthorization;
+    use FormatsAppointmentInbox;
 
     private const RADIOLOGIST_ROLES = ['admin', 'sis_admin', 'radiologo'];
 
@@ -66,23 +68,30 @@ class RadiologistController extends Controller
     public function index(Request $request)
     {
         $this->assertRadiologistAccess($request);
-        $appointments = $this->getSecureAppointmentQuery()
-            ->with(['patient.persona', 'studies'])
-            ->whereIn('status', ['en_informe', 'pendiente_radiologo'])
+        $appointments = $this->applyExamDateFilter(
+            $this->getSecureAppointmentQuery()
+                ->with(['patient.persona', 'studies'])
+                ->whereIn('status', ['en_informe', 'pendiente_radiologo']),
+            $request
+        )
             ->orderBy('start_time', 'asc')
             ->get();
 
         $formattedData = $appointments->map(function ($app) {
-            $anamnesisGlobal = $app->studies->first()->anamnesis ?? 'Sin anamnesis registrada.';
+            $anamnesisGlobal = $app->studies
+                ->pluck('anamnesis')
+                ->map(fn ($value) => trim((string) $value))
+                ->filter(fn ($value) => $value !== '')
+                ->first() ?? 'Sin anamnesis registrada.';
 
-            return [
+            return array_merge([
                 'id' => $app->id,
                 'accessionNumber' => $app->accession_number ?? 'ACC-' . $app->id,
                 'studyInstanceUid' => $app->study_instance_uid,
                 'anamnesis' => $anamnesisGlobal,
                 'patient' => $this->formatPatientPayload($app->patient),
                 'studies' => $app->studies->map(fn ($s) => $this->formatStudyPayload($s))->values(),
-            ];
+            ], $this->examInboxTimingFields($app));
         });
 
         return response()->json(['success' => true, 'data' => $formattedData]);
@@ -322,19 +331,22 @@ class RadiologistController extends Controller
     public function validations(Request $request)
     {
         $this->assertRadiologistAccess($request);
-        $appointments = $this->getSecureAppointmentQuery()
-            ->with([
-                'patient.persona',
-                'studies.report',
-                'destinationDoctor.persona',
-                'referringDoctor',
-                'laboratory',
-            ])
-            ->where(function ($q) {
-                $q->where('status', 'para_firma')
-                    ->orWhereHas('studies', fn ($s) => $s->where('status', 'para_firma'));
-            })
-            ->orderBy('updated_at', 'asc')
+        $appointments = $this->applyExamDateFilter(
+            $this->getSecureAppointmentQuery()
+                ->with([
+                    'patient.persona',
+                    'studies.report',
+                    'destinationDoctor.persona',
+                    'referringDoctor',
+                    'laboratory',
+                ])
+                ->where(function ($q) {
+                    $q->where('status', 'para_firma')
+                        ->orWhereHas('studies', fn ($s) => $s->where('status', 'para_firma'));
+                }),
+            $request
+        )
+            ->orderBy('start_time', 'asc')
             ->get();
 
         $formattedData = $appointments->map(function ($app) {
@@ -363,7 +375,7 @@ class RadiologistController extends Controller
                         'reportText' => $s->getStoredReportText(),
                     ];
                 })->values(),
-            ], $chainMeta);
+            ], $chainMeta, $this->examInboxTimingFields($app));
         })->filter(fn ($row) => $row['studies']->isNotEmpty())->values();
 
         return response()->json(['success' => true, 'data' => $formattedData]);

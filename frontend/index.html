@@ -10,8 +10,8 @@
     <link rel="icon" href="assets/brand/healthticloud-logo.png" type="image/png">
     <link rel="apple-touch-icon" href="assets/brand/healthticloud-logo.png">
 
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="assets/lib/bootstrap/5.3.2/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/lib/bootstrap-icons/1.11.1/bootstrap-icons.min.css">
 
     <link rel="stylesheet" href="css/style.css?v=20260602">
 </head>
@@ -28,6 +28,7 @@
 
         <div class="card-body p-4 pt-2">
             <div id="loginError" class="alert alert-danger d-none small p-2 text-center fw-bold rounded-3"></div>
+            <div id="lanCertHint" class="alert alert-warning d-none small rounded-3 mb-3"></div>
 
             <div class="mb-3">
                 <label class="small fw-bold text-muted-modern mb-1" for="username">Usuario</label>
@@ -89,12 +90,27 @@
             </div>
         </div>
     </div>
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="js/config.js?v=20260624a"></script>
+    <script src="assets/lib/jquery/jquery-3.7.1.min.js"></script>
+    <script src="assets/lib/bootstrap/5.3.2/bootstrap.bundle.min.js"></script>
+    <script src="js/config.js?v=20260706o"></script>
     <script src="js/core/ui.js"></script>
     <script src="js/core/password-toggle.js"></script>
-    <script src="js/auth.js?v=20260624a"></script>
+    <script>
+    (function () {
+        const host = window.location.hostname;
+        const isLan = /^(192\.168\.|10\.|100\.)/.test(host);
+        if (!isLan || window.isSecureContext) return;
+        const caUrl = 'https://' + host + '/ris-lan-ca.pem';
+        const el = document.getElementById('lanCertHint');
+        if (!el) return;
+        el.classList.remove('d-none');
+        el.innerHTML = 'El navegador muestra «No es seguro» hasta instalar el certificado del laboratorio. '
+            + '<a href="' + caUrl + '" class="alert-link fw-bold">Descargar certificado</a> '
+            + '→ doble clic → Instalar en «Equipo local» → «Autoridades de certificación raíz de confianza». '
+            + 'Cierre y vuelva a abrir el navegador.';
+    })();
+    </script>
+    <script src="js/auth.js?v=20260706n"></script>
 
 </body>
 

@@ -7,12 +7,13 @@ const RIS_MODULE_SCRIPTS = {
     worklist: ["/js/workflow/atencionTecnica.js", "/js/workflow/worklist.js"],
     atencion: ["/js/workflow/atencionTecnica.js", "/js/workflow/atencion.js"],
     radiologist: [
+        "/js/shared/workflow-inbox.js",
         "/js/workflow/browser-dictation.js",
         "/js/workflow/speechmike-dictation.js",
         "/js/workflow/radiologist.js",
     ],
-    transcription: "/js/workflow/transcription.js",
-    validation: ["/js/shared/reportDocument.js", "/js/workflow/validation.js"],
+    transcription: ["/js/shared/workflow-inbox.js", "/js/workflow/transcription.js"],
+    validation: ["/js/shared/workflow-inbox.js", "/js/shared/reportDocument.js", "/js/workflow/validation.js"],
     entrega: ["/js/shared/reportDocument.js", "/js/workflow/entrega.js"],
     dashboard: "/js/dashboard/dashboard.js",
     admin: "/js/admin/admin.js",
@@ -147,8 +148,15 @@ async function ensureModuleLoaded(page) {
     if (page === "agenda") await loadScriptOnce("/js/workflow/payments.js");
 }
 
+let _risCurrentPage = null;
+
 function loadPage(page) {
     console.log("Cargando página:", page);
+
+    if (_risCurrentPage === "agenda" && page !== "agenda" && typeof destroyAgenda === "function") {
+        destroyAgenda();
+    }
+    _risCurrentPage = page;
     sincronizarSidebar(page);
 
     if (typeof showLoader === "function") showLoader("Cargando módulo…");

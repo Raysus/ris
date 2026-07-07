@@ -10,6 +10,7 @@
 #
 #   Uso:
 #     cp .env.lan.example .env   (editar IP LAN + ORTHANC_URL nube)
+#     bash docker/generate-lan-tls.sh 192.168.0.127
 #     docker compose -f docker-compose.lan.yml up -d --build
 #
 #   Detalle: docs/GUIA_INSTALACION_LABORATORIO.md
@@ -134,11 +135,13 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
     depends_on:
       - api
     volumes:
       - ../frontend:/usr/share/nginx/html:ro
-      - ./docker/frontend.nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./docker/frontend.nginx.tls.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./docker/certs:/etc/nginx/certs:ro
 
 volumes:
   ris-db:

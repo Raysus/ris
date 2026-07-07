@@ -21,6 +21,7 @@ use App\Mail\PortalCredentialsMail;
 use App\Observers\AppointmentObserver;
 use App\Services\AppointmentInstructionMailService;
 use App\Services\AppointmentNotificationService;
+use App\Services\AppointmentScheduleService;
 
 class AppointmentController extends Controller
 {
@@ -30,6 +31,7 @@ class AppointmentController extends Controller
         KeycloakService $keycloakService,
         protected AppointmentInstructionMailService $instructionMailService,
         protected AppointmentNotificationService $notificationService,
+        protected AppointmentScheduleService $scheduleService,
     ) {
         $this->keycloakService = $keycloakService;
     }
@@ -109,20 +111,16 @@ class AppointmentController extends Controller
                 // Decodificamos el JSON que viene dentro del FormData
                 $data = json_decode($request->input('data'), true);
 
-                // === 1. VALIDACIÓN DE CHOQUE DE HORARIOS EN BACKEND ===
-                $start = LabTimezone::parseScheduleTime($data['start_time']);
-                $end = LabTimezone::parseScheduleTime($data['end_time']);
-
-                $machineIds = collect($data['studies'] ?? [])
-                    ->pluck('machine_id')
-                    ->filter()
-                    ->push($data['machine_id'])
-                    ->unique()
-                    ->values();
-
-                foreach ($machineIds as $machineId) {
-                    $this->assertNoScheduleOverlap((string) $machineId, $start, $end);
-                }
+                $preferredStart = LabTimezone::parseScheduleTime($data['start_time']);
+                $resolved = $this->scheduleService->resolveStartTime(
+                    (string) $labId,
+                    $preferredStart,
+                    $data['studies'] ?? [],
+                    null,
+                    $data['machine_id'] ?? null,
+                );
+                $start = $resolved['start'];
+                $end = $resolved['end'];
 
                 $patientData = $data['patient'];
                 $cleanRut = strtoupper(str_replace(['.', ' '], '', $patientData['rut']));
@@ -146,10 +144,14 @@ class AppointmentController extends Controller
                 $ordenPath = null;
                 if ($request->hasFile('order_file')) {
                     $ordenPath = '/storage/' . $request->file('order_file')->store('documents', 'public');
+                } elseif (!empty($data['medical_order_base64'])) {
+                    $ordenPath = $this->saveBase64Document($data['medical_order_base64']);
                 }
                 $encuestaPath = null;
                 if ($request->hasFile('survey_file')) {
                     $encuestaPath = '/storage/' . $request->file('survey_file')->store('documents', 'public');
+                } elseif (!empty($data['survey_base64'])) {
+                    $encuestaPath = $this->saveBase64Document($data['survey_base64']);
                 }
 
                 // === 3. CREACIÓN DE LA CITA ===
@@ -217,6 +219,10 @@ class AppointmentController extends Controller
                     'appointment' => AppointmentApiSerializer::toArray($appointment),
                     'instructions_email' => $mailResult,
                     'confirmation_email' => $confirmationResult,
+                    'schedule_adjusted' => $resolved['adjusted'],
+                    'schedule_shift_minutes' => $resolved['shift_minutes'],
+                    'requested_start_time' => LabTimezone::formatScheduleForApi($preferredStart),
+                    'assigned_start_time' => LabTimezone::formatScheduleForApi($start),
                 ], 201);
             });
         } catch (\Exception $e) {
@@ -234,10 +240,35 @@ class AppointmentController extends Controller
 
             // === LÓGICA DE DRAG & DROP (El JS lo manda como JSON directo) ===
             if ($request->has('is_drag_and_drop')) {
+                $estadosReagendables = ['pre-agendado', 'agendado', 'confirmado', 'espera'];
+                if (!in_array(strtolower((string) $appointment->status), $estadosReagendables, true)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Esta cita ya ingresó al flujo clínico y no puede re-agendarse.',
+                    ], 422);
+                }
+
+                $studiesPayload = $appointment->studies
+                    ->map(fn ($study) => [
+                        'machine_id' => $request->machine_id ?? $request->machine ?? $study->machine_id,
+                        'quantity' => $study->quantity,
+                    ])
+                    ->values()
+                    ->all();
+
+                $preferredStart = LabTimezone::parseScheduleTime((string) ($request->start_time ?? $request->start));
+                $resolved = $this->scheduleService->resolveStartTime(
+                    (string) $appointment->laboratory_id,
+                    $preferredStart,
+                    $studiesPayload,
+                    (string) $appointment->id,
+                    (string) ($request->machine_id ?? $request->machine ?? $appointment->machine_id),
+                );
+
                 $appointment->update([
                     'machine_id' => $request->machine_id ?? $request->machine,
-                    'start_time' => LabTimezone::parseScheduleTime((string) ($request->start_time ?? $request->start)),
-                    'end_time' => LabTimezone::parseScheduleTime((string) ($request->end_time ?? $request->end)),
+                    'start_time' => $resolved['start'],
+                    'end_time' => $resolved['end'],
                 ]);
 
                 $appointment->studies()->update(['machine_id' => $request->machine_id ?? $request->machine]);
@@ -249,7 +280,12 @@ class AppointmentController extends Controller
                     'ip_address' => request()->ip()
                 ]);
 
-                return response()->json(['success' => true]);
+                return response()->json([
+                    'success' => true,
+                    'schedule_adjusted' => $resolved['adjusted'],
+                    'schedule_shift_minutes' => $resolved['shift_minutes'],
+                    'assigned_start_time' => LabTimezone::formatScheduleForApi($resolved['start']),
+                ]);
             }
 
             // === LÓGICA DE EDICIÓN COMPLETA (FormData) ===
@@ -261,16 +297,29 @@ class AppointmentController extends Controller
             $ordenPath = $appointment->medical_order_path;
             if ($request->hasFile('order_file')) {
                 $ordenPath = '/storage/' . $request->file('order_file')->store('documents', 'public');
+            } elseif (!empty($data['medical_order_base64'])) {
+                $ordenPath = $this->saveBase64Document($data['medical_order_base64']);
             }
             $encuestaPath = $appointment->survey_path;
             if ($request->hasFile('survey_file')) {
                 $encuestaPath = '/storage/' . $request->file('survey_file')->store('documents', 'public');
+            } elseif (!empty($data['survey_base64'])) {
+                $encuestaPath = $this->saveBase64Document($data['survey_base64']);
             }
+
+            $preferredStart = LabTimezone::parseScheduleTime($data['start_time']);
+            $resolved = $this->scheduleService->resolveStartTime(
+                (string) $appointment->laboratory_id,
+                $preferredStart,
+                $data['studies'] ?? [],
+                (string) $appointment->id,
+                $data['machine_id'] ?? null,
+            );
 
             $appointment->update([
                 'machine_id' => $data['machine_id'],
-                'start_time' => LabTimezone::parseScheduleTime($data['start_time']),
-                'end_time' => LabTimezone::parseScheduleTime($data['end_time']),
+                'start_time' => $resolved['start'],
+                'end_time' => $resolved['end'],
                 'status' => strtolower($data['status']),
                 'referring_doctor_id' => $this->nullableUuid($data['referring_doctor_id'] ?? null),
                 'destination_doctor_id' => $this->nullableUuid($data['destination_doctor_id'] ?? null),
@@ -346,7 +395,13 @@ class AppointmentController extends Controller
 
             $appointment->load(['patient.persona', 'studies', 'supplies']);
 
-            return response()->json(['success' => true]);
+            return response()->json([
+                'success' => true,
+                'schedule_adjusted' => $resolved['adjusted'],
+                'schedule_shift_minutes' => $resolved['shift_minutes'],
+                'requested_start_time' => LabTimezone::formatScheduleForApi($preferredStart),
+                'assigned_start_time' => LabTimezone::formatScheduleForApi($resolved['start']),
+            ]);
         });
     }
 
@@ -460,27 +515,5 @@ class AppointmentController extends Controller
         }
 
         return (string) $value;
-    }
-
-    private function assertNoScheduleOverlap(
-        string $machineId,
-        \DateTimeInterface $start,
-        \DateTimeInterface $end,
-        ?string $excludeAppointmentId = null,
-    ): void {
-        $query = Appointment::query()
-            ->where('machine_id', $machineId)
-            ->whereIn('status', ['agendado', 'confirmado', 'espera'])
-            ->where(function ($q) use ($start, $end) {
-                $q->where('start_time', '<', $end)->where('end_time', '>', $start);
-            });
-
-        if ($excludeAppointmentId) {
-            $query->where('id', '!=', $excludeAppointmentId);
-        }
-
-        if ($query->lockForUpdate()->exists()) {
-            throw new \Exception('La sala ya tiene una reserva confirmada en ese horario. Por favor actualice su calendario.');
-        }
     }
 }

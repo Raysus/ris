@@ -226,6 +226,105 @@ body {
     padding: 2rem;
 }
 
+/* =========================================
+   RESPONSIVE: páginas módulo (radiologist, etc.)
+   ========================================= */
+.ris-radiologist-page {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+}
+
+.ris-radiologist-row {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.ris-radiologist-col-list,
+.ris-radiologist-col-main {
+    min-height: 0;
+}
+
+.ris-radiologist-card {
+    min-height: 0;
+}
+
+.ris-radiologist-studies {
+    min-height: 0;
+}
+
+.ris-radiologist-workspace {
+    min-height: 0;
+}
+
+.ris-anamnesis-radiologo-text {
+    white-space: pre-wrap;
+    line-height: 1.45;
+}
+
+/* Split pages: transcription / validation (lista izquierda + panel principal) */
+.ris-split-page {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+}
+
+.ris-split-row {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.ris-split-col-list,
+.ris-split-col-main {
+    min-height: 0;
+}
+
+.ris-split-card {
+    min-height: 0;
+}
+
+.ris-split-list {
+    min-height: 0;
+}
+
+@media (min-width: 992px) {
+    .ris-split-page {
+        height: calc(100vh - 64px - 4rem);
+    }
+}
+
+@media (max-width: 991.98px) {
+    .ris-split-list {
+        max-height: 45vh;
+    }
+}
+
+@media (min-width: 992px) {
+    .ris-radiologist-page {
+        height: calc(100vh - 64px - 4rem); /* topbar + #appContent padding */
+    }
+}
+
+@media (max-width: 991.98px) {
+    .ris-radiologist-page {
+        min-height: 0;
+    }
+
+    .ris-radiologist-studies {
+        max-height: 45vh;
+    }
+
+    .ris-radiologist-history {
+        width: 100% !important;
+        border-left: 0 !important;
+        border-top: 1px solid var(--border-color) !important;
+        margin-left: 0 !important;
+        padding-left: 0 !important;
+        margin-top: 1rem;
+        padding-top: 1rem;
+    }
+}
+
 /* Confirmación / alerta / prompt del sistema: siempre sobre modales de módulo */
 .modal.ris-system-modal {
     pointer-events: auto;
@@ -512,12 +611,78 @@ body {
 
 .agenda-calendar .fc-timeline-slot-minor,
 #calendar .fc-timeline-slot-minor {
-    border-left-color: #e8e4ed !important;
+    border-left: 1px solid #a8a0b8 !important;
 }
 
 .agenda-calendar .fc-timeline-slot-major,
 #calendar .fc-timeline-slot-major {
-    border-left-color: var(--htc-purple-light) !important;
+    border-left: 2px solid #6d5d7f !important;
+}
+
+.agenda-calendar .fc-timeline-lane-frame,
+#calendar .fc-timeline-lane-frame {
+    border-bottom: 2px solid #9ca3af;
+}
+
+.agenda-calendar .fc-scrollgrid,
+#calendar .fc-scrollgrid {
+    border: 3px solid #7d8794 !important;
+}
+
+.agenda-calendar .fc-scrollgrid td,
+.agenda-calendar .fc-scrollgrid th,
+#calendar .fc-scrollgrid td,
+#calendar .fc-scrollgrid th {
+    border-color: #a8a0b8 !important;
+}
+
+/* Semana y mes: grilla horaria */
+.fc-resourceTimeGridWeek-view .fc-timegrid-slot,
+.fc-agendaMes-view .fc-timegrid-slot {
+    border-color: #a8a0b8 !important;
+}
+
+.fc-resourceTimeGridWeek-view .fc-timegrid-slot.fc-timegrid-slot-minor,
+.fc-agendaMes-view .fc-timegrid-slot.fc-timegrid-slot-minor {
+    border-bottom: 1px dashed #b0a8c0 !important;
+}
+
+.fc-resourceTimeGridWeek-view .fc-timegrid-slot.fc-timegrid-slot-label,
+.fc-agendaMes-view .fc-timegrid-slot.fc-timegrid-slot-label {
+    border-bottom: 2px solid #8b8399 !important;
+    border-top: 1px solid #c9c4d4 !important;
+}
+
+.fc-resourceTimeGridWeek-view .fc-timegrid-col,
+.fc-agendaMes-view .fc-timegrid-col {
+    border-right: 2px solid #b0a8c0 !important;
+}
+
+.fc-resourceTimeGridWeek-view .fc-col-header-cell,
+.fc-agendaMes-view .fc-col-header-cell {
+    border-bottom: 3px solid #7d8794 !important;
+}
+
+.fc-resourceTimeGridWeek-view .fc-timegrid-axis,
+.fc-agendaMes-view .fc-timegrid-axis {
+    border-right: 3px solid #7d8794 !important;
+}
+
+.fc-resourceTimeGridWeek-view .fc-datagrid-body .fc-datagrid-cell,
+.fc-agendaMes-view .fc-datagrid-body .fc-datagrid-cell {
+    border-bottom: 2px solid #9ca3af !important;
+}
+
+.fc-resourceTimeGridWeek-view .fc-timegrid-body tr:not(:last-child) td.fc-timegrid-lane,
+.fc-agendaMes-view .fc-timegrid-body tr:not(:last-child) td.fc-timegrid-lane {
+    border-bottom: 2px solid #9ca3af !important;
+}
+
+.fc-resourceTimeGridWeek-view .fc-scrollgrid-section-header .fc-datagrid-cell,
+.fc-agendaMes-view .fc-scrollgrid-section-header .fc-datagrid-cell,
+.fc-resourceTimeGridWeek-view .fc-scrollgrid-section-header .fc-timegrid-axis,
+.fc-agendaMes-view .fc-scrollgrid-section-header .fc-timegrid-axis {
+    border-bottom: 3px solid #7d8794 !important;
 }
 
 .agenda-calendar .fc-timeline-now-indicator-arrow,
@@ -849,7 +1014,7 @@ body {
     color: #fff;
 }
 
-/* Vista día: línea bajo la última sala (overlay; FC recorta bordes en scrollers) */
+/* Vista día: línea bajo la última sala */
 #calendar.fc-resourceTimelineDay-view .fc-view-harness {
     position: relative;
 }
@@ -866,50 +1031,92 @@ body {
 
 #calendar.fc-resourceTimelineDay-view .fc-datagrid-body .fc-datagrid-cell:not(:last-child),
 #calendar.fc-resourceTimelineDay-view .fc-timeline-body td.fc-timeline-lane.fc-resource:not(:last-child) {
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 3px solid #8b8399;
 }
 
-/* Vista semana: grilla horaria (horas a la izquierda, días arriba) */
+#calendar.fc-resourceTimelineDay-view .fc-datagrid-header .fc-datagrid-cell,
+#calendar.fc-resourceTimelineDay-view .fc-scrollgrid-section-header th {
+    border-bottom: 3px solid #7d8794 !important;
+}
+
+/* Semana y mes: grilla horaria — días en columnas, horas a la izquierda */
 .fc-resourceTimeGridWeek-view .fc-timegrid-axis,
-.fc-resourceTimeGridWeek-view .fc-timegrid-slot-label {
+.fc-resourceTimeGridWeek-view .fc-timegrid-slot-label,
+.fc-agendaMes-view .fc-timegrid-axis,
+.fc-agendaMes-view .fc-timegrid-slot-label {
+    width: 4.25rem !important;
+    min-width: 4.25rem !important;
+    border-right: 3px solid #7d8794 !important;
+}
+
+.fc-resourceTimeGridWeek-view .fc-timegrid-axis-cushion,
+.fc-resourceTimeGridWeek-view .fc-timegrid-slot-label-cushion,
+.fc-agendaMes-view .fc-timegrid-axis-cushion,
+.fc-agendaMes-view .fc-timegrid-slot-label-cushion {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    padding: 0 8px;
+    font-size: 0.8rem;
     font-weight: 700;
-    font-size: 0.78rem;
+}
+
+.fc-resourceTimeGridWeek-view .fc-col-header-cell,
+.fc-agendaMes-view .fc-col-header-cell {
+    background: #f3f1f7;
+    border-right: 3px solid #8b8399 !important;
+}
+
+.fc-resourceTimeGridWeek-view .fc-datagrid-header .fc-datagrid-cell {
+    border-right: 3px solid #7d8794 !important;
+    border-bottom: 3px solid #7d8794 !important;
 }
 
 .fc-resourceTimeGridWeek-view .fc-col-header-cell-cushion {
     font-weight: 700;
-    font-size: 0.8rem;
-}
-
-.fc-resourceTimeGridWeek-view .fc-timegrid-col.fc-day-today {
-    background: rgba(125, 33, 129, 0.06);
-}
-
-.fc-resourceTimeGridWeek-view .fc-datagrid-cell-main {
-    font-size: 0.82rem;
-    font-weight: 600;
-}
-
-/* Vista mes: grilla horaria (igual que semana, columnas más estrechas + scroll) */
-.fc-agendaMes-view .fc-timegrid-axis,
-.fc-agendaMes-view .fc-timegrid-slot-label {
-    font-weight: 700;
-    font-size: 0.72rem;
+    font-size: 0.85rem;
+    text-transform: capitalize;
+    padding: 8px 6px;
+    line-height: 1.2;
 }
 
 .fc-agendaMes-view .fc-col-header-cell-cushion {
     font-weight: 700;
-    font-size: 0.68rem;
-    padding: 2px 1px;
+    font-size: 0.72rem;
+    text-transform: capitalize;
+    padding: 6px 2px;
+    line-height: 1.15;
 }
 
+.fc-resourceTimeGridWeek-view .fc-timegrid-col {
+    border-right: 4px solid #8b8399 !important;
+    min-width: 155px;
+}
+
+.fc-agendaMes-view .fc-timegrid-col {
+    border-right: 3px solid #9ca3af !important;
+    min-width: 72px;
+}
+
+.fc-agendaMes-view .fc-col-header-cell.fc-day-today,
+.fc-resourceTimeGridWeek-view .fc-col-header-cell.fc-day-today {
+    box-shadow: inset 0 -3px 0 #7d2181;
+}
+
+.fc-resourceTimeGridWeek-view .fc-timegrid-col.fc-day-today,
 .fc-agendaMes-view .fc-timegrid-col.fc-day-today {
-    background: rgba(125, 33, 129, 0.06);
+    background: rgba(125, 33, 129, 0.07);
 }
 
+.fc-resourceTimeGridWeek-view .fc-datagrid-cell-main,
 .fc-agendaMes-view .fc-datagrid-cell-main {
-    font-size: 0.8rem;
+    font-size: 0.82rem;
     font-weight: 600;
+}
+
+.fc-resourceTimeGridWeek-view .fc-event,
+.fc-agendaMes-view .fc-event {
+    font-size: 0.7rem !important;
+    border: none !important;
 }
 
 .fc-agendaMes-view .fc-scroller-harness,
@@ -917,16 +1124,9 @@ body {
     overflow-x: auto !important;
 }
 
-.fc-agendaMes-view .fc-timegrid-col {
-    min-width: 44px;
-}
-
-.fc-agendaMes-view .fc-event {
-    font-size: 0.62rem !important;
-}
-
-.agenda-evento-mes-grilla {
+.agenda-evento-compacto {
     overflow: hidden;
+    min-height: 1.6em;
 }
 
 #agendaVistaContexto:empty {
@@ -946,6 +1146,12 @@ body {
     transform: translateY(-2px);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
     cursor: pointer;
+}
+
+.fc-event.ris-agenda-cita-bloqueada,
+.fc-event.ris-agenda-cita-bloqueada:hover {
+    cursor: not-allowed;
+    transform: none;
 }
 
 .fc-event-main {

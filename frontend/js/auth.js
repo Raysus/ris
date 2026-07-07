@@ -1,3 +1,14 @@
+if (typeof window.jQuery === 'undefined') {
+    document.addEventListener('DOMContentLoaded', function () {
+        const el = document.getElementById('loginError');
+        if (el) {
+            el.classList.remove('d-none');
+            el.textContent = 'No se cargaron las librerías de la página. Recargue (Ctrl+F5) o contacte al administrador.';
+        }
+        const btn = document.getElementById('loginBtn');
+        if (btn) btn.disabled = true;
+    });
+} else {
 $(document).ready(function () {
 
     if ($("#rememberMe").is(":checked") || localStorage.getItem("ris_remember_user") === "true") {
@@ -107,7 +118,7 @@ $(document).ready(function () {
 
         } catch (error) {
             console.error('Error de red o servidor:', error);
-            $("#loginError").removeClass("d-none").text('No se pudo conectar con el servidor. Revise su conexión.');
+            $("#loginError").removeClass("d-none").text('No se pudo conectar con el servidor local. Verifique que el servicio RIS esté activo en este equipo.');
         } finally {
             $btn.prop("disabled", false).html(textoOriginal);
         }
@@ -118,7 +129,8 @@ $(document).ready(function () {
     $("#password, #username").keypress(function (e) {
         if (e.which === 13) intentarLogin();
     });
-});
+    });
+}
 
 function mostrarModalRecuperar() {
     openModal("modalRecuperarPassword");

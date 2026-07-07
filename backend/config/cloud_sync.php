@@ -95,6 +95,8 @@ return [
         'App\Models\Machine' => \App\Models\Machine::class,
         'Exam' => \App\Models\Exam::class,
         'App\Models\Exam' => \App\Models\Exam::class,
+        'SubExam' => \App\Models\SubExam::class,
+        'App\Models\SubExam' => \App\Models\SubExam::class,
         'Laboratory' => \App\Models\Laboratory::class,
         'App\Models\Laboratory' => \App\Models\Laboratory::class,
         'Insurance' => \App\Models\Insurance::class,

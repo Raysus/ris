@@ -5,6 +5,7 @@
 let currentReportingChain = null;
 let currentRadioStudy = null;
 let currentRadiologistData = [];
+let radiologistExamDateFilter = null;
 let audioBlob = null;
 let mediaRecorder;
 let audioChunks = [];
@@ -229,6 +230,14 @@ function initRadiologist() {
         $("#filtroAdminContainer").removeClass("d-none");
     }
 
+    if (typeof risInitWorkflowExamDateFilter === "function") {
+        radiologistExamDateFilter = risInitWorkflowExamDateFilter({
+            moduleKey: "radiologist",
+            rootSelector: "[data-ris-exam-date-filter]",
+            onChange: () => cargarEstudiosRadiologo(),
+        });
+    }
+
     cargarPlantillasRadiologo();
     cargarEstudiosRadiologo();
     setupAudioEvents();
@@ -432,7 +441,11 @@ async function cargarEstudiosRadiologo() {
     }
 
     try {
-        const response = await fetch(`${API_URL}/radiologist/studies?view=${viewMode}`, {
+        const dateQuery = typeof risWorkflowExamDateQueryParam === "function" && radiologistExamDateFilter
+            ? risWorkflowExamDateQueryParam(radiologistExamDateFilter.getState())
+            : "";
+        const url = `${API_URL}/radiologist/studies?view=${viewMode}${dateQuery ? `&${dateQuery}` : ""}`;
+        const response = await fetch(url, {
             headers: typeof risBuildAuthHeaders === 'function' ? risBuildAuthHeaders() : {}
         });
         
@@ -455,6 +468,44 @@ function prefetchPacsStudyForAppointment(app) {
     });
 }
 
+function risHtmlRetornoTranscripcionRadiologo(app) {
+    if (!app?.needsReview || !app.returnReason) return '';
+    return `
+        <div class="alert alert-warning py-2 px-3 mb-3 small shadow-sm d-flex align-items-center gap-2 border-warning border-2">
+            <i class="bi bi-exclamation-octagon-fill fs-4"></i>
+            <div><strong class="d-block">Audio Devuelto por Transcripción:</strong> ${risEscapeHtml(app.returnReason)}</div>
+        </div>
+    `;
+}
+
+function risHtmlAnamnesisRadiologo(app) {
+    const raw = String(app?.anamnesis || '').trim();
+    const vacio = !raw || /^sin anamnesis/i.test(raw);
+    const texto = vacio ? 'Sin anamnesis registrada por el tecnólogo.' : raw;
+    const clase = vacio ? 'alert-light border text-muted' : 'alert-info border-info';
+    return `
+        <div class="alert ${clase} py-2 px-3 mb-3 small shadow-sm">
+            <strong class="d-block mb-1"><i class="bi bi-chat-left-text me-1"></i>Anamnesis / notas técnicas</strong>
+            <div class="ris-anamnesis-radiologo-text">${risEscapeHtml(texto)}</div>
+        </div>
+    `;
+}
+
+function renderEncabezadoPacienteRadiologo(app) {
+    const nombreCompleto = `${app.patient.name} ${app.patient.lastName} ${app.patient.secondLastName || ''}`.trim();
+    return `
+        ${risHtmlRetornoTranscripcionRadiologo(app)}
+        ${risHtmlAnamnesisRadiologo(app)}
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <h5 class="mb-1 fw-bold text-dark"><i class="bi bi-person-bounding-box me-2 text-secondary"></i>${risEscapeHtml(nombreCompleto)}</h5>
+                <span class="badge bg-dark font-monospace fs-6">${risEscapeHtml(app.accessionNumber)}</span>
+                <span class="text-muted small ms-3"><b>RUT:</b> ${risEscapeHtml(app.patient.rut)}</span>
+            </div>
+        </div>
+    `;
+}
+
 function abrirRadiologo(id) {
     const app = currentRadiologistData.find(x => String(x.id) === String(id));
     if (!app) return;
@@ -463,25 +514,7 @@ function abrirRadiologo(id) {
     renderRadiologistStudies();
     prefetchPacsStudyForAppointment(app);
 
-    const retornoAlerta = (app.needsReview && app.returnReason !== '') ? `
-        <div class="alert alert-warning py-2 px-3 mb-3 small shadow-sm d-flex align-items-center gap-2 border-warning border-2">
-            <i class="bi bi-exclamation-octagon-fill fs-4"></i>
-            <div><strong class="d-block">Audio Devuelto por Transcripción:</strong> ${risEscapeHtml(app.returnReason)}</div>
-        </div>
-    ` : '';
-
-    const nombreCompleto = `${app.patient.name} ${app.patient.lastName} ${app.patient.secondLastName || ''}`.trim();
-
-    $("#infoPacienteRadiologo").html(`
-        ${retornoAlerta}
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <div>
-                <h5 class="mb-1 fw-bold text-dark"><i class="bi bi-person-bounding-box me-2 text-secondary"></i>${risEscapeHtml(nombreCompleto)}</h5>
-                <span class="badge bg-dark font-monospace fs-6">${risEscapeHtml(app.accessionNumber)}</span>
-                <span class="text-muted small ms-3"><b>RUT:</b> ${risEscapeHtml(app.patient.rut)}</span>
-            </div>
-        </div>
-    `);
+    $("#infoPacienteRadiologo").html(renderEncabezadoPacienteRadiologo(app));
 
     let tabsHtml = '<div class="d-flex gap-2 flex-wrap">';
     currentReportingChain.studies.forEach((study, index) => {
@@ -501,17 +534,17 @@ function abrirRadiologo(id) {
 
 function renderRadiologistStudies() {
     const contenedor = $("#radiologistStudies");
-    contenedor.empty();
+    const emptyHtml = '<div class="p-4 text-center text-muted small"><i class="bi bi-check2-circle fs-3 d-block mb-2 text-success"></i>Bandeja al día. No tienes pacientes pendientes.</div>';
 
     if (currentRadiologistData.length === 0) {
-        contenedor.append('<div class="p-4 text-center text-muted small"><i class="bi bi-check2-circle fs-3 d-block mb-2 text-success"></i>Bandeja al día. No tienes pacientes pendientes.</div>');
+        contenedor.empty().append(emptyHtml);
         $("#badgePendientesInformar").text(0);
         return;
     }
 
     $("#badgePendientesInformar").text(currentRadiologistData.length);
 
-    currentRadiologistData.forEach(app => {
+    const renderItem = (app) => {
         const selectedClass = (currentReportingChain && currentReportingChain.id === app.id) ? 'active bg-primary text-white' : '';
 
         let badgeEstado = '';
@@ -526,11 +559,15 @@ function renderRadiologistStudies() {
         }
 
         const nombreCompleto = `${app.patient.name} ${app.patient.lastName} ${app.patient.secondLastName || ''}`.trim();
+        const fechaBadge = typeof risWorkflowExamDateBadgeHtml === "function"
+            ? risWorkflowExamDateBadgeHtml(app)
+            : "";
 
-        const item = `
+        return `
             <button type="button" class="list-group-item list-group-item-action p-3 d-flex flex-column align-items-start gap-1 ${selectedClass} ${claseBorde}" onclick="abrirRadiologo('${app.id}')">
-                <div class="d-flex w-100 justify-content-between align-items-center">
+                <div class="d-flex w-100 justify-content-between align-items-center gap-1">
                     <h6 class="mb-0 fw-bold font-monospace text-truncate" style="max-width: 150px;">${risEscapeHtml(app.accessionNumber)}</h6>
+                    ${fechaBadge}
                 </div>
                 <strong class="m-0 text-truncate w-100" style="font-size: 0.95rem;">${risEscapeHtml(nombreCompleto)}</strong>
                 <div class="d-flex w-100 justify-content-between align-items-center mt-1 opacity-75 small">
@@ -540,8 +577,15 @@ function renderRadiologistStudies() {
                 ${badgeEstado}
             </button>
         `;
-        contenedor.append(item);
-    });
+    };
+
+    if (typeof risRenderWorkflowInboxGrouped === "function") {
+        risRenderWorkflowInboxGrouped(contenedor, currentRadiologistData, renderItem, emptyHtml);
+        return;
+    }
+
+    contenedor.empty();
+    currentRadiologistData.forEach((app) => contenedor.append(renderItem(app)));
 }
 
 function abrirInforme(citaId) {
@@ -552,25 +596,7 @@ function abrirInforme(citaId) {
     renderRadiologistStudies();
     prefetchPacsStudyForAppointment(app);
 
-    const retornoAlerta = (app.needsReview && app.returnReason !== '') ? `
-        <div class="alert alert-warning py-2 px-3 mb-3 small shadow-sm d-flex align-items-center gap-2 border-warning border-2">
-            <i class="bi bi-exclamation-octagon-fill fs-4"></i>
-            <div><strong class="d-block">Audio Devuelto por Transcripción:</strong> ${risEscapeHtml(app.returnReason)}</div>
-        </div>
-    ` : '';
-
-    const nombreCompleto = `${app.patient.name} ${app.patient.lastName} ${app.patient.secondLastName || ''}`.trim();
-
-    $("#infoPacienteRadiologo").html(`
-        ${retornoAlerta}
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <div>
-                <h5 class="mb-1 fw-bold text-dark"><i class="bi bi-person-bounding-box me-2 text-secondary"></i>${risEscapeHtml(nombreCompleto)}</h5>
-                <span class="badge bg-dark font-monospace fs-6">${risEscapeHtml(app.accessionNumber)}</span>
-                <span class="text-muted small ms-3"><b>RUT:</b> ${risEscapeHtml(app.patient.rut)}</span>
-            </div>
-        </div>
-    `);
+    $("#infoPacienteRadiologo").html(renderEncabezadoPacienteRadiologo(app));
 
     let tabsHtml = '<div class="d-flex gap-2 flex-wrap">';
     currentReportingChain.studies.forEach((study, index) => {
@@ -1508,6 +1534,8 @@ function abrirVisorDicomSoloOhif() {
     if (!currentReportingChain) return;
     abrirVisorSoloOHIF(currentReportingChain.accessionNumber, {
         chain: currentReportingChain,
+        preferPrimaryScreen: true,
+        windowName: "ris_ohif_radiologo",
     });
 }
 

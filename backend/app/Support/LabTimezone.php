@@ -53,10 +53,38 @@ class LabTimezone
         }
 
         $instant = $value instanceof Carbon
+            ? $value->copy()->utc()
+            : Carbon::parse((string) $value, 'UTC');
+
+        return $instant->timezone(self::name())->format('Y-m-d\TH:i:s');
+    }
+
+    /** Fecha de examen (día local del centro) para bandejas clínicas. */
+    public static function examDateForApi(Carbon|string|null $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $instant = $value instanceof Carbon
             ? $value->copy()
             : Carbon::parse($value);
 
-        return $instant->timezone(self::name())->format('Y-m-d\TH:i:s');
+        return $instant->timezone(self::name())->format('Y-m-d');
+    }
+
+    /** Hora local del examen (HH:MM) para listas de bandeja. */
+    public static function examTimeForApi(Carbon|string|null $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $instant = $value instanceof Carbon
+            ? $value->copy()
+            : Carbon::parse($value);
+
+        return $instant->timezone(self::name())->format('H:i');
     }
 
     /**

@@ -38,6 +38,11 @@ class AppointmentStudy extends Model
         return $this->belongsTo(Exam::class);
     }
 
+    public function subExam()
+    {
+        return $this->belongsTo(SubExam::class, 'sub_exam_id');
+    }
+
     public function report()
     {
         return $this->hasOne(MedicalReport::class);
