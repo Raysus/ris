@@ -509,6 +509,13 @@ class ReportController extends Controller
                 ->values()
                 ->all();
 
+            $machineIds = collect([$app->machine_id])
+                ->merge($app->studies->pluck('machine_id'))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
             $dias[$fecha]['citas'][] = [
                 'hora' => Carbon::parse($app->start_time)->format('H:i'),
                 'hora_fin' => $app->end_time ? Carbon::parse($app->end_time)->format('H:i') : '',
@@ -516,6 +523,8 @@ class ReportController extends Controller
                 'rut' => $persona->rut ?? '',
                 'examenes' => $examenes,
                 'sala' => $app->machine->name ?? '—',
+                'machine_id' => $app->machine_id,
+                'machine_ids' => $machineIds,
                 'estado' => $this->etiquetaEstadoAgenda($app->status),
                 'institucion' => $app->insurance?->name ?? ($app->entidad_pagadora ?: 'Particular'),
                 'medico_referente' => $this->nombreMedicoReferenteAgenda($app->referringDoctor),

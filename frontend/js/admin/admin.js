@@ -14,6 +14,7 @@ let currentPlanesFromDB = [];
 let catalogInsurances = [];
 let catalogReferringDoctors = [];
 let catalogDestinationDoctors = [];
+let catalogAgendaSemanalMachines = [];
 let currentAgendaSemanal = null;
 let currentPacientesAdmin = [];
 let patientsAdminPage = 1;
@@ -1956,12 +1957,74 @@ async function cargarCatalogosAgendaSemanal() {
 
         if (response.ok && data.success) {
             catalogDestinationDoctors = data.data?.destination_doctors || [];
+            catalogAgendaSemanalMachines = (data.data?.machines || []).map((m) => ({
+                id: String(m.id),
+                name: m.name || 'Sala',
+            }));
             poblarSelectMedicosDestinatariosAgendaSemanal();
+            poblarFiltroEquiposAgendaSemanal();
         }
     } catch (e) {
         console.error('Error cargando médicos destinatarios para agenda semanal', e);
     }
 }
+
+function poblarFiltroEquiposAgendaSemanal() {
+    const cont = $('#filtroEquiposAgendaSemanal');
+    if (!cont.length) return;
+
+    if (!catalogAgendaSemanalMachines.length) {
+        cont.html('<span class="small text-muted">Sin equipos configurados.</span>');
+        return;
+    }
+
+    const prev = new Set(obtenerEquiposAgendaSemanalSeleccionados());
+    const html = catalogAgendaSemanalMachines.map((m) => {
+        const checked = prev.size === 0 || prev.has(m.id) ? 'checked' : '';
+        return `
+            <div class="form-check form-check-inline mb-0">
+                <input class="form-check-input filtro-equipo-agenda-semanal" type="checkbox"
+                    id="filtroEquipoAgenda_${m.id}" value="${m.id}" ${checked}>
+                <label class="form-check-label small" for="filtroEquipoAgenda_${m.id}">${m.name}</label>
+            </div>
+        `;
+    }).join('');
+
+    cont.html(html);
+}
+
+function obtenerEquiposAgendaSemanalSeleccionados() {
+    const ids = [];
+    $('.filtro-equipo-agenda-semanal:checked').each(function () {
+        const v = String($(this).val() || '').trim();
+        if (v) ids.push(v);
+    });
+    return ids;
+}
+
+function citaPasaFiltroEquipoAgendaSemanal(cita) {
+    const seleccionados = obtenerEquiposAgendaSemanalSeleccionados();
+    if (!seleccionados.length) return true;
+    const ids = (cita.machine_ids || []).map(String);
+    if (!ids.length && cita.machine_id) ids.push(String(cita.machine_id));
+    return ids.some((id) => seleccionados.includes(id));
+}
+
+function filtrarAgendaSemanalPorEquipo(data) {
+    if (!data?.dias) return data;
+    const dias = data.dias.map((dia) => {
+        const citas = (dia.citas || []).filter(citaPasaFiltroEquipoAgendaSemanal);
+        return { ...dia, citas };
+    });
+    const total = dias.reduce((sum, d) => sum + (d.citas?.length || 0), 0);
+    return { ...data, dias, total_citas: total };
+}
+
+$(document).on('change', '.filtro-equipo-agenda-semanal', function () {
+    if (currentAgendaSemanal) {
+        pintarAgendaSemanalMedico(currentAgendaSemanal);
+    }
+});
 
 function poblarSelectMedicosDestinatariosAgendaSemanal() {
     const select = $("#medicoDestinatarioAgendaSemanal");
@@ -1989,6 +2052,69 @@ function subtituloMedicoDestinatarioAgenda(data) {
 }
 
 $(document).on('change', '#fechaAgendaSemanal, #medicoDestinatarioAgendaSemanal', renderAgendaSemanalMedico);
+
+function pintarAgendaSemanalMedico(res) {
+    const contenedor = $("#contenedorAgendaSemanal");
+    if (!contenedor.length) return;
+
+    const data = filtrarAgendaSemanalPorEquipo(res);
+    $("#totalAgendaSemanal").text(data.total_citas ?? 0);
+    const subtitulo = subtituloMedicoDestinatarioAgenda(data);
+    $("#rangoAgendaSemanal").text(`Semana del ${data.semana_formato || ''}${subtitulo ? ` · ${subtitulo}` : ''}`);
+
+    let html = '';
+    (data.dias || []).forEach((dia) => {
+        const citas = dia.citas || [];
+        html += `
+            <div class="border-bottom">
+                <div class="bg-light px-3 py-2 d-flex justify-content-between align-items-center">
+                    <span class="fw-bold text-primary">${dia.dia_formato}</span>
+                    <span class="badge bg-secondary">${citas.length} cita${citas.length === 1 ? '' : 's'}</span>
+                </div>
+        `;
+
+        if (!citas.length) {
+            html += '<div class="px-3 py-3 small text-muted">Sin citas programadas.</div>';
+        } else {
+            html += `
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="small text-muted">
+                            <tr>
+                                <th style="width:5rem">Hora</th>
+                                <th>Paciente</th>
+                                <th style="width:7rem">RUT</th>
+                                <th>Exámenes</th>
+                                <th>Sala</th>
+                                <th>Méd. referente</th>
+                                <th>Estado</th>
+                                <th>Previsión</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            citas.forEach((cita) => {
+                const hora = cita.hora_fin ? `${cita.hora} – ${cita.hora_fin}` : cita.hora;
+                html += `
+                    <tr>
+                        <td class="fw-bold text-nowrap">${hora}</td>
+                        <td class="fw-bold">${cita.paciente}</td>
+                        <td class="small">${cita.rut || ''}</td>
+                        <td class="small">${(cita.examenes || []).join(' / ')}</td>
+                        <td class="small">${cita.sala || ''}</td>
+                        <td class="small">${cita.medico_referente || '—'}</td>
+                        <td class="small">${cita.estado || ''}</td>
+                        <td class="small">${cita.institucion || ''}</td>
+                    </tr>
+                `;
+            });
+            html += '</tbody></table></div>';
+        }
+        html += '</div>';
+    });
+
+    contenedor.html(html);
+}
 
 async function renderAgendaSemanalMedico() {
     const contenedor = $("#contenedorAgendaSemanal");
@@ -2032,63 +2158,8 @@ async function renderAgendaSemanalMedico() {
         }
 
         currentAgendaSemanal = res;
-        $("#totalAgendaSemanal").text(res.total_citas ?? 0);
-        const subtitulo = subtituloMedicoDestinatarioAgenda(res);
-        $("#rangoAgendaSemanal").text(`Semana del ${res.semana_formato || ''}${subtitulo ? ` · ${subtitulo}` : ''}`);
         $("#btnAgendaSemanalPdf").prop('disabled', false);
-
-        let html = '';
-        (res.dias || []).forEach((dia) => {
-            const citas = dia.citas || [];
-            html += `
-                <div class="border-bottom">
-                    <div class="bg-light px-3 py-2 d-flex justify-content-between align-items-center">
-                        <span class="fw-bold text-primary">${dia.dia_formato}</span>
-                        <span class="badge bg-secondary">${citas.length} cita${citas.length === 1 ? '' : 's'}</span>
-                    </div>
-            `;
-
-            if (!citas.length) {
-                html += '<div class="px-3 py-3 small text-muted">Sin citas programadas.</div>';
-            } else {
-                html += `
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover align-middle mb-0">
-                            <thead class="small text-muted">
-                                <tr>
-                                    <th style="width:5rem">Hora</th>
-                                    <th>Paciente</th>
-                                    <th style="width:7rem">RUT</th>
-                                    <th>Exámenes</th>
-                                    <th>Sala</th>
-                                    <th>Méd. referente</th>
-                                    <th>Estado</th>
-                                    <th>Previsión</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                `;
-                citas.forEach((cita) => {
-                    const hora = cita.hora_fin ? `${cita.hora} – ${cita.hora_fin}` : cita.hora;
-                    html += `
-                        <tr>
-                            <td class="fw-bold text-nowrap">${hora}</td>
-                            <td class="fw-bold">${cita.paciente}</td>
-                            <td class="small">${cita.rut || ''}</td>
-                            <td class="small">${(cita.examenes || []).join(' / ')}</td>
-                            <td class="small">${cita.sala || ''}</td>
-                            <td class="small">${cita.medico_referente || '—'}</td>
-                            <td class="small">${cita.estado || ''}</td>
-                            <td class="small">${cita.institucion || ''}</td>
-                        </tr>
-                    `;
-                });
-                html += '</tbody></table></div>';
-            }
-            html += '</div>';
-        });
-
-        contenedor.html(html);
+        pintarAgendaSemanalMedico(res);
     } catch (e) {
         console.error('Error cargando agenda semanal', e);
         currentAgendaSemanal = null;
@@ -2192,7 +2263,7 @@ async function descargarAgendaSemanalPdf() {
     const host = document.getElementById('agendaSemanalPdfHost');
     if (!host) return;
 
-    host.innerHTML = construirHtmlAgendaSemanalPdf(currentAgendaSemanal);
+    host.innerHTML = construirHtmlAgendaSemanalPdf(filtrarAgendaSemanalPorEquipo(currentAgendaSemanal));
     const elemento = host.firstElementChild;
     if (!elemento) return;
 
