@@ -53,8 +53,8 @@ class LabTimezone
         }
 
         $instant = $value instanceof Carbon
-            ? $value->copy()
-            : Carbon::parse($value);
+            ? $value->copy()->utc()
+            : Carbon::parse((string) $value, 'UTC');
 
         return $instant->timezone(self::name())->format('Y-m-d\TH:i:s');
     }

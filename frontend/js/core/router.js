@@ -148,8 +148,15 @@ async function ensureModuleLoaded(page) {
     if (page === "agenda") await loadScriptOnce("/js/workflow/payments.js");
 }
 
+let _risCurrentPage = null;
+
 function loadPage(page) {
     console.log("Cargando página:", page);
+
+    if (_risCurrentPage === "agenda" && page !== "agenda" && typeof destroyAgenda === "function") {
+        destroyAgenda();
+    }
+    _risCurrentPage = page;
     sincronizarSidebar(page);
 
     if (typeof showLoader === "function") showLoader("Cargando módulo…");

@@ -82,30 +82,8 @@ class AppointmentScheduleService
         $cursor = $start instanceof CarbonInterface
             ? $start->copy()->timezone(LabTimezone::name())
             : LabTimezone::parseScheduleTime((string) $start);
-        $blocks = [];
 
-        if ($studies !== []) {
-            foreach ($studies as $study) {
-                $machineId = (string) ($study['machine_id'] ?? $fallbackMachineId ?? '');
-                if ($machineId === '') {
-                    continue;
-                }
-                $qty = max(1, (int) ($study['quantity'] ?? 1));
-                $mins = $intervalMinutes * $qty;
-                $blockStart = $cursor->copy();
-                $blockEnd = $cursor->copy()->addMinutes($mins);
-                $blocks[] = [
-                    'machine_id' => $machineId,
-                    'start' => $blockStart,
-                    'end' => $blockEnd,
-                ];
-                $cursor = $blockEnd;
-            }
-
-            return $blocks;
-        }
-
-        $machineId = (string) ($fallbackMachineId ?? '');
+        $machineId = $this->resolvePrimaryMachineId($studies, $fallbackMachineId);
         if ($machineId === '') {
             return [];
         }
@@ -118,6 +96,21 @@ class AppointmentScheduleService
             'start' => $blockStart,
             'end' => $blockEnd,
         ]];
+    }
+
+    /**
+     * @param  list<array{machine_id?: string|null, quantity?: int|float|string|null}>  $studies
+     */
+    private function resolvePrimaryMachineId(array $studies, ?string $fallbackMachineId): string
+    {
+        foreach ($studies as $study) {
+            $machineId = (string) ($study['machine_id'] ?? '');
+            if ($machineId !== '') {
+                return $machineId;
+            }
+        }
+
+        return (string) ($fallbackMachineId ?? '');
     }
 
     /**
