@@ -27,6 +27,7 @@ class Appointment extends Model
         'transaction_code',
         'medical_order_path',
         'survey_path',
+        'previous_reports_paths',
         'insurance_id',
         'insurance_plan_id',
         'tipo_bono',
@@ -44,6 +45,7 @@ class Appointment extends Model
         'needs_review' => 'boolean',
         'reminder_sent_at' => 'datetime',
         'images_received_at' => 'datetime',
+        'previous_reports_paths' => 'array',
     ];
 
     public function patient()

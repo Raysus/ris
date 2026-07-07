@@ -100,4 +100,110 @@ class WorklistAuthorizationTest extends TestCase
         $this->assertFalse($examNames->contains('TC Filtro B'));
         $this->assertSame($machineA->id, $filtered[0]['machine_id'] ?? null);
     }
+
+    public function test_worklist_reassign_machine_same_group(): void
+    {
+        Sanctum::actingAs(User::where('username', 'friquelme')->firstOrFail());
+
+        $machineA = Machine::where('laboratory_id', $this->risLab->id)->firstOrFail();
+        $machineB = Machine::create([
+            'laboratory_id' => $this->risLab->id,
+            'name' => 'Sala Mismo Grupo B',
+            'group' => $machineA->group,
+            'is_active' => true,
+        ]);
+        $machineOther = Machine::create([
+            'laboratory_id' => $this->risLab->id,
+            'name' => 'Sala Otro Grupo',
+            'group' => 'CT',
+            'is_active' => true,
+        ]);
+
+        $patient = Paciente::where('laboratory_id', $this->risLab->id)->firstOrFail();
+        $start = Carbon::now()->addHour();
+
+        $appointment = Appointment::create([
+            'laboratory_id' => $this->risLab->id,
+            'patient_id' => $patient->id,
+            'machine_id' => $machineA->id,
+            'start_time' => $start,
+            'end_time' => $start->copy()->addMinutes(30),
+            'status' => 'confirmado',
+        ]);
+        $study = AppointmentStudy::create([
+            'appointment_id' => $appointment->id,
+            'exam_name' => 'RX Reasignar',
+            'machine_id' => $machineA->id,
+            'quantity' => 1,
+            'price' => 1000,
+        ]);
+
+        $headers = ['X-Lab-Id' => $this->risLab->id, 'Accept' => 'application/json'];
+
+        $this->withHeaders($headers)
+            ->postJson('/api/worklist/studies/' . $study->id . '/reassign-machine', [
+                'machine_id' => $machineB->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('machine_id', $machineB->id);
+
+        $this->assertSame($machineB->id, $study->fresh()->machine_id);
+
+        $this->withHeaders($headers)
+            ->postJson('/api/worklist/studies/' . $study->id . '/reassign-machine', [
+                'machine_id' => $machineOther->id,
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('success', false);
+    }
+
+    public function test_worklist_upload_survey_and_previous_reports(): void
+    {
+        Sanctum::actingAs(User::where('username', 'friquelme')->firstOrFail());
+
+        $machine = Machine::where('laboratory_id', $this->risLab->id)->firstOrFail();
+        $patient = Paciente::where('laboratory_id', $this->risLab->id)->firstOrFail();
+        $start = Carbon::now()->addHour();
+
+        $appointment = Appointment::create([
+            'laboratory_id' => $this->risLab->id,
+            'patient_id' => $patient->id,
+            'machine_id' => $machine->id,
+            'start_time' => $start,
+            'end_time' => $start->copy()->addMinutes(30),
+            'status' => 'confirmado',
+        ]);
+
+        $pdfBase64 = 'data:application/pdf;base64,' . base64_encode('%PDF-1.4 test');
+        $headers = ['X-Lab-Id' => $this->risLab->id, 'Accept' => 'application/json'];
+
+        $this->withHeaders($headers)
+            ->postJson('/api/appointments/' . $appointment->id . '/worklist-document', [
+                'type' => 'survey',
+                'document_base64' => $pdfBase64,
+            ])
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $appointment->refresh();
+        $this->assertNotEmpty($appointment->survey_path);
+
+        $this->withHeaders($headers)
+            ->postJson('/api/appointments/' . $appointment->id . '/worklist-document', [
+                'type' => 'previous_report',
+                'document_base64' => $pdfBase64,
+            ])
+            ->assertOk();
+
+        $this->withHeaders($headers)
+            ->postJson('/api/appointments/' . $appointment->id . '/worklist-document', [
+                'type' => 'previous_report',
+                'document_base64' => $pdfBase64,
+            ])
+            ->assertOk();
+
+        $appointment->refresh();
+        $this->assertCount(2, $appointment->previous_reports_paths ?? []);
+    }
 }

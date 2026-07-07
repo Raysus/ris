@@ -109,6 +109,8 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::post('/appointments/{id}/mark-dicom-received', [WorklistController::class, 'markDicomReceived']);
     Route::post('/appointments/{id}/save-anamnesis', [WorklistController::class, 'saveAnamnesis']);
     Route::post('/appointments/{id}/complete-worklist', [WorklistController::class, 'complete']);
+    Route::post('/appointments/{id}/worklist-document', [WorklistController::class, 'uploadWorklistDocument']);
+    Route::post('/worklist/studies/{studyId}/reassign-machine', [WorklistController::class, 'reassignStudyMachine']);
 
     // MÓDULO RADIÓLOGO
     Route::get('/radiologist/studies', [RadiologistController::class, 'index']);

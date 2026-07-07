@@ -11,6 +11,7 @@ use App\Models\Supply;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use App\Services\DicomImportService;
 use App\Services\LocalMwlFileWriter;
@@ -106,6 +107,7 @@ class WorklistController extends Controller
                         'return_reason' => $appointment->return_reason,
                         'medical_order_path' => $appointment->medical_order_path,
                         'survey_path' => $appointment->survey_path,
+                        'previous_reports_paths' => $appointment->previous_reports_paths ?? [],
                         'patient' => [
                             'persona' => [
                                 'names' => $persona?->names,
@@ -836,5 +838,158 @@ class WorklistController extends Controller
         }
 
         return false;
+    }
+
+    /**
+     * Cambia la sala de un estudio en worklist (solo dentro del mismo grupo/modalidad).
+     */
+    public function reassignStudyMachine(Request $request, string $studyId)
+    {
+        $this->assertWorklistAccess($request);
+        $request->validate([
+            'machine_id' => 'required|uuid',
+        ]);
+
+        $study = AppointmentStudy::with(['appointment.machine', 'machine'])->findOrFail($studyId);
+        $appointment = $this->getSecureAppointmentQuery()->findOrFail($study->appointment_id);
+
+        if (!in_array($appointment->status, ['confirmado', 'en_atencion', 'devuelto_worklist'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No se puede cambiar la sala en el estado actual de la cita.',
+            ], 422);
+        }
+
+        $newMachine = Machine::query()
+            ->where('id', $request->machine_id)
+            ->where('laboratory_id', $appointment->laboratory_id)
+            ->where('is_active', true)
+            ->firstOrFail();
+
+        $oldMachine = $study->machine ?? $appointment->machine;
+        $oldGroup = ModalityCode::normalizeGroup($oldMachine?->group);
+        $newGroup = ModalityCode::normalizeGroup($newMachine->group);
+
+        if ($oldGroup === '' || $newGroup === '' || $oldGroup !== $newGroup) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Solo puede cambiar a otra sala del mismo grupo (modalidad).',
+            ], 422);
+        }
+
+        $effectiveOldMachineId = $study->machine_id ?? $appointment->machine_id;
+
+        DB::transaction(function () use ($study, $appointment, $newMachine, $effectiveOldMachineId) {
+            $study->machine_id = $newMachine->id;
+            $study->save();
+
+            if ((string) $appointment->machine_id === (string) $effectiveOldMachineId) {
+                $appointment->machine_id = $newMachine->id;
+                $appointment->save();
+            }
+        });
+
+        $appointment->load(['patient.persona', 'studies', 'supplies']);
+        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+
+        return response()->json([
+            'success' => true,
+            'study_id' => $study->id,
+            'machine_id' => $newMachine->id,
+            'machine_name' => $newMachine->name,
+            'machine_group' => $newMachine->group,
+        ]);
+    }
+
+    /**
+     * Sube encuesta o informes previos desde el módulo worklist.
+     */
+    public function uploadWorklistDocument(Request $request, $appointmentId)
+    {
+        $this->assertWorklistAccess($request);
+        $request->validate([
+            'type' => 'required|in:survey,previous_report',
+            'document_base64' => 'required|string',
+        ]);
+
+        $appointment = $this->getSecureAppointmentQuery()->findOrFail($appointmentId);
+
+        if (!in_array($appointment->status, ['confirmado', 'en_atencion', 'dicom_enviado', 'devuelto_worklist'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'La cita no está en un estado que permita adjuntar documentos.',
+            ], 422);
+        }
+
+        $path = $this->saveBase64Document($request->input('document_base64'));
+        if (!$path) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Documento inválido o formato no permitido.',
+            ], 422);
+        }
+
+        if ($request->input('type') === 'survey') {
+            $appointment->survey_path = $path;
+        } else {
+            $paths = $appointment->previous_reports_paths ?? [];
+            if (!is_array($paths)) {
+                $paths = [];
+            }
+            $paths[] = $path;
+            $appointment->previous_reports_paths = array_values($paths);
+        }
+
+        $appointment->save();
+        $appointment->load(['patient.persona', 'studies', 'supplies']);
+        \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+
+        return response()->json([
+            'success' => true,
+            'path' => $path,
+            'survey_path' => $appointment->survey_path,
+            'previous_reports_paths' => $appointment->previous_reports_paths ?? [],
+        ]);
+    }
+
+    private function saveBase64Document($base64String, $folder = 'documents')
+    {
+        if (!$base64String || !str_starts_with($base64String, 'data:')) {
+            return null;
+        }
+
+        $parts = explode(';', $base64String);
+        if (count($parts) < 2) {
+            return null;
+        }
+
+        $mimePart = explode(':', $parts[0]);
+        $mimeType = $mimePart[1] ?? '';
+
+        $dataPart = explode(',', $parts[1]);
+        $fileData = isset($dataPart[1]) ? base64_decode($dataPart[1]) : null;
+
+        if (!$fileData) {
+            return null;
+        }
+
+        $allowedMimes = [
+            'image/jpeg' => 'jpg',
+            'image/jpg' => 'jpg',
+            'image/png' => 'png',
+            'application/pdf' => 'pdf',
+        ];
+
+        if (!array_key_exists($mimeType, $allowedMimes)) {
+            return null;
+        }
+
+        $extension = $allowedMimes[$mimeType];
+        $fileName = Str::uuid() . '.' . $extension;
+        $path = $folder . '/' . $fileName;
+
+        Storage::disk('public')->put($path, $fileData);
+
+        return '/storage/' . $path;
     }
 }

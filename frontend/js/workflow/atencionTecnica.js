@@ -12,6 +12,7 @@ let currentAtencionChain = null;
 let currentWorklistFromDB = [];
 let currentCadenas = {};
 let currentSuppliesFromDB = [];
+let currentMachinesFromDB = [];
 let _atencionRefreshTimer = null;
 /** Borradores locales de anamnesis por cadena (paciente+día) mientras se atiende la worklist. */
 let anamnesisDrafts = {};
@@ -86,8 +87,8 @@ async function cargarMaquinasFiltro() {
         const data = await response.json();
         select.empty().append('<option value="">Todas las máquinas</option>');
         if (response.ok && data.data) {
-            data.data
-                .filter(m => m.is_active !== false)
+            currentMachinesFromDB = data.data.filter(m => m.is_active !== false);
+            currentMachinesFromDB
                 .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'es'))
                 .forEach(m => {
                     const grupo = m.group ? ` [${m.group}]` : '';
@@ -105,6 +106,40 @@ async function cargarMaquinasFiltro() {
 function risMachineIdEstudioWorklist(study) {
     if (!study) return '';
     return String(study.machine_id || study.appointment?.machine_id || '');
+}
+
+function risNormalizeMachineGroup(group) {
+    const g = String(group || '').trim().toUpperCase();
+    const map = {
+        ECO: 'US',
+        SCANNER: 'CT',
+        TC: 'CT',
+        RM: 'MRI',
+        MR: 'MRI',
+        MG: 'MAMO',
+        DENSITO: 'DEXA',
+    };
+    return map[g] || g;
+}
+
+function risMaquinasMismoGrupo(machineGroup) {
+    const norm = risNormalizeMachineGroup(machineGroup);
+    if (!norm) return [];
+    return currentMachinesFromDB.filter(
+        (m) => risNormalizeMachineGroup(m.group) === norm
+    );
+}
+
+function risMergePreviousReports(chain, paths) {
+    if (!chain) return;
+    if (!Array.isArray(chain.previousReports)) {
+        chain.previousReports = [];
+    }
+    (paths || []).forEach((path) => {
+        if (path && !chain.previousReports.includes(path)) {
+            chain.previousReports.push(path);
+        }
+    });
 }
 
 function onWorklistMachineFilterChange() {
@@ -168,6 +203,7 @@ async function cargarWorklistDesdeServidor() {
             renderWorklist();
             if ($("#modalAtencion").is(":visible") && currentAtencionChain) {
                 syncAtencionChainFromWorklist();
+                renderAtencionEstudios(currentAtencionChain);
                 applyWorklistDicomUI(currentAtencionChain);
                 risActualizarBotonesDocumentosWorklist(currentAtencionChain);
                 $("#txtAnamnesis").val(risAnamnesisParaCadena(currentAtencionChain));
@@ -192,6 +228,18 @@ function risActualizarBotonesDocumentosWorklist(chain) {
         $("#btnVerEncuestaTM").prop("disabled", false).removeClass("btn-outline-danger").addClass("btn-danger text-white");
     } else {
         $("#btnVerEncuestaTM").prop("disabled", true).removeClass("btn-danger text-white").addClass("btn-outline-danger");
+    }
+
+    const previos = Array.isArray(chain.previousReports) ? chain.previousReports : [];
+    const badge = $("#badgeInformesPrevios");
+    if (previos.length > 0) {
+        $("#btnVerInformesPreviosTM").prop("disabled", false)
+            .removeClass("btn-outline-secondary").addClass("btn-secondary text-white");
+        badge.removeClass("d-none").text(previos.length);
+    } else {
+        $("#btnVerInformesPreviosTM").prop("disabled", true)
+            .removeClass("btn-secondary text-white").addClass("btn-outline-secondary");
+        badge.addClass("d-none").text("0");
     }
 }
 
@@ -273,7 +321,8 @@ function renderWorklist() {
                 returnReason: app.return_reason,
                 // --- NUEVO ---
                 medicalOrder: app.medical_order_path,
-                survey: app.survey_path
+                survey: app.survey_path,
+                previousReports: Array.isArray(app.previous_reports_paths) ? [...app.previous_reports_paths] : []
             };
         }
 
@@ -283,6 +332,7 @@ function renderWorklist() {
         if (app.survey_path) {
             currentCadenas[chainId].survey = app.survey_path;
         }
+        risMergePreviousReports(currentCadenas[chainId], app.previous_reports_paths);
 
         currentCadenas[chainId].items.push(study);
         currentCadenas[chainId].citasIds.add(app.id); // Registramos el ID de la cita
@@ -399,16 +449,7 @@ function abrirAtencion(chainId) {
     const salas = [...new Set(currentAtencionChain.items.map(i => i.machine_name || 'Sala'))];
     $("#atencionSala").text(salas.join(" + "));
 
-    const listaHtml = currentAtencionChain.items.map(item => `
-        <div class="list-group-item d-flex justify-content-between align-items-center bg-white border-primary border-start border-4 mb-1">
-            <div>
-                <strong class="text-dark">${item.exam_name}</strong>
-                <small class="d-block text-muted">Sub-examen: ${item.sub_exam_name || 'N/A'}</small>
-            </div>
-            <span class="badge bg-primary rounded-pill">Cant: ${item.quantity}</span>
-        </div>
-    `).join('');
-    $("#atencionEstudios").html(listaHtml);
+    renderAtencionEstudios(currentAtencionChain);
 
     $("#txtAnamnesis").val(risAnamnesisParaCadena(currentAtencionChain));
     $("#insumoSelect").val("");
@@ -420,6 +461,109 @@ function abrirAtencion(chainId) {
     risActualizarBotonesDocumentosWorklist(currentAtencionChain);
 
     openModal("modalAtencion");
+}
+
+function renderAtencionEstudios(chain) {
+    if (!chain?.items?.length) {
+        $("#atencionEstudios").empty();
+        return;
+    }
+
+    const listaHtml = chain.items.map(item => {
+        const currentMachineId = risMachineIdEstudioWorklist(item);
+        const opciones = risMaquinasMismoGrupo(item.machine_group);
+        const puedeCambiar = opciones.length > 1;
+        const optionsHtml = opciones.map((m) => {
+            const selected = String(m.id) === String(currentMachineId) ? 'selected' : '';
+            return `<option value="${m.id}" ${selected}>${m.name}</option>`;
+        }).join('');
+
+        return `
+        <div class="list-group-item bg-white border-primary border-start border-4 mb-1">
+            <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+                <div class="flex-grow-1">
+                    <strong class="text-dark">${item.exam_name}</strong>
+                    <small class="d-block text-muted">Sub-examen: ${item.sub_exam_name || 'N/A'}</small>
+                    <div class="mt-2" style="max-width: 280px;">
+                        <label class="form-label small text-muted fw-bold mb-0">Sala</label>
+                        <select class="form-select form-select-sm wl-study-machine"
+                            data-study-id="${item.id}"
+                            data-prev-machine="${currentMachineId}"
+                            ${puedeCambiar ? '' : 'disabled title="No hay otra sala del mismo grupo"'}>
+                            ${optionsHtml || `<option value="${currentMachineId}">${item.machine_name || 'Sala'}</option>`}
+                        </select>
+                    </div>
+                </div>
+                <span class="badge bg-primary rounded-pill align-self-center">Cant: ${item.quantity}</span>
+            </div>
+        </div>`;
+    }).join('');
+
+    $("#atencionEstudios").html(listaHtml);
+    $("#atencionEstudios .wl-study-machine")
+        .off('change.wlRoom focus.wlRoom')
+        .on('focus.wlRoom', function () {
+            $(this).data('prev-machine', $(this).val());
+        })
+        .on('change.wlRoom', onWorklistStudyMachineChange);
+}
+
+async function onWorklistStudyMachineChange() {
+    const $select = $(this);
+    const studyId = $select.data('study-id');
+    const machineId = $select.val();
+    const prevMachineId = $select.data('prev-machine');
+
+    if (!studyId || !machineId || String(machineId) === String(prevMachineId)) {
+        return;
+    }
+
+    $select.prop('disabled', true);
+
+    try {
+        const response = await fetch(`${API_URL}/worklist/studies/${studyId}/reassign-machine`, {
+            method: 'POST',
+            headers: typeof risBuildAuthHeaders === 'function'
+                ? risBuildAuthHeaders({ 'Content-Type': 'application/json' })
+                : {},
+            body: JSON.stringify({ machine_id: machineId }),
+        });
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok || !data.success) {
+            throw new Error(data.message || 'No se pudo cambiar la sala');
+        }
+
+        const item = (currentAtencionChain?.items || []).find((s) => String(s.id) === String(studyId));
+        if (item) {
+            item.machine_id = data.machine_id;
+            item.machine_name = data.machine_name;
+            item.machine_group = data.machine_group;
+        }
+
+        $select.data('prev-machine', machineId);
+        const salas = [...new Set((currentAtencionChain?.items || []).map(i => i.machine_name || 'Sala'))];
+        $("#atencionSala").text(salas.join(" + "));
+
+        if (typeof showToast === 'function') {
+            showToast(`Sala actualizada: ${data.machine_name}`, 'success');
+        }
+
+        await cargarWorklistDesdeServidor();
+        if (currentAtencionChain) {
+            renderAtencionEstudios(currentAtencionChain);
+        }
+    } catch (e) {
+        console.error(e);
+        $select.val(prevMachineId);
+        if (typeof showToast === 'function') {
+            showToast(`❌ ${e.message}`, 'danger');
+        }
+    } finally {
+        const item = (currentAtencionChain?.items || []).find((s) => String(s.id) === String(studyId));
+        const opciones = risMaquinasMismoGrupo(item?.machine_group);
+        $select.prop('disabled', opciones.length <= 1);
+    }
 }
 
 function usesDicomWorklist() {
@@ -840,14 +984,114 @@ async function finalizarAtencion() {
 function abrirDocWorklist(tipo) {
     if (!currentAtencionChain) return;
 
+    if (tipo === 'previos') {
+        const paths = Array.isArray(currentAtencionChain.previousReports)
+            ? currentAtencionChain.previousReports
+            : [];
+        if (!paths.length) {
+            return showToast("No hay informes previos escaneados.", "warning");
+        }
+        paths.forEach((path, index) => {
+            setTimeout(() => risAbrirDocumentoEnNuevaVentana(path), index * 350);
+        });
+        if (paths.length > 1 && typeof showToast === 'function') {
+            showToast(`Abriendo ${paths.length} documento(s) de informes previos.`, "info");
+        }
+        return;
+    }
+
     const path = tipo === 'orden' ? currentAtencionChain.medicalOrder : currentAtencionChain.survey;
     if (!path) {
-        return showToast("Este documento no fue escaneado en recepción.", "warning");
+        const label = tipo === 'orden' ? 'orden médica' : 'encuesta';
+        return showToast(`Este documento (${label}) no fue escaneado aún.`, "warning");
     }
 
     if (!risAbrirDocumentoEnNuevaVentana(path)) {
         showToast("No se pudo abrir el documento.", "danger");
     }
+}
+
+async function escanearDocumentoWorklist(tipo) {
+    if (!currentAtencionChain) return;
+
+    const isEncuesta = tipo === 'encuesta';
+    const btn = isEncuesta ? $("#btnEscanearEncuestaTM") : $("#btnEscanearInformesPreviosTM");
+    const textoOriginal = btn.html();
+
+    btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>Escaneando...');
+
+    try {
+        const bridgeUrl = typeof LOCAL_BRIDGE_URL !== 'undefined' ? LOCAL_BRIDGE_URL : 'http://127.0.0.1:8181';
+        const response = await fetch(`${bridgeUrl}/escanear`);
+        const data = await response.json();
+
+        if (!response.ok || !data.success || !data.file) {
+            throw new Error(data.message || 'Error al escanear');
+        }
+
+        await subirDocumentoWorklistToCitas(tipo, data.file);
+
+        const msg = isEncuesta
+            ? 'Encuesta digitalizada y guardada.'
+            : 'Hoja de informe previo agregada.';
+        if (typeof showToast === 'function') showToast(`✅ ${msg}`, 'success');
+    } catch (error) {
+        console.error('Error del puente:', error);
+        if (typeof showToast === 'function') {
+            showToast("❌ No se detectó el escáner. Asegúrese de tener el RIS Bridge abierto en su PC.", "danger");
+        }
+    } finally {
+        btn.prop('disabled', false).html(textoOriginal);
+    }
+}
+
+async function subirDocumentoWorklistToCitas(tipo, base64Data) {
+    const citas = currentAtencionChain?.citasIds
+        ? Array.from(currentAtencionChain.citasIds)
+        : [];
+
+    if (!citas.length) {
+        throw new Error('No hay citas asociadas al paciente.');
+    }
+
+    const apiType = tipo === 'encuesta' ? 'survey' : 'previous_report';
+    let ultimoPath = null;
+    let ultimosPrevios = [];
+
+    for (const citaId of citas) {
+        const response = await fetch(`${API_URL}/appointments/${citaId}/worklist-document`, {
+            method: 'POST',
+            headers: typeof risBuildAuthHeaders === 'function'
+                ? risBuildAuthHeaders({ 'Content-Type': 'application/json' })
+                : {},
+            body: JSON.stringify({
+                type: apiType,
+                document_base64: base64Data,
+            }),
+        });
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok || !data.success) {
+            throw new Error(data.message || 'Error al guardar el documento');
+        }
+
+        ultimoPath = data.path;
+        if (Array.isArray(data.previous_reports_paths)) {
+            ultimosPrevios = data.previous_reports_paths;
+        }
+        if (data.survey_path) {
+            currentAtencionChain.survey = data.survey_path;
+        }
+    }
+
+    if (tipo === 'encuesta' && ultimoPath) {
+        currentAtencionChain.survey = ultimoPath;
+    } else if (tipo === 'previos') {
+        risMergePreviousReports(currentAtencionChain, ultimosPrevios.length ? ultimosPrevios : [ultimoPath]);
+    }
+
+    risActualizarBotonesDocumentosWorklist(currentAtencionChain);
+    await cargarWorklistDesdeServidor();
 }
 async function devolverAAgenda() {
     if (!currentAtencionChain) return;
