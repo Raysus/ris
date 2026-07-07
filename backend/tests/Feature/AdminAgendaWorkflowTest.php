@@ -503,6 +503,76 @@ class AdminAgendaWorkflowTest extends TestCase
         $this->assertNotEmpty($examPayload['sub_exams'][0]['id'] ?? null);
     }
 
+    public function test_exam_update_can_remove_sub_exam_referenced_by_appointment(): void
+    {
+        $headers = $this->authHeaders();
+        $machine = Machine::where('laboratory_id', $this->risLab->id)->firstOrFail();
+        $patient = Paciente::where('laboratory_id', $this->risLab->id)->firstOrFail();
+        $exam = Exam::where('laboratory_id', $this->risLab->id)->firstOrFail();
+
+        $create = $this->withHeaders($headers)->postJson('/api/exams', [
+            'group_code' => $exam->group_code,
+            'name' => 'Examen Variantes FK Test',
+            'fonasa_code' => '0401042',
+            'price' => 18000,
+            'fonasa_price' => 18000,
+            'sub_exams' => ['Columna cervical frontal y lateral', 'Atlas-axis frontal y lateral', 'Variante a quitar'],
+        ]);
+        $create->assertOk();
+        $examId = $create->json('exam.id');
+
+        $subToRemove = DB::table('sub_exams')
+            ->where('exam_id', $examId)
+            ->where('name', 'Variante a quitar')
+            ->value('id');
+        $this->assertNotEmpty($subToRemove);
+
+        $start = Carbon::now()->addDay()->startOfHour();
+        $appointment = Appointment::create([
+            'laboratory_id' => $this->risLab->id,
+            'patient_id' => $patient->id,
+            'machine_id' => $machine->id,
+            'start_time' => $start,
+            'end_time' => $start->copy()->addMinutes(30),
+            'status' => 'agendado',
+        ]);
+
+        DB::table('appointment_studies')->insert([
+            'id' => (string) Str::uuid(),
+            'appointment_id' => $appointment->id,
+            'machine_id' => $machine->id,
+            'exam_id' => $examId,
+            'sub_exam_id' => $subToRemove,
+            'exam_name' => 'Examen Variantes FK Test',
+            'sub_exam_name' => 'Variante a quitar',
+            'quantity' => 1,
+            'price' => 18000,
+            'status' => 'agendado',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $update = $this->withHeaders($headers)->postJson('/api/exams', [
+            'id' => $examId,
+            'group_code' => $exam->group_code,
+            'name' => 'Examen Variantes FK Test',
+            'fonasa_code' => '0401042',
+            'price' => 18000,
+            'fonasa_price' => 18000,
+            'sub_exams' => ['Columna cervical frontal y lateral', 'Atlas-axis frontal y lateral'],
+        ]);
+
+        $update->assertOk()->assertJsonPath('success', true);
+
+        $this->assertDatabaseMissing('sub_exams', ['id' => $subToRemove]);
+        $this->assertDatabaseHas('appointment_studies', [
+            'appointment_id' => $appointment->id,
+            'sub_exam_id' => null,
+            'sub_exam_name' => 'Variante a quitar',
+        ]);
+        $this->assertDatabaseCount('sub_exams', 2);
+    }
+
     public function test_agenda_semanal_requires_destination_doctor(): void
     {
         $this->withHeaders($this->authHeaders())

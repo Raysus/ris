@@ -74,4 +74,4 @@ var API_URL = resolveRisApiUrl();
 window.API_URL = API_URL;
 
 /** Incrementar al desplegar frontend para evitar HTML/JS en caché del navegador */
-window.RIS_BUILD = '20260707a';
+window.RIS_BUILD = '20260707c';

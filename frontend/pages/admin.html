@@ -296,7 +296,8 @@
                                         <th class="ps-4">Grupo (Modalidad)</th>
                                         <th>Nombre del Examen</th>
                                         <th>Código FONASA/Interno</th>
-                                        <th class="text-end">Arancel (Precio Base)</th>
+                                        <th class="text-end">Arancel Particular</th>
+                                        <th class="text-end">Arancel FONASA</th>
                                         <th class="text-center">Instrucciones</th>
                                         <th class="text-center pe-4">Acciones</th>
                                     </tr>
@@ -1171,9 +1172,16 @@
                             <input type="text" class="form-control req-cat" id="catCodigo" placeholder="Ej. 04-02-005">
                         </div>
                         <div class="col-6">
-                            <label class="form-label fw-bold small text-muted">Arancel Base ($)</label>
+                            <label class="form-label fw-bold small text-muted">Arancel Particular ($)</label>
                             <input type="number" class="form-control req-cat" id="catPrecio" min="0"
                                 placeholder="Ej. 120000">
+                        </div>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold small text-muted">Arancel FONASA ($)</label>
+                            <input type="number" class="form-control" id="catFonasaPrecio" min="0"
+                                placeholder="Valor arancel Fonasa (sin % de plan)">
                         </div>
                     </div>
                     <div class="mb-3">

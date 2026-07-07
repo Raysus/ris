@@ -46,6 +46,7 @@ class ExamController extends Controller
             'name' => 'required|string',
             'fonasa_code' => 'nullable|string',
             'price' => 'nullable|numeric',
+            'fonasa_price' => 'nullable|numeric',
             'sub_exams' => 'nullable|array',
             'instruction' => 'nullable|array',
             'instruction.body' => 'nullable|string',
@@ -66,6 +67,7 @@ class ExamController extends Controller
             'sub_exams' => [],
             'fonasa_code' => $validated['fonasa_code'] ?? null,
             'price' => $validated['price'] ?? 0,
+            'fonasa_price' => $validated['fonasa_price'] ?? $validated['price'] ?? 0,
             'is_active' => true,
         ];
 

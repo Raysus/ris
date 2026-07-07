@@ -722,7 +722,15 @@ function risAgregarExamenDesdeCodigo() {
     $('#risQuickExamCode').trigger('focus');
 }
 
+function risEsPrevisionFonasa(insuranceId = null) {
+    const insId = insuranceId ?? $('#pInsurance').val();
+    if (!insId || !catalogosAgenda?.insurances) return false;
+    const seguro = catalogosAgenda.insurances.find((i) => String(i.id) === String(insId));
+    return /fonasa/i.test(seguro?.name || '');
+}
+
 function risObtenerPorcentajeCopagoPlan() {
+    if (risEsPrevisionFonasa()) return 0;
     const insId = $('#pInsurance').val();
     const planId = $('#pPlan').val();
     if (!insId || !planId || !catalogosAgenda.insurances) return 0;
@@ -737,6 +745,9 @@ function risObtenerPlanPrevisionSeleccionado() {
 
 function risResolverPrecioExamen(exam, planId = null) {
     if (!exam) return 0;
+    if (risEsPrevisionFonasa() && exam.fonasa_price != null && exam.fonasa_price !== '') {
+        return parseFloat(exam.fonasa_price) || 0;
+    }
     const plan = planId ?? risObtenerPlanPrevisionSeleccionado();
     if (plan && Array.isArray(exam.tariffs)) {
         const tariff = exam.tariffs.find((t) => String(t.insurance_plan_id) === String(plan));
@@ -979,6 +990,12 @@ function montarUiInternaCalendario() {
     pintarLeyendaEstadosAgenda(root);
 }
 
+function risResolveMachineId(raw) {
+    const mid = String(raw ?? '').trim();
+    if (!mid || mid === 'null' || mid === 'undefined') return '';
+    return mid;
+}
+
 function calcularDuracionCita(_machineId, cantidadExamenes) {
     const minsPorBloque = intervaloAMinutos(getAgendaScheduleConfig().intervalo);
     const qty = Math.max(1, Number(cantidadExamenes) || 1);
@@ -1001,13 +1018,17 @@ function risCalcularBloquesPorSala(item) {
     const startMs = new Date(normalizeApiDateTime(item.start)).getTime();
     if (Number.isNaN(startMs)) return [];
 
+    const endMsFromItem = item.end
+        ? new Date(normalizeApiDateTime(item.end)).getTime()
+        : NaN;
+
     const studies = item.studies || [];
     let cursor = startMs;
     const blocks = [];
 
     if (studies.length > 0) {
         studies.forEach((s) => {
-            const mid = String(s.machine || s.machine_id || '').trim();
+            const mid = risResolveMachineId(s.machine || s.machine_id);
             if (!mid) return;
             const qty = parseInt(s.qty ?? s.quantity, 10) || 1;
             const mins = calcularDuracionCita(mid, qty);
@@ -1016,10 +1037,18 @@ function risCalcularBloquesPorSala(item) {
             cursor = blockEnd.getTime();
             blocks.push({ machineId: mid, start: blockStart, end: blockEnd });
         });
+
+        if (blocks.length && !Number.isNaN(endMsFromItem) && endMsFromItem > startMs) {
+            const last = blocks[blocks.length - 1];
+            if (endMsFromItem > last.end.getTime()) {
+                last.end = new Date(endMsFromItem);
+            }
+        }
+
         return blocks;
     }
 
-    const mid = String(item.machine || '').trim();
+    const mid = risResolveMachineId(item.machine);
     if (!mid) return [];
 
     let mins = calcularDuracionCita(mid, 1);
@@ -2095,7 +2124,7 @@ function mapearEventosCalendario(agendaItems, viewType) {
         blocks.forEach((block, idx) => {
             const bloqueada = risCitaRecepcionBloqueada(item.statusRaw, item.status);
             events.push({
-                id: blocks.length > 1 ? `${item.id}#${block.machineId}` : String(item.id),
+                id: blocks.length > 1 ? `${item.id}#${idx}` : String(item.id),
                 groupId: String(item.id),
                 title: titulo,
                 start: block.start,
@@ -2121,12 +2150,48 @@ function mapearEventosCalendario(agendaItems, viewType) {
     return events;
 }
 
+function risAjustarSlotMinTimeParaEventos(events) {
+    if (!calendar) return;
+    const cfg = getAgendaScheduleConfig();
+    const baseMin = cfg.horaInicio || '08:00:00';
+    const viewDate = calendar.getDate();
+    const y = viewDate.getFullYear();
+    const m = viewDate.getMonth();
+    const d = viewDate.getDate();
+
+    let earliest = null;
+    (events || []).forEach((ev) => {
+        const st = ev.start;
+        if (!st || st.getFullYear() !== y || st.getMonth() !== m || st.getDate() !== d) return;
+        if (!earliest || st < earliest) earliest = st;
+    });
+
+    if (!earliest) {
+        calendar.setOption('slotMinTime', baseMin);
+        return;
+    }
+
+    const [bh, bm] = baseMin.split(':').map((n) => parseInt(n, 10) || 0);
+    const baseTotal = bh * 60 + bm;
+    const evTotal = earliest.getHours() * 60 + earliest.getMinutes();
+
+    if (evTotal < baseTotal) {
+        const h = Math.floor(evTotal / 60);
+        const mi = evTotal % 60;
+        calendar.setOption('slotMinTime', `${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}:00`);
+    } else {
+        calendar.setOption('slotMinTime', baseMin);
+    }
+}
+
 function refrescarEventosCalendario(searchTerm) {
     if (!calendar || !window.RIS?.agenda) return;
     const viewType = calendar.view?.type || 'resourceTimelineDay';
     const items = filtrarAgendaItems(window.RIS.agenda, searchTerm);
+    const events = mapearEventosCalendario(items, viewType);
     calendar.getEventSources().forEach((src) => src.remove());
-    calendar.addEventSource(mapearEventosCalendario(items, viewType));
+    calendar.addEventSource(events);
+    risAjustarSlotMinTimeParaEventos(events);
 }
 
 function getEventsFromRIS() {
@@ -2161,7 +2226,7 @@ async function cargarAgendaDesdeServidor() {
                 }
                 return {
                     id: String(app.id),
-                    machine: String(app.machine_id),
+                    machine: risResolveMachineId(app.machine_id),
                     resourceIds: salasUnicas,
                     start: normalizeApiDateTime(app.start_time),
                     end: normalizeApiDateTime(app.end_time),
@@ -2192,7 +2257,7 @@ async function cargarAgendaDesdeServidor() {
                         plan: app.insurance_plan_id
                     },
                     studies: (app.studies || []).map(s => ({
-                        machine: String(s.machine_id),
+                        machine: risResolveMachineId(s.machine_id),
                         exam: s.exam_id,
                         examName: s.exam_name,
                         subExam: s.sub_exam_id,
@@ -2213,6 +2278,10 @@ async function cargarAgendaDesdeServidor() {
             if (typeof calendar !== 'undefined' && calendar) {
                 refrescarEventosCalendario($('#searchAgenda').val() || '');
             }
+        } else {
+            const msg = data?.message || `No se pudo cargar la agenda (${response.status}).`;
+            console.error('Agenda:', response.status, data);
+            showToast(msg, 'danger');
         }
     } catch (error) {
         console.error("Error cargando agenda real:", error);

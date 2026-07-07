@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Exam;
 use App\Models\SubExam;
+use Illuminate\Support\Facades\DB;
 
 class ExamSubExamService
 {
@@ -33,8 +34,8 @@ class ExamSubExamService
                 'Ambos oídos',
             ],
             '0401042' => [
-                'Columna cervical frontal',
-                'Columna cervical lateral',
+                'Columna cervical frontal y lateral',
+                'Atlas-axis frontal y lateral',
             ],
             '0401043' => [
                 'Columna cervical oblicua derecha',
@@ -226,9 +227,17 @@ class ExamSubExamService
         }
 
         if ($keepIds !== []) {
-            $exam->subExams()->whereNotIn('id', $keepIds)->delete();
+            $toDelete = $exam->subExams()->whereNotIn('id', $keepIds)->pluck('id');
         } else {
-            $exam->subExams()->delete();
+            $toDelete = $exam->subExams()->pluck('id');
+        }
+
+        if ($toDelete->isNotEmpty()) {
+            DB::table('appointment_studies')
+                ->whereIn('sub_exam_id', $toDelete)
+                ->update(['sub_exam_id' => null]);
+
+            $exam->subExams()->whereIn('id', $toDelete)->delete();
         }
 
         // Evita conflicto JSON vs relación en serialización de agenda

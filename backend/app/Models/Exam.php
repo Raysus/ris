@@ -18,6 +18,7 @@ class Exam extends Model
         'sub_exams',
         'fonasa_code',
         'price',
+        'fonasa_price',
         'estimated_duration',
         'is_active'
     ];

@@ -1636,7 +1636,7 @@ async function renderCatalogoAdmin() {
             currentExamsFromDB.forEach(ex => {
                 if (!examTypes[ex.group_code]) examTypes[ex.group_code] = { exams: {} };
                 examTypes[ex.group_code].exams[ex.name] = {
-                    id: ex.id, code: ex.fonasa_code, price: ex.price, subs: ex.sub_exams || [],
+                    id: ex.id, code: ex.fonasa_code, price: ex.price, fonasa_price: ex.fonasa_price, subs: ex.sub_exams || [],
                     instruction: ex.instruction || null
                 };
             });
@@ -1665,6 +1665,7 @@ async function renderCatalogoAdmin() {
                             </td>
                             <td class="font-monospace text-secondary">${exData.code || '--'}</td>
                             <td class="text-end fw-bold text-success">$${parseFloat(exData.price).toLocaleString('es-CL')}</td>
+                            <td class="text-end fw-bold text-primary">$${parseFloat(exData.fonasa_price ?? exData.price).toLocaleString('es-CL')}</td>
                             <td class="text-center">${instrBadge}</td>
                             <td class="text-center pe-4">
                                 <button class="btn btn-sm btn-outline-danger fw-bold" onclick="cargarExamen('${exData.id}')">
@@ -1676,10 +1677,10 @@ async function renderCatalogoAdmin() {
                 });
             });
 
-            if (totalExamenes === 0) tbody.append(`<tr><td colspan="6" class="text-center text-muted p-4">No se encontraron prestaciones.</td></tr>`);
+            if (totalExamenes === 0) tbody.append(`<tr><td colspan="7" class="text-center text-muted p-4">No se encontraron prestaciones.</td></tr>`);
         }
     } catch (error) {
-        tbody.empty().append(`<tr><td colspan="6" class="text-center text-danger p-4">Error de conexión.</td></tr>`);
+        tbody.empty().append(`<tr><td colspan="7" class="text-center text-danger p-4">Error de conexión.</td></tr>`);
     }
 }
 
@@ -1707,6 +1708,7 @@ function cargarExamen(id) {
     $("#catNombre").val(ex.name);
     $("#catCodigo").val(ex.fonasa_code);
     $("#catPrecio").val(ex.price);
+    $("#catFonasaPrecio").val(ex.fonasa_price ?? ex.price ?? '');
     $("#catSubs").val((ex.sub_exams || []).map(risNombreSubExamenAdmin).filter(Boolean).join(", "));
 
     const instr = ex.instruction;
@@ -1735,6 +1737,7 @@ async function guardarExamen() {
         name: $("#catNombre").val().trim(),
         fonasa_code: $("#catCodigo").val().trim(),
         price: $("#catPrecio").val(),
+        fonasa_price: $("#catFonasaPrecio").val() || $("#catPrecio").val(),
         sub_exams: subsArray,
         instruction: {
             subject: $("#catInstrSubject").val().trim() || null,

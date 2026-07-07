@@ -29,7 +29,7 @@ class AppointmentScheduleService
         $intervalMinutes = $this->intervalMinutesFromSetting($schedule['intervalo'] ?? '00:15:00');
 
         $preferred = $this->roundToInterval(
-            LabTimezone::parseScheduleTime($preferredStart->format('Y-m-d H:i:s')),
+            $preferredStart->copy()->timezone(LabTimezone::name()),
             $intervalMinutes
         );
 
@@ -79,7 +79,9 @@ class AppointmentScheduleService
         int $intervalMinutes,
         ?string $fallbackMachineId = null,
     ): array {
-        $cursor = LabTimezone::parseScheduleTime($start->format('Y-m-d H:i:s'));
+        $cursor = $start instanceof CarbonInterface
+            ? $start->copy()->timezone(LabTimezone::name())
+            : LabTimezone::parseScheduleTime((string) $start);
         $blocks = [];
 
         if ($studies !== []) {
