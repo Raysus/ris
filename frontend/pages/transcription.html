@@ -37,6 +37,21 @@
                         <div class="card-body p-3">
                             <h6 class="fw-bold text-primary mb-3"><i class="bi bi-mic-fill me-2"></i>Dictado del
                                 Radiólogo</h6>
+                            <div class="d-flex flex-wrap align-items-center justify-content-center gap-2 mb-2">
+                                <button type="button" id="btnConnectSpeechMike"
+                                    class="btn btn-sm btn-outline-primary fw-bold">
+                                    Conectar pedalera / SpeechMike
+                                </button>
+                                <button type="button" class="btn btn-link btn-sm p-0 text-secondary"
+                                    style="font-size: 0.72rem;" id="btnSpeechMikeDebug" title="Doble clic = diagnóstico">
+                                    Probar teclas
+                                </button>
+                            </div>
+                            <p id="speechMikeHidStatus" class="small text-warning mb-2 px-1 text-center"
+                                style="font-size: 0.72rem;">
+                                Pedalera LFH2330: pulse <b>Conectar</b> en Chrome/Edge (HTTPS). Pedal izq. −5 s · centro
+                                play/pausa · der. +5 s.
+                            </p>
                             <audio id="audioDictado" preload="auto"></audio>
                             <div class="d-flex align-items-center gap-3">
                                 <button

@@ -13,7 +13,11 @@ const RIS_MODULE_SCRIPTS = {
         "/js/lib/fix-webm-duration.js",
         "/js/workflow/radiologist.js",
     ],
-    transcription: ["/js/shared/workflow-inbox.js", "/js/workflow/transcription.js"],
+    transcription: [
+        "/js/shared/workflow-inbox.js",
+        "/js/workflow/speechmike-dictation.js",
+        "/js/workflow/transcription.js",
+    ],
     validation: ["/js/shared/workflow-inbox.js", "/js/shared/reportDocument.js", "/js/workflow/validation.js"],
     entrega: ["/js/shared/reportDocument.js", "/js/workflow/entrega.js"],
     dashboard: "/js/dashboard/dashboard.js",
