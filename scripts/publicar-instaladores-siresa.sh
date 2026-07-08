@@ -7,6 +7,7 @@ DOWNLOADS="$ROOT/frontend/downloads"
 BAT="$ROOT/tools/ris-local-bridge/setup-scanner-windows.bat"
 MAC="$ROOT/tools/ris-local-bridge/setup-scanner-macos.sh"
 PDF="$ROOT/docs/INSTRUCTIVO_Escaner_RIS_Bridge.pdf"
+GUIA="$DOWNLOADS/GUIA-Bridge-Mac-Horos.txt"
 HOST="${SIRESA_SSH:-ris-siresa}"
 REMOTE_APP="${SIRESA_APP_DIR:-/opt/RIS}"
 
@@ -25,56 +26,54 @@ if ! ssh -o BatchMode=yes -o ConnectTimeout=10 "$HOST" "echo ok" 2>/dev/null; th
   exit 0
 fi
 
-# Sincroniza artefactos locales → servidor (aunque el repo aún no tenga el commit).
 rsync -az \
   "$DOWNLOADS/setup-scanner-windows.bat" \
   "$DOWNLOADS/setup-scanner-macos.sh" \
   "$DOWNLOADS/ris-local-bridge-macos.tar.gz" \
   "$DOWNLOADS/index.html" \
   "$HOST:${REMOTE_APP}/frontend/downloads/"
+[[ -f "$GUIA" ]] && rsync -az "$GUIA" "$HOST:${REMOTE_APP}/frontend/downloads/"
 [[ -f "$DOWNLOADS/INSTRUCTIVO_Escaner_RIS_Bridge.pdf" ]] && \
   rsync -az "$DOWNLOADS/INSTRUCTIVO_Escaner_RIS_Bridge.pdf" "$HOST:${REMOTE_APP}/frontend/downloads/"
 
 ssh -o ConnectTimeout=15 "$HOST" bash -s <<EOF
 set -euo pipefail
 APP="${REMOTE_APP}"
-FILES=(
-  "\${APP}/frontend/downloads/setup-scanner-windows.bat"
-  "\${APP}/frontend/downloads/setup-scanner-macos.sh"
-  "\${APP}/frontend/downloads/ris-local-bridge-macos.tar.gz"
-)
-for f in "\${FILES[@]}"; do
-  if [ ! -f "\$f" ]; then
-    echo "Falta en servidor: \$f" >&2
-    exit 1
-  fi
-done
-for dest in "\${HOME}/Escritorio" "\${HOME}/Desktop" "\${HOME}/Descargas" "\${HOME}/Downloads"; do
-  if [ -d "\$dest" ]; then
-    cp -f "\${FILES[@]}" "\$dest/" 2>/dev/null || true
-    [[ -f "\${APP}/frontend/downloads/INSTRUCTIVO_Escaner_RIS_Bridge.pdf" ]] && \
-      cp -f "\${APP}/frontend/downloads/INSTRUCTIVO_Escaner_RIS_Bridge.pdf" "\$dest/" || true
-    echo "OK copiado a \$dest/"
-  fi
-done
+DESK="\${HOME}/Escritorio"
+FOLDER="\$DESK/Instalar-Bridge-Mac-Horos"
+mkdir -p "\$FOLDER"
+cp -f "\${APP}/frontend/downloads/GUIA-Bridge-Mac-Horos.txt" "\$FOLDER/" 2>/dev/null || true
+cp -f "\${APP}/frontend/downloads/setup-scanner-macos.sh" "\$FOLDER/"
+cp -f "\${APP}/frontend/downloads/ris-local-bridge-macos.tar.gz" "\$FOLDER/"
+cp -f "\${APP}/frontend/downloads/setup-scanner-windows.bat" "\$FOLDER/"
+[[ -f "\${APP}/frontend/downloads/INSTRUCTIVO_Escaner_RIS_Bridge.pdf" ]] && \
+  cp -f "\${APP}/frontend/downloads/INSTRUCTIVO_Escaner_RIS_Bridge.pdf" "\$FOLDER/" || true
+chmod +x "\$FOLDER/setup-scanner-macos.sh"
+[[ -f "\$FOLDER/GUIA-Bridge-Mac-Horos.txt" ]] && cp -f "\$FOLDER/GUIA-Bridge-Mac-Horos.txt" "\$DESK/"
+# Evitar duplicados sueltos en la raíz del Escritorio
+rm -f "\$DESK/setup-scanner-macos.sh" "\$DESK/ris-local-bridge-macos.tar.gz" \
+      "\$DESK/setup-scanner-windows.bat" "\$DESK/INSTRUCTIVO_Escaner_RIS_Bridge.pdf"
 LAN_IP=\$(hostname -I 2>/dev/null | awk '{print \$1}')
-cat > "\${HOME}/Escritorio/LEEME-instaladores-RIS.txt" <<LEEME
-Instaladores RIS Bridge
-=======================
-Windows (escáner USB):
-  Copie setup-scanner-windows.bat a C:\\RIS\\tools\\ris-local-bridge\\ y ejecútelo.
+cat > "\$DESK/LEEME-instaladores-RIS.txt" <<LEEME
+Instaladores RIS Bridge (Escritorio del servidor)
+================================================
 
-macOS (Horos, sin Homebrew ni Node previos):
-  En Terminal del Mac:
-    mkdir -p ~/HealthTiCloud/ris-local-bridge && cd ~/HealthTiCloud/ris-local-bridge
-    curl -fsSL http://\${LAN_IP:-192.168.0.127}/downloads/ris-local-bridge-macos.tar.gz | tar -xz
-    chmod +x setup-scanner-macos.sh && ./setup-scanner-macos.sh
-  Requiere Horos en /Applications. El script descarga Node oficial si falta.
+Mac (Horos, sin Homebrew):
+  Carpeta:  Escritorio/Instalar-Bridge-Mac-Horos/
+  Guía:     Escritorio/GUIA-Bridge-Mac-Horos.txt
 
-También: http://\${LAN_IP:-192.168.0.127}/downloads/
+Windows (escáner):
+  Misma carpeta: setup-scanner-windows.bat + PDF
+
+Web LAN:
+  http://\${LAN_IP:-192.168.0.127}/downloads/
 LEEME
-echo "OK LEEME en Escritorio"
-ls -la "\${HOME}/Escritorio/" 2>/dev/null | grep -E 'bat|pdf|macos|bridge|LEEME' || true
+if [ -d "\${HOME}/Descargas" ]; then
+  rm -rf "\${HOME}/Descargas/Instalar-Bridge-Mac-Horos"
+  cp -rf "\$FOLDER" "\${HOME}/Descargas/" 2>/dev/null || true
+fi
+echo "OK carpeta: \$FOLDER"
+ls -lah "\$FOLDER"
 EOF
 
 echo "Listo en SIRESA."
