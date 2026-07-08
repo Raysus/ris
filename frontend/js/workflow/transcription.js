@@ -27,6 +27,10 @@ function initTranscription() {
     cargarPlantillasTranscripcion();
     setupKeyboardShortcuts();
     setupAudioListeners();
+    setupTranscriptionSpeechMikeHooks();
+    if (typeof initSpeechMikeDictation === "function") {
+        initSpeechMikeDictation();
+    }
 
     setInterval(() => {
         if (currentTransStudy || currentTranscriptionChain || $("#textoTranscripcion").is(":focus")) {
@@ -534,6 +538,60 @@ async function cargarPlantillasTranscripcion() {
             });
         }
     } catch (e) { console.error("Error cargando plantillas:", e); }
+}
+
+// === PEDALERA PHILIPS LFH2330 / SpeechMike (WebHID) ===
+function hasTranscriptionAudioSource() {
+    const audio = document.getElementById("audioDictado");
+    return !!(
+        audio &&
+        audio.src &&
+        audio.src !== "" &&
+        audio.src !== window.location.href
+    );
+}
+
+function isTranscriptionAudioListeningMode() {
+    return !!currentTranscriptionChain && hasTranscriptionAudioSource();
+}
+
+function pauseTranscriptionAudio() {
+    const audio = document.getElementById("audioDictado");
+    if (!audio || !audio.src) {
+        return false;
+    }
+    audio.pause();
+    $("#iconPlayPause").removeClass("bi-pause-fill").addClass("bi-play-fill");
+    return true;
+}
+
+function executeTranscriptionSpeechMikeAudioAction(action) {
+    switch (action) {
+        case "seek_back":
+            skipAudio(-5);
+            return true;
+        case "seek_back_long":
+            skipAudio(-15);
+            return true;
+        case "seek_forward":
+            skipAudio(5);
+            return true;
+        case "seek_forward_long":
+            skipAudio(15);
+            return true;
+        case "toggle_play":
+            togglePlayPause();
+            return true;
+        case "pause":
+            return pauseTranscriptionAudio();
+        default:
+            return false;
+    }
+}
+
+function setupTranscriptionSpeechMikeHooks() {
+    window.isAudioPreviewListeningMode = isTranscriptionAudioListeningMode;
+    window.executeSpeechMikeAudioAction = executeTranscriptionSpeechMikeAudioAction;
 }
 
 // === ATAJOS DE TECLADO (pedaleras suelen emular F1–F4) ===

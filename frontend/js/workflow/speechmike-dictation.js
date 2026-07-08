@@ -100,13 +100,24 @@ function speechMikeSupportsBrowserMode(device) {
     return withBrowser.includes(dt);
 }
 
+function isFootControlDevice(device) {
+    if (!device || typeof device.getDeviceType !== "function") {
+        return false;
+    }
+    const dt = device.getDeviceType();
+    const DT = DictationSupport.DeviceType;
+    return dt === DT.FOOT_CONTROL_ACC_2330 || dt === DT.FOOT_CONTROL_ACC_2310_2320;
+}
+
 function speechMikeDeviceLabel(device) {
     if (!device || typeof device.getDeviceType !== "function") {
-        return "SpeechMike";
+        return "Dispositivo Philips";
     }
     const dt = device.getDeviceType();
     const DT = DictationSupport.DeviceType;
     const labels = {
+        [DT.FOOT_CONTROL_ACC_2330]: "Pedalera Philips LFH2330 (ACC2330)",
+        [DT.FOOT_CONTROL_ACC_2310_2320]: "Pedalera Philips ACC2310/2320",
         [DT.SPEECHMIKE_LFH_3200]: "SpeechMike III Pro (LFH3200)",
         [DT.SPEECHMIKE_LFH_3210]: "SpeechMike III (LFH3210)",
         [DT.SPEECHMIKE_LFH_3220]: "SpeechMike III (LFH3220)",
@@ -115,7 +126,7 @@ function speechMikeDeviceLabel(device) {
         [DT.SPEECHMIKE_LFH_3500]: "SpeechMike Premium (LFH3500)",
         [DT.SPEECHMIKE_LFH_3600]: "SpeechMike Premium (LFH3600)",
     };
-    return labels[dt] || `SpeechMike (tipo ${dt})`;
+    return labels[dt] || `Philips (tipo ${dt})`;
 }
 
 function updateSpeechMikeConnectUi(extraStatus) {
@@ -140,9 +151,14 @@ function updateSpeechMikeConnectUi(extraStatus) {
     if (devices.length > 0) {
         const first = devices[0];
         const name = speechMikeDeviceLabel(first);
-        const modeHint = speechMikeSupportsBrowserMode(first)
-            ? "Modo navegador (F3) opcional."
-            : "LFH3200: botones g/e vía HID; si no responden, use «Probar teclas».";
+        let modeHint;
+        if (isFootControlDevice(first)) {
+            modeHint = "Pedales: ◀◀ −5 s · ▶ play/pausa · ▶▶ +5 s (con dictado cargado).";
+        } else if (speechMikeSupportsBrowserMode(first)) {
+            modeHint = "Modo navegador (F3) opcional.";
+        } else {
+            modeHint = "LFH3200: botones g/e vía HID; si no responden, use «Probar teclas».";
+        }
         const suffix = extraStatus ? ` ${extraStatus}` : "";
         $status
             .removeClass("text-warning text-danger")
@@ -155,9 +171,9 @@ function updateSpeechMikeConnectUi(extraStatus) {
             .addClass("text-warning")
             .text(
                 extraStatus ||
-                    "Pulse «Conectar SpeechMike». Si no aparece en la lista, use SpeechControl en modo teclado con Num+ / F4."
+                    "Pulse «Conectar pedalera / SpeechMike». En Chrome elija el dispositivo Philips (LFH2330). Si no aparece, cierre SpeechControl."
             );
-        $btn.text("Conectar SpeechMike");
+        $btn.text("Conectar pedalera / SpeechMike");
     }
 }
 
@@ -470,9 +486,23 @@ function handleSpeechMikeHidButton(device, bitMask) {
 
 function onSpeechMikeHidConnected() {
     updateSpeechMikeConnectUi();
-    if (typeof showToast === "function") {
-        showToast("SpeechMike listo. En reproducción: ◀◀/▶▶ adelantan/retroceden; ▶ pausa. «Probar teclas» = diagnóstico.", "success");
+    if (typeof showToast !== "function") {
+        return;
     }
+    const devices = _dictationDeviceManager?.getDevices?.() || [];
+    const foot = devices.some((d) => isFootControlDevice(d));
+    if (foot) {
+        showToast(
+            "Pedalera lista. Con un dictado abierto: pedal izquierdo −5 s, centro play/pausa, derecho +5 s.",
+            "success",
+            10000
+        );
+        return;
+    }
+    showToast(
+        "SpeechMike listo. En reproducción: ◀◀/▶▶ adelantan/retroceden; ▶ pausa. «Probar teclas» = diagnóstico.",
+        "success"
+    );
 }
 
 function onSpeechMikeHidDisconnected() {
@@ -786,6 +816,8 @@ async function finishSpeechMikeConnectAfterPicker(picked) {
                     12000
                 );
             }
+        } else if (isFootControlDevice(device)) {
+            hints.push(`${label} (WebHID)`);
         } else if (await pulseSpeechMikeTestLed(device)) {
             ledOk = true;
         }
