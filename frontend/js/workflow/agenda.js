@@ -2960,7 +2960,6 @@ async function imprimirComprobantePaciente(data, savedAppointment) {
         printedOk = true;
     }
 
-    const appointmentId = savedAppointment?.id || data?.id;
     if (printedOk && appointmentId) {
         await risMarcarComprobanteImpreso(appointmentId);
     }
