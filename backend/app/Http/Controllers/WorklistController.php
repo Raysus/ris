@@ -300,6 +300,117 @@ class WorklistController extends Controller
     }
 
     /**
+     * Imprime comprobante térmico ESC/POS. En nube, reenvía al laboratorio LAN si tiene relay.
+     */
+    public function printReceipt(Request $request, $appointmentId, AppointmentReceiptService $receipts)
+    {
+        $this->assertAnyRole($request, ['admin', 'sis_admin', 'recepcion', 'secretaria', 'secretario', 'tecnologo']);
+
+        $appointment = $this->getSecureAppointmentQuery()
+            ->with([
+                'patient.persona',
+                'studies',
+                'insurance',
+                'insurancePlan',
+                'referringDoctor',
+                'destinationDoctor.persona',
+                'laboratory',
+            ])
+            ->findOrFail($appointmentId);
+
+        $localResult = $receipts->printIfNeeded($appointment);
+        if ($localResult['printed'] || ($localResult['skipped'] && $localResult['attempted'] === false)) {
+            return response()->json([
+                'success' => (bool) $localResult['printed'],
+                'receipt' => $localResult,
+            ]);
+        }
+
+        if ($localResult['attempted'] && !$localResult['printed']) {
+            return response()->json([
+                'success' => false,
+                'receipt' => $localResult,
+                'message' => $localResult['message'] ?? 'No se pudo imprimir el comprobante.',
+            ], 422);
+        }
+
+        if (!LaboratoryMwlRelay::shouldRelayFromCloud($appointment->laboratory)) {
+            return response()->json([
+                'success' => false,
+                'receipt' => $localResult,
+                'message' => $localResult['message'] ?? 'Impresora térmica no configurada.',
+            ], 422);
+        }
+
+        $relayUrl = LaboratoryMwlRelay::resolveReceiptRelayUrl($appointment->laboratory);
+        if ($relayUrl === null) {
+            return response()->json([
+                'success' => false,
+                'receipt' => $localResult,
+                'message' => 'Relay de impresión local no configurado para esta sede.',
+            ], 422);
+        }
+
+        $secret = config('cloud_sync.secret');
+        if (!filled($secret)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'CLOUD_SYNC_SECRET no configurado en la nube.',
+            ], 500);
+        }
+
+        $persona = $appointment->patient?->persona;
+        if (!$persona) {
+            return response()->json([
+                'success' => false,
+                'message' => 'La cita no tiene paciente asociado.',
+            ], 422);
+        }
+
+        try {
+            $response = Http::timeout(30)
+                ->withToken($secret)
+                ->acceptJson()
+                ->asJson()
+                ->post($relayUrl, [
+                    'persona' => $persona->toArray(),
+                    'paciente' => array_merge($appointment->patient->toArray(), [
+                        'persona' => $persona->toArray(),
+                    ]),
+                    'appointment' => $appointment->toArray(),
+                ]);
+
+            $payload = $response->json();
+            $receipt = is_array($payload) ? ($payload['receipt'] ?? []) : [];
+
+            if ($response->successful() && !empty($receipt['printed'])) {
+                return response()->json([
+                    'success' => true,
+                    'receipt' => $receipt,
+                    'relayed' => true,
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'receipt' => $receipt,
+                'message' => is_array($payload) ? ($payload['message'] ?? $receipt['message'] ?? 'Impresión local falló.') : 'Impresión local falló.',
+            ], $response->status() >= 400 ? $response->status() : 422);
+        } catch (\Throwable $e) {
+            Log::warning('thermal_receipt.relay_failed', [
+                'appointment_id' => $appointment->id,
+                'relay_url' => $relayUrl,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'No se pudo contactar al servidor local para imprimir: ' . $e->getMessage(),
+            ], 502);
+        }
+    }
+
+    /**
      * Subida manual de DICOM (ZIP o .dcm) para centros sin MWL — p. ej. laboratorios dentales.
      */
     public function uploadDicomStudy(Request $request, $appointmentId, DicomImportService $dicomImport)

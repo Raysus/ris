@@ -28,6 +28,20 @@ class LaboratoryMwlRelay
         return $fromMap !== '' ? rtrim($fromMap, '/') : null;
     }
 
+    public static function resolveReceiptRelayUrl(?Laboratory $lab): ?string
+    {
+        $mwlUrl = self::resolveUrl($lab);
+        if ($mwlUrl === null) {
+            return null;
+        }
+
+        if (str_contains($mwlUrl, '/local-mwl/relay')) {
+            return str_replace('/local-mwl/relay', '/local-receipt/print', $mwlUrl);
+        }
+
+        return rtrim($mwlUrl, '/') . '/local-receipt/print';
+    }
+
     public static function shouldRelayFromCloud(?Laboratory $lab): bool
     {
         return CloudSyncMode::isCloud()

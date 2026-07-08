@@ -31,6 +31,7 @@ use App\Http\Controllers\CloudSyncController;
 use App\Http\Controllers\CloudSyncInboundController;
 use App\Http\Controllers\LocalAppointmentSyncController;
 use App\Http\Controllers\LocalMwlRelayController;
+use App\Http\Controllers\LocalReceiptRelayController;
 use App\Http\Controllers\Hl7Controller;
 use App\Http\Controllers\FonasaController;
 use App\Http\Controllers\BillingController;
@@ -46,6 +47,7 @@ Route::middleware('cloud.sync')->group(function () {
     Route::post('/integrations/cloud-sync/inbound', [CloudSyncInboundController::class, 'receive']);
     Route::get('/integrations/cloud-sync/export', [CloudSyncInboundController::class, 'export']);
     Route::post('/integrations/local-mwl/relay', [LocalMwlRelayController::class, 'receive']);
+    Route::post('/integrations/local-receipt/print', [LocalReceiptRelayController::class, 'receive']);
     Route::post('/integrations/local-sync/appointment', [LocalAppointmentSyncController::class, 'receive']);
 });
 
@@ -105,6 +107,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
 
     Route::get('/worklist', [WorklistController::class, 'index']);
     Route::post('/appointments/{id}/dicom', [WorklistController::class, 'sendToDicom']);
+    Route::post('/appointments/{id}/print-receipt', [WorklistController::class, 'printReceipt']);
     Route::post('/appointments/{id}/mark-receipt-printed', [WorklistController::class, 'markReceiptPrinted']);
     Route::post('/appointments/{id}/upload-dicom', [WorklistController::class, 'uploadDicomStudy']);
     Route::post('/appointments/{id}/mark-dicom-received', [WorklistController::class, 'markDicomReceived']);
