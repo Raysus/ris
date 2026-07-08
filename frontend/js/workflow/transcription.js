@@ -28,6 +28,9 @@ function initTranscription() {
     setupKeyboardShortcuts();
     setupAudioListeners();
     setupTranscriptionSpeechMikeHooks();
+    if (typeof updateSiresaFootPedalUiHints === "function") {
+        updateSiresaFootPedalUiHints();
+    }
     if (typeof initSpeechMikeDictation === "function") {
         initSpeechMikeDictation();
     }

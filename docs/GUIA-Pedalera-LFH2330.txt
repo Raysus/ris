@@ -27,11 +27,14 @@ PASOS (WebHID — recomendado)
 5. Debe verse texto verde: «Conectado: Pedalera Philips LFH2330 (ACC2330)».
 6. Abra un dictado de la lista y pruebe los tres pedales.
 
-MAPEO DE PEDALES (Transcripción)
---------------------------------
+MAPEO DE PEDALES (Transcripción — sede SIRESA)
+--------------------------------------------
   Pedal izquierdo  → retroceder 5 segundos
-  Pedal central    → play / pausa
-  Pedal derecho    → adelantar 5 segundos
+  Pedal central    → sin acción (deshabilitado)
+  Pedal derecho    → play / pausa
+  Botón superior   → sin acción (deshabilitado)
+
+En otras sedes el mapeo estándar es: izq. −5 s · centro play/pausa · der. +5 s.
 
 Atajos teclado equivalentes (modo alternativo): F1 −15 s, F2 −5 s, F3 +5 s, F4 play/pausa.
 
