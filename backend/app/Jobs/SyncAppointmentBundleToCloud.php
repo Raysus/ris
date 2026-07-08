@@ -91,7 +91,10 @@ class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommi
         $cloudUrl = config('cloud_sync.inbound_url');
         $secret = config('cloud_sync.secret');
 
-        $http = RisHttp::client(CloudSyncTransport::defaultTimeout())->withToken($secret)->acceptJson()->asJson();
+        $http = RisHttp::client(CloudSyncTransport::timeoutForPayload($payload))
+            ->withToken($secret)
+            ->acceptJson()
+            ->asJson();
 
         $headers = [
             'User-Agent' => 'HealthTiCloud-RIS/1.0',

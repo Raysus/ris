@@ -10,6 +10,7 @@ use App\Services\ReportDocumentFormatter;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use App\Support\PublicStorageUrl;
 use Illuminate\Support\Str;
 
 class RadiologistController extends Controller
@@ -46,7 +47,7 @@ class RadiologistController extends Controller
             'exam' => $study->exam_name,
             'subExam' => $study->sub_exam_name,
             'reportText' => $study->getStoredReportText(),
-            'audioUrl' => $study->audio_path ? asset('storage/' . $study->audio_path) : null,
+            'audioUrl' => PublicStorageUrl::from($study->audio_path),
         ];
     }
 

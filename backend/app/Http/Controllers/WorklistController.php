@@ -341,11 +341,7 @@ class WorklistController extends Controller
             $lab = $appointment->laboratory ?? LaboratoryProfileService::currentLaboratory();
             $institution = $lab?->name ?? config('app.name', 'HealthTiCloud');
 
-            $patientName = $dicomImport->formatPatientNameDicom(
-                (string) ($persona->names ?? ''),
-                (string) ($persona->last_name_1 ?? ''),
-                filled($persona->last_name_2) ? (string) $persona->last_name_2 : null
-            );
+            $patientName = $dicomImport->formatPersonaPatientNameForWorklist($persona);
 
             $result = $dicomImport->uploadAndTag(
                 $request->file('dicom_file'),
@@ -705,11 +701,7 @@ class WorklistController extends Controller
     ): array {
         $tags = [
             'SpecificCharacterSet' => 'ISO_IR 100',
-            'PatientName' => $dicomImport->formatPatientNameDicomWorklist(
-                (string) ($persona->names ?? ''),
-                (string) ($persona->last_name_1 ?? ''),
-                filled($persona->last_name_2) ? (string) $persona->last_name_2 : null
-            ),
+            'PatientName' => $dicomImport->formatPersonaPatientNameForWorklist($persona),
             'PatientID' => $dicomImport->normalizePatientIdDicom((string) $persona->rut),
             'AccessionNumber' => $accessionNumber,
             'RequestedProcedureID' => $accessionNumber,

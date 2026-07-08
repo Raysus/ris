@@ -20,11 +20,7 @@ class WorklistService
 
             $patient = $appointment->patient->persona;
             $dicomImport = app(DicomImportService::class);
-            $nombreDicom = $dicomImport->formatPatientNameDicom(
-                (string) ($patient->names ?? ''),
-                (string) ($patient->last_name_1 ?? ''),
-                filled($patient->last_name_2) ? (string) $patient->last_name_2 : null
-            );
+            $nombreDicom = $dicomImport->formatPersonaPatientNameForWorklist($patient);
             $rutDicom = str_replace(['.', '-'], '', $patient->rut);
 
             // Reemplazar variables

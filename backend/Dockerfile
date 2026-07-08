@@ -19,6 +19,7 @@ RUN composer dump-autoload --optimize --no-dev \
     && chmod -R 775 storage bootstrap/cache
 
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY docker/php/uploads.ini /usr/local/etc/php/conf.d/99-uploads.ini
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 EXPOSE 8000

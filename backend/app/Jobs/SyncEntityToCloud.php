@@ -82,7 +82,7 @@ class SyncEntityToCloud implements ShouldQueue, ShouldBeUnique
 
         $this->packFiles();
 
-        $http = RisHttp::client(CloudSyncTransport::defaultTimeout());
+        $http = RisHttp::client(CloudSyncTransport::timeoutForPayload($this->payload));
 
         try {
             $response = $http

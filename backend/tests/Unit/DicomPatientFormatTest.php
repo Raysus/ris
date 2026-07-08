@@ -49,6 +49,34 @@ class DicomPatientFormatTest extends TestCase
         $this->assertSame('VASQUEZ HERTLING^ALAN GERARDO', $pn);
     }
 
+    public function test_resolve_persona_name_fields_with_legacy_columns(): void
+    {
+        $persona = (object) [
+            'name' => 'Maria Fernanda',
+            'last_name' => 'Gonzalez',
+            'second_last_name' => 'Rodriguez',
+        ];
+
+        $fields = $this->service->resolvePersonaNameFields($persona);
+
+        $this->assertSame('Maria Fernanda', $fields['names']);
+        $this->assertSame('Gonzalez', $fields['last_name_1']);
+        $this->assertSame('Rodriguez', $fields['last_name_2']);
+    }
+
+    public function test_format_persona_patient_name_for_worklist_uses_full_names(): void
+    {
+        $persona = (object) [
+            'names' => 'Maria Fernanda',
+            'last_name_1' => 'Gonzalez',
+            'last_name_2' => 'Rodriguez',
+        ];
+
+        $pn = $this->service->formatPersonaPatientNameForWorklist($persona);
+
+        $this->assertSame('GONZALEZ RODRIGUEZ^MARIA FERNANDA', $pn);
+    }
+
     public function test_normalize_patient_id_strips_rut_punctuation(): void
     {
         $this->assertSame('181977876', $this->service->normalizePatientIdDicom('18.197.787-6'));

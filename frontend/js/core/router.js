@@ -10,6 +10,7 @@ const RIS_MODULE_SCRIPTS = {
         "/js/shared/workflow-inbox.js",
         "/js/workflow/browser-dictation.js",
         "/js/workflow/speechmike-dictation.js",
+        "/js/lib/fix-webm-duration.js",
         "/js/workflow/radiologist.js",
     ],
     transcription: ["/js/shared/workflow-inbox.js", "/js/workflow/transcription.js"],
