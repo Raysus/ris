@@ -13,10 +13,10 @@
     "printer": {
         "enabled": true,
         "interface": "tcp://192.168.0.240:9100",
-        "width_chars": 48,
+        "width_chars": 42,
         "copies": 1,
         "_comment_interface": "tcp://IP[:9100] red Epson | printer:EPSON TM-T20 nombre Windows | /dev/usb/lp0 Linux USB",
-        "_comment_siresa": "En Siresa centro la térmica ESC/POS responde en 192.168.0.240:9100 (raw, sin driver)"
+        "_comment_siresa": "Configure la IP de la térmica ESC/POS de su sede (raw TCP :9100, sin driver)"
     },
     "_comment_windows": "En Windows use setup-scanner-windows.bat y cambie viewer a radiant si aplica",
     "_comment_scanner_win": "naps2_path Windows: C:\\Program Files\\NAPS2\\NAPS2.Console.exe"

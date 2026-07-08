@@ -99,7 +99,7 @@ class AppointmentReceiptService
      */
     public function buildTicket(Appointment $appointment): array
     {
-        $ancho = (int) (config('services.thermal_printer.width_chars') ?? 48);
+        $ancho = (int) (config('services.thermal_printer.width_chars') ?? 42);
         $persona = $appointment->patient?->persona;
         $nombrePaciente = mb_strtoupper(trim(implode(' ', array_filter([
             $persona?->names,
@@ -108,7 +108,6 @@ class AppointmentReceiptService
         ]))));
 
         $marca = mb_strtoupper((string) ($appointment->laboratory?->name ?: 'SIRESA'));
-        $subtitulo = 'Centro de Diagnostico y Tratamiento Ltda.';
 
         /** @var User|null $user */
         $user = Auth::user();
@@ -127,11 +126,13 @@ class AppointmentReceiptService
             $lineTotal = $price * $qty;
             $total += $lineTotal;
 
-            $cod = str_pad(mb_substr((string) ($study->fonasa_code ?: ''), 0, 8), 8);
-            $nombre = str_pad(mb_substr((string) ($study->exam_name ?: $study->sub_exam_name ?: 'EXAMEN'), 0, 24), 24);
-            $cant = str_pad((string) $qty, 3, ' ', STR_PAD_LEFT);
-            $valor = str_pad($this->formatMoney($lineTotal), 8, ' ', STR_PAD_LEFT);
-            $filas[] = $cod . $nombre . $cant . $valor;
+            $filas[] = $this->formatStudyRow(
+                (string) ($study->fonasa_code ?: ''),
+                (string) ($study->exam_name ?: $study->sub_exam_name ?: 'EXAMEN'),
+                $qty,
+                $price,
+                $ancho
+            );
         }
 
         $prevision = (string) ($appointment->insurance?->name ?: 'SIN PREVISION');
@@ -153,17 +154,15 @@ class AppointmentReceiptService
 
         return [
             'sections' => [
-                ['align' => 'center', 'bold' => true, 'lines' => [$marca]],
-                ['align' => 'center', 'lines' => [$subtitulo]],
                 [
                     'align' => 'left',
                     'lines' => [
+                        ['text' => $this->labelLine('ODT. NUMERO', $this->odtNumber($appointment), $ancho), 'style' => 'large'],
                         '',
-                        $this->labelLine('ODT. NUMERO', $this->odtNumber($appointment), $ancho),
                         $this->labelLine('RUT', mb_strtoupper((string) ($persona?->rut ?: '')), $ancho),
                         $this->labelLine('PACIENTE', $nombrePaciente, $ancho),
                         $this->labelLine('EDAD', $this->age($persona?->birth_date), $ancho),
-                        $this->labelLine('FONO', (string) ($persona?->phone ?: ''), $ancho),
+                        $this->labelLine('FONO', (string) ($persona?->phone ?: ''), $ancho, true),
                         $this->labelLine('FECHA NAC', $this->formatDate($persona?->birth_date), $ancho),
                         '',
                         $this->labelLine('UNIDAD', $marca, $ancho),
@@ -175,10 +174,11 @@ class AppointmentReceiptService
                             $ancho
                         ),
                         $this->labelLine('PREVISION', $prevision, $ancho),
-                        $this->labelLine('MED. SOLC.', $medSolc, $ancho),
+                        $this->labelLine('MED.SOLC.', $medSolc, $ancho),
                         $this->labelLine('CONVENIO', $convenio, $ancho),
-                        $this->labelLine('MED. EXAM.', $medExam, $ancho),
+                        $this->labelLine('MED.EXAM.', $medExam, $ancho),
                     ],
+                    'blank_after' => true,
                 ],
             ],
             'separator' => '-',
@@ -188,8 +188,20 @@ class AppointmentReceiptService
             'total_line' => 'TOTAL : $ ' . $this->formatMoney($total),
             'obs_label' => 'OBS:',
             'obs_text' => '',
-            'footer' => '- COPIA ESTADISTICA -',
+            'footer' => '- COPIA MEDICO -',
         ];
+    }
+
+    private function formatStudyRow(string $code, string $name, int $qty, float $unitPrice, int $width): string
+    {
+        $digits = preg_replace('/\D+/', '', $code) ?: '';
+        $cod = str_pad(mb_substr($digits !== '' ? $digits : $code, 0, 7), 7, ' ', STR_PAD_RIGHT);
+        $valor = $this->formatMoney((int) round($unitPrice * $qty));
+        $tail = ' ' . $qty . ' ' . $valor;
+        $nameWidth = max(1, $width - mb_strlen($cod) - 1 - mb_strlen($tail));
+        $nombre = mb_substr(trim($name), 0, $nameWidth);
+
+        return mb_substr($cod . ' ' . str_pad($nombre, $nameWidth, ' ', STR_PAD_RIGHT) . $tail, 0, $width);
     }
 
     private function odtNumber(Appointment $appointment): string
@@ -257,9 +269,10 @@ class AppointmentReceiptService
         return number_format((int) round($valor), 0, ',', '.');
     }
 
-    private function labelLine(string $label, string $value, int $width): string
+    private function labelLine(string $label, string $value, int $width, bool $spaceBeforeColon = false): string
     {
-        $lab = trim($label);
+        $lab = rtrim(trim($label), ':');
+        $lab = $spaceBeforeColon ? $lab . ' :' : $lab . ':';
         $val = trim($value);
         $maxVal = max(1, $width - mb_strlen($lab) - 1);
 

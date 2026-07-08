@@ -41,12 +41,12 @@ return [
 
     /*
      * Epson térmica ESC/POS en la LAN del laboratorio (sin driver: RAW TCP :9100).
-     * Ejemplo Siresa: THERMAL_PRINTER_INTERFACE=tcp://192.168.0.240:9100
+     * Ejemplo: THERMAL_PRINTER_INTERFACE=tcp://192.168.0.240:9100
      */
     'thermal_printer' => [
         'enabled' => filter_var(env('THERMAL_PRINTER_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
         'interface' => env('THERMAL_PRINTER_INTERFACE', ''),
-        'width_chars' => (int) env('THERMAL_PRINTER_WIDTH', 48),
+        'width_chars' => (int) env('THERMAL_PRINTER_WIDTH', 42),
         'copies' => max(1, (int) env('THERMAL_PRINTER_COPIES', 1)),
     ],
 

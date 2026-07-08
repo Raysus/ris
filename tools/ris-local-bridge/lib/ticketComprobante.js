@@ -170,6 +170,7 @@ function sendFile(devicePath, buffer) {
 
 function buildBufferFromPayload(payload, width) {
     const b = new EscPosBuilder(width);
+    b.parts.push(ESC + 'M\x00', ESC + '2');
 
     (payload?.sections || []).forEach((section) => {
         const align = (section.align || 'left').toLowerCase();
@@ -178,11 +179,19 @@ function buildBufferFromPayload(payload, width) {
         else b.alignLeft();
 
         (section.lines || []).forEach((line) => {
-            if (section.bold) b.bold(true);
-            b.line(line);
-            if (section.bold) b.bold(false);
+            const text = line && typeof line === 'object' ? (line.text ?? '') : String(line ?? '');
+            const style = line && typeof line === 'object' ? (line.style || 'normal') : (section.bold ? 'bold' : 'normal');
+            if (style === 'large') {
+                b.parts.push(GS + '!\x11');
+                b.line(text.slice(0, Math.max(1, Math.floor(width / 2))));
+                b.parts.push(GS + '!\x00');
+                return;
+            }
+            if (style === 'bold' || section.bold) b.bold(true);
+            b.line(text);
+            if (style === 'bold' || section.bold) b.bold(false);
         });
-        b.blank();
+        if (section.blank_after) b.blank();
     });
 
     b.alignLeft();
@@ -194,7 +203,11 @@ function buildBufferFromPayload(payload, width) {
     if (payload?.separator_after_table) b.separator(payload.separator_after_table);
 
     if (payload?.total_line) {
-        b.alignRight().bold(true).line(payload.total_line).bold(false).alignLeft();
+        b.alignRight();
+        b.parts.push(GS + '!\x11', ESC + 'E\x01');
+        b.line(payload.total_line);
+        b.parts.push(ESC + 'E\x00', GS + '!\x00');
+        b.alignLeft();
     }
 
     if (payload?.obs_label) {

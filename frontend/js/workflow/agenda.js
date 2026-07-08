@@ -2767,21 +2767,32 @@ function risTextoSelectAgenda(selector, fallback) {
     return txt;
 }
 
-function risTicketLabelLine(etiqueta, valor, ancho = 48) {
-    const lab = String(etiqueta || '').trim();
+function risTicketLabelLine(etiqueta, valor, ancho = 42, espacioAntesDosPuntos = false) {
+    const base = String(etiqueta || '').trim().replace(/:+$/, '');
+    const lab = espacioAntesDosPuntos ? `${base} :` : `${base}:`;
     const val = String(valor || '').trim();
     const maxVal = Math.max(1, ancho - lab.length - 1);
     return (lab + ' ' + val.slice(0, maxVal)).slice(0, ancho);
 }
 
-function risTicketDosColumnas(izq, der, ancho = 48) {
+function risTicketFilaExamen(codigo, nombre, cantidad, precioUnitario, ancho = 42) {
+    const digits = String(codigo || '').replace(/\D/g, '');
+    const cod = (digits || String(codigo || '')).slice(0, 7).padEnd(7);
+    const valor = risFormatValorTicket((precioUnitario || 0) * (cantidad || 1));
+    const tail = ` ${cantidad || 1} ${valor}`;
+    const nameWidth = Math.max(1, ancho - cod.length - 1 - tail.length);
+    const nombreFmt = String(nombre || '').slice(0, nameWidth).padEnd(nameWidth);
+    return (cod + ' ' + nombreFmt + tail).slice(0, ancho);
+}
+
+function risTicketDosColumnas(izq, der, ancho = 42) {
     const r = String(der);
     const l = String(izq).slice(0, Math.max(1, ancho - r.length - 1)).padEnd(Math.max(1, ancho - r.length - 1));
     return (l + ' ' + r).slice(0, ancho);
 }
 
 function risConstruirPayloadTicketComprobante(data, savedAppointment) {
-    const ancho = 48;
+    const ancho = 42;
     const paciente = data.patient || {};
     const nombrePaciente = [
         paciente.names,
@@ -2790,7 +2801,6 @@ function risConstruirPayloadTicketComprobante(data, savedAppointment) {
     ].filter(Boolean).join(' ').toUpperCase();
 
     const marca = (risNombreLaboratorioImpresion() || 'SIRESA').toUpperCase();
-    const subtitulo = 'Centro de Diagnostico y Tratamiento Ltda.';
 
     let userData = {};
     try {
@@ -2806,27 +2816,27 @@ function risConstruirPayloadTicketComprobante(data, savedAppointment) {
     const totalNum = parseInt(totalTexto.replace(/[^\d]/g, ''), 10) || 0;
     const obs = ($('#agendaObservacion').val() || '').trim();
 
-    const filasExamenes = (data.studies || []).map((estudio) => {
-        const cod = String(estudio.fonasa_code || '').padEnd(8).slice(0, 8);
-        const nombre = String(estudio.exam_name || '').padEnd(24).slice(0, 24);
-        const cant = String(estudio.quantity || 1).padStart(3);
-        const valor = risFormatValorTicket((estudio.price || 0) * (estudio.quantity || 1)).padStart(8);
-        return cod + nombre + cant + valor;
-    });
+    const filasExamenes = (data.studies || []).map((estudio) =>
+        risTicketFilaExamen(
+            estudio.fonasa_code,
+            estudio.exam_name,
+            estudio.quantity || 1,
+            estudio.price || 0,
+            ancho
+        )
+    );
 
     return {
         sections: [
-            { align: 'center', bold: true, lines: [marca] },
-            { align: 'center', lines: [subtitulo] },
             {
                 align: 'left',
                 lines: [
+                    { text: risTicketLabelLine('ODT. NUMERO', risOdtNumeroTicket(savedAppointment), ancho), style: 'large' },
                     '',
-                    risTicketLabelLine('ODT. NUMERO', risOdtNumeroTicket(savedAppointment), ancho),
                     risTicketLabelLine('RUT', (paciente.rut || '').toUpperCase(), ancho),
                     risTicketLabelLine('PACIENTE', nombrePaciente, ancho),
                     risTicketLabelLine('EDAD', risCalcularEdadTicket(paciente.birth_date), ancho),
-                    risTicketLabelLine('FONO', paciente.phone || '', ancho),
+                    risTicketLabelLine('FONO', paciente.phone || '', ancho, true),
                     risTicketLabelLine('FECHA NAC', risFormatFechaTicket(paciente.birth_date), ancho),
                     '',
                     risTicketLabelLine('UNIDAD', marca, ancho),
@@ -2834,10 +2844,11 @@ function risConstruirPayloadTicketComprobante(data, savedAppointment) {
                     risTicketLabelLine('FECHA', risFormatFechaTicket(ahora), ancho),
                     risTicketDosColumnas(`HORA ING.: ${risFormatHoraTicket(ahora)}`, `HORA CITA: ${risFormatHoraTicket(inicioCita)}`, ancho),
                     risTicketLabelLine('PREVISION', risTextoSelectAgenda('#pInsurance', 'SIN PREVISION'), ancho),
-                    risTicketLabelLine('MED. SOLC.', risTextoSelectAgenda('#mTratante', 'SIN ORDEN'), ancho),
+                    risTicketLabelLine('MED.SOLC.', risTextoSelectAgenda('#mTratante', 'SIN ORDEN'), ancho),
                     risTicketLabelLine('CONVENIO', risTextoSelectAgenda('#pPlan', 'SIN CONVENIO'), ancho),
-                    risTicketLabelLine('MED. EXAM.', risTextoSelectAgenda('#mDestinado', 'SIN ASIGNAR'), ancho),
+                    risTicketLabelLine('MED.EXAM.', risTextoSelectAgenda('#mDestinado', 'SIN ASIGNAR'), ancho),
                 ],
+                blank_after: true,
             },
         ],
         separator: '-',
@@ -2847,19 +2858,25 @@ function risConstruirPayloadTicketComprobante(data, savedAppointment) {
         total_line: `TOTAL : $ ${risFormatValorTicket(totalNum)}`,
         obs_label: 'OBS:',
         obs_text: obs,
-        footer: '- COPIA ESTADISTICA -',
+        footer: '- COPIA MEDICO -',
     };
 }
 
 function risTicketAlineasTexto(ticket) {
     const lineas = [];
     (ticket.sections || []).forEach((seccion) => {
-        (seccion.lines || []).forEach((linea) => lineas.push(linea));
+        (seccion.lines || []).forEach((linea) => {
+            if (linea && typeof linea === 'object' && linea.text != null) {
+                lineas.push(linea.text);
+            } else {
+                lineas.push(linea);
+            }
+        });
     });
-    lineas.push((ticket.separator || '-').repeat(48));
+    lineas.push((ticket.separator || '-').repeat(42));
     lineas.push(...(ticket.table_header || []));
     lineas.push(...(ticket.table_rows || []));
-    lineas.push((ticket.separator_after_table || '-').repeat(48));
+    lineas.push((ticket.separator_after_table || '-').repeat(42));
     if (ticket.total_line) lineas.push(ticket.total_line);
     lineas.push(ticket.obs_label || 'OBS:');
     if (ticket.obs_text) lineas.push(ticket.obs_text);
