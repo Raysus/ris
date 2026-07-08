@@ -1541,128 +1541,238 @@ body.dark,
    ========================================= */
 @media (min-width: 992px) and (max-width: 1400px) {
     :root {
-        --sidebar-width: 220px;
+        --sidebar-width: 200px;
+        --sidebar-collapsed: 64px;
+        --radius: 8px;
+    }
+
+    body {
+        font-size: 0.875rem;
     }
 
     #appContent {
-        padding: 1rem 1.15rem;
+        padding: 0.65rem 0.85rem;
     }
 
     #appContent .container-fluid.p-4 {
-        padding: 1rem !important;
+        padding: 0.65rem !important;
     }
 
     #appContent .container-fluid.p-3,
     #appContent .container-fluid.p-2 {
+        padding: 0.5rem !important;
+    }
+
+    #appContent .mb-4 {
+        margin-bottom: 0.85rem !important;
+    }
+
+    #appContent .mb-3 {
+        margin-bottom: 0.65rem !important;
+    }
+
+    #appContent .py-4 {
+        padding-top: 0.75rem !important;
+        padding-bottom: 0.75rem !important;
+    }
+
+    #appContent .p-4 {
         padding: 0.75rem !important;
     }
 
     .topbar {
-        height: 56px;
-        padding: 0 0.85rem;
-        gap: 0.5rem;
+        height: 48px;
+        padding: 0 0.65rem;
+        gap: 0.4rem;
     }
 
     .topbar .right {
-        gap: 0.65rem !important;
+        gap: 0.45rem !important;
         flex-wrap: nowrap;
         min-width: 0;
     }
 
     #navLabSelectorContainer {
-        max-width: 11.5rem;
-        margin-right: 0.25rem !important;
+        max-width: 10.5rem;
+        margin-right: 0.15rem !important;
     }
 
     #navLabSelectorContainer .form-select {
-        font-size: 0.8rem;
-        padding-left: 0.35rem;
-        padding-right: 1.75rem;
+        font-size: 0.75rem;
+        padding: 0.2rem 1.5rem 0.2rem 0.35rem;
+        min-height: 1.85rem;
     }
 
     #userNameDisplay {
-        font-size: 0.8rem !important;
-        max-width: 9.5rem;
+        font-size: 0.75rem !important;
+        max-width: 8.5rem;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
     }
 
     .sidebar {
-        padding: 1rem 0.65rem;
+        padding: 0.65rem 0.45rem;
+    }
+
+    .sidebar .logo {
+        margin-bottom: 0.85rem;
     }
 
     .sidebar nav a {
-        padding: 0.65rem 0.75rem;
-        font-size: 0.88rem;
-        margin-bottom: 0.35rem;
+        padding: 0.45rem 0.55rem;
+        font-size: 0.8rem;
+        margin-bottom: 0.2rem;
+        border-radius: 8px;
+    }
+
+    .sidebar nav a i {
+        font-size: 1rem;
+        margin-right: 0.45rem !important;
     }
 
     .brand-logo {
-        max-width: 180px;
+        max-width: 150px;
+    }
+
+    .brand-logo--icon {
+        width: 32px;
+        height: 32px;
+    }
+
+    .btn {
+        font-size: 0.8rem;
+        padding: 0.28rem 0.65rem;
+    }
+
+    .btn-sm {
+        font-size: 0.72rem;
+        padding: 0.18rem 0.45rem;
+    }
+
+    .form-control,
+    .form-select {
+        font-size: 0.82rem;
+        padding: 0.3rem 0.55rem;
+        min-height: 1.95rem;
+    }
+
+    .form-control-sm,
+    .form-select-sm {
+        font-size: 0.75rem;
+        padding: 0.2rem 0.4rem;
+        min-height: 1.7rem;
+    }
+
+    .input-group-text {
+        font-size: 0.8rem;
+        padding: 0.3rem 0.55rem;
+    }
+
+    .card {
+        border-radius: 8px;
+    }
+
+    .card-body {
+        padding: 0.75rem;
+    }
+
+    .card-header {
+        padding: 0.45rem 0.75rem;
+    }
+
+    .modal-body {
+        padding: 0.75rem 1rem;
+    }
+
+    .modal-header,
+    .modal-footer {
+        padding: 0.55rem 0.85rem;
+    }
+
+    .nav-link {
+        font-size: 0.82rem;
+        padding: 0.35rem 0.65rem;
+    }
+
+    .badge {
+        font-size: 0.68rem;
     }
 
     .agenda-page h4 {
-        font-size: 1.15rem;
+        font-size: 1.05rem;
+    }
+
+    .agenda-ayuda-panel {
+        margin-bottom: 0.65rem !important;
     }
 
     .agenda-ayuda-panel .card-body {
-        padding: 0.75rem 1rem !important;
+        padding: 0.5rem 0.75rem !important;
     }
 
     .agenda-ayuda-panel .agenda-ayuda-list {
-        font-size: 0.78rem;
+        font-size: 0.72rem;
+    }
+
+    .agenda-horario-badge {
+        padding: 0.55rem 0.75rem !important;
+    }
+
+    .agenda-horario-badge .fs-5 {
+        font-size: 1.05rem !important;
     }
 
     .agenda-calendar,
     #calendar {
-        min-height: 420px;
-        height: calc(100vh - 230px);
+        min-height: 360px;
+        height: calc(100vh - 200px);
     }
 
     #calendar.fc .fc-header-toolbar {
-        column-gap: 0.75rem;
-        padding: 0.5rem 0.65rem;
+        column-gap: 0.5rem;
+        padding: 0.35rem 0.45rem;
+        margin-bottom: 0.35rem !important;
     }
 
     #calendar.fc .fc-header-toolbar .fc-toolbar-title {
-        font-size: 0.95rem;
+        font-size: 0.88rem;
     }
 
     #calendar.fc .fc-header-toolbar .fc-button-group .fc-button {
-        font-size: 0.78rem;
-        padding: 0.25rem 0.45rem;
-        min-width: 2.75rem;
+        font-size: 0.72rem;
+        padding: 0.18rem 0.35rem;
+        min-width: 2.4rem;
     }
 
     .agenda-appointment-dialog {
-        max-width: min(98vw, 1120px);
+        max-width: min(98vw, 1040px);
     }
 
     .agenda-wizard-nav .nav-link {
-        font-size: 0.78rem;
-        padding: 0.4rem 0.75rem;
+        font-size: 0.72rem;
+        padding: 0.3rem 0.55rem;
     }
 
     .agenda-quick-exam-toolbar {
-        grid-template-columns: minmax(7rem, 9rem) minmax(8rem, 1fr) minmax(9rem, 1.15fr) minmax(8rem, auto) minmax(6.5rem, auto);
-        gap: 0.55rem 0.75rem;
+        grid-template-columns: minmax(6.5rem, 8rem) minmax(7.5rem, 1fr) minmax(8rem, 1.1fr) minmax(7rem, auto) minmax(5.5rem, auto);
+        gap: 0.4rem 0.55rem;
     }
 
     #tableStudies {
-        min-width: 860px;
+        min-width: 800px;
     }
 
-    #tableStudies .col-exam { min-width: 11rem; }
-    #tableStudies .col-variante { min-width: 7rem; }
+    #tableStudies .col-exam { min-width: 10rem; }
+    #tableStudies .col-variante { min-width: 6.5rem; }
 
     .ris-toolbar-search {
-        max-width: 240px;
+        max-width: 210px;
     }
 
     .admin-module .col-md-3.col-lg-2 {
-        flex: 0 0 13.5%;
-        max-width: 13.5%;
+        flex: 0 0 12.5%;
+        max-width: 12.5%;
     }
 
     .admin-module .tab-content {
@@ -1670,67 +1780,123 @@ body.dark,
     }
 
     .admin-module .nav-pills .nav-link {
-        font-size: 0.82rem;
-        padding: 0.45rem 0.65rem !important;
+        font-size: 0.75rem;
+        padding: 0.35rem 0.5rem !important;
     }
 
     .admin-module h3 {
-        font-size: 1.35rem;
+        font-size: 1.15rem;
     }
 
     .card-header h5,
     .card-header h6 {
-        font-size: 0.95rem;
+        font-size: 0.88rem;
     }
 
     .worklist-toolbar,
     .ris-module-toolbar {
         flex-wrap: wrap;
-        gap: 0.5rem;
+        gap: 0.4rem;
     }
 
     .filter-machine-select {
-        min-width: 140px;
-        max-width: 180px;
+        min-width: 120px;
+        max-width: 160px;
     }
 
     .search-patient-input {
-        min-width: 150px;
-        max-width: 220px;
+        min-width: 130px;
+        max-width: 190px;
     }
 
     .radiologist-toolbar .btn {
-        font-size: 0.72rem;
-        padding: 0.28rem 0.5rem;
+        font-size: 0.68rem;
+        padding: 0.2rem 0.4rem;
     }
 
     .radiologist-toolbar .btn .bi {
-        margin-right: 0.15rem !important;
+        margin-right: 0.1rem !important;
     }
 
     #colHistorial[style*="width: 50%"] {
-        width: 42% !important;
+        width: 40% !important;
     }
 
     .modal-xl {
-        max-width: min(96vw, 1120px);
+        max-width: min(96vw, 1040px);
     }
 
     .modal-lg {
-        max-width: min(96vw, 900px);
+        max-width: min(96vw, 820px);
     }
 
     .table {
-        font-size: 0.88rem;
+        font-size: 0.8rem;
+    }
+
+    .table > :not(caption) > * > * {
+        padding: 0.35rem 0.45rem;
     }
 
     .table thead th {
-        font-size: 0.72rem;
-        padding: 0.55rem 0.5rem;
+        font-size: 0.68rem;
+        padding: 0.4rem 0.4rem;
     }
 
     .display-6 {
-        font-size: 1.85rem;
+        font-size: 1.55rem;
+    }
+
+    .h4, h4 {
+        font-size: 1.1rem;
+    }
+
+    .h5, h5 {
+        font-size: 1rem;
+    }
+
+    .h6, h6 {
+        font-size: 0.9rem;
+    }
+}
+
+/* Densidad por altura (pantallas ~768px útiles, con barras del SO) */
+@media (max-height: 820px) {
+    #appContent {
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
+    }
+
+    .topbar {
+        height: 44px;
+    }
+
+    .sidebar .logo {
+        margin-bottom: 0.55rem;
+    }
+
+    .sidebar nav a {
+        padding-top: 0.35rem;
+        padding-bottom: 0.35rem;
+        margin-bottom: 0.12rem;
+    }
+
+    .agenda-calendar,
+    #calendar {
+        min-height: 300px;
+        height: calc(100vh - 175px);
+    }
+
+    .agenda-ayuda-panel {
+        display: none;
+    }
+
+    .modal-dialog {
+        margin: 0.35rem auto;
+    }
+
+    .modal-dialog-scrollable .modal-body {
+        max-height: calc(100vh - 8rem);
     }
 }
 
@@ -2030,6 +2196,119 @@ body.recovery-page .modal-header.bg-primary {
 
 body.recovery-page .card-recovery .card-body {
     padding-top: 0.5rem;
+}
+
+/* Login / recovery compacto en pantallas bajas (1366×768) */
+@media (max-height: 820px) {
+    body.login-page,
+    body.recovery-page {
+        padding: 0.5rem 0.75rem;
+        align-items: flex-start;
+    }
+
+    .login-card,
+    .card-recovery {
+        max-width: 380px;
+        border-radius: 14px;
+        box-shadow: 0 10px 24px rgba(45, 40, 56, 0.12);
+        margin-top: 0.35rem;
+        margin-bottom: 0.35rem;
+    }
+
+    .login-header::before,
+    .recovery-header::before {
+        height: 3px;
+        border-radius: 14px 14px 0 0;
+    }
+
+    .login-brand-panel,
+    .recovery-brand-panel {
+        padding: 0.75rem 1.25rem 0.55rem;
+        margin-bottom: 0.35rem;
+    }
+
+    .login-brand-img,
+    .recovery-brand-img {
+        width: min(100%, 220px);
+    }
+
+    .login-subtitle,
+    .recovery-subtitle {
+        font-size: 0.78rem;
+        padding: 0 1.25rem;
+    }
+
+    .login-header,
+    .recovery-header {
+        padding-bottom: 0.55rem;
+    }
+
+    body.login-page .card-body,
+    body.recovery-page .card-body {
+        padding: 0.35rem 1.15rem 0.65rem !important;
+    }
+
+    body.login-page .mb-3,
+    body.recovery-page .mb-3 {
+        margin-bottom: 0.55rem !important;
+    }
+
+    body.login-page .mb-4,
+    body.recovery-page .mb-4 {
+        margin-bottom: 0.65rem !important;
+    }
+
+    body.login-page .form-control,
+    body.recovery-page .form-control {
+        padding: 0.4rem 0.7rem;
+        font-size: 0.875rem;
+    }
+
+    body.login-page .input-group-text,
+    body.recovery-page .input-group-text {
+        padding: 0.4rem 0.65rem;
+    }
+
+    body.login-page .password-toggle-btn,
+    body.recovery-page .password-toggle-btn {
+        padding: 0 0.65rem;
+    }
+
+    .login-btn {
+        padding: 0.5rem;
+        font-size: 0.875rem;
+        margin-bottom: 0.35rem !important;
+    }
+
+    .login-footer {
+        font-size: 0.68rem;
+        padding-bottom: 0.55rem !important;
+    }
+
+    body.login-page .alert,
+    body.recovery-page .alert {
+        padding: 0.4rem 0.55rem;
+        margin-bottom: 0.55rem !important;
+        font-size: 0.78rem;
+    }
+}
+
+@media (max-height: 700px) {
+    .login-brand-img,
+    .recovery-brand-img {
+        width: min(100%, 180px);
+    }
+
+    .login-subtitle,
+    .recovery-subtitle {
+        display: none;
+    }
+
+    .login-brand-panel,
+    .recovery-brand-panel {
+        padding: 0.55rem 1rem 0.35rem;
+        margin-bottom: 0.2rem;
+    }
 }
 
 /* Entrega — examenes con nombres largos */
