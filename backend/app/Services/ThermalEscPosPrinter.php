@@ -102,9 +102,19 @@ class ThermalEscPosPrinter
             $out .= $this->textLine(mb_substr((string) $line, 0, $width));
         }
 
-        $out .= "\n\n\n" . self::GS . 'V' . "\x00";
+        $out .= $this->feedAndCut();
 
         return $out;
+    }
+
+    /** Avanza papel y corta (Epson TM: ESC d + GS V 65). */
+    private function feedAndCut(): string
+    {
+        $feed = max(3, min(15, (int) (config('services.thermal_printer.cut_feed_lines') ?? 6)));
+
+        return self::ESC . 'd' . chr($feed)
+            . self::GS . 'V' . "\x41" . chr($feed)
+            . self::GS . 'V' . "\x00";
     }
 
     /**
@@ -192,8 +202,11 @@ class ThermalEscPosPrinter
             throw new RuntimeException("No se pudo conectar a {$host}:{$port} ({$errno} {$errstr})");
         }
 
-        stream_set_timeout($socket, 10);
+        stream_set_timeout($socket, 15);
         $written = fwrite($socket, $buffer);
+        fflush($socket);
+        // La cortadora Epson necesita un instante tras recibir el buffer por TCP.
+        usleep(800000);
         fclose($socket);
 
         if ($written === false || $written < strlen($buffer)) {

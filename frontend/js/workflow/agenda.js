@@ -2831,7 +2831,8 @@ function risConstruirPayloadTicketComprobante(data, savedAppointment) {
             {
                 align: 'left',
                 lines: [
-                    { text: risTicketLabelLine('ODT. NUMERO', risOdtNumeroTicket(savedAppointment), ancho), style: 'large' },
+                    'ODT. NUMERO:',
+                    { text: risOdtNumeroTicket(savedAppointment), style: 'large' },
                     '',
                     risTicketLabelLine('RUT', (paciente.rut || '').toUpperCase(), ancho),
                     risTicketLabelLine('PACIENTE', nombrePaciente, ancho),
