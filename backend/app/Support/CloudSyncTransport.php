@@ -15,6 +15,41 @@ class CloudSyncTransport
         return (int) config('cloud_sync.http_timeout', 15);
     }
 
+    /** Timeout mayor cuando el payload incluye audio (base64 pesado). */
+    public static function timeoutForPayload(array $payload): int
+    {
+        if (self::payloadHasAudio($payload)) {
+            return (int) config('cloud_sync.http_timeout_audio', 120);
+        }
+
+        return self::defaultTimeout();
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    public static function payloadHasAudio(array $payload): bool
+    {
+        if (!empty($payload['audio_path']) || !empty($payload['audio_path_base64'])) {
+            return true;
+        }
+
+        if (!isset($payload['studies']) || !is_array($payload['studies'])) {
+            return false;
+        }
+
+        foreach ($payload['studies'] as $study) {
+            if (!is_array($study)) {
+                continue;
+            }
+            if (!empty($study['audio_path']) || !empty($study['audio_path_base64'])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static function releaseDelaySeconds(int $attempts): int
     {
         $base = (int) config('cloud_sync.pending_release_seconds', 60);

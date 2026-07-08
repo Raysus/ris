@@ -1,0 +1,96 @@
+GUÍA — Instalar RIS Local Bridge en Mac (Horos)
+===============================================
+Servidor Siresa: 192.168.0.127
+Fecha: 2026-07-08
+
+Qué resuelve
+------------
+En el Mac de radiología / recepción habilita:
+  • Abrir estudios en Horos desde el RIS («Visor PACS»)
+  • (Opcional) Escaneo con NAPS2 desde Agenda
+
+NO necesita Homebrew ni Node instalados: el script descarga Node oficial solo para este bridge.
+
+
+REQUISITOS EN EL MAC
+--------------------
+1. Horos instalado en:  /Applications/Horos.app
+   (si no está, instale Horos y vuelva a correr el instalador)
+2. Conexión a la red local del centro (misma LAN que el servidor)
+
+
+INSTALACIÓN (recomendado — desde esta carpeta)
+----------------------------------------------
+1. Copie TODA esta carpeta al Mac (USB, AirDrop, carpeta compartida, etc.).
+
+2. En el Mac abra «Terminal» (Aplicaciones → Utilidades → Terminal).
+
+3. Ejecute (arrastre la carpeta al Terminal para completar la ruta):
+
+     cd ~/Escritorio/Instalar-Bridge-Mac-Horos
+     # o la ruta donde copió la carpeta, por ejemplo:
+     # cd /Volumes/USB/Instalar-Bridge-Mac-Horos
+
+     chmod +x setup-scanner-macos.sh
+     tar -xzf ris-local-bridge-macos.tar.gz -C /tmp/ris-bridge-install 2>/dev/null || true
+
+   Forma más simple (paquete ya listo):
+
+     mkdir -p ~/HealthTiCloud/ris-local-bridge
+     tar -xzf ris-local-bridge-macos.tar.gz -C ~/HealthTiCloud/ris-local-bridge
+     cd ~/HealthTiCloud/ris-local-bridge
+     chmod +x setup-scanner-macos.sh
+     ./setup-scanner-macos.sh
+
+4. Espere a que diga:
+     OK: bridge respondiendo en http://127.0.0.1:8181/health
+
+5. Prueba en el RIS (navegador del Mac):
+     Radiólogo → abrir un estudio → «Visor PACS»
+     Debe abrirse Horos.
+
+
+INSTALACIÓN SIN COPIAR CARPETA (desde la web del servidor)
+----------------------------------------------------------
+En Terminal del Mac:
+
+  mkdir -p ~/HealthTiCloud/ris-local-bridge
+  cd ~/HealthTiCloud/ris-local-bridge
+  curl -fsSL http://192.168.0.127/downloads/ris-local-bridge-macos.tar.gz | tar -xz
+  chmod +x setup-scanner-macos.sh
+  ./setup-scanner-macos.sh
+
+También: http://192.168.0.127/downloads/
+
+
+VERIFICACIÓN
+------------
+  curl http://127.0.0.1:8181/health
+
+Debe responder JSON con "success": true y "viewer": "horos".
+
+El bridge arranca solo al iniciar sesión (LaunchAgent).
+
+
+DETENER / DESINSTALAR AUTO-INICIO
+---------------------------------
+  launchctl bootout gui/$(id -u)/com.healthticloud.ris-bridge
+
+Logs:
+  ~/HealthTiCloud/ris-local-bridge/bridge.log
+  ~/HealthTiCloud/ris-local-bridge/setup-scanner-macos.log
+
+
+ARCHIVOS EN ESTA CARPETA
+------------------------
+  GUIA-Bridge-Mac-Horos.txt     ← esta guía
+  setup-scanner-macos.sh        ← instalador (sin Homebrew)
+  ris-local-bridge-macos.tar.gz ← código del bridge
+  setup-scanner-windows.bat     ← (solo PCs Windows con escáner)
+  INSTRUCTIVO_Escaner_RIS_Bridge.pdf
+
+
+SOPORTE
+-------
+Si falla la descarga de Node (sin Internet en el Mac), avise a sistemas:
+hace falta Node LTS una sola vez o conectar el Mac a Internet durante la instalación.

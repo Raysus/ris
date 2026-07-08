@@ -39,13 +39,17 @@ class Appointment extends Model
         'return_reason',
         'reminder_sent_at',
         'images_received_at',
+        'receipt_printed',
+        'receipt_printed_at',
     ];
     protected $casts = [
         'start_time' => LabScheduleDatetime::class,
         'end_time' => LabScheduleDatetime::class,
         'needs_review' => 'boolean',
+        'receipt_printed' => 'boolean',
         'reminder_sent_at' => 'datetime',
         'images_received_at' => 'datetime',
+        'receipt_printed_at' => 'datetime',
         'previous_reports_paths' => 'array',
     ];
 

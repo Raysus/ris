@@ -61,6 +61,9 @@ class SyncUserBundleToCloud implements ShouldQueue, ShouldQueueAfterCommit, Shou
         $persona = $user->persona->toArray();
         $userData = $user->makeVisible(['password'])->toArray();
         $userData['persona'] = $persona;
+        if ($user->tipoUsuario) {
+            $userData['tipo_usuario'] = $user->tipoUsuario->toArray();
+        }
 
         if (!$this->syncLogId) {
             $this->syncLogId = CloudSyncLogger::startPending('App\Models\User', $this->action, $userData)->id;

@@ -373,6 +373,9 @@ function resolveSpeechMikeHidAction(newlyPressed, session, preview) {
         if (preview && !session) {
             dispatchSpeechMikeAudioAction("pause");
         }
+        if (session && typeof isRecordingPaused === "function" && isRecordingPaused()) {
+            return { type: "rec", action: "resume" };
+        }
         return { type: "rec", action: session ? "stop" : "start" };
     }
 

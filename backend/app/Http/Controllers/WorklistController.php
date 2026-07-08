@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use App\Services\AppointmentReceiptService;
 use App\Services\DicomImportService;
 use App\Services\LocalMwlFileWriter;
 use App\Services\WorklistTagNormalizer;
@@ -108,6 +109,8 @@ class WorklistController extends Controller
                         'medical_order_path' => $appointment->medical_order_path,
                         'survey_path' => $appointment->survey_path,
                         'previous_reports_paths' => $appointment->previous_reports_paths ?? [],
+                        'receipt_printed' => (bool) $appointment->receipt_printed,
+                        'receipt_printed_at' => $appointment->receipt_printed_at?->toIso8601String(),
                         'patient' => [
                             'persona' => [
                                 'names' => $persona?->names,
@@ -128,7 +131,7 @@ class WorklistController extends Controller
         return $study->machine_id ?? $appointment->machine_id;
     }
 
-    public function sendToDicom(Request $request, $appointmentId, DicomImportService $dicomImport)
+    public function sendToDicom(Request $request, $appointmentId, DicomImportService $dicomImport, AppointmentReceiptService $receipts)
     {
         $this->assertWorklistAccess($request);
         $profile = LaboratoryProfileService::resolve();
@@ -221,8 +224,19 @@ class WorklistController extends Controller
             $appointment->accession_number = $accessionNumber;
             $appointment->save();
 
+            // Si no se imprimió al agendar, impresora Epson del lab (ESC/POS por IP).
+            $receiptResult = $receipts->printIfNeeded($appointment->fresh([
+                'patient.persona',
+                'studies',
+                'insurance',
+                'insurancePlan',
+                'referringDoctor',
+                'destinationDoctor.persona',
+                'laboratory',
+            ]) ?? $appointment);
+
             $appointment->load(['patient.persona', 'studies', 'supplies']);
-            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->fresh()->toArray());
 
             if (LaboratoryMwlRelay::shouldRelayFromCloud($appointment->laboratory)) {
                 RelayWorklistToLocalLab::dispatchSync($appointment->id);
@@ -242,6 +256,7 @@ class WorklistController extends Controller
                 'success' => true,
                 'accession' => $accessionNumber,
                 'resent' => $isResend,
+                'receipt' => $receiptResult,
                 'worklist' => [
                     'scheduled_station_ae' => $stationAeTitle,
                     'modality' => $modality,
@@ -265,6 +280,23 @@ class WorklistController extends Controller
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Marca el comprobante térmico como ya impreso (p. ej. tras OK del bridge en Agenda).
+     */
+    public function markReceiptPrinted(Request $request, $appointmentId, AppointmentReceiptService $receipts)
+    {
+        $this->assertAnyRole($request, ['admin', 'sis_admin', 'recepcion', 'secretaria', 'secretario', 'tecnologo']);
+
+        $appointment = $this->getSecureAppointmentQuery()->findOrFail($appointmentId);
+        $receipts->markPrinted($appointment);
+
+        return response()->json([
+            'success' => true,
+            'receipt_printed' => true,
+            'receipt_printed_at' => $appointment->fresh()->receipt_printed_at?->toIso8601String(),
+        ]);
     }
 
     /**
@@ -309,11 +341,7 @@ class WorklistController extends Controller
             $lab = $appointment->laboratory ?? LaboratoryProfileService::currentLaboratory();
             $institution = $lab?->name ?? config('app.name', 'HealthTiCloud');
 
-            $patientName = $dicomImport->formatPatientNameDicom(
-                (string) ($persona->names ?? ''),
-                (string) ($persona->last_name_1 ?? ''),
-                filled($persona->last_name_2) ? (string) $persona->last_name_2 : null
-            );
+            $patientName = $dicomImport->formatPersonaPatientNameForWorklist($persona);
 
             $result = $dicomImport->uploadAndTag(
                 $request->file('dicom_file'),
@@ -673,11 +701,7 @@ class WorklistController extends Controller
     ): array {
         $tags = [
             'SpecificCharacterSet' => 'ISO_IR 100',
-            'PatientName' => $dicomImport->formatPatientNameDicomWorklist(
-                (string) ($persona->names ?? ''),
-                (string) ($persona->last_name_1 ?? ''),
-                filled($persona->last_name_2) ? (string) $persona->last_name_2 : null
-            ),
+            'PatientName' => $dicomImport->formatPersonaPatientNameForWorklist($persona),
             'PatientID' => $dicomImport->normalizePatientIdDicom((string) $persona->rut),
             'AccessionNumber' => $accessionNumber,
             'RequestedProcedureID' => $accessionNumber,

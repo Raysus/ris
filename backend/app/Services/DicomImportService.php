@@ -83,6 +83,32 @@ class DicomImportService
     }
 
     /**
+     * Nombres/apellidos con fallback a columnas legacy en personas antiguas.
+     *
+     * @return array{names: string, last_name_1: string, last_name_2: string}
+     */
+    public function resolvePersonaNameFields(object $persona): array
+    {
+        return [
+            'names' => trim((string) ($persona->names ?? $persona->name ?? '')),
+            'last_name_1' => trim((string) ($persona->last_name_1 ?? $persona->last_name ?? '')),
+            'last_name_2' => trim((string) ($persona->last_name_2 ?? $persona->second_last_name ?? '')),
+        ];
+    }
+
+    /** PN MWL completo (apellidos + nombres) en ASCII para equipos DICOM. */
+    public function formatPersonaPatientNameForWorklist(object $persona): string
+    {
+        $fields = $this->resolvePersonaNameFields($persona);
+
+        return $this->formatPatientNameDicomWorklist(
+            $fields['names'],
+            $fields['last_name_1'],
+            $fields['last_name_2'] !== '' ? $fields['last_name_2'] : null,
+        );
+    }
+
+    /**
      * PN DICOM: «ApellidoPaterno ApellidoMaterno^nombres» (Family^Given).
      * El apellido materno va en el mismo componente Family, separado por espacio.
      */

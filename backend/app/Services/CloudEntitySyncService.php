@@ -16,6 +16,7 @@ use App\Models\ReportTemplate;
 use App\Models\Service;
 use App\Models\SubExam;
 use App\Models\Supply;
+use App\Models\TipoUsuario;
 use App\Models\User;
 use App\Support\CloudSyncMode;
 use Illuminate\Database\Eloquent\Model;
@@ -62,6 +63,12 @@ class CloudEntitySyncService
                 return;
             }
 
+            if ($class === \App\Models\AppointmentLog::class) {
+                $this->syncAppointmentLog($data);
+
+                return;
+            }
+
             $class::withoutEvents(function () use ($class, $action, $data) {
                 if ($class === Appointment::class) {
                     $this->syncAppointment($data);
@@ -84,6 +91,7 @@ class CloudEntitySyncService
                             $attrs['persona_id'] = $resolvedPersonaId;
                         }
                     }
+                    $this->resolveTipoUsuarioId($data, $attrs);
                     if (empty($attrs['password'])) {
                         unset($attrs['password']);
                     }
@@ -768,6 +776,63 @@ class CloudEntitySyncService
         }
     }
 
+    private function syncAppointmentLog(array $data): void
+    {
+        $appointmentId = $data['appointment_id'] ?? null;
+        $userId = $data['user_id'] ?? null;
+        $logId = $data['id'] ?? null;
+
+        if (!$logId || !$appointmentId) {
+            return;
+        }
+
+        if (!Appointment::find($appointmentId)) {
+            Log::info('cloud sync: appointment_log omitido (cita inexistente)', [
+                'log_id' => $logId,
+                'appointment_id' => $appointmentId,
+            ]);
+
+            return;
+        }
+
+        if ($userId && !User::find($userId)) {
+            Log::info('cloud sync: appointment_log omitido (usuario inexistente)', [
+                'log_id' => $logId,
+                'user_id' => $userId,
+            ]);
+
+            return;
+        }
+
+        $attrs = $this->filterAttributes(\App\Models\AppointmentLog::class, $data);
+        unset($attrs['id']);
+        $this->upsertCatalogEntity(\App\Models\AppointmentLog::class, (string) $logId, $attrs);
+    }
+
+    /**
+     * Los laboratorios locales pueden traer UUID distinto para el mismo rol (ej. secretaria).
+     *
+     * @param  array<string, mixed>  $data
+     * @param  array<string, mixed>  $attrs
+     */
+    private function resolveTipoUsuarioId(array $data, array &$attrs): void
+    {
+        $incomingTipoId = $attrs['tipo_usuario_id'] ?? null;
+        if ($incomingTipoId && TipoUsuario::find($incomingTipoId)) {
+            return;
+        }
+
+        $tipoName = $data['tipo_usuario']['name'] ?? null;
+        if (!$tipoName) {
+            return;
+        }
+
+        $match = TipoUsuario::where('name', $tipoName)->first();
+        if ($match) {
+            $attrs['tipo_usuario_id'] = $match->id;
+        }
+    }
+
     private function unpackFileFields(array &$data): void
     {
         $fileCols = [
@@ -819,22 +884,28 @@ class CloudEntitySyncService
             str_contains($mime, 'png') => 'png',
             str_contains($mime, 'jpeg'), str_contains($mime, 'jpg') => 'jpg',
             str_contains($mime, 'mpeg'), str_contains($mime, 'mp3') => 'mp3',
+            str_contains($mime, 'webm') => 'webm',
+            str_contains($mime, 'ogg') => 'ogg',
+            str_contains($mime, 'wav') => 'wav',
             default => 'bin',
         };
 
-        $folder = in_array($prefix, ['medical_order_path', 'survey_path'], true)
-            ? 'documents'
-            : 'cloud-sync';
+        $folder = match ($prefix) {
+            'medical_order_path', 'survey_path' => 'documents',
+            'audio', 'audio_path' => 'audios_dictados',
+            default => 'cloud-sync',
+        };
         $name = match ($prefix) {
             'medical_order_path' => 'orden',
             'survey_path' => 'encuesta',
+            'audio', 'audio_path' => 'dictado',
             default => $prefix,
         };
 
         $relative = $folder . '/' . $name . '_' . uniqid('', true) . '.' . $ext;
         try {
             Storage::disk('public')->put($relative, $raw);
-            return '/storage/' . $relative;
+            return $relative;
         } catch (\Throwable $e) {
             Log::warning('cloud sync file store failed: ' . $e->getMessage());
             return null;

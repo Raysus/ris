@@ -8,7 +8,7 @@ namespace App\Services;
  * Límites genéricos (DICOM SH / bases legacy de consolas):
  * - AccessionNumber, RequestedProcedureID, ScheduledProcedureStepID: ≤16 alfanuméricos
  * - PatientID: ≤16 sin espacios
- * - PatientName: componentes PN acotados (~26 chars en pantalla)
+ * - PatientName: componentes PN completos (DICOM admite hasta 64 por grupo)
  * - Descripciones de procedimiento: ≤16
  *
  * wlmscpfs: modalidad/estación/fecha solo en ScheduledProcedureStepSequence.
@@ -18,9 +18,9 @@ class WorklistTagNormalizer
 {
     public const SH_MAX = 16;
 
-    public const PN_FAMILY_MAX = 17;
+    public const PN_FAMILY_MAX = 64;
 
-    public const PN_GIVEN_MAX = 8;
+    public const PN_GIVEN_MAX = 64;
 
     /**
      * @param  list<array<string, mixed>>  $procedureSteps
@@ -181,6 +181,15 @@ class WorklistTagNormalizer
         $parts = explode('^', $patientName, 3);
         $family = $this->truncate(trim($parts[0] ?? ''), self::PN_FAMILY_MAX);
         $given = $this->truncate(trim($parts[1] ?? ''), self::PN_GIVEN_MAX);
+        $middle = $this->truncate(trim($parts[2] ?? ''), self::PN_GIVEN_MAX);
+
+        if ($given === '' && $middle === '') {
+            return $family;
+        }
+
+        if ($middle !== '') {
+            return $family . '^' . $given . '^' . $middle;
+        }
 
         if ($given === '') {
             return $family;

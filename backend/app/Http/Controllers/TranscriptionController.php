@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use App\Models\Appointment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use App\Support\PublicStorageUrl;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 
@@ -83,7 +84,7 @@ class TranscriptionController extends Controller
                         'subExam' => $study->sub_exam_name,
                         // Se corrigen las variables apuntando a $study en lugar de $app
                         'reportText' => $study->getStoredReportText(),
-                        'audioUrl' => $study->audio_path ? asset('storage/' . $study->audio_path) : null,
+                        'audioUrl' => PublicStorageUrl::from($study->audio_path),
                     ];
                 })
             ], $this->examInboxTimingFields($app));

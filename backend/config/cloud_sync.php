@@ -59,6 +59,9 @@ return [
     /** Timeout HTTP hacia la nube. */
     'http_timeout' => (int) env('CLOUD_SYNC_HTTP_TIMEOUT', 15),
 
+    /** Timeout cuando el payload lleva audio (base64). */
+    'http_timeout_audio' => (int) env('CLOUD_SYNC_HTTP_TIMEOUT_AUDIO', 120),
+
     /** URL opcional para comprobar conectividad (por defecto /health del CLOUD_API_BASE). */
     'health_url' => env('CLOUD_SYNC_HEALTH_URL'),
 

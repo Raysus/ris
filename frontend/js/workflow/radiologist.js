@@ -18,6 +18,7 @@ let autoSaveInterval = null;
 let lastSavedText = "";
 let recordingInterval;
 let recordingSeconds = 0;
+let recordingPausedByUser = false;
 const MAX_RECORDING_SECONDS = 600;
 let isSplitScreen = false;
 let radiologistRefreshInterval = null;
@@ -163,6 +164,9 @@ function getSpeechMikeActionFromCustomKeymap(event) {
     }
 
     if (map.record && eventMatchesSpeechMikeCode(event, map.record)) {
+        if (session && isRecordingPaused()) {
+            return "resume";
+        }
         return session ? "stop" : "start";
     }
 
@@ -796,20 +800,26 @@ function canControlAudioRecording() {
 }
 
 function isRecordingActive() {
-    return !!mediaRecorder && mediaRecorder.state === "recording";
+    return !!mediaRecorder
+        && mediaRecorder.state === "recording"
+        && !recordingPausedByUser;
 }
 
 function isRecordingPaused() {
-    return !!mediaRecorder && mediaRecorder.state === "paused";
+    return recordingPausedByUser && isRecordingSessionActive();
 }
 
 function isRecordingSessionActive() {
-    return isRecordingActive() || isRecordingPaused();
+    return !!mediaRecorder && mediaRecorder.state !== "inactive";
 }
 
-function mediaRecorderSupportsPause() {
-    return typeof MediaRecorder !== "undefined"
-        && typeof MediaRecorder.prototype.pause === "function";
+function setRecordingTracksEnabled(enabled) {
+    if (!recordingMediaStream) {
+        return;
+    }
+    recordingMediaStream.getAudioTracks().forEach((track) => {
+        track.enabled = enabled;
+    });
 }
 
 function canHandleSpeechMikeHotkey() {
@@ -1009,6 +1019,35 @@ function releaseRecordingStream() {
     }
 }
 
+function pickAudioRecorderMimeType() {
+    if (typeof MediaRecorder === "undefined") {
+        return "";
+    }
+    const candidates = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/ogg;codecs=opus",
+    ];
+    for (const mimeType of candidates) {
+        if (MediaRecorder.isTypeSupported(mimeType)) {
+            return mimeType;
+        }
+    }
+    return "";
+}
+
+async function buildAudioBlobFromChunks(chunks, mimeType, durationMs) {
+    let blob = new Blob(chunks, { type: mimeType || "audio/webm" });
+    if (durationMs > 0 && typeof ysFixWebmDuration === "function") {
+        try {
+            blob = await ysFixWebmDuration(blob, durationMs);
+        } catch (err) {
+            console.warn("buildAudioBlobFromChunks:", err);
+        }
+    }
+    return blob;
+}
+
 async function startAudioRecording() {
     if (!canControlAudioRecording()) {
         if (typeof showToast === "function") {
@@ -1032,15 +1071,26 @@ async function startAudioRecording() {
     try {
         releaseRecordingStream();
         recordingMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(recordingMediaStream);
+        const mimeType = pickAudioRecorderMimeType();
+        mediaRecorder = mimeType
+            ? new MediaRecorder(recordingMediaStream, { mimeType })
+            : new MediaRecorder(recordingMediaStream);
         audioChunks = [];
         recordingSeconds = 0;
+        recordingPausedByUser = false;
 
-        mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+        mediaRecorder.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) {
+                audioChunks.push(e.data);
+            }
+        };
 
-        mediaRecorder.onstop = () => {
+        mediaRecorder.onstop = async () => {
             clearInterval(recordingInterval);
-            audioBlob = new Blob(audioChunks, { type: "audio/webm" });
+            recordingPausedByUser = false;
+            const recorderMime = mediaRecorder.mimeType || mimeType || "audio/webm";
+            const durationMs = recordingSeconds * 1000;
+            audioBlob = await buildAudioBlobFromChunks(audioChunks, recorderMime, durationMs);
             $("#audioPreview")
                 .attr("src", URL.createObjectURL(audioBlob));
             releaseRecordingStream();
@@ -1052,6 +1102,7 @@ async function startAudioRecording() {
             }
         };
 
+        // Sin timeslice: los chunks WebM con intervalo solo reproducen el tramo final (~5s).
         mediaRecorder.start();
         updateRecordingUi("recording");
         $("#audioTimer").text("00:00");
@@ -1082,16 +1133,32 @@ function stopAudioRecording() {
         return false;
     }
 
+    if (recordingPausedByUser) {
+        setRecordingTracksEnabled(true);
+        recordingPausedByUser = false;
+    }
+
+    if (mediaRecorder.state === "recording") {
+        try {
+            mediaRecorder.requestData();
+        } catch (err) {
+            console.warn("requestData:", err);
+        }
+    }
+
     mediaRecorder.stop();
     return true;
 }
 
 function pauseAudioRecording() {
-    if (!isRecordingActive() || !mediaRecorderSupportsPause()) {
+    if (!isRecordingActive()) {
         return false;
     }
 
-    mediaRecorder.pause();
+    // Silenciar el micrófono sin pausar MediaRecorder: evita WebM truncado
+    // al reanudar (MediaRecorder.pause() suele dejar solo el último segmento).
+    setRecordingTracksEnabled(false);
+    recordingPausedByUser = true;
     clearInterval(recordingInterval);
     updateRecordingUi("paused");
     return true;
@@ -1102,7 +1169,8 @@ function resumeAudioRecording() {
         return false;
     }
 
-    mediaRecorder.resume();
+    setRecordingTracksEnabled(true);
+    recordingPausedByUser = false;
     updateRecordingUi("recording");
     startRecordingTimer();
     return true;
@@ -1120,10 +1188,7 @@ function toggleAudioRecording() {
 
 function toggleAudioRecordingPause() {
     if (isRecordingActive()) {
-        if (mediaRecorderSupportsPause()) {
-            return pauseAudioRecording();
-        }
-        return stopAudioRecording();
+        return pauseAudioRecording();
     }
     if (isRecordingPaused()) {
         return resumeAudioRecording();
@@ -1409,6 +1474,13 @@ function setupSpeechMikeShortcuts() {
 
 function setupAudioEvents() {
     $("#btnRecord").click(async function () {
+        if (isRecordingPaused()) {
+            resumeAudioRecording();
+            return;
+        }
+        if (isRecordingSessionActive()) {
+            return;
+        }
         await startAudioRecording();
     });
 

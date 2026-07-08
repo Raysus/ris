@@ -2884,6 +2884,7 @@ function risHtmlComprobantePaciente(ticket) {
 
 async function imprimirComprobantePaciente(data, savedAppointment) {
     const ticket = risConstruirPayloadTicketComprobante(data, savedAppointment);
+    let printedOk = false;
 
     try {
         const response = await fetch(`${LOCAL_BRIDGE_URL}/imprimir-comprobante`, {
@@ -2894,21 +2895,56 @@ async function imprimirComprobantePaciente(data, savedAppointment) {
         const result = await response.json();
         if (response.ok && result.success) {
             showToast('Comprobante enviado a la impresora térmica Epson.', 'success');
-            return;
+            printedOk = true;
+        } else {
+            throw new Error(result.message || 'No se pudo imprimir en la térmica');
         }
-        throw new Error(result.message || 'No se pudo imprimir en la térmica');
     } catch (error) {
         console.warn('Bridge térmico:', error);
         showToast('Bridge/impresora no disponible; abriendo vista de impresión…', 'warning');
     }
 
-    const printWindow = window.open('', '_blank', 'width=420,height=720');
-    if (!printWindow) {
-        showToast('Permita ventanas emergentes para imprimir el comprobante.', 'warning');
-        return;
+    if (!printedOk) {
+        const printWindow = window.open('', '_blank', 'width=420,height=720');
+        if (!printWindow) {
+            showToast('Permita ventanas emergentes para imprimir el comprobante.', 'warning');
+            return false;
+        }
+        printWindow.document.write(risHtmlComprobantePaciente(ticket));
+        printWindow.document.close();
+        printedOk = true;
     }
-    printWindow.document.write(risHtmlComprobantePaciente(ticket));
-    printWindow.document.close();
+
+    const appointmentId = savedAppointment?.id || data?.id;
+    if (printedOk && appointmentId) {
+        await risMarcarComprobanteImpreso(appointmentId);
+    }
+    return printedOk;
+}
+
+async function risMarcarComprobanteImpreso(appointmentId) {
+    const id = String(appointmentId || '').trim();
+    if (!id || id.startsWith('APP-')) return false;
+    try {
+        const response = await fetch(`${API_URL}/appointments/${id}/mark-receipt-printed`, {
+            method: 'POST',
+            headers: typeof risBuildAuthHeaders === 'function'
+                ? risBuildAuthHeaders({ 'Content-Type': 'application/json', Accept: 'application/json' })
+                : {
+                    Authorization: `Bearer ${localStorage.getItem('ris_token')}`,
+                    'X-Lab-Id': localStorage.getItem('ris_lab_id') || '',
+                    Accept: 'application/json',
+                },
+        });
+        if (!response.ok) {
+            console.warn('No se pudo marcar receipt_printed', response.status);
+            return false;
+        }
+        return true;
+    } catch (e) {
+        console.warn('mark-receipt-printed:', e);
+        return false;
+    }
 }
 async function eliminarCita() {
     const id = String($("#appointmentId").val() || '').trim();
