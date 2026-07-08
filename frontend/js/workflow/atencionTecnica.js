@@ -369,7 +369,8 @@ function renderWorklist() {
                 // --- NUEVO ---
                 medicalOrder: app.medical_order_path,
                 survey: app.survey_path,
-                previousReports: Array.isArray(app.previous_reports_paths) ? [...app.previous_reports_paths] : []
+                previousReports: Array.isArray(app.previous_reports_paths) ? [...app.previous_reports_paths] : [],
+                receiptPrinted: Boolean(app.receipt_printed),
             };
         }
 
@@ -378,6 +379,9 @@ function renderWorklist() {
         }
         if (app.survey_path) {
             currentCadenas[chainId].survey = app.survey_path;
+        }
+        if (app.receipt_printed) {
+            currentCadenas[chainId].receiptPrinted = true;
         }
         risMergePreviousReports(currentCadenas[chainId], app.previous_reports_paths);
 
@@ -773,6 +777,9 @@ async function enviarADicom() {
     let exitos = 0;
     let fallidos = 0;
     let ultimoError = '';
+    let comprobantesImpresos = 0;
+    let comprobantesOmitidos = 0;
+    let comprobanteError = '';
 
     try {
         btn.prop("disabled", true).html('<span class="spinner-border spinner-border-sm me-2"></span>Sincronizando...');
@@ -791,6 +798,16 @@ async function enviarADicom() {
                     ultimoAccession = data.accession || data.accession_number;
                     if (data.worklist) {
                         window._lastWorklistModalityHint = data;
+                    }
+                    const receipt = data.receipt || {};
+                    if (receipt.printed && !receipt.skipped) {
+                        comprobantesImpresos++;
+                        if (currentAtencionChain) currentAtencionChain.receiptPrinted = true;
+                    } else if (receipt.skipped && receipt.printed) {
+                        comprobantesOmitidos++;
+                        if (currentAtencionChain) currentAtencionChain.receiptPrinted = true;
+                    } else if (receipt.attempted && !receipt.printed) {
+                        comprobanteError = receipt.message || 'Error de impresora térmica';
                     }
                     exitos++;
                 } else {
@@ -822,12 +839,19 @@ async function enviarADicom() {
             if (hint) {
                 extra = ` Estación «${hint.scheduled_station_ae}» (${hint.modality}). En el equipo MWL: ${hint.pacs_dicom_host}:${hint.pacs_dicom_port}, AE «${hint.pacs_dicom_aet}».`;
             }
+            if (comprobantesImpresos > 0) {
+                extra += ` Comprobante térmico impreso (${comprobantesImpresos}).`;
+            } else if (comprobantesOmitidos > 0) {
+                extra += ' Comprobante ya estaba impreso.';
+            } else if (comprobanteError) {
+                extra += ` (Epson: ${comprobanteError.length > 80 ? comprobanteError.slice(0, 80) + '…' : comprobanteError})`;
+            }
             showToast(
                 (eraReenvio
                     ? `📡 Worklist reenviada al PACS (${exitos} cita(s)).`
                     : `📡 Orden en PACS (${exitos} cita(s)).`)
                     + extra,
-                'success'
+                comprobanteError && comprobantesImpresos === 0 ? 'warning' : 'success'
             );
         } else if (exitos > 0 && fallidos > 0) {
             showToast(`⚠️ Sincronización incompleta: ${exitos} OK, ${fallidos} errores.`, "warning");
