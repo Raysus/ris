@@ -157,7 +157,8 @@ class AppointmentReceiptService
                 [
                     'align' => 'left',
                     'lines' => [
-                        ['text' => $this->labelLine('ODT. NUMERO', $this->odtNumber($appointment), $ancho), 'style' => 'large'],
+                        'ODT. NUMERO:',
+                        ['text' => $this->odtNumber($appointment), 'style' => 'large'],
                         '',
                         $this->labelLine('RUT', mb_strtoupper((string) ($persona?->rut ?: '')), $ancho),
                         $this->labelLine('PACIENTE', $nombrePaciente, $ancho),

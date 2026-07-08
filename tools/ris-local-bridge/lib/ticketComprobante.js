@@ -48,7 +48,10 @@ class EscPosBuilder {
         return this;
     }
 
-    cut() {
+    cut(feedLines = 6) {
+        const feed = Math.max(3, Math.min(15, feedLines));
+        this.parts.push(ESC + 'd' + String.fromCharCode(feed));
+        this.parts.push(GS + 'V\x41' + String.fromCharCode(feed));
         this.parts.push(GS + 'V\x00');
         return this;
     }
@@ -88,8 +91,10 @@ function sendTcp(host, port, buffer) {
                     reject(err);
                     return;
                 }
-                socket.end();
-                resolve();
+                setTimeout(() => {
+                    socket.end();
+                    resolve();
+                }, 800);
             });
         });
         socket.setTimeout(15000, () => {
@@ -168,7 +173,7 @@ function sendFile(devicePath, buffer) {
     });
 }
 
-function buildBufferFromPayload(payload, width) {
+function buildBufferFromPayload(payload, width, cutFeedLines = 6) {
     const b = new EscPosBuilder(width);
     b.parts.push(ESC + 'M\x00', ESC + '2');
 
@@ -221,7 +226,7 @@ function buildBufferFromPayload(payload, width) {
         footerLines.forEach((line) => b.line(line));
     }
 
-    b.blank().cut();
+    b.blank().cut(cutFeedLines);
     return b.toBuffer();
 }
 
@@ -236,7 +241,8 @@ async function printComprobante(config, payload) {
 
     const width = Number(printerCfg.width_chars) || 48;
     const copies = Math.max(1, Number(printerCfg.copies) || 1);
-    const buffer = buildBufferFromPayload(payload, width);
+    const cutFeedLines = Math.max(3, Math.min(15, Number(printerCfg.cut_feed_lines) || 6));
+    const buffer = buildBufferFromPayload(payload, width, cutFeedLines);
     const target = parseInterface(printerCfg.interface);
 
     for (let i = 0; i < copies; i += 1) {
