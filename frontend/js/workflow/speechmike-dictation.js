@@ -109,6 +109,37 @@ function isFootControlDevice(device) {
     return dt === DT.FOOT_CONTROL_ACC_2330 || dt === DT.FOOT_CONTROL_ACC_2310_2320;
 }
 
+/** Layout pedalera LFH2330 acordado en SIRESA (solo sedes SIRESA). */
+function isSiresaFootPedalLayout() {
+    if (typeof window.RIS_FOOT_PEDAL_LAYOUT === "string") {
+        return window.RIS_FOOT_PEDAL_LAYOUT === "siresa_lfh2330";
+    }
+    const labName = (localStorage.getItem("ris_lab_name") || "").toUpperCase();
+    return labName.includes("SIRESA");
+}
+
+function siresaFootPedalModeHint() {
+    return "Siresa: izq. −5 s · centro sin uso · der. play/pausa.";
+}
+
+function updateSiresaFootPedalUiHints() {
+    if (!isSiresaFootPedalLayout()) {
+        return;
+    }
+    const $status = $("#speechMikeHidStatus");
+    if ($status.length && !$status.hasClass("text-success")) {
+        $status.text(
+            "Pedalera Siresa (LFH2330): pulse Conectar en Chrome/Edge. Izq. −5 s · centro sin uso · der. play/pausa."
+        );
+    }
+    const $kbd = $("#transcriptionPedalKeyboardHint");
+    if ($kbd.length) {
+        $kbd.html(
+            '<i class="bi bi-keyboard me-1"></i> Siresa: pedal izq. −5 s · der. play/pausa · centro deshabilitado'
+        );
+    }
+}
+
 function speechMikeDeviceLabel(device) {
     if (!device || typeof device.getDeviceType !== "function") {
         return "Dispositivo Philips";
@@ -153,7 +184,9 @@ function updateSpeechMikeConnectUi(extraStatus) {
         const name = speechMikeDeviceLabel(first);
         let modeHint;
         if (isFootControlDevice(first)) {
-            modeHint = "Pedales: ◀◀ −5 s · ▶ play/pausa · ▶▶ +5 s (con dictado cargado).";
+            modeHint = isSiresaFootPedalLayout()
+                ? siresaFootPedalModeHint()
+                : "Pedales: ◀◀ −5 s · ▶ play/pausa · ▶▶ +5 s (con dictado cargado).";
         } else if (speechMikeSupportsBrowserMode(first)) {
             modeHint = "Modo navegador (F3) opcional.";
         } else {
@@ -346,6 +379,38 @@ function dispatchSpeechMikeAudioAction(action) {
     return executeSpeechMikeAudioAction(action);
 }
 
+function resolveSiresaFootPedalHidAction(newlyPressed, session, preview) {
+    const BE = DictationSupport.ButtonEvent;
+
+    // Superior (EOL_PRIO): sin acción.
+    if (newlyPressed & BE.EOL_PRIO) {
+        return null;
+    }
+
+    // Izquierdo: retroceder 5 s (igual que antes).
+    if (newlyPressed & BE.REWIND) {
+        return preview && !session ? { type: "audio", action: "seek_back" } : null;
+    }
+
+    // Central (PLAY): vacío.
+    if (newlyPressed & BE.PLAY) {
+        return null;
+    }
+
+    // Derecho: play/pausa (antes era el pedal central).
+    if (newlyPressed & BE.FORWARD) {
+        if (preview && !session) {
+            return { type: "audio", action: "toggle_play" };
+        }
+        if (session) {
+            return { type: "rec", action: isRecordingPaused() ? "resume" : "pause" };
+        }
+        return null;
+    }
+
+    return null;
+}
+
 function resolveSpeechMikeHidAction(newlyPressed, session, preview) {
     const BE = DictationSupport.ButtonEvent;
     const fastForward = BE.FAST_FORWARD || 0;
@@ -460,7 +525,11 @@ function handleSpeechMikeHidButton(device, bitMask) {
     const session = typeof isRecordingSessionActive === "function" && isRecordingSessionActive();
     const preview =
         typeof isAudioPreviewListeningMode === "function" && isAudioPreviewListeningMode();
-    const resolved = resolveSpeechMikeHidAction(newlyPressed, session, preview);
+    const useSiresaFoot =
+        isFootControlDevice(device) && isSiresaFootPedalLayout();
+    const resolved = useSiresaFoot
+        ? resolveSiresaFootPedalHidAction(newlyPressed, session, preview)
+        : resolveSpeechMikeHidAction(newlyPressed, session, preview);
 
     if (!resolved) {
         if (localStorage.getItem("ris_debug_speechmike") === "1") {
@@ -493,7 +562,9 @@ function onSpeechMikeHidConnected() {
     const foot = devices.some((d) => isFootControlDevice(d));
     if (foot) {
         showToast(
-            "Pedalera lista. Con un dictado abierto: pedal izquierdo −5 s, centro play/pausa, derecho +5 s.",
+            isSiresaFootPedalLayout()
+                ? "Pedalera Siresa: izq. −5 s · centro sin uso · der. play/pausa (con dictado abierto)."
+                : "Pedalera lista. Con un dictado abierto: pedal izquierdo −5 s, centro play/pausa, derecho +5 s.",
             "success",
             10000
         );
@@ -874,6 +945,7 @@ function setupSpeechMikeUiBindings() {
 
 async function initSpeechMikeDictation() {
     setupSpeechMikeUiBindings();
+    updateSiresaFootPedalUiHints();
     updateSpeechMikeConnectUi();
 
     if (!navigator.hid) {
