@@ -25,13 +25,18 @@
         </div>
         <div class="card shadow-sm border-0 mb-3">
             <div class="card-body">
-                <h2 class="h6 fw-bold">Bridge macOS (Horos + escaner)</h2>
+                <h2 class="h6 fw-bold">Bridge macOS (Horos) — sin Homebrew</h2>
                 <p class="small text-muted mb-3">
-                    En el Mac: copie el script a <code>tools/ris-local-bridge</code>, ejecute en Terminal
-                    <code>chmod +x setup-scanner-macos.sh &amp;&amp; ./setup-scanner-macos.sh</code>.
-                    Configura Horos como visor DICOM local.
+                    En Terminal del Mac (instala Node oficial si falta, configura Horos y auto-inicio):
                 </p>
-                <a class="btn btn-primary btn-sm me-2 mb-2" href="setup-scanner-macos.sh" download>
+<pre class="bg-dark text-light small rounded p-3 mb-3" style="white-space:pre-wrap;">mkdir -p ~/HealthTiCloud &amp;&amp; cd ~/HealthTiCloud
+curl -fsSL http://192.168.0.127/downloads/ris-local-bridge-macos.tar.gz -o bridge.tgz
+mkdir -p ris-local-bridge &amp;&amp; tar -xzf bridge.tgz -C ris-local-bridge
+cd ris-local-bridge &amp;&amp; chmod +x setup-scanner-macos.sh &amp;&amp; ./setup-scanner-macos.sh</pre>
+                <a class="btn btn-primary btn-sm me-2 mb-2" href="ris-local-bridge-macos.tar.gz" download>
+                    ris-local-bridge-macos.tar.gz
+                </a>
+                <a class="btn btn-outline-primary btn-sm mb-2" href="setup-scanner-macos.sh" download>
                     setup-scanner-macos.sh
                 </a>
             </div>

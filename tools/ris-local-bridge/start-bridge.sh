@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # RIS Local Bridge — macOS / Linux
 cd "$(dirname "$0")"
+BRIDGE_DIR="$(pwd)"
+
+# Preferir Node embebido por setup-scanner-macos.sh (sin Homebrew)
+if [ -x "$BRIDGE_DIR/.node/bin/node" ]; then
+  export PATH="$BRIDGE_DIR/.node/bin:$PATH"
+fi
 
 if [ ! -d node_modules ]; then
   echo "Instalando dependencias..."

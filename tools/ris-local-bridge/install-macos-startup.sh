@@ -7,9 +7,13 @@ BRIDGE_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLIST_NAME="com.healthticloud.ris-bridge.plist"
 TARGET="$HOME/Library/LaunchAgents/$PLIST_NAME"
 
+if [ -x "$BRIDGE_DIR/.node/bin/node" ]; then
+  export PATH="$BRIDGE_DIR/.node/bin:$PATH"
+fi
+
 NODE_PATH="$(command -v node || true)"
 if [ -z "$NODE_PATH" ]; then
-  echo "Node.js no encontrado. Instale con: brew install node"
+  echo "Node.js no encontrado. Ejecute primero: ./setup-scanner-macos.sh"
   exit 1
 fi
 
@@ -44,16 +48,21 @@ cat > "$TARGET" <<EOF
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
-        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <string>$BRIDGE_DIR/.node/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
     </dict>
 </dict>
 </plist>
 EOF
 
+launchctl bootout "gui/$(id -u)/com.healthticloud.ris-bridge" 2>/dev/null || true
 launchctl unload "$TARGET" 2>/dev/null || true
-launchctl load "$TARGET"
+if launchctl bootstrap "gui/$(id -u)" "$TARGET" 2>/dev/null; then
+  launchctl enable "gui/$(id -u)/com.healthticloud.ris-bridge" 2>/dev/null || true
+  launchctl kickstart -k "gui/$(id -u)/com.healthticloud.ris-bridge" 2>/dev/null || true
+else
+  launchctl load "$TARGET"
+fi
 
 echo "Listo: $TARGET"
 echo "Bridge activo. Probar: curl http://127.0.0.1:8181/health"
-echo "Detener: launchctl unload $TARGET"
-echo "Quitar auto-inicio: rm $TARGET && launchctl bootout gui/\$(id -u) $TARGET 2>/dev/null || true"
+echo "Detener: launchctl bootout gui/\$(id -u)/com.healthticloud.ris-bridge"
