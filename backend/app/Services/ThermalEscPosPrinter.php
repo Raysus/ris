@@ -107,14 +107,13 @@ class ThermalEscPosPrinter
         return $out;
     }
 
-    /** Avanza papel y corta (Epson TM: ESC d + GS V 65). */
+    /** Avanza papel y corte total (Epson TM-m30: ESC d + GS V 66). */
     private function feedAndCut(): string
     {
         $feed = max(3, min(15, (int) (config('services.thermal_printer.cut_feed_lines') ?? 6)));
 
         return self::ESC . 'd' . chr($feed)
-            . self::GS . 'V' . "\x41" . chr($feed)
-            . self::GS . 'V' . "\x00";
+            . self::GS . 'V' . "\x42" . chr($feed);
     }
 
     /**
@@ -206,7 +205,7 @@ class ThermalEscPosPrinter
         $written = fwrite($socket, $buffer);
         fflush($socket);
         // La cortadora Epson necesita un instante tras recibir el buffer por TCP.
-        usleep(800000);
+        usleep(1500000);
         fclose($socket);
 
         if ($written === false || $written < strlen($buffer)) {

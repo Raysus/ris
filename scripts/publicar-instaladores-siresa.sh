@@ -13,6 +13,7 @@ REMOTE_APP="${SIRESA_APP_DIR:-/opt/RIS}"
 
 mkdir -p "$DOWNLOADS"
 cp -f "$BAT" "$DOWNLOADS/setup-scanner-windows.bat"
+cp -f "$ROOT/tools/ris-local-bridge/configure-printer-windows.ps1" "$DOWNLOADS/configure-printer-windows.ps1"
 cp -f "$MAC" "$DOWNLOADS/setup-scanner-macos.sh"
 [[ -f "$PDF" ]] && cp -f "$PDF" "$DOWNLOADS/INSTRUCTIVO_Escaner_RIS_Bridge.pdf"
 bash "$ROOT/scripts/package-ris-bridge-macos.sh"

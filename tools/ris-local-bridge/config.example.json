@@ -12,12 +12,12 @@
     },
     "printer": {
         "enabled": true,
-        "interface": "tcp://192.168.0.240:9100",
+        "interface": "\\\\localhost\\imprayos",
         "width_chars": 42,
         "copies": 1,
         "cut_feed_lines": 6,
-        "_comment_interface": "tcp://IP[:9100] red Epson | printer:EPSON TM-T20 nombre Windows | /dev/usb/lp0 Linux USB",
-        "_comment_siresa": "Configure la IP de la térmica ESC/POS de su sede (raw TCP :9100, sin driver)"
+        "_comment_interface": "\\\\localhost\\imprayos (SIRESA legacy) | printer:EPSON TM-m30 rayos | tcp://192.168.0.240:9100",
+        "_comment_siresa": "En Windows ejecute configure-printer-windows.ps1 para detectar la impresora local"
     },
     "_comment_windows": "En Windows use setup-scanner-windows.bat y cambie viewer a radiant si aplica",
     "_comment_scanner_win": "naps2_path Windows: C:\\Program Files\\NAPS2\\NAPS2.Console.exe"
