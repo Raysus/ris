@@ -59,11 +59,17 @@ call :log "NAPS2: %NAPS2_EXE%"
 
 REM --- 3. config.json ---
 call :log "[3/6] Configurando config.json..."
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$naps2 = '%NAPS2_EXE%';" ^
-  "$cfg = @{ viewer = 'radiant'; paths = @{ radiant = 'C:\Program Files\RadiAntViewer64bit\RadiAntViewer.exe'; horos = 'C:\Program Files\Horos\Horos.exe'; osirix = ''; weasis = 'C:\Program Files\Weasis\Weasis.exe' }; scanner = @{ naps2_path = $naps2; profile = 'Default' } };" ^
-  "$cfg | ConvertTo-Json -Depth 4 | Set-Content -Path '%BRIDGE_DIR%config.json' -Encoding UTF8"
-if errorlevel 1 call :fail "No se pudo crear config.json"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%BRIDGE_DIR%configure-printer-windows.ps1" >> "%LOG_FILE%" 2>&1
+if errorlevel 1 (
+    call :log "AVISO: impresora no detectada; configure manualmente con configure-printer-windows.ps1"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+      "$naps2 = '%NAPS2_EXE%';" ^
+      "$cfg = @{ viewer = 'radiant'; paths = @{ radiant = 'C:\Program Files\RadiAntViewer64bit\RadiAntViewer.exe'; horos = 'C:\Program Files\Horos\Horos.exe'; osirix = ''; weasis = 'C:\Program Files\Weasis\Weasis.exe' }; scanner = @{ naps2_path = $naps2; profile = 'Default' }; printer = @{ enabled = $false; interface = ''; width_chars = 42; copies = 1; cut_feed_lines = 6 } };" ^
+      "if (-not (Test-Path '%BRIDGE_DIR%config.json')) { $cfg | ConvertTo-Json -Depth 5 | Set-Content -Path '%BRIDGE_DIR%config.json' -Encoding UTF8 }"
+) else (
+    call :log "Impresora termica configurada en config.json"
+)
+if not exist "%BRIDGE_DIR%config.json" call :fail "No se pudo crear config.json"
 call :log "config.json listo (perfil escaner: Default)"
 
 REM --- 4. npm install ---

@@ -51,8 +51,7 @@ class EscPosBuilder {
     cut(feedLines = 6) {
         const feed = Math.max(3, Math.min(15, feedLines));
         this.parts.push(ESC + 'd' + String.fromCharCode(feed));
-        this.parts.push(GS + 'V\x41' + String.fromCharCode(feed));
-        this.parts.push(GS + 'V\x00');
+        this.parts.push(GS + 'V\x42' + String.fromCharCode(feed));
         return this;
     }
 
@@ -71,8 +70,12 @@ function parseInterface(iface) {
         return { type: 'tcp', host, port: Number(portStr) || 9100 };
     }
 
-    if (raw.startsWith('printer:')) {
-        return { type: 'windows', name: raw.slice(8) };
+    if (raw.startsWith('printer:') || raw.startsWith('share:')) {
+        return { type: 'windows', name: raw.replace(/^(printer|share):/, '') };
+    }
+
+    if (raw.startsWith('\\\\')) {
+        return { type: 'windows', name: raw };
     }
 
     if (os.platform() === 'win32') {
@@ -94,7 +97,7 @@ function sendTcp(host, port, buffer) {
                 setTimeout(() => {
                     socket.end();
                     resolve();
-                }, 800);
+                }, 1500);
             });
         });
         socket.setTimeout(15000, () => {

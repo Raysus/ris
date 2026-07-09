@@ -2900,49 +2900,87 @@ function risHtmlComprobantePaciente(ticket) {
 <script>setTimeout(() => { window.print(); window.close(); }, 500);</script></body></html>`;
 }
 
+async function risLocalBridgePrinterDisponible() {
+    try {
+        const controller = typeof AbortSignal !== 'undefined' && AbortSignal.timeout
+            ? { signal: AbortSignal.timeout(2000) }
+            : {};
+        const response = await fetch(`${LOCAL_BRIDGE_URL}/health`, controller);
+        if (!response.ok) return false;
+        const health = await response.json();
+        return Boolean(health?.printer);
+    } catch {
+        return false;
+    }
+}
+
+async function risImprimirComprobanteBridge(ticket) {
+    const response = await fetch(`${LOCAL_BRIDGE_URL}/imprimir-comprobante`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticket }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (response.ok && result.success) {
+        return { ok: true };
+    }
+    throw new Error(result.message || 'No se pudo imprimir en la térmica');
+}
+
+async function risImprimirComprobanteApi(appointmentId) {
+    const response = await fetch(`${API_URL}/appointments/${appointmentId}/print-receipt`, {
+        method: 'POST',
+        headers: typeof risBuildAuthHeaders === 'function'
+            ? risBuildAuthHeaders({ Accept: 'application/json' })
+            : {
+                Authorization: `Bearer ${localStorage.getItem('ris_token')}`,
+                'X-Lab-Id': localStorage.getItem('ris_lab_id') || '',
+                Accept: 'application/json',
+            },
+    });
+    const result = await response.json().catch(() => ({}));
+    if (response.ok && result.success && result.receipt?.printed) {
+        return { ok: true };
+    }
+    if (result.receipt?.attempted && !result.receipt?.printed) {
+        throw new Error(result.message || result.receipt?.message || 'No se pudo imprimir en la térmica');
+    }
+    return { ok: false };
+}
+
 async function imprimirComprobantePaciente(data, savedAppointment) {
     const ticket = risConstruirPayloadTicketComprobante(data, savedAppointment);
     const appointmentId = savedAppointment?.id || data?.id;
     let printedOk = false;
+    const bridgePrimero = await risLocalBridgePrinterDisponible();
 
-    if (appointmentId && !String(appointmentId).startsWith('APP-')) {
+    if (bridgePrimero) {
         try {
-            const response = await fetch(`${API_URL}/appointments/${appointmentId}/print-receipt`, {
-                method: 'POST',
-                headers: typeof risBuildAuthHeaders === 'function'
-                    ? risBuildAuthHeaders({ Accept: 'application/json' })
-                    : {
-                        Authorization: `Bearer ${localStorage.getItem('ris_token')}`,
-                        'X-Lab-Id': localStorage.getItem('ris_lab_id') || '',
-                        Accept: 'application/json',
-                    },
-            });
-            const result = await response.json().catch(() => ({}));
-            if (response.ok && result.success && result.receipt?.printed) {
+            await risImprimirComprobanteBridge(ticket);
+            showToast('Comprobante enviado a la impresora térmica Epson.', 'success');
+            printedOk = true;
+        } catch (bridgeError) {
+            console.warn('Bridge térmico:', bridgeError);
+        }
+    }
+
+    if (!printedOk && appointmentId && !String(appointmentId).startsWith('APP-')) {
+        try {
+            const apiResult = await risImprimirComprobanteApi(appointmentId);
+            if (apiResult.ok) {
                 showToast('Comprobante enviado a la impresora térmica Epson.', 'success');
                 printedOk = true;
-            } else if (result.receipt?.attempted && !result.receipt?.printed) {
-                throw new Error(result.message || result.receipt?.message || 'No se pudo imprimir en la térmica');
             }
         } catch (apiError) {
             console.warn('Impresión térmica API:', apiError);
         }
     }
 
-    if (!printedOk) {
+    if (!printedOk && !bridgePrimero) {
         try {
-            const response = await fetch(`${LOCAL_BRIDGE_URL}/imprimir-comprobante`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ticket }),
-            });
-            const result = await response.json();
-            if (response.ok && result.success) {
-                showToast('Comprobante enviado a la impresora térmica Epson.', 'success');
-                printedOk = true;
-            } else {
-                throw new Error(result.message || 'No se pudo imprimir en la térmica');
-            }
+            await risImprimirComprobanteBridge(ticket);
+            showToast('Comprobante enviado a la impresora térmica Epson.', 'success');
+            printedOk = true;
         } catch (error) {
             console.warn('Bridge térmico:', error);
             showToast('Impresora no disponible; abriendo vista de impresión…', 'warning');
