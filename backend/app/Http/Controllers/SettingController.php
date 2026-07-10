@@ -159,7 +159,8 @@ class SettingController extends Controller
                 }
             }
             if (is_array($settings)) {
-                $lab->settings = SettingsArray::normalize($settings);
+                $current = is_array($lab->settings) ? $lab->settings : [];
+                $lab->settings = SettingsArray::normalize(array_merge($current, $settings));
             }
         }
 
