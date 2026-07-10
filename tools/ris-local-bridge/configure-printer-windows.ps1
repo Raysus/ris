@@ -1,16 +1,28 @@
 # Configura la impresora térmica en config.json del RIS Local Bridge (Windows).
-# Uso: powershell -ExecutionPolicy Bypass -File configure-printer-windows.ps1
-#      powershell -ExecutionPolicy Bypass -File configure-printer-windows.ps1 -PrinterName "\\localhost\imprayos"
+# Uso:
+#   powershell -ExecutionPolicy Bypass -File configure-printer-windows.ps1 -PrinterIp 192.168.0.117
+#   powershell -ExecutionPolicy Bypass -File configure-printer-windows.ps1 -PrinterName "\\localhost\imprayos"
 
 param(
     [string]$PrinterName = '',
+    [string]$PrinterIp = '192.168.0.117',
+    [int]$Density = 6,
     [string]$ConfigPath = (Join-Path $PSScriptRoot 'config.json')
 )
 
-function Resolve-ThermalPrinter {
-    param([string]$Preferred)
+function Resolve-ThermalInterface {
+    param([string]$PreferredName, [string]$PreferredIp)
 
-    if ($Preferred) { return $Preferred }
+    if ($PreferredIp) {
+        $ip = $PreferredIp.Trim()
+        if ($ip -notmatch '^tcp://') {
+            if ($ip -notmatch ':\d+$') { $ip = "${ip}:9100" }
+            $ip = "tcp://$ip"
+        }
+        return $ip
+    }
+
+    if ($PreferredName) { return $PreferredName }
 
     $candidates = @(
         '\\localhost\imprayos',
@@ -41,10 +53,10 @@ function Resolve-ThermalPrinter {
     return $null
 }
 
-$printer = Resolve-ThermalPrinter -Preferred $PrinterName
-if (-not $printer) {
-    Write-Host 'No se detectó impresora térmica. Indique el nombre:' -ForegroundColor Yellow
-    Write-Host '  powershell -File configure-printer-windows.ps1 -PrinterName "\\localhost\imprayos"'
+$iface = Resolve-ThermalInterface -PreferredName $PrinterName -PreferredIp $PrinterIp
+if (-not $iface) {
+    Write-Host 'No se detectó impresora. Use:' -ForegroundColor Yellow
+    Write-Host '  powershell -File configure-printer-windows.ps1 -PrinterIp 192.168.0.117'
     exit 1
 }
 
@@ -62,10 +74,11 @@ $config = @{
     }
     printer = @{
         enabled = $true
-        interface = $printer
+        interface = $iface
         width_chars = 42
-        copies = 1
-        cut_feed_lines = 6
+        copies = 3
+        cut_feed_lines = 10
+        print_density = [Math]::Max(0, [Math]::Min(8, $Density))
     }
 }
 
@@ -81,6 +94,6 @@ if (Test-Path $ConfigPath) {
 }
 
 $config | ConvertTo-Json -Depth 5 | Set-Content -Path $ConfigPath -Encoding UTF8
-Write-Host "Impresora configurada: $printer" -ForegroundColor Green
+Write-Host "Impresora configurada: $iface (densidad=$Density)" -ForegroundColor Green
 Write-Host "Archivo: $ConfigPath"
 Write-Host 'Reinicie el bridge: start-bridge.bat o reinicie la tarea programada HealthTiCloud-RIS-Local-Bridge'

@@ -31,11 +31,15 @@ class ThermalEscPosPrinter
 
         $cfg = config('services.thermal_printer', []);
         $width = max(24, (int) ($cfg['width_chars'] ?? 42));
-        $copies = max(1, $copies ?? (int) ($cfg['copies'] ?? 1));
+        $ticketCopies = isset($ticket['copies']) ? (int) $ticket['copies'] : null;
+        $copies = max(1, $copies ?? $ticketCopies ?? (int) ($cfg['copies'] ?? 3));
         $buffer = $this->buildBuffer($ticket, $width);
 
         for ($i = 0; $i < $copies; $i++) {
             $this->send((string) $cfg['interface'], $buffer);
+            if ($i < $copies - 1) {
+                usleep(400000);
+            }
         }
     }
 
@@ -44,15 +48,21 @@ class ThermalEscPosPrinter
      */
     private function buildBuffer(array $ticket, int $width): string
     {
+        $density = max(0, min(8, (int) (config('services.thermal_printer.print_density') ?? 6)));
+
         $out = self::ESC . '@';
-        $out .= self::ESC . 'M' . "\x00"; // Font A (12x24, como comprobante original)
+        $out .= self::ESC . 'M' . "\x00"; // Font A (12x24)
         $out .= self::ESC . '2'; // Interlineado por defecto
+        $out .= self::ESC . 'G' . "\x01"; // Double-strike (más oscuro)
+        $out .= self::ESC . 'E' . "\x01"; // Emphasized / bold
+        // Densidad de impresión Epson TM (GS ( K fn=50)
+        $out .= self::GS . '(K' . "\x02\x00" . '2H' . chr($density);
 
         foreach ($ticket['sections'] ?? [] as $section) {
             $out .= $this->alignCommand((string) ($section['align'] ?? 'left'));
 
             foreach ($section['lines'] ?? [] as $line) {
-                $out .= $this->renderLine($line, $width, !empty($section['bold']));
+                $out .= $this->renderLine($line, $width, true);
             }
 
             if (!empty($section['blank_after'])) {
@@ -79,9 +89,7 @@ class ThermalEscPosPrinter
         if (!empty($ticket['total_line'])) {
             $out .= $this->alignCommand('right');
             $out .= self::GS . '!' . "\x11"; // doble alto + ancho
-            $out .= self::ESC . 'E' . "\x01";
             $out .= $this->encode(mb_substr((string) $ticket['total_line'], 0, (int) ($width / 2))) . "\n";
-            $out .= self::ESC . 'E' . "\x00";
             $out .= self::GS . '!' . "\x00";
             $out .= $this->alignCommand('left');
         }
@@ -107,13 +115,15 @@ class ThermalEscPosPrinter
         return $out;
     }
 
-    /** Avanza papel y corte total (Epson TM-m30: ESC d + GS V 66). */
+    /** Avanza papel y corte reforzado (parcial + total) para Epson TM. */
     private function feedAndCut(): string
     {
-        $feed = max(3, min(15, (int) (config('services.thermal_printer.cut_feed_lines') ?? 6)));
+        $feed = max(6, min(20, (int) (config('services.thermal_printer.cut_feed_lines') ?? 10)));
 
-        return self::ESC . 'd' . chr($feed)
-            . self::GS . 'V' . "\x42" . chr($feed);
+        return "\n\n"
+            . self::ESC . 'd' . chr($feed)
+            . self::GS . 'V' . "\x42" . chr(min(15, $feed))
+            . self::GS . 'V' . "\x00";
     }
 
     /**
@@ -135,9 +145,10 @@ class ThermalEscPosPrinter
             $prefix = self::GS . '!' . "\x11";
             $suffix = self::GS . '!' . "\x00";
             $maxWidth = max(1, (int) floor($width / 2));
-        } elseif ($style === 'bold') {
-            $prefix = self::ESC . 'E' . "\x01";
-            $suffix = self::ESC . 'E' . "\x00";
+        } elseif ($style === 'bold' || $sectionBold) {
+            // El buffer ya inicia con énfasis global; no lo apagamos.
+            $prefix = '';
+            $suffix = '';
         }
 
         return $prefix . $this->encode(mb_substr($text, 0, $maxWidth)) . "\n" . $suffix;
@@ -166,9 +177,47 @@ class ThermalEscPosPrinter
 
     private function encode(string $text): string
     {
-        $converted = @iconv('UTF-8', 'CP850//IGNORE', $text);
+        $clean = $this->sanitizeTicketText($text);
+        $converted = @iconv('UTF-8', 'CP850//IGNORE', $clean);
 
-        return $converted !== false ? $converted : $text;
+        return $converted !== false ? $converted : $clean;
+    }
+
+    /** Elimina NBSP, tipografía rara y deja texto imprimible en térmica. */
+    private function sanitizeTicketText(string $text): string
+    {
+        if (class_exists(\Normalizer::class)) {
+            $normalized = \Normalizer::normalize($text, \Normalizer::FORM_D);
+            if (is_string($normalized)) {
+                $text = $normalized;
+            }
+        }
+        $text = preg_replace('/\p{Mn}/u', '', $text) ?? $text;
+        $map = [
+            "\u{00a0}" => ' ',
+            "\u{202f}" => ' ',
+            "\u{2007}" => ' ',
+            "\u{2009}" => ' ',
+            "\u{2008}" => ' ',
+            "\u{200a}" => ' ',
+            "\u{feff}" => '',
+            '–' => '-',
+            '—' => '-',
+            '―' => '-',
+            '“' => '"',
+            '”' => '"',
+            '«' => '"',
+            '»' => '"',
+            '‘' => "'",
+            '’' => "'",
+            '•' => '-',
+            '·' => '-',
+        ];
+        $text = strtr($text, $map);
+        $text = preg_replace('/[^\x09\x0A\x0D\x20-\x7E]/', '', $text) ?? $text;
+        $text = preg_replace('/ {2,}/', ' ', $text) ?? $text;
+
+        return $text;
     }
 
     private function send(string $interface, string $buffer): void

@@ -12,12 +12,14 @@
     },
     "printer": {
         "enabled": true,
-        "interface": "\\\\localhost\\imprayos",
+        "interface": "tcp://192.168.0.117:9100",
         "width_chars": 42,
-        "copies": 1,
-        "cut_feed_lines": 6,
-        "_comment_interface": "\\\\localhost\\imprayos (SIRESA legacy) | printer:EPSON TM-m30 rayos | tcp://192.168.0.240:9100",
-        "_comment_siresa": "En Windows ejecute configure-printer-windows.ps1 para detectar la impresora local"
+        "copies": 3,
+        "cut_feed_lines": 10,
+        "print_density": 6,
+        "_comment_interface": "tcp://192.168.0.117:9100 (Epson red SIRESA) | \\\\localhost\\imprayos | printer:EPSON TM-m30",
+        "_comment_density": "0=claro … 8=muy oscuro. Si sale suave, suba a 7 u 8.",
+        "_comment_siresa": "Preferir TCP a la IP de la Epson. En Windows: configure-printer-windows.ps1 -PrinterIp 192.168.0.117"
     },
     "_comment_windows": "En Windows use setup-scanner-windows.bat y cambie viewer a radiant si aplica",
     "_comment_scanner_win": "naps2_path Windows: C:\\Program Files\\NAPS2\\NAPS2.Console.exe"

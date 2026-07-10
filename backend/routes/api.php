@@ -130,6 +130,8 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::post('/transcription/appointments/{id}/draft', [TranscriptionController::class, 'saveDraft']);
     Route::post('/transcription/appointments/{id}/validate', [TranscriptionController::class, 'sendToValidation']);
     Route::post('/transcription/appointments/{id}/return', [TranscriptionController::class, 'returnToDoctor']);
+    Route::post('/transcription/appointments/{id}/report-document', [TranscriptionController::class, 'uploadReportDocument']);
+    Route::delete('/transcription/appointments/{id}/report-document', [TranscriptionController::class, 'deleteReportDocument']);
 
     // MÓDULO DE VALIDACIÓN
     Route::get('/radiologist/validations', [RadiologistController::class, 'validations']);

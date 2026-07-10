@@ -125,12 +125,10 @@ class ReportDocumentFormatter
         if ($user instanceof User) {
             $persona = $user->persona;
             $settings = is_array($user->settings) ? $user->settings : [];
-            $signaturePath = $persona?->signature_path ?: $user->signature_path;
             $username = $user->username;
         } else {
             $persona = $user->persona ?? null;
             $settings = is_array($user->settings ?? null) ? $user->settings : [];
-            $signaturePath = $persona?->signature_path ?? $user->signature_path ?? null;
             $username = $user->username ?? null;
         }
 
@@ -144,18 +142,14 @@ class ReportDocumentFormatter
             $fullName = trim((string) ($username ?? 'Médico Radiólogo'));
         }
 
-        $signatureUrl = null;
-        if ($signaturePath) {
-            $signatureUrl = asset('storage/' . ltrim($signaturePath, '/'));
-        }
-
         $dragonProfile = $user instanceof User ? $user->dragon_profile : ($user->dragon_profile ?? null);
 
         return [
             'displayName' => 'DR. ' . mb_strtoupper($fullName, 'UTF-8'),
             'initials' => trim((string) ($settings['inicialesInforme'] ?? $dragonProfile ?? '')),
             'registration' => trim((string) ($settings['registroMedico'] ?? '')),
-            'signatureUrl' => $signatureUrl,
+            // Firma visual: se incluye en el texto de transcripción (sin imagen automática).
+            'signatureUrl' => null,
         ];
     }
 
@@ -210,18 +204,8 @@ class ReportDocumentFormatter
         $lines[] = $document['examTitle'] ?? 'EXAMEN:';
         $lines[] = '';
         $lines[] = $document['reportBody'] ?? '';
-        $lines[] = '';
-        $lines[] = 'Atentamente,';
-        $lines[] = '';
-        $doctor = is_array($document['doctor'] ?? null) ? $document['doctor'] : [];
-        $lines[] = $doctor['displayName'] ?? 'DR. MÉDICO RADIÓLOGO';
-        $lines[] = 'MEDICO RADIÓLOGO';
-        if (!empty($doctor['initials'])) {
-            $lines[] = $doctor['initials'];
-        }
-        if (!empty($doctor['registration'])) {
-            $lines[] = $doctor['registration'];
-        }
+
+        // Firma del médico: va en el texto de transcripción (no se agrega pie automático).
 
         return trim(implode("\n", $lines));
     }
@@ -234,23 +218,10 @@ class ReportDocumentFormatter
             ->implode('');
 
         $body = nl2br(e($document['reportBody'] ?? ''));
-        $doctor = is_array($document['doctor'] ?? null) ? $document['doctor'] : [];
-        $signature = '';
-        if (!empty($doctor['signatureUrl'])) {
-            $signature = '<img src="' . e($doctor['signatureUrl']) . '" alt="Firma" class="ris-report-signature-img"><br>';
-        }
-
-        $initials = !empty($doctor['initials'])
-            ? '<div>' . e($doctor['initials']) . '</div>'
-            : '';
-        $registration = !empty($doctor['registration'])
-            ? '<div>' . e($doctor['registration']) . '</div>'
-            : '';
 
         $dateLine = e($document['dateLine'] ?? '');
         $patientName = e($document['patientName'] ?? '');
         $examTitle = e($document['examTitle'] ?? 'EXAMEN:');
-        $doctorName = e($doctor['displayName'] ?? 'DR. MÉDICO RADIÓLOGO');
 
         return <<<HTML
 <div class="ris-report-page" style="color: {$textColor}; font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.45;">
@@ -262,14 +233,6 @@ class ReportDocumentFormatter
     </div>
     <div style="font-weight: bold; margin-bottom: 10px;">{$examTitle}</div>
     <div class="ris-report-body" style="white-space: pre-wrap; text-align: justify; margin-bottom: 24px;">{$body}</div>
-    <div style="margin-top: 28px;">Atentamente,</div>
-    <div style="margin-top: 18px;">
-        {$signature}
-        <div style="font-weight: bold;">{$doctorName}</div>
-        <div>MEDICO RADIÓLOGO</div>
-        {$initials}
-        {$registration}
-    </div>
 </div>
 HTML;
     }

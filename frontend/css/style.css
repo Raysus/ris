@@ -262,6 +262,12 @@ body {
     line-height: 1.45;
 }
 
+.ris-drop-text-active {
+    outline: 2px dashed #0d6efd;
+    outline-offset: 2px;
+    background-color: rgba(13, 110, 253, 0.06) !important;
+}
+
 /* Split pages: transcription / validation (lista izquierda + panel principal) */
 .ris-split-page {
     display: flex;

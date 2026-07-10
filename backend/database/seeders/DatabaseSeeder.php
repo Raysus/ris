@@ -57,7 +57,8 @@ class DatabaseSeeder extends Seeder
             [2, 'admin', 'Administrador(a)'],
             [4, 'tecnologo', 'Tecnólogo(a)'],
             [5, 'radiologo', 'Médico Radiólogo(a)'],
-            [6, 'transcriptor', 'Transcriptor(a)']
+            [6, 'transcriptor', 'Transcriptor(a)'],
+            [10, 'tens', 'TENS'],
         ];
         foreach ($tipos as $t) {
             DB::table('tipo_usuarios')->insert([

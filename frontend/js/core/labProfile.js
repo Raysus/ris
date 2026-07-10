@@ -249,8 +249,8 @@ function applyOperationalModuleNav() {
             return true;
         }
         const allowed = {
-            worklist: ['admin', 'tecnologo', 'sis_admin'],
-            atencion: ['admin', 'tecnologo', 'sis_admin'],
+            worklist: ['admin', 'tecnologo', 'tens', 'sis_admin'],
+            atencion: ['admin', 'tecnologo', 'tens', 'sis_admin'],
         }[module] || [];
         const profileName = (localStorage.getItem('ris_user_profile') || '').toLowerCase();
         if (allowed.includes(profileName)) {

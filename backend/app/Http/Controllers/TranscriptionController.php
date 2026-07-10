@@ -85,12 +85,142 @@ class TranscriptionController extends Controller
                         // Se corrigen las variables apuntando a $study en lugar de $app
                         'reportText' => $study->getStoredReportText(),
                         'audioUrl' => PublicStorageUrl::from($study->audio_path),
+                        'reportDocumentPath' => $study->report_document_path,
+                        'reportDocumentUrl' => PublicStorageUrl::from($study->report_document_path),
                     ];
                 })
             ], $this->examInboxTimingFields($app));
         });
 
         return response()->json(['success' => true, 'data' => $formattedData]);
+    }
+
+    public function uploadReportDocument(Request $request, $id)
+    {
+        $this->assertTranscriptionAccess($request);
+        $request->validate([
+            'study_id' => 'required|string',
+            'document' => 'required|file|mimes:pdf,jpg,jpeg,png,doc,docx|max:20480',
+        ]);
+
+        $appointment = $this->getSecureAppointmentQuery()->findOrFail($id);
+        if ($appointment->status !== 'en_transcripcion') {
+            return response()->json([
+                'success' => false,
+                'message' => 'La cita no está en transcripción.',
+            ], 422);
+        }
+
+        $study = DB::table('appointment_studies')
+            ->where('id', $request->input('study_id'))
+            ->where('appointment_id', $appointment->id)
+            ->first();
+
+        if (!$study) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Examen no encontrado en esta cita.',
+            ], 404);
+        }
+
+        $file = $request->file('document');
+        $ext = strtolower($file->getClientOriginalExtension() ?: $file->extension() ?: 'pdf');
+        $relative = 'documents/informe_' . Str::uuid() . '.' . $ext;
+        Storage::disk('public')->put($relative, file_get_contents($file->getRealPath()));
+        $storagePath = '/storage/' . $relative;
+
+        if (!empty($study->report_document_path)) {
+            $old = ltrim((string) $study->report_document_path, '/');
+            if (str_starts_with($old, 'storage/')) {
+                $old = substr($old, strlen('storage/'));
+            }
+            if ($old !== '' && Storage::disk('public')->exists($old)) {
+                Storage::disk('public')->delete($old);
+            }
+        }
+
+        $reportText = trim((string) ($study->report ?? ''));
+        if ($reportText === '') {
+            $reportText = 'Informe adjunto como documento.';
+        }
+
+        DB::table('appointment_studies')
+            ->where('id', $study->id)
+            ->update([
+                'report_document_path' => $storagePath,
+                'report' => $reportText,
+                'updated_at' => now(),
+            ]);
+
+        $appointment->touch();
+        $appointment->load(['patient.persona', 'studies', 'supplies']);
+        if (class_exists('\App\Jobs\SyncEntityToCloud')) {
+            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+        }
+
+        return response()->json([
+            'success' => true,
+            'path' => $storagePath,
+            'url' => PublicStorageUrl::from($storagePath),
+            'reportText' => $reportText,
+        ]);
+    }
+
+    public function deleteReportDocument(Request $request, $id)
+    {
+        $this->assertTranscriptionAccess($request);
+        $studyId = $request->input('study_id') ?: $request->query('study_id');
+        if (!$studyId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Debe indicar study_id.',
+            ], 422);
+        }
+
+        $appointment = $this->getSecureAppointmentQuery()->findOrFail($id);
+        if ($appointment->status !== 'en_transcripcion') {
+            return response()->json([
+                'success' => false,
+                'message' => 'La cita no está en transcripción.',
+            ], 422);
+        }
+
+        $study = DB::table('appointment_studies')
+            ->where('id', $studyId)
+            ->where('appointment_id', $appointment->id)
+            ->first();
+
+        if (!$study) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Examen no encontrado en esta cita.',
+            ], 404);
+        }
+
+        if (!empty($study->report_document_path)) {
+            $old = ltrim((string) $study->report_document_path, '/');
+            if (str_starts_with($old, 'storage/')) {
+                $old = substr($old, strlen('storage/'));
+            }
+            if ($old !== '' && Storage::disk('public')->exists($old)) {
+                Storage::disk('public')->delete($old);
+            }
+        }
+
+        DB::table('appointment_studies')
+            ->where('id', $study->id)
+            ->update([
+                'report_document_path' => null,
+                'updated_at' => now(),
+            ]);
+
+        $appointment->touch();
+        $appointment->load(['patient.persona', 'studies', 'supplies']);
+        if (class_exists('\App\Jobs\SyncEntityToCloud')) {
+            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+        }
+
+        return response()->json(['success' => true]);
     }
 
     public function saveDraft(Request $request, $id)
@@ -148,11 +278,32 @@ class TranscriptionController extends Controller
             $appointment->save();
 
             foreach ($request->reports as $reportData) {
-                DB::table('appointment_studies')
+                $study = DB::table('appointment_studies')
                     ->where('id', $reportData['id'])
                     ->where('appointment_id', $appointment->id)
+                    ->first();
+
+                if (!$study) {
+                    continue;
+                }
+
+                $text = trim((string) ($reportData['text'] ?? ''));
+                if ($text === '' && empty($study->report_document_path)) {
+                    DB::rollBack();
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Cada examen debe tener texto de informe o un documento adjunto.',
+                    ], 422);
+                }
+
+                if ($text === '' && !empty($study->report_document_path)) {
+                    $text = 'Informe adjunto como documento.';
+                }
+
+                DB::table('appointment_studies')
+                    ->where('id', $study->id)
                     ->update([
-                        'report' => $reportData['text'] ?? '',
+                        'report' => $text,
                         'status' => 'para_firma',
                         'updated_at' => now()
                     ]);

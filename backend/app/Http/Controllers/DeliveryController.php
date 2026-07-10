@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Models\Appointment;
 use App\Services\AppointmentNotificationService;
 use App\Services\ReportDocumentFormatter;
+use App\Support\PublicStorageUrl;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -76,6 +77,8 @@ class DeliveryController extends Controller
                         'exam' => $s->exam_name,
                         'subExam' => $s->sub_exam_name,
                         'reportText' => $s->getStoredReportText(),
+                        'reportDocumentPath' => $s->report_document_path,
+                        'reportDocumentUrl' => PublicStorageUrl::from($s->report_document_path),
                     ];
                 }),
             ], $chainMeta);

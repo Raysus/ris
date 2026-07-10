@@ -41,6 +41,16 @@ class WorklistAuthorizationTest extends TestCase
             ->assertJsonPath('success', true);
     }
 
+    public function test_worklist_allows_tens(): void
+    {
+        Sanctum::actingAs($this->createRoleTestUser('tens'));
+
+        $this->withHeaders(['X-Lab-Id' => $this->risLab->id, 'Accept' => 'application/json'])
+            ->getJson('/api/worklist')
+            ->assertOk()
+            ->assertJsonPath('success', true);
+    }
+
     public function test_worklist_filters_by_machine_id(): void
     {
         Sanctum::actingAs(User::where('username', 'friquelme')->firstOrFail());

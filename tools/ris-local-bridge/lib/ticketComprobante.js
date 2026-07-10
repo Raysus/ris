@@ -7,10 +7,38 @@ const { execFile } = require('child_process');
 const ESC = '\x1b';
 const GS = '\x1d';
 
+/** Quita NBSP, comillas tipográficas y caracteres que salen como basura en Epson. */
+function sanitizeEscPosText(text) {
+    return String(text ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[\u00a0\u202f\u2007\u2009\u2008\u200a\ufeff]/g, ' ')
+        .replace(/[–—―]/g, '-')
+        .replace(/[“”«»„]/g, '"')
+        .replace(/[‘’‚‛]/g, "'")
+        .replace(/[•·]/g, '-')
+        .replace(/[^\x09\x0a\x0d\x20-\x7e]/g, '')
+        .replace(/ {2,}/g, ' ');
+}
+
 class EscPosBuilder {
     constructor(width = 48) {
         this.width = width;
-        this.parts = [ESC + '@'];
+        // Init + Font A + interlineado + impresión oscura (doble golpe + énfasis)
+        this.parts = [
+            ESC + '@',
+            ESC + 'M\x00',
+            ESC + '2',
+            ESC + 'G\x01', // double-strike
+            ESC + 'E\x01', // emphasized / bold
+        ];
+    }
+
+    /** Densidad Epson TM (0=claro … 8=muy oscuro). GS ( K fn=50. */
+    setPrintDensity(level = 6) {
+        const m = Math.max(0, Math.min(8, Number(level) || 6));
+        this.parts.push(GS + '(K\x02\x002H' + String.fromCharCode(m));
+        return this;
     }
 
     alignLeft() {
@@ -29,12 +57,13 @@ class EscPosBuilder {
     }
 
     bold(on = true) {
-        this.parts.push(ESC + 'E' + (on ? '\x01' : '\x00'));
+        // En modo oscuro el énfasis global ya está ON; no lo apagamos al “normal”.
+        if (on) this.parts.push(ESC + 'E\x01');
         return this;
     }
 
     line(text = '') {
-        this.parts.push(String(text).slice(0, this.width) + '\n');
+        this.parts.push(sanitizeEscPosText(text).slice(0, this.width) + '\n');
         return this;
     }
 
@@ -44,14 +73,18 @@ class EscPosBuilder {
     }
 
     separator(char = '-') {
-        this.parts.push(String(char).repeat(this.width).slice(0, this.width) + '\n');
+        const ch = sanitizeEscPosText(char).slice(0, 1) || '-';
+        this.parts.push(ch.repeat(this.width).slice(0, this.width) + '\n');
         return this;
     }
 
-    cut(feedLines = 6) {
-        const feed = Math.max(3, Math.min(15, feedLines));
+    /** Alimenta papel y corta (parcial + total) para Epson TM. */
+    cut(feedLines = 10) {
+        const feed = Math.max(6, Math.min(20, feedLines));
+        this.parts.push('\n\n');
         this.parts.push(ESC + 'd' + String.fromCharCode(feed));
-        this.parts.push(GS + 'V\x42' + String.fromCharCode(feed));
+        this.parts.push(GS + 'V\x42' + String.fromCharCode(Math.min(15, feed)));
+        this.parts.push(GS + 'V\x00');
         return this;
     }
 
@@ -176,9 +209,9 @@ function sendFile(devicePath, buffer) {
     });
 }
 
-function buildBufferFromPayload(payload, width, cutFeedLines = 6) {
+function buildBufferFromPayload(payload, width, cutFeedLines = 10, density = 6) {
     const b = new EscPosBuilder(width);
-    b.parts.push(ESC + 'M\x00', ESC + '2');
+    b.setPrintDensity(density);
 
     (payload?.sections || []).forEach((section) => {
         const align = (section.align || 'left').toLowerCase();
@@ -195,9 +228,7 @@ function buildBufferFromPayload(payload, width, cutFeedLines = 6) {
                 b.parts.push(GS + '!\x00');
                 return;
             }
-            if (style === 'bold' || section.bold) b.bold(true);
             b.line(text);
-            if (style === 'bold' || section.bold) b.bold(false);
         });
         if (section.blank_after) b.blank();
     });
@@ -212,9 +243,9 @@ function buildBufferFromPayload(payload, width, cutFeedLines = 6) {
 
     if (payload?.total_line) {
         b.alignRight();
-        b.parts.push(GS + '!\x11', ESC + 'E\x01');
+        b.parts.push(GS + '!\x11');
         b.line(payload.total_line);
-        b.parts.push(ESC + 'E\x00', GS + '!\x00');
+        b.parts.push(GS + '!\x00');
         b.alignLeft();
     }
 
@@ -242,10 +273,17 @@ async function printComprobante(config, payload) {
         throw new Error('Configure printer.interface (tcp://IP, printer:Nombre en Windows, o /dev/usb/lp0)');
     }
 
-    const width = Number(printerCfg.width_chars) || 48;
-    const copies = Math.max(1, Number(printerCfg.copies) || 1);
-    const cutFeedLines = Math.max(3, Math.min(15, Number(printerCfg.cut_feed_lines) || 6));
-    const buffer = buildBufferFromPayload(payload, width, cutFeedLines);
+    const width = Number(printerCfg.width_chars) || 42;
+    const copiesFromTicket = Number(payload?.copies);
+    const copies = Math.max(
+        1,
+        Number.isFinite(copiesFromTicket) && copiesFromTicket > 0
+            ? copiesFromTicket
+            : (Number(printerCfg.copies) || 3)
+    );
+    const cutFeedLines = Math.max(6, Math.min(20, Number(printerCfg.cut_feed_lines) || 10));
+    const density = Math.max(0, Math.min(8, Number(printerCfg.print_density ?? printerCfg.darkness) || 6));
+    const buffer = buildBufferFromPayload(payload, width, cutFeedLines, density);
     const target = parseInterface(printerCfg.interface);
 
     for (let i = 0; i < copies; i += 1) {
@@ -261,6 +299,9 @@ async function printComprobante(config, payload) {
                 break;
             default:
                 throw new Error('printer.interface no válido');
+        }
+        if (i < copies - 1) {
+            await new Promise((r) => setTimeout(r, 400));
         }
     }
 
@@ -286,6 +327,7 @@ function twoColumns(left, right, width = 48) {
 
 module.exports = {
     EscPosBuilder,
+    sanitizeEscPosText,
     labelValue,
     twoColumns,
     printComprobante,

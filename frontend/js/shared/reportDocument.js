@@ -88,7 +88,8 @@
             displayName: /^DR\.?\s/i.test(name) ? name.toUpperCase() : `DR. ${name.toUpperCase()}`,
             initials: String(chain?.destinationDoctorInitials || '').trim(),
             registration: String(chain?.destinationDoctorRegistration || '').trim(),
-            signatureUrl: chain?.firmaUrl || null,
+            // Firma visual: se incluye en el texto de transcripción (sin imagen automática).
+            signatureUrl: null,
         };
     }
 
@@ -109,12 +110,6 @@
         const header = (document.headerLines || [])
             .map((line) => `<div class="ris-report-header-line">${escapeHtml(line)}</div>`)
             .join('');
-        const doctor = document.doctor || {};
-        const signature = doctor.signatureUrl
-            ? `<img src="${escapeHtml(doctor.signatureUrl)}" alt="Firma" style="max-height:70px;max-width:180px;margin-bottom:6px;"><br>`
-            : '';
-        const initials = doctor.initials ? `<div>${escapeHtml(doctor.initials)}</div>` : '';
-        const registration = doctor.registration ? `<div>${escapeHtml(doctor.registration)}</div>` : '';
 
         return `
 <div class="ris-report-page" style="color:${color};font-family:'Times New Roman',Times,serif;font-size:12pt;line-height:1.45;">
@@ -126,14 +121,6 @@
     </div>
     <div style="font-weight:bold;margin-bottom:10px;">${escapeHtml(document.examTitle)}</div>
     <div class="ris-report-body" style="white-space:pre-wrap;text-align:justify;margin-bottom:24px;">${escapeHtml(document.reportBody)}</div>
-    <div style="margin-top:28px;">Atentamente,</div>
-    <div style="margin-top:18px;">
-        ${signature}
-        <div style="font-weight:bold;">${escapeHtml(doctor.displayName || 'DR. MÉDICO RADIÓLOGO')}</div>
-        <div>MEDICO RADIÓLOGO</div>
-        ${initials}
-        ${registration}
-    </div>
 </div>`;
     }
 

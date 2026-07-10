@@ -2707,7 +2707,21 @@ function risNombreLaboratorioImpresion() {
 }
 
 function risFormatValorTicket(valor) {
-    return Math.round(Number(valor) || 0).toLocaleString('es-CL');
+    const n = Math.round(Number(valor) || 0);
+    return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+function risSanitizeTicketText(text) {
+    return String(text ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[\u00a0\u202f\u2007\u2009\u2008\u200a\ufeff]/g, ' ')
+        .replace(/[–—―]/g, '-')
+        .replace(/[“”«»„]/g, '"')
+        .replace(/[‘’‚‛]/g, "'")
+        .replace(/[•·]/g, '-')
+        .replace(/[^\x09\x0a\x0d\x20-\x7e]/g, '')
+        .replace(/ {2,}/g, ' ');
 }
 
 function risFormatFechaTicket(fecha) {
@@ -2768,9 +2782,9 @@ function risTextoSelectAgenda(selector, fallback) {
 }
 
 function risTicketLabelLine(etiqueta, valor, ancho = 42, espacioAntesDosPuntos = false) {
-    const base = String(etiqueta || '').trim().replace(/:+$/, '');
+    const base = risSanitizeTicketText(String(etiqueta || '').trim().replace(/:+$/, ''));
     const lab = espacioAntesDosPuntos ? `${base} :` : `${base}:`;
-    const val = String(valor || '').trim();
+    const val = risSanitizeTicketText(String(valor || '').trim());
     const maxVal = Math.max(1, ancho - lab.length - 1);
     return (lab + ' ' + val.slice(0, maxVal)).slice(0, ancho);
 }
@@ -2781,7 +2795,7 @@ function risTicketFilaExamen(codigo, nombre, cantidad, precioUnitario, ancho = 4
     const valor = risFormatValorTicket((precioUnitario || 0) * (cantidad || 1));
     const tail = ` ${cantidad || 1} ${valor}`;
     const nameWidth = Math.max(1, ancho - cod.length - 1 - tail.length);
-    const nombreFmt = String(nombre || '').slice(0, nameWidth).padEnd(nameWidth);
+    const nombreFmt = risSanitizeTicketText(String(nombre || '')).slice(0, nameWidth).padEnd(nameWidth);
     return (cod + ' ' + nombreFmt + tail).slice(0, ancho);
 }
 
@@ -2794,13 +2808,13 @@ function risTicketDosColumnas(izq, der, ancho = 42) {
 function risConstruirPayloadTicketComprobante(data, savedAppointment) {
     const ancho = 42;
     const paciente = data.patient || {};
-    const nombrePaciente = [
+    const nombrePaciente = risSanitizeTicketText([
         paciente.names,
         paciente.last_name_1,
         paciente.last_name_2,
-    ].filter(Boolean).join(' ').toUpperCase();
+    ].filter(Boolean).join(' ').toUpperCase());
 
-    const marca = (risNombreLaboratorioImpresion() || 'SIRESA').toUpperCase();
+    const marca = risSanitizeTicketText((risNombreLaboratorioImpresion() || 'SIRESA').toUpperCase());
 
     let userData = {};
     try {
@@ -2858,8 +2872,9 @@ function risConstruirPayloadTicketComprobante(data, savedAppointment) {
         separator_after_table: '-',
         total_line: `TOTAL : $ ${risFormatValorTicket(totalNum)}`,
         obs_label: 'OBS:',
-        obs_text: obs,
+        obs_text: risSanitizeTicketText(obs),
         footer: '- COPIA MEDICO -',
+        copies: 3,
     };
 }
 

@@ -152,7 +152,7 @@ class ReferringDoctorController extends Controller
         $user = $request->user();
         $role = strtolower((string) ($user?->tipoUsuario?->name ?? ''));
 
-        if (!in_array($role, ['admin', 'sis_admin', 'recepcion', 'secretaria', 'secretario', 'tecnologo'], true)) {
+        if (!in_array($role, ['admin', 'sis_admin', 'recepcion', 'secretaria', 'secretario', 'tecnologo', 'tens'], true)) {
             abort(403, 'No tiene permisos para registrar médicos referentes.');
         }
     }

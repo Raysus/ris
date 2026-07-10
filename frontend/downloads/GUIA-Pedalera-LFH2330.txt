@@ -1,0 +1,67 @@
+Pedalera Philips LFH2330 / ACC2330 en el RIS (HealthTICloud)
+============================================================
+
+La LFH2330 y la ACC2330 son la misma familia de pedalera Philips de 4 pedales
+(USB producto 2330). El RIS las controla por WebHID (Chrome o Edge, con HTTPS).
+
+REQUISITOS
+----------
+1. Navegador: Google Chrome o Microsoft Edge (no Firefox ni Safari).
+2. URL con HTTPS (ej. https://ris.healthticloud.cl o la IP LAN del servidor).
+3. Pedalera conectada por USB a la misma PC donde abre el RIS.
+4. Cerrar SpeechControl (icono bandeja Windows) si está abierto: bloquea el USB.
+
+DÓNDE SE USA
+------------
+• Transcripción: reproducir dictados (pedales configurables).
+• Radiólogo: grabar audio y preescuchar dictados.
+
+PASOS (WebHID — recomendado)
+----------------------------
+1. Abra el RIS en Chrome/Edge (acceso directo del escritorio «HealthTICloud RIS»).
+2. Entre al módulo Transcripción (o Radiólogo).
+3. Pulse «Conectar pedalera / SpeechMike».
+4. En la ventana de Chrome, seleccione el dispositivo Philips:
+   - Suele aparecer como «Philips» (vendor 0911, producto 2330).
+   - Si hay varias líneas, elija la de pedalera / gamepad (no solo teclado).
+5. Debe verse texto verde: «Conectado: Pedalera Philips ACC2330 (LFH2330)».
+6. Abra un dictado de la lista y pruebe los pedales.
+
+MAPEO DE PEDALES (configurable en el módulo)
+--------------------------------------------
+En Transcripción o Radiólogo pulse «Configurar pedales» y asigne acciones
+a izquierdo / centro / derecho / superior. Hay perfiles listos:
+
+  Perfil Siresa:   izq. −5 s · centro sin uso · der. play/pausa
+  Perfil ACC2330:  izq. +5 s · centro play/pausa · der. −5 s  (fábrica Philips)
+  Perfil LFH2330:  izq. −5 s · centro play/pausa · der. +5 s
+  Perfil estándar: igual que LFH2330
+
+El mapeo se guarda en el navegador de esa PC (localStorage).
+
+Atajos teclado equivalentes (modo SpeechControl): F1 −15 s, F2 −5 s, F3 +5 s, F4 play/pausa.
+En Radiólogo también puede mapear teclas con el botón «Teclas».
+
+SI NO FUNCIONA
+--------------
+1. ¿Usa Chrome/Edge y HTTPS? WebHID no funciona en HTTP ni en Firefox.
+2. ¿Cerró SpeechControl? Reinicie Chrome tras cerrarlo.
+3. ¿Pulsó «Conectar» y dio permiso en el cuadro de Chrome?
+4. ¿Tiene un dictado seleccionado? Los pedales solo actúan con audio cargado.
+5. Doble clic en «Probar teclas» → diagnóstico en consola (F12).
+6. Active depuración: en consola del navegador (F12):
+     localStorage.setItem('ris_debug_speechmike','1');
+   Recargue y pulse pedales; verá toasts con los botones detectados.
+
+ALTERNATIVA: MODO TECLADO (SpeechControl)
+-----------------------------------------
+Si WebHID no es posible en esa PC:
+1. Instale Philips SpeechControl desde el sitio de Philips.
+2. Configure la pedalera para emular teclas F1–F4 (ver mapeo arriba).
+3. En el RIS no hace falta «Conectar»; los atajos F1–F4 funcionan en Transcripción.
+
+SOPORTE TÉCNICO
+---------------
+Archivo técnico del RIS: frontend/js/workflow/speechmike-dictation.js
+SDK: dictation_support (Google Chrome Labs) — FOOT_CONTROL_ACC_2330 (LFH2330/ACC2330).
+Guía ACC2330: frontend/downloads/GUIA-Pedalera-ACC2330.txt

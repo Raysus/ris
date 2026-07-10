@@ -60,22 +60,8 @@ function renderCartaInformeValidacion() {
         </div>
     `);
 
-    const doctor = doc.doctor || {};
-    const signature = doctor.signatureUrl
-        ? `<img src="${e(doctor.signatureUrl)}" alt="Firma" style="max-height:70px;max-width:180px;margin-bottom:6px;"><br>`
-        : '';
-    $valRoot().find("#reportLetterFooter").html(`
-        <div style="font-family:'Times New Roman',Times,serif;font-size:12pt;line-height:1.45;color:${colorInformeGlobalValidation};">
-            <div style="margin-top:28px;">Atentamente,</div>
-            <div style="margin-top:18px;">
-                ${signature}
-                <div style="font-weight:bold;">${e(doctor.displayName || 'DR. MÉDICO RADIÓLOGO')}</div>
-                <div>MEDICO RADIÓLOGO</div>
-                ${doctor.initials ? `<div>${e(doctor.initials)}</div>` : ''}
-                ${doctor.registration ? `<div>${e(doctor.registration)}</div>` : ''}
-            </div>
-        </div>
-    `);
+    // Firma del médico: va en el texto de transcripción (sin pie automático).
+    $valRoot().find("#reportLetterFooter").empty();
 
     $valRoot().find("#finalReportText").css("color", colorInformeGlobalValidation);
 }
@@ -292,9 +278,26 @@ function cargarEstudioValidacion(studyId) {
 
     // Colocar texto y asegurar que esté deshabilitado por defecto
     const reportText = (currentValStudy.reportText || "").trim();
+    const hasDoc = !!(currentValStudy.reportDocumentUrl || currentValStudy.reportDocumentPath);
     $valRoot().find("#finalReportText")
-        .val(reportText || "Sin texto de informe registrado. Devuelva a transcripción para completar el dictado.")
+        .val(
+            reportText
+            || (hasDoc
+                ? "Informe adjunto como documento (sin texto de transcripción)."
+                : "Sin texto de informe registrado. Devuelva a transcripción para completar el dictado.")
+        )
         .prop("disabled", true);
+
+    const $docBox = $valRoot().find("#documentoValidacionAdjunto");
+    if ($docBox.length) {
+        if (hasDoc && currentValStudy.reportDocumentUrl) {
+            $docBox.removeClass("d-none");
+            $valRoot().find("#linkDocumentoValidacion").attr("href", currentValStudy.reportDocumentUrl);
+        } else {
+            $docBox.addClass("d-none");
+            $valRoot().find("#linkDocumentoValidacion").attr("href", "#");
+        }
+    }
 
     renderCartaInformeValidacion();
     $valRoot().find("#finalReportText").removeClass("border border-warning border-2 bg-warning-subtle shadow-sm");
@@ -395,6 +398,8 @@ function limpiarPantallaValidacion() {
     $valRoot().find("#infoPacienteValidacion").addClass("d-none");
     $valRoot().find("#reportLetterIntro, #reportLetterFooter").empty();
     $valRoot().find("#examenesValidacion").empty();
+    $valRoot().find("#documentoValidacionAdjunto").addClass("d-none");
+    $valRoot().find("#linkDocumentoValidacion").attr("href", "#");
     $valRoot().find("#finalReportText").val("").prop("disabled", true);
 
     // Desactivar herramientas Enterprise

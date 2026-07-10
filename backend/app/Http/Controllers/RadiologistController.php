@@ -374,6 +374,8 @@ class RadiologistController extends Controller
                         'exam' => $s->exam_name,
                         'subExam' => $s->sub_exam_name,
                         'reportText' => $s->getStoredReportText(),
+                        'reportDocumentPath' => $s->report_document_path,
+                        'reportDocumentUrl' => PublicStorageUrl::from($s->report_document_path),
                     ];
                 })->values(),
             ], $chainMeta, $this->examInboxTimingFields($app));

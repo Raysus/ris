@@ -1,0 +1,37 @@
+Pedalera Philips ACC2330 en el RIS (HealthTICloud)
+==================================================
+
+La ACC2330 es la pedalera de 4 pedales Philips (equivalente comercial a LFH2330).
+El RIS la controla por WebHID (Chrome o Edge, con HTTPS).
+
+REQUISITOS
+----------
+1. Navegador: Google Chrome o Microsoft Edge.
+2. URL con HTTPS.
+3. Pedalera USB en la misma PC del RIS.
+4. Cerrar SpeechControl si está abierto (bloquea el USB).
+
+PASOS
+-----
+1. Abra Transcripción o Radiólogo.
+2. Pulse «Conectar pedalera / SpeechMike».
+3. En Chrome elija el dispositivo Philips (vendor 0911, producto 2330).
+4. Debe verse: «Conectado: Pedalera Philips ACC2330 (LFH2330)».
+5. Pulse «Configurar pedales» → «Perfil ACC2330» (o ajuste cada pedal).
+
+PERFIL ACC2330 (fábrica Philips)
+--------------------------------
+  Izquierdo: Adelantar 5 s
+  Centro:    Play / pausa
+  Derecho:   Retroceder 5 s
+  Superior:  Sin acción
+
+También están los perfiles Siresa, LFH2330 y estándar.
+
+SI NO FUNCIONA
+--------------
+Igual que LFH2330: Chrome/Edge + HTTPS, cerrar SpeechControl, dar permiso HID,
+abrir un dictado y probar. Doble clic en «Probar teclas» para diagnóstico.
+
+Archivo técnico: frontend/js/workflow/speechmike-dictation.js
+SDK: dictation_support — DeviceType FOOT_CONTROL_ACC_2330

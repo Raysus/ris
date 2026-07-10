@@ -28,6 +28,10 @@ function initTranscription() {
     setupKeyboardShortcuts();
     setupAudioListeners();
     setupTranscriptionSpeechMikeHooks();
+    setupDocumentoTranscripcionUi();
+    if (typeof risEnableTextFilePaste === "function") {
+        risEnableTextFilePaste(["#textoTranscripcion"]);
+    }
     if (typeof updateSiresaFootPedalUiHints === "function") {
         updateSiresaFootPedalUiHints();
     }
@@ -194,6 +198,7 @@ function abrirTranscripcion(id) {
     $("#btnDevolverAudio").prop("disabled", false);
     $("#btnEnviarValidacion").prop("disabled", false);
     $("#btnPlantillaTrans").prop("disabled", false);
+    $("#btnSubirDocumentoTrans").prop("disabled", false);
 }
 
 function persistTranscripcionActualEnMemoria() {
@@ -222,6 +227,7 @@ function cargarEstudioTranscripcion(studyId) {
 
     const txt = $("#textoTranscripcion");
     txt.prop("disabled", false).val(study.reportText || "");
+    actualizarUiDocumentoTranscripcion(study);
 
     if (autoSaveIntervalTrans) {
         clearInterval(autoSaveIntervalTrans);
@@ -415,8 +421,14 @@ async function enviarAValidacion() {
         return;
     }
 
-    if (reports.every(r => !String(r.text || '').trim())) {
-        if (typeof showToast === 'function') showToast("Escriba el informe antes de enviar a validación.", "warning");
+    const incompletos = (currentTranscriptionChain.studies || []).filter((s) => {
+        const text = String(s.reportText || '').trim();
+        return !text && !s.reportDocumentUrl && !s.reportDocumentPath;
+    });
+    if (incompletos.length) {
+        if (typeof showToast === 'function') {
+            showToast("Cada examen debe tener texto o un documento adjunto antes de enviar.", "warning");
+        }
         return;
     }
 
@@ -507,12 +519,150 @@ function limpiarPantallaTranscripcion() {
 
     $("#listaExamenesTranscripcion").empty();
     $("#textoTranscripcion").val("").prop("disabled", true);
+    $("#documentoTransAdjunto").addClass("d-none");
     $("#btnDevolverAudio").prop("disabled", true);
     $("#btnEnviarValidacion").prop("disabled", true);
     $("#btnPlantillaTrans").prop("disabled", true);
+    $("#btnSubirDocumentoTrans").prop("disabled", true);
     $("#audioProgress").val(0).prop("disabled", true);
     $("#timeCurrent").text("0:00");
     $("#timeTotal").text("0:00");
+}
+
+function actualizarUiDocumentoTranscripcion(study) {
+    const $box = $("#documentoTransAdjunto");
+    const url = study?.reportDocumentUrl || null;
+    if (!url) {
+        $box.addClass("d-none");
+        $("#linkDocumentoTrans").attr("href", "#");
+        return;
+    }
+    $box.removeClass("d-none");
+    $("#linkDocumentoTrans").attr("href", url);
+}
+
+function setupDocumentoTranscripcionUi() {
+    $("#btnSubirDocumentoTrans")
+        .off("click.risDocTrans")
+        .on("click.risDocTrans", function () {
+            if (!currentTranscriptionChain || !currentTransStudy) {
+                if (typeof showToast === "function") {
+                    showToast("Seleccione un dictado y un examen primero.", "warning");
+                }
+                return;
+            }
+            $("#inputDocumentoTrans").val("").trigger("click");
+        });
+
+    $("#inputDocumentoTrans")
+        .off("change.risDocTrans")
+        .on("change.risDocTrans", async function () {
+            const file = this.files && this.files[0];
+            if (!file) return;
+            await subirDocumentoInformeTranscripcion(file);
+            $(this).val("");
+        });
+
+    $("#btnQuitarDocumentoTrans")
+        .off("click.risDocTrans")
+        .on("click.risDocTrans", function () {
+            quitarDocumentoInformeTranscripcion();
+        });
+}
+
+async function subirDocumentoInformeTranscripcion(file) {
+    if (!currentTranscriptionChain || !currentTransStudy) return;
+
+    const maxBytes = 20 * 1024 * 1024;
+    if (file.size > maxBytes) {
+        if (typeof showToast === "function") showToast("El archivo supera 20 MB.", "warning");
+        return;
+    }
+
+    const btn = $("#btnSubirDocumentoTrans");
+    const original = btn.html();
+    const token = localStorage.getItem("ris_token");
+    const labId = localStorage.getItem("ris_lab_id");
+
+    try {
+        btn.prop("disabled", true).html('<span class="spinner-border spinner-border-sm"></span> Subiendo...');
+        persistTranscripcionActualEnMemoria();
+
+        const formData = new FormData();
+        formData.append("study_id", currentTransStudy.study_id);
+        formData.append("document", file, file.name);
+
+        const response = await fetch(
+            `${API_URL}/transcription/appointments/${currentTranscriptionChain.id}/report-document`,
+            {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}`, "X-Lab-Id": labId },
+                body: formData,
+            }
+        );
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.success) {
+            throw new Error(data.message || "No se pudo subir el documento.");
+        }
+
+        currentTransStudy.reportDocumentPath = data.path || null;
+        currentTransStudy.reportDocumentUrl = data.url || null;
+        if (data.reportText) {
+            currentTransStudy.reportText = data.reportText;
+            $("#textoTranscripcion").val(data.reportText);
+        }
+        actualizarUiDocumentoTranscripcion(currentTransStudy);
+        if (typeof showToast === "function") {
+            showToast("Documento de informe adjunto. Puede enviarlo a firma sin transcribir.", "success");
+        }
+    } catch (e) {
+        console.error(e);
+        if (typeof showToast === "function") showToast(e.message || "Error al subir documento.", "danger");
+    } finally {
+        btn.prop("disabled", false).html(original);
+    }
+}
+
+async function quitarDocumentoInformeTranscripcion() {
+    if (!currentTranscriptionChain || !currentTransStudy) return;
+    if (!(currentTransStudy.reportDocumentUrl || currentTransStudy.reportDocumentPath)) return;
+
+    const ok = typeof showConfirm === "function"
+        ? await showConfirm("¿Quitar el documento adjunto de este examen?", {
+            title: "Quitar documento",
+            confirmText: "Quitar",
+        })
+        : window.confirm("¿Quitar el documento adjunto?");
+    if (!ok) return;
+
+    const token = localStorage.getItem("ris_token");
+    const labId = localStorage.getItem("ris_lab_id");
+
+    try {
+        const response = await fetch(
+            `${API_URL}/transcription/appointments/${currentTranscriptionChain.id}/report-document?study_id=${encodeURIComponent(currentTransStudy.study_id)}`,
+            {
+                method: "DELETE",
+                headers: typeof risBuildAuthHeaders === "function"
+                    ? risBuildAuthHeaders()
+                    : {
+                        Authorization: `Bearer ${token}`,
+                        "X-Lab-Id": labId,
+                    },
+            }
+        );
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.success) {
+            throw new Error(data.message || "No se pudo quitar el documento.");
+        }
+        currentTransStudy.reportDocumentPath = null;
+        currentTransStudy.reportDocumentUrl = null;
+        actualizarUiDocumentoTranscripcion(currentTransStudy);
+        if (typeof showToast === "function") showToast("Documento quitado.", "secondary");
+    } catch (e) {
+        console.error(e);
+        if (typeof showToast === "function") showToast(e.message || "Error al quitar documento.", "danger");
+    }
 }
 
 // === PLANTILLAS DE TRANSCRIPCIÓN ===
@@ -543,7 +693,7 @@ async function cargarPlantillasTranscripcion() {
     } catch (e) { console.error("Error cargando plantillas:", e); }
 }
 
-// === PEDALERA PHILIPS LFH2330 / SpeechMike (WebHID) ===
+// === PEDALERA PHILIPS LFH2330 / ACC2330 / SpeechMike (WebHID) ===
 function hasTranscriptionAudioSource() {
     const audio = document.getElementById("audioDictado");
     return !!(

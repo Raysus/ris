@@ -47,9 +47,34 @@ class ReportDocumentFormatterTest extends TestCase
         $this->assertStringContainsString('Estimado Doctor:', $text);
         $this->assertStringContainsString('Sr(a) Brayan Sebastián Da Costa Oñate', $text);
         $this->assertStringContainsString('RX. TORAX PA -LAT:', $text);
-        $this->assertStringContainsString('Atentamente,', $text);
-        $this->assertStringContainsString('DR. HELMUTH RIEDEL ST.', $text);
-        $this->assertStringContainsString('jrr/HRST', $text);
-        $this->assertStringContainsString('127959', $text);
+        $this->assertStringContainsString('Campos pulmonares libres.', $text);
+        $this->assertStringNotContainsString('Atentamente,', $text);
+        $this->assertStringNotContainsString('DR. HELMUTH RIEDEL ST.', $text);
+        $this->assertStringNotContainsString('jrr/HRST', $text);
+        $this->assertStringNotContainsString('127959', $text);
+    }
+
+    public function test_build_html_omits_doctor_signature_footer(): void
+    {
+        $document = [
+            'headerLines' => ['Centro Demo'],
+            'dateLine' => 'Temuco, 19 de junio de 2026.',
+            'patientName' => 'Paciente Demo',
+            'examTitle' => 'RX. TORAX:',
+            'reportBody' => "Hallazgos.\n\nAtentamente,\nDR. DEMO",
+            'doctor' => [
+                'displayName' => 'DR. HELMUTH RIEDEL ST.',
+                'signatureUrl' => 'https://example.test/firma.png',
+            ],
+        ];
+
+        $html = ReportDocumentFormatter::buildHtml($document);
+
+        $this->assertStringContainsString('Hallazgos.', $html);
+        $this->assertStringContainsString('Atentamente,', $html); // solo si viene en el cuerpo
+        $this->assertStringNotContainsString('firma.png', $html);
+        $this->assertStringNotContainsString('alt="Firma"', $html);
+        $this->assertStringNotContainsString('DR. HELMUTH RIEDEL ST.', $html);
+        $this->assertStringNotContainsString('MEDICO RADIÓLOGO', $html);
     }
 }
