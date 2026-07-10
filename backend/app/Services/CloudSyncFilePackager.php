@@ -34,12 +34,17 @@ class CloudSyncFilePackager
         }
 
         foreach ($payload['studies'] as $key => $study) {
-            if (!is_array($study) || empty($study['audio_path'])) {
+            if (!is_array($study)) {
                 continue;
             }
-            $base64 = self::fileToBase64((string) $study['audio_path']);
-            if ($base64) {
-                $payload['studies'][$key]['audio_path_base64'] = $base64;
+            foreach (['audio_path', 'report_document_path'] as $col) {
+                if (empty($study[$col])) {
+                    continue;
+                }
+                $base64 = self::fileToBase64((string) $study[$col]);
+                if ($base64) {
+                    $payload['studies'][$key][$col . '_base64'] = $base64;
+                }
             }
         }
     }

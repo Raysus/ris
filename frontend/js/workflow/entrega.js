@@ -223,6 +223,27 @@ function imprimirComprobanteEntrega(citaId) {
 
     registrarImpresionEnLog(citaId);
 
+    const studies = baseItem.studies || [];
+    const docs = studies
+        .map((s) => s.reportDocumentUrl)
+        .filter((url) => !!url);
+
+    // Si hay documentos adjuntos (en lugar de carta generada), abrirlos para imprimir.
+    if (docs.length) {
+        docs.forEach((url, idx) => {
+            setTimeout(() => window.open(url, '_blank', 'noopener'), idx * 250);
+        });
+        if (typeof showToast === 'function') {
+            showToast(
+                docs.length === 1
+                    ? 'Abriendo documento de informe adjunto para imprimir.'
+                    : `Abriendo ${docs.length} documentos de informe adjuntos.`,
+                'info'
+            );
+        }
+        return;
+    }
+
     const labInfo = baseItem.laboratory || labInfoEntrega;
     const chain = {
         ...baseItem,
@@ -236,12 +257,12 @@ function imprimirComprobanteEntrega(citaId) {
     if (typeof risReportDocument !== 'undefined') {
         html = risReportDocument.buildPrintDocumentHtml(
             chain,
-            baseItem.studies || [],
+            studies,
             labInfo,
             colorInformeGlobalDelivery
         );
     } else {
-        html = `<html><body><pre>${escapeHtmlEntrega((baseItem.studies || []).map(s => s.reportText).join('\n\n'))}</pre></body></html>`;
+        html = `<html><body><pre>${escapeHtmlEntrega(studies.map(s => s.reportText).join('\n\n'))}</pre></body></html>`;
     }
 
     const printWindow = window.open('', '_blank');

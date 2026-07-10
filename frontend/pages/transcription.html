@@ -150,6 +150,13 @@
                                     <li><span class="dropdown-item text-muted">Cargando plantillas...</span></li>
                                 </ul>
                             </div>
+                            <button type="button" id="btnSubirDocumentoTrans"
+                                class="btn btn-sm btn-outline-secondary fw-bold bg-white" disabled
+                                title="Subir PDF/imagen del informe en lugar de transcribir">
+                                <i class="bi bi-upload me-1"></i> Subir documento
+                            </button>
+                            <input type="file" id="inputDocumentoTrans" class="d-none"
+                                accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,application/pdf,image/*">
                             <small id="autoSaveIndTrans" class="text-muted fw-bold" style="display: none;">
                                 <i class="bi bi-cloud-arrow-up text-success me-1"></i>Guardado
                             </small>
@@ -161,9 +168,18 @@
                     </div>
 
                     <div id="listaExamenesTranscripcion" class="mb-3 d-flex gap-2 flex-wrap"></div>
+                    <div id="documentoTransAdjunto" class="alert alert-info py-2 px-3 mb-2 small d-none">
+                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                            <span><i class="bi bi-paperclip me-1"></i>Documento de informe adjunto (en lugar de transcribir).</span>
+                            <span class="d-flex gap-1">
+                                <a id="linkDocumentoTrans" href="#" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary fw-bold">Ver</a>
+                                <button type="button" id="btnQuitarDocumentoTrans" class="btn btn-sm btn-outline-danger fw-bold">Quitar</button>
+                            </span>
+                        </div>
+                    </div>
                     <textarea id="textoTranscripcion" class="form-control border-0 shadow-sm flex-grow-1 p-3"
                         style="resize: none; font-size: 1rem; line-height: 1.5;"
-                        placeholder="Escuche el audio y transcriba el informe aquí..." disabled></textarea>
+                        placeholder="Escuche el audio y transcriba el informe aquí… o suba un documento con el botón «Subir documento»." disabled></textarea>
                 </div>
 
                 <div class="card-footer bg-white py-3 d-flex justify-content-between border-top">

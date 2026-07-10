@@ -23,6 +23,7 @@ class AppointmentStudy extends Model
         'report',
         'dictation_method',
         'audio_path',
+        'report_document_path',
     ];
     public function appointment()
     {

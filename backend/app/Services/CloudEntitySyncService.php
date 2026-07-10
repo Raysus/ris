@@ -863,6 +863,13 @@ class CloudEntitySyncService
                     }
                     unset($data['studies'][$i]['audio_path_base64']);
                 }
+                if (!empty($study['report_document_path_base64'])) {
+                    $path = $this->storeBase64File($study['report_document_path_base64'], 'report_document_path');
+                    if ($path) {
+                        $data['studies'][$i]['report_document_path'] = $path;
+                    }
+                    unset($data['studies'][$i]['report_document_path_base64']);
+                }
             }
         }
     }
@@ -891,13 +898,14 @@ class CloudEntitySyncService
         };
 
         $folder = match ($prefix) {
-            'medical_order_path', 'survey_path' => 'documents',
+            'medical_order_path', 'survey_path', 'report_document_path' => 'documents',
             'audio', 'audio_path' => 'audios_dictados',
             default => 'cloud-sync',
         };
         $name = match ($prefix) {
             'medical_order_path' => 'orden',
             'survey_path' => 'encuesta',
+            'report_document_path' => 'informe',
             'audio', 'audio_path' => 'dictado',
             default => $prefix,
         };
