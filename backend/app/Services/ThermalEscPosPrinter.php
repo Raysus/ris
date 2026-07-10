@@ -48,15 +48,21 @@ class ThermalEscPosPrinter
      */
     private function buildBuffer(array $ticket, int $width): string
     {
+        $density = max(0, min(8, (int) (config('services.thermal_printer.print_density') ?? 6)));
+
         $out = self::ESC . '@';
-        $out .= self::ESC . 'M' . "\x00"; // Font A (12x24, como comprobante original)
+        $out .= self::ESC . 'M' . "\x00"; // Font A (12x24)
         $out .= self::ESC . '2'; // Interlineado por defecto
+        $out .= self::ESC . 'G' . "\x01"; // Double-strike (más oscuro)
+        $out .= self::ESC . 'E' . "\x01"; // Emphasized / bold
+        // Densidad de impresión Epson TM (GS ( K fn=50)
+        $out .= self::GS . '(K' . "\x02\x00" . '2H' . chr($density);
 
         foreach ($ticket['sections'] ?? [] as $section) {
             $out .= $this->alignCommand((string) ($section['align'] ?? 'left'));
 
             foreach ($section['lines'] ?? [] as $line) {
-                $out .= $this->renderLine($line, $width, !empty($section['bold']));
+                $out .= $this->renderLine($line, $width, true);
             }
 
             if (!empty($section['blank_after'])) {
@@ -83,9 +89,7 @@ class ThermalEscPosPrinter
         if (!empty($ticket['total_line'])) {
             $out .= $this->alignCommand('right');
             $out .= self::GS . '!' . "\x11"; // doble alto + ancho
-            $out .= self::ESC . 'E' . "\x01";
             $out .= $this->encode(mb_substr((string) $ticket['total_line'], 0, (int) ($width / 2))) . "\n";
-            $out .= self::ESC . 'E' . "\x00";
             $out .= self::GS . '!' . "\x00";
             $out .= $this->alignCommand('left');
         }
@@ -141,9 +145,10 @@ class ThermalEscPosPrinter
             $prefix = self::GS . '!' . "\x11";
             $suffix = self::GS . '!' . "\x00";
             $maxWidth = max(1, (int) floor($width / 2));
-        } elseif ($style === 'bold') {
-            $prefix = self::ESC . 'E' . "\x01";
-            $suffix = self::ESC . 'E' . "\x00";
+        } elseif ($style === 'bold' || $sectionBold) {
+            // El buffer ya inicia con énfasis global; no lo apagamos.
+            $prefix = '';
+            $suffix = '';
         }
 
         return $prefix . $this->encode(mb_substr($text, 0, $maxWidth)) . "\n" . $suffix;

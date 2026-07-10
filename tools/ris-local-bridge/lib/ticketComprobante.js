@@ -24,7 +24,21 @@ function sanitizeEscPosText(text) {
 class EscPosBuilder {
     constructor(width = 48) {
         this.width = width;
-        this.parts = [ESC + '@'];
+        // Init + Font A + interlineado + impresión oscura (doble golpe + énfasis)
+        this.parts = [
+            ESC + '@',
+            ESC + 'M\x00',
+            ESC + '2',
+            ESC + 'G\x01', // double-strike
+            ESC + 'E\x01', // emphasized / bold
+        ];
+    }
+
+    /** Densidad Epson TM (0=claro … 8=muy oscuro). GS ( K fn=50. */
+    setPrintDensity(level = 6) {
+        const m = Math.max(0, Math.min(8, Number(level) || 6));
+        this.parts.push(GS + '(K\x02\x002H' + String.fromCharCode(m));
+        return this;
     }
 
     alignLeft() {
@@ -43,7 +57,8 @@ class EscPosBuilder {
     }
 
     bold(on = true) {
-        this.parts.push(ESC + 'E' + (on ? '\x01' : '\x00'));
+        // En modo oscuro el énfasis global ya está ON; no lo apagamos al “normal”.
+        if (on) this.parts.push(ESC + 'E\x01');
         return this;
     }
 
@@ -68,9 +83,7 @@ class EscPosBuilder {
         const feed = Math.max(6, Math.min(20, feedLines));
         this.parts.push('\n\n');
         this.parts.push(ESC + 'd' + String.fromCharCode(feed));
-        // Corte parcial con avance (GS V 66 n)
         this.parts.push(GS + 'V\x42' + String.fromCharCode(Math.min(15, feed)));
-        // Corte total de refuerzo (GS V 0)
         this.parts.push(GS + 'V\x00');
         return this;
     }
@@ -196,9 +209,9 @@ function sendFile(devicePath, buffer) {
     });
 }
 
-function buildBufferFromPayload(payload, width, cutFeedLines = 10) {
+function buildBufferFromPayload(payload, width, cutFeedLines = 10, density = 6) {
     const b = new EscPosBuilder(width);
-    b.parts.push(ESC + 'M\x00', ESC + '2');
+    b.setPrintDensity(density);
 
     (payload?.sections || []).forEach((section) => {
         const align = (section.align || 'left').toLowerCase();
@@ -215,9 +228,7 @@ function buildBufferFromPayload(payload, width, cutFeedLines = 10) {
                 b.parts.push(GS + '!\x00');
                 return;
             }
-            if (style === 'bold' || section.bold) b.bold(true);
             b.line(text);
-            if (style === 'bold' || section.bold) b.bold(false);
         });
         if (section.blank_after) b.blank();
     });
@@ -232,9 +243,9 @@ function buildBufferFromPayload(payload, width, cutFeedLines = 10) {
 
     if (payload?.total_line) {
         b.alignRight();
-        b.parts.push(GS + '!\x11', ESC + 'E\x01');
+        b.parts.push(GS + '!\x11');
         b.line(payload.total_line);
-        b.parts.push(ESC + 'E\x00', GS + '!\x00');
+        b.parts.push(GS + '!\x00');
         b.alignLeft();
     }
 
@@ -271,7 +282,8 @@ async function printComprobante(config, payload) {
             : (Number(printerCfg.copies) || 2)
     );
     const cutFeedLines = Math.max(6, Math.min(20, Number(printerCfg.cut_feed_lines) || 10));
-    const buffer = buildBufferFromPayload(payload, width, cutFeedLines);
+    const density = Math.max(0, Math.min(8, Number(printerCfg.print_density ?? printerCfg.darkness) || 6));
+    const buffer = buildBufferFromPayload(payload, width, cutFeedLines, density);
     const target = parseInterface(printerCfg.interface);
 
     for (let i = 0; i < copies; i += 1) {

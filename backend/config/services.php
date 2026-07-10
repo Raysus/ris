@@ -49,6 +49,8 @@ return [
         'width_chars' => (int) env('THERMAL_PRINTER_WIDTH', 42),
         'copies' => max(1, (int) env('THERMAL_PRINTER_COPIES', 2)),
         'cut_feed_lines' => max(6, min(20, (int) env('THERMAL_PRINTER_CUT_FEED_LINES', 10))),
+        /** 0=claro … 8=muy oscuro (Epson GS ( K). */
+        'print_density' => max(0, min(8, (int) env('THERMAL_PRINTER_DENSITY', 6))),
     ],
 
     'portal_integration' => [
