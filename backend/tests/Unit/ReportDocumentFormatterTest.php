@@ -54,7 +54,7 @@ class ReportDocumentFormatterTest extends TestCase
         $this->assertStringNotContainsString('127959', $text);
     }
 
-    public function test_build_html_omits_doctor_signature_footer(): void
+    public function test_build_html_omits_signature_when_url_missing(): void
     {
         $document = [
             'headerLines' => ['Centro Demo'],
@@ -64,7 +64,7 @@ class ReportDocumentFormatterTest extends TestCase
             'reportBody' => "Hallazgos.\n\nAtentamente,\nDR. DEMO",
             'doctor' => [
                 'displayName' => 'DR. HELMUTH RIEDEL ST.',
-                'signatureUrl' => 'https://example.test/firma.png',
+                'signatureUrl' => null,
             ],
         ];
 
@@ -72,9 +72,37 @@ class ReportDocumentFormatterTest extends TestCase
 
         $this->assertStringContainsString('Hallazgos.', $html);
         $this->assertStringContainsString('Atentamente,', $html); // solo si viene en el cuerpo
-        $this->assertStringNotContainsString('firma.png', $html);
         $this->assertStringNotContainsString('alt="Firma"', $html);
         $this->assertStringNotContainsString('DR. HELMUTH RIEDEL ST.', $html);
         $this->assertStringNotContainsString('MEDICO RADIÓLOGO', $html);
+    }
+
+    public function test_build_html_includes_signature_image_when_url_present(): void
+    {
+        $document = [
+            'headerLines' => ['Centro Demo'],
+            'dateLine' => 'Temuco, 19 de junio de 2026.',
+            'patientName' => 'Paciente Demo',
+            'examTitle' => 'RX. TORAX:',
+            'reportBody' => 'Hallazgos.',
+            'doctor' => [
+                'displayName' => 'DR. HELMUTH RIEDEL ST.',
+                'signatureUrl' => 'https://example.test/firma.png',
+            ],
+        ];
+
+        $html = ReportDocumentFormatter::buildHtml($document);
+
+        $this->assertStringContainsString('firma.png', $html);
+        $this->assertStringContainsString('alt="Firma"', $html);
+    }
+
+    public function test_lab_uses_report_signature_defaults_false(): void
+    {
+        $this->assertFalse(ReportDocumentFormatter::labUsesReportSignature(null));
+        $this->assertFalse(ReportDocumentFormatter::labUsesReportSignature((object) ['settings' => []]));
+        $this->assertTrue(ReportDocumentFormatter::labUsesReportSignature((object) [
+            'settings' => ['use_report_signature' => true],
+        ]));
     }
 }

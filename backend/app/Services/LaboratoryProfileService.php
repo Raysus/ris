@@ -66,12 +66,17 @@ class LaboratoryProfileService
         // Procedencia / prioridad en Agenda: ocultos por defecto; admin puede activarlos.
         $showAgendaOrigin = false;
         $showAgendaPriority = false;
+        // Firma digitalizada en informe: desactivada por defecto (Siresa no la usa).
+        $useReportSignature = false;
         if (is_array($labSettings)) {
             if (array_key_exists('show_agenda_origin', $labSettings)) {
                 $showAgendaOrigin = (bool) $labSettings['show_agenda_origin'];
             }
             if (array_key_exists('show_agenda_priority', $labSettings)) {
                 $showAgendaPriority = (bool) $labSettings['show_agenda_priority'];
+            }
+            if (array_key_exists('use_report_signature', $labSettings)) {
+                $useReportSignature = (bool) $labSettings['use_report_signature'];
             }
         }
 
@@ -91,6 +96,7 @@ class LaboratoryProfileService
             'show_fonasa_panel' => $isClinical,
             'show_agenda_origin' => $showAgendaOrigin,
             'show_agenda_priority' => $showAgendaPriority,
+            'use_report_signature' => $useReportSignature,
             'patient_label' => $isVeterinary ? 'Mascota' : 'Paciente',
             'patient_id_label' => $isVeterinary ? 'ID mascota / microchip' : 'RUT / Documento',
             'service_code_label' => $isClinical ? 'Cód. FONASA' : 'Cód. prestación',

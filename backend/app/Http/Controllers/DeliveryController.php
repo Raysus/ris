@@ -56,7 +56,7 @@ class DeliveryController extends Controller
         $formattedData = $appointments->map(function ($app) {
             $p = $app->patient->persona;
             $chainMeta = ReportDocumentFormatter::appointmentChainMeta($app);
-            $doctor = ReportDocumentFormatter::doctorPayload($app->destinationDoctor);
+            $doctor = ReportDocumentFormatter::doctorPayload($app->destinationDoctor, $app->laboratory);
 
             return array_merge([
                 'id' => $app->id,

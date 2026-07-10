@@ -131,6 +131,17 @@ class UserController extends Controller
 
             $user->settings = ['roles' => $rolesSeleccionados];
             $user->is_active = true;
+
+            if ($request->hasFile('signature')) {
+                $request->validate([
+                    'signature' => 'image|mimes:png,jpeg,jpg|max:4096',
+                ]);
+                if ($user->signature_path) {
+                    Storage::disk('public')->delete($user->signature_path);
+                }
+                $user->signature_path = $request->file('signature')->store('signatures', 'public');
+            }
+
             $user->save();
 
             // === MAPEO DE ROLES KEYCLOAK ===
