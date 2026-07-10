@@ -8,7 +8,9 @@ DASHBOARD = Path("/home/debuser/infra/portal-nuevo/resources/views/dashboard.bla
 RIS_HELPERS = '''
     private function rutHash(?string $rut): string
     {
-        $normalized = strtoupper(str_replace(['.', ' ', '-'], '', (string) $rut));
+        // Debe coincidir con App\\Models\\Persona::normalizeRut / hashRut del RIS
+        // (mantiene el guión: 12345678-9).
+        $normalized = strtoupper(str_replace(['.', ' '], '', (string) $rut));
 
         return hash('sha256', $normalized);
     }
@@ -28,8 +30,18 @@ RIS_HELPERS = '''
                 ->table('appointment_studies')
                 ->join('appointments', 'appointment_studies.appointment_id', '=', 'appointments.id')
                 ->whereIn('appointments.status', ['entregable', 'entregado'])
-                ->whereNotNull('appointment_studies.report')
-                ->where('appointment_studies.report', '!=', '')
+                ->where(function ($q) {
+                    $q->where(function ($q2) {
+                        $q2->whereNotNull('appointment_studies.report')
+                            ->where('appointment_studies.report', '!=', '');
+                    });
+                    if (\\Illuminate\\Support\\Facades\\Schema::connection('ris_db')->hasColumn('appointment_studies', 'report_document_path')) {
+                        $q->orWhere(function ($q2) {
+                            $q2->whereNotNull('appointment_studies.report_document_path')
+                                ->where('appointment_studies.report_document_path', '!=', '');
+                        });
+                    }
+                })
                 ->select(
                     'appointment_studies.id as study_row_id',
                     'appointments.accession_number',
@@ -166,14 +178,22 @@ SHOW_REPORT_NEW = """    public function showReport($id)
                     'appointment_studies.id',
                     'appointment_studies.exam_name',
                     'appointment_studies.report',
+                    'appointment_studies.report_document_path',
                     'appointments.start_time',
                     'appointments.accession_number',
                     'appointments.status'
                 )
                 ->where('appointment_studies.id', $id)
                 ->whereIn('appointments.status', ['entregable', 'entregado'])
-                ->whereNotNull('appointment_studies.report')
-                ->where('appointment_studies.report', '!=', '');
+                ->where(function ($q) {
+                    $q->where(function ($q2) {
+                        $q2->whereNotNull('appointment_studies.report')
+                            ->where('appointment_studies.report', '!=', '');
+                    })->orWhere(function ($q2) {
+                        $q2->whereNotNull('appointment_studies.report_document_path')
+                            ->where('appointment_studies.report_document_path', '!=', '');
+                    });
+                });
 
             if (!(method_exists($user, 'hasRole') && ($user->hasRole('super_admin') || $user->hasRole('admin_siresa') || $user->hasRole('medico_solicitante') || $user->hasRole('admin') || $user->hasRole('medico')))) {
                 $studyQuery->where('personas.rut_hash', $rutHash);
@@ -189,6 +209,20 @@ SHOW_REPORT_NEW = """    public function showReport($id)
             $study->first_name = $nameParts[0] ?? 'Paciente';
             $study->last_name = $nameParts[1] ?? '';
             $study->rut = $user->rut ?? '';
+
+            // PDF/imagen adjunto: redirigir al archivo público del RIS si está configurado.
+            $docPath = trim((string) ($study->report_document_path ?? ''));
+            if ($docPath !== '') {
+                $risPublic = rtrim((string) config('services.ris.public_url', env('RIS_PUBLIC_URL', '')), '/');
+                if ($risPublic !== '') {
+                    $rel = ltrim($docPath, '/');
+                    if (!str_starts_with($rel, 'storage/')) {
+                        $rel = 'storage/' . $rel;
+                    }
+
+                    return redirect($risPublic . '/' . $rel);
+                }
+            }
 
             return view('report', compact('study'));
 

@@ -38,7 +38,11 @@ class PatientPortalReportService
 
         return $query->get()->filter(function (Appointment $appointment) {
             return $appointment->studies->contains(function ($study) {
-                return trim($study->getStoredReportText()) !== '';
+                if (trim($study->getStoredReportText()) !== '') {
+                    return true;
+                }
+
+                return filled($study->report_document_path);
             });
         })->values();
     }
@@ -66,6 +70,7 @@ class PatientPortalReportService
         $studies = $appointment->studies
             ->map(function ($study) {
                 $reportText = trim($study->getStoredReportText());
+                $docPath = $study->report_document_path ?: null;
 
                 return [
                     'study_id' => $study->id,
@@ -73,7 +78,11 @@ class PatientPortalReportService
                     'fonasa_code' => $study->fonasa_code,
                     'quantity' => (int) ($study->quantity ?? 1),
                     'report_text' => $reportText,
-                    'has_report' => $reportText !== '',
+                    'has_report' => $reportText !== '' || filled($docPath),
+                    'report_document_path' => $docPath,
+                    'report_document_url' => $docPath
+                        ? \App\Support\PublicStorageUrl::from($docPath)
+                        : null,
                 ];
             })
             ->values()

@@ -118,20 +118,31 @@ class RadiologistController extends Controller
             $appointment->save();
 
             foreach ($request->reports as $reportData) {
-                $updated = DB::table('appointment_studies')
+                $study = DB::table('appointment_studies')
                     ->where('id', $reportData['id'])
                     ->where('appointment_id', $appointment->id)
-                    ->update([
-                        'report' => $reportData['text'] ?? '',
-                        'status' => 'entregable',
-                        'updated_at' => now()
-                    ]);
+                    ->first();
 
-                if ($updated === 0) {
+                if (!$study) {
                     throw new \RuntimeException(
                         'No se encontró el estudio «' . ($reportData['id'] ?? '') . '» en la cita.'
                     );
                 }
+
+                $text = trim((string) ($reportData['text'] ?? ''));
+                // No borrar informe adjunto: si llega texto vacío pero hay documento, conservar placeholder.
+                if ($text === '' && !empty($study->report_document_path)) {
+                    $existing = trim((string) ($study->report ?? ''));
+                    $text = $existing !== '' ? $existing : 'Informe adjunto como documento.';
+                }
+
+                DB::table('appointment_studies')
+                    ->where('id', $study->id)
+                    ->update([
+                        'report' => $text,
+                        'status' => 'entregable',
+                        'updated_at' => now()
+                    ]);
             }
 
             DB::table('appointment_logs')->insert([
