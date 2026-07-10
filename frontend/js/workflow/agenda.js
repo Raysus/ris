@@ -2825,7 +2825,9 @@ function risConstruirPayloadTicketComprobante(data, savedAppointment) {
 
     const usuario = (userData.username || userData.email || 'RECEPCION').toUpperCase();
     const ahora = new Date();
-    const inicioCita = data.start_time ? new Date(data.start_time) : ahora;
+    const inicioCita = data.start_time
+        ? new Date(normalizeApiDateTime(data.start_time))
+        : ahora;
     const totalTexto = ($('#totalCopay').text() || '').replace(/<[^>]+>/g, '').trim();
     const totalNum = parseInt(totalTexto.replace(/[^\d]/g, ''), 10) || 0;
     const obs = ($('#agendaObservacion').val() || '').trim();

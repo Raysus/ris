@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Appointment;
 use App\Models\User;
+use App\Support\LabTimezone;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -244,9 +245,9 @@ class AppointmentReceiptService
             return '';
         }
         try {
-            $dt = $value instanceof Carbon ? $value : Carbon::parse($value);
+            $dt = $value instanceof Carbon ? $value->copy() : Carbon::parse($value);
 
-            return $dt->format('d-m-Y');
+            return $dt->timezone(LabTimezone::name())->format('d-m-Y');
         } catch (Throwable) {
             return '';
         }
@@ -258,9 +259,10 @@ class AppointmentReceiptService
             return '00:00:00';
         }
         try {
-            $dt = $value instanceof Carbon ? $value : Carbon::parse($value);
+            $dt = $value instanceof Carbon ? $value->copy() : Carbon::parse($value);
 
-            return $dt->format('H:i:s');
+            // start_time está en UTC; el ticket debe mostrar hora mural del centro.
+            return $dt->timezone(LabTimezone::name())->format('H:i:s');
         } catch (Throwable) {
             return '00:00:00';
         }
