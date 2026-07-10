@@ -76,7 +76,7 @@ $config = @{
         enabled = $true
         interface = $iface
         width_chars = 42
-        copies = 2
+        copies = 3
         cut_feed_lines = 10
         print_density = [Math]::Max(0, [Math]::Min(8, $Density))
     }

@@ -52,6 +52,7 @@ class EcotemucoLabSeeder extends Seeder
             [7, 'auxiliar', 'Auxiliar'],
             [8, 'secretario', 'Secretario(a)'],
             [9, 'secretaria', 'Secretaria'],
+            [10, 'tens', 'TENS'],
         ];
         foreach ($tipos as $t) {
             DB::table('tipo_usuarios')->insertOrIgnore([

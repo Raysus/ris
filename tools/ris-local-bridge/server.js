@@ -41,7 +41,7 @@ const getLocalConfig = () => {
                     enabled: false,
                     interface: '',
                     width_chars: 42,
-                    copies: 2,
+                    copies: 3,
                     cut_feed_lines: 10,
                 },
             };

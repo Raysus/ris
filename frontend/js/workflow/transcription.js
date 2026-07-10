@@ -546,7 +546,7 @@ async function cargarPlantillasTranscripcion() {
     } catch (e) { console.error("Error cargando plantillas:", e); }
 }
 
-// === PEDALERA PHILIPS LFH2330 / SpeechMike (WebHID) ===
+// === PEDALERA PHILIPS LFH2330 / ACC2330 / SpeechMike (WebHID) ===
 function hasTranscriptionAudioSource() {
     const audio = document.getElementById("audioDictado");
     return !!(

@@ -30,7 +30,7 @@ class WorklistController extends Controller
 {
     use ChecksRisAuthorization;
 
-    private const WORKLIST_ROLES = ['admin', 'sis_admin', 'tecnologo'];
+    private const WORKLIST_ROLES = ['admin', 'sis_admin', 'tecnologo', 'tens'];
 
     private function assertWorklistAccess(Request $request): void
     {
@@ -287,7 +287,7 @@ class WorklistController extends Controller
      */
     public function markReceiptPrinted(Request $request, $appointmentId, AppointmentReceiptService $receipts)
     {
-        $this->assertAnyRole($request, ['admin', 'sis_admin', 'recepcion', 'secretaria', 'secretario', 'tecnologo']);
+        $this->assertAnyRole($request, ['admin', 'sis_admin', 'recepcion', 'secretaria', 'secretario', 'tecnologo', 'tens']);
 
         $appointment = $this->getSecureAppointmentQuery()->findOrFail($appointmentId);
         $receipts->markPrinted($appointment);
@@ -304,7 +304,7 @@ class WorklistController extends Controller
      */
     public function printReceipt(Request $request, $appointmentId, AppointmentReceiptService $receipts)
     {
-        $this->assertAnyRole($request, ['admin', 'sis_admin', 'recepcion', 'secretaria', 'secretario', 'tecnologo']);
+        $this->assertAnyRole($request, ['admin', 'sis_admin', 'recepcion', 'secretaria', 'secretario', 'tecnologo', 'tens']);
 
         $appointment = $this->getSecureAppointmentQuery()
             ->with([

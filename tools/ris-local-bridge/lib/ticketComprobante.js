@@ -279,7 +279,7 @@ async function printComprobante(config, payload) {
         1,
         Number.isFinite(copiesFromTicket) && copiesFromTicket > 0
             ? copiesFromTicket
-            : (Number(printerCfg.copies) || 2)
+            : (Number(printerCfg.copies) || 3)
     );
     const cutFeedLines = Math.max(6, Math.min(20, Number(printerCfg.cut_feed_lines) || 10));
     const density = Math.max(0, Math.min(8, Number(printerCfg.print_density ?? printerCfg.darkness) || 6));

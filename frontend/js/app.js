@@ -37,10 +37,10 @@ $(document).ready(async function () {
         : (profileName === 'admin' || esSysAdmin);
 
     const permisosModulos = {
-        "dashboard": ["admin", "recepcion", "tecnologo", "radiologo", "transcriptor", "sis_admin"],
-        "agenda": ["admin", "recepcion", "secretaria", "secretario", "sis_admin"],
-        "worklist": ["admin", "tecnologo", "sis_admin"],
-        "atencion": ["admin", "tecnologo", "sis_admin"],
+        "dashboard": ["admin", "recepcion", "tecnologo", "radiologo", "transcriptor", "tens", "sis_admin"],
+        "agenda": ["admin", "recepcion", "secretaria", "secretario", "tens", "sis_admin"],
+        "worklist": ["admin", "tecnologo", "tens", "sis_admin"],
+        "atencion": ["admin", "tecnologo", "tens", "sis_admin"],
         "radiologist": ["admin", "radiologo", "sis_admin"],
         "transcription": ["admin", "transcriptor", "sis_admin"],
         "validation": ["admin", "radiologo", "sis_admin"],
@@ -209,7 +209,7 @@ function risEnsureCurrentPageVisible() {
     }
 }
 
-const RIS_PERFILES_MULTI_SEDE = ['admin', 'radiologo', 'tecnologo', 'recepcion', 'transcriptor'];
+const RIS_PERFILES_MULTI_SEDE = ['admin', 'radiologo', 'tecnologo', 'recepcion', 'transcriptor', 'tens'];
 
 function risTieneVariasSedesAsignadas() {
     try {

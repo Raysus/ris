@@ -14,7 +14,7 @@
         "enabled": true,
         "interface": "tcp://192.168.0.117:9100",
         "width_chars": 42,
-        "copies": 2,
+        "copies": 3,
         "cut_feed_lines": 10,
         "print_density": 6,
         "_comment_interface": "tcp://192.168.0.117:9100 (Epson red SIRESA) | \\\\localhost\\imprayos | printer:EPSON TM-m30",

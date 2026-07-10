@@ -12,6 +12,7 @@ class LaboratoryAllowedLabsTest extends TestCase
         $this->assertTrue(Laboratory::supportsMultiSiteView('admin'));
         $this->assertTrue(Laboratory::supportsMultiSiteView('radiologo'));
         $this->assertTrue(Laboratory::supportsMultiSiteView('tecnologo'));
+        $this->assertTrue(Laboratory::supportsMultiSiteView('tens'));
         $this->assertFalse(Laboratory::supportsMultiSiteView('auxiliar'));
     }
 
@@ -19,5 +20,6 @@ class LaboratoryAllowedLabsTest extends TestCase
     {
         $this->assertContains('radiologo', Laboratory::MULTI_SITE_OPERATIONAL_ROLES);
         $this->assertContains('recepcion', Laboratory::MULTI_SITE_OPERATIONAL_ROLES);
+        $this->assertContains('tens', Laboratory::MULTI_SITE_OPERATIONAL_ROLES);
     }
 }

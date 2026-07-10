@@ -2874,7 +2874,7 @@ function risConstruirPayloadTicketComprobante(data, savedAppointment) {
         obs_label: 'OBS:',
         obs_text: risSanitizeTicketText(obs),
         footer: '- COPIA MEDICO -',
-        copies: 2,
+        copies: 3,
     };
 }
 

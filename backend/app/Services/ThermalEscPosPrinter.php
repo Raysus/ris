@@ -32,7 +32,7 @@ class ThermalEscPosPrinter
         $cfg = config('services.thermal_printer', []);
         $width = max(24, (int) ($cfg['width_chars'] ?? 42));
         $ticketCopies = isset($ticket['copies']) ? (int) $ticket['copies'] : null;
-        $copies = max(1, $copies ?? $ticketCopies ?? (int) ($cfg['copies'] ?? 2));
+        $copies = max(1, $copies ?? $ticketCopies ?? (int) ($cfg['copies'] ?? 3));
         $buffer = $this->buildBuffer($ticket, $width);
 
         for ($i = 0; $i < $copies; $i++) {

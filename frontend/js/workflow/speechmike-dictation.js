@@ -122,20 +122,36 @@ const FOOT_PEDAL_ACTION_LABELS = {
     record_pause: "Pausa / reanudar grabación",
 };
 
-/** Layout pedalera LFH2330 acordado en SIRESA (solo sedes SIRESA). */
+/** Layout pedalera LFH2330/ACC2330 acordado en SIRESA (solo sedes SIRESA). */
 function isSiresaFootPedalLayout() {
     if (typeof window.RIS_FOOT_PEDAL_LAYOUT === "string") {
-        return window.RIS_FOOT_PEDAL_LAYOUT === "siresa_lfh2330";
+        return (
+            window.RIS_FOOT_PEDAL_LAYOUT === "siresa_lfh2330" ||
+            window.RIS_FOOT_PEDAL_LAYOUT === "siresa_acc2330"
+        );
     }
     const labName = (localStorage.getItem("ris_lab_name") || "").toUpperCase();
     return labName.includes("SIRESA");
 }
 
-function getDefaultFootPedalMap() {
-    if (isSiresaFootPedalLayout()) {
+/** Perfiles listos: LFH2330, ACC2330 (fábrica Philips) y Siresa. */
+function getFootPedalPresetMap(presetId) {
+    if (presetId === "siresa") {
         return { left: "seek_back", center: "none", right: "toggle_play", top: "none" };
     }
+    if (presetId === "acc2330") {
+        // Fábrica Philips ACC2330: izq. FF · centro play · der. rewind · sup. fin
+        return { left: "seek_forward", center: "toggle_play", right: "seek_back", top: "none" };
+    }
+    // lfh2330 / standard: izq. −5 s · centro play/pausa · der. +5 s
     return { left: "seek_back", center: "toggle_play", right: "seek_forward", top: "none" };
+}
+
+function getDefaultFootPedalMap() {
+    if (isSiresaFootPedalLayout()) {
+        return getFootPedalPresetMap("siresa");
+    }
+    return getFootPedalPresetMap("standard");
 }
 
 function loadFootPedalMap() {
@@ -181,7 +197,7 @@ function updateSiresaFootPedalUiHints() {
     const $status = $("#speechMikeHidStatus");
     if ($status.length && !$status.hasClass("text-success")) {
         $status.text(
-            `Pedalera LFH2330: pulse Conectar en Chrome/Edge. ${hint}.`
+            `Pedalera LFH2330 / ACC2330: pulse Conectar en Chrome/Edge. ${hint}.`
         );
     }
     const $kbd = $("#transcriptionPedalKeyboardHint");
@@ -228,18 +244,17 @@ function setupFootPedalMapUi() {
     $panel
         .off("click.risFootPedalPreset")
         .on("click.risFootPedalPreset", "[data-foot-preset]", function () {
-            const id = $(this).data("foot-preset");
-            let map;
-            if (id === "siresa") {
-                map = { left: "seek_back", center: "none", right: "toggle_play", top: "none" };
-            } else if (id === "standard") {
-                map = { left: "seek_back", center: "toggle_play", right: "seek_forward", top: "none" };
-            } else {
-                map = getDefaultFootPedalMap();
-            }
+            const id = String($(this).data("foot-preset") || "");
+            const map = getFootPedalPresetMap(id) || getDefaultFootPedalMap();
             saveFootPedalMap(map);
             if (typeof showToast === "function") {
-                showToast("Perfil de pedalera aplicado.", "success");
+                const names = {
+                    siresa: "Siresa (LFH2330)",
+                    lfh2330: "LFH2330",
+                    acc2330: "ACC2330",
+                    standard: "estándar",
+                };
+                showToast(`Perfil ${names[id] || "de pedalera"} aplicado.`, "success");
             }
         });
 }
@@ -251,7 +266,7 @@ function speechMikeDeviceLabel(device) {
     const dt = device.getDeviceType();
     const DT = DictationSupport.DeviceType;
     const labels = {
-        [DT.FOOT_CONTROL_ACC_2330]: "Pedalera Philips LFH2330 (ACC2330)",
+        [DT.FOOT_CONTROL_ACC_2330]: "Pedalera Philips ACC2330 (LFH2330)",
         [DT.FOOT_CONTROL_ACC_2310_2320]: "Pedalera Philips ACC2310/2320",
         [DT.SPEECHMIKE_LFH_3200]: "SpeechMike III Pro (LFH3200)",
         [DT.SPEECHMIKE_LFH_3210]: "SpeechMike III (LFH3210)",
@@ -306,7 +321,7 @@ function updateSpeechMikeConnectUi(extraStatus) {
             .addClass("text-warning")
             .text(
                 extraStatus ||
-                    "Pulse «Conectar pedalera / SpeechMike». En Chrome elija el dispositivo Philips (LFH2330). Si no aparece, cierre SpeechControl."
+                    "Pulse «Conectar pedalera / SpeechMike». En Chrome elija Philips ACC2330 o LFH2330. Si no aparece, cierre SpeechControl."
             );
         $btn.text("Conectar pedalera / SpeechMike");
     }
