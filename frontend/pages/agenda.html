@@ -153,31 +153,32 @@
                                     placeholder="+56 9 1234 5678" required>
                             </div>
                             <div class="col-12" id="agendaCitasAnterioresWrap">
-                                <div class="border rounded bg-white p-2">
-                                    <div class="d-flex justify-content-between align-items-center gap-2">
+                                <div class="border rounded bg-light p-2">
+                                    <div class="d-flex justify-content-between align-items-center gap-2 mb-1">
                                         <span class="small fw-bold text-primary mb-0">
-                                            <i class="bi bi-clock-history me-1"></i>Citas anteriores en esta sede
+                                            <i class="bi bi-clock-history me-1"></i>Historial de citas
+                                            <span id="agendaCitasAnterioresCount" class="badge bg-secondary ms-1 d-none">0</span>
                                         </span>
                                         <button type="button" class="btn btn-sm btn-outline-primary d-none"
                                             id="btnVerCitasAnteriores" onclick="togglePanelCitasAnterioresAgenda()">
                                             Ver historial
                                         </button>
                                     </div>
-                                    <div id="agendaCitasAnterioresPanel" class="d-none mt-2">
-                                        <div class="table-responsive" style="max-height: 220px; overflow-y: auto;">
+                                    <div id="agendaCitasAnterioresPanel" class="mt-1">
+                                        <div class="table-responsive bg-white border rounded" style="max-height: 220px; overflow-y: auto;">
                                             <table class="table table-sm table-hover mb-0 align-middle">
                                                 <thead class="table-light sticky-top">
                                                     <tr class="small">
                                                         <th>Fecha</th>
                                                         <th>Estado</th>
-                                                        <th>Sala</th>
+                                                        <th>Sede / Sala</th>
                                                         <th>Exámenes</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody id="agendaCitasAnterioresBody">
                                                     <tr>
                                                         <td colspan="4" class="text-muted text-center small py-2">
-                                                            Busque un paciente para ver su historial.
+                                                            Busque un paciente por RUT para ver su historial.
                                                         </td>
                                                     </tr>
                                                 </tbody>

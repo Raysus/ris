@@ -198,19 +198,24 @@ class PatientController extends Controller
             $historyInLab = 0;
             $lastWithInsurance = null;
             $priorAppointments = [];
+            $historyLabIds = $this->laboratoryIdsForPatientHistory($labId);
 
             if ($patientIds->isNotEmpty()) {
                 $historyInLab = Appointment::query()
-                    ->where('laboratory_id', $labId)
+                    ->whereIn('laboratory_id', $historyLabIds)
                     ->whereIn('patient_id', $patientIds)
                     ->count();
 
                 $priorAppointments = Appointment::query()
-                    ->with(['studies:id,appointment_id,exam_name,sub_exam_name,machine_id', 'machine:id,name'])
-                    ->where('laboratory_id', $labId)
+                    ->with([
+                        'studies:id,appointment_id,exam_name,sub_exam_name,machine_id',
+                        'machine:id,name',
+                        'laboratory:id,name',
+                    ])
+                    ->whereIn('laboratory_id', $historyLabIds)
                     ->whereIn('patient_id', $patientIds)
                     ->orderByDesc('start_time')
-                    ->limit(15)
+                    ->limit(20)
                     ->get()
                     ->map(function (Appointment $app) {
                         $studies = $app->studies ?? collect();
@@ -226,6 +231,7 @@ class PatientController extends Controller
                             'end_time' => $app->end_time?->format('Y-m-d H:i:s'),
                             'status' => $app->status,
                             'machine_name' => $app->machine?->name,
+                            'laboratory_name' => $app->laboratory?->name,
                             'exams' => $examNames,
                             'accession_number' => $app->accession_number,
                         ];
@@ -235,7 +241,7 @@ class PatientController extends Controller
 
                 $lastWithInsurance = Appointment::query()
                     ->whereIn('patient_id', $patientIds)
-                    ->where('laboratory_id', $labId)
+                    ->whereIn('laboratory_id', $historyLabIds)
                     ->whereNotNull('insurance_id')
                     ->orderByDesc('start_time')
                     ->first();
@@ -295,5 +301,28 @@ class PatientController extends Controller
                 'archivo' => $e->getFile()
             ], 500);
         }
+    }
+
+    /**
+     * Historial de citas: sede actual + matriz/hermanas (p. ej. Siresa y sucursales).
+     *
+     * @return list<string>
+     */
+    private function laboratoryIdsForPatientHistory(string $labId): array
+    {
+        $lab = \App\Models\Laboratory::query()->find($labId);
+        if (!$lab) {
+            return [$labId];
+        }
+
+        $rootId = $lab->parent_id ?: $lab->id;
+        $ids = \App\Models\Laboratory::query()
+            ->where('id', $rootId)
+            ->orWhere('parent_id', $rootId)
+            ->pluck('id')
+            ->map(fn ($id) => (string) $id)
+            ->all();
+
+        return $ids !== [] ? $ids : [(string) $labId];
     }
 }

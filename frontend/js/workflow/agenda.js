@@ -1756,23 +1756,65 @@ function filtrarSelectMedicoTratante(query) {
 
 function limpiarPanelCitasAnterioresAgenda() {
     $('#btnVerCitasAnteriores').addClass('d-none').text('Ver historial');
-    $('#agendaCitasAnterioresPanel').addClass('d-none');
+    $('#agendaCitasAnterioresCount').addClass('d-none').text('0');
+    $('#agendaCitasAnterioresPanel').removeClass('d-none');
     $('#agendaCitasAnterioresBody').html(
-        '<tr><td colspan="4" class="text-muted text-center small py-2">Busque un paciente para ver su historial.</td></tr>'
+        '<tr><td colspan="4" class="text-muted text-center small py-2">Busque un paciente por RUT para ver su historial.</td></tr>'
     );
+}
+
+async function cargarHistorialCitasPacienteAgenda(rut) {
+    const doc = String(rut || '').trim();
+    if (!doc) {
+        limpiarPanelCitasAnterioresAgenda();
+        return;
+    }
+    const token = localStorage.getItem('ris_token');
+    const labId = typeof risRequireConcreteLabId === 'function'
+        ? risRequireConcreteLabId(false)
+        : localStorage.getItem('ris_lab_id');
+    if (!token || !labId) return;
+
+    try {
+        const response = await fetch(
+            `${API_URL}/patients/search?rut=${encodeURIComponent(doc)}`,
+            {
+                headers: {
+                    Accept: 'application/json',
+                    Authorization: `Bearer ${token}`,
+                    'X-Lab-Id': labId,
+                },
+            }
+        );
+        const data = await response.json().catch(() => ({}));
+        if (response.ok && data?.success && data.data) {
+            renderPanelCitasAnterioresAgenda(data.data.prior_appointments || []);
+        }
+    } catch (e) {
+        console.warn('Historial de citas:', e);
+    }
 }
 
 function renderPanelCitasAnterioresAgenda(list) {
     const items = Array.isArray(list) ? list : [];
     const $btn = $('#btnVerCitasAnteriores');
     const $body = $('#agendaCitasAnterioresBody');
+    const $count = $('#agendaCitasAnterioresCount');
+    const $panel = $('#agendaCitasAnterioresPanel');
+
     if (!items.length) {
-        limpiarPanelCitasAnterioresAgenda();
-        $body.html('<tr><td colspan="4" class="text-muted text-center small py-2">Sin citas anteriores en esta sede.</td></tr>');
+        $btn.addClass('d-none');
+        $count.addClass('d-none').text('0');
+        $panel.removeClass('d-none');
+        $body.html('<tr><td colspan="4" class="text-muted text-center small py-2">Sin citas anteriores registradas.</td></tr>');
         return;
     }
 
-    $btn.removeClass('d-none').text(`Ver historial (${items.length})`);
+    $count.removeClass('d-none').text(String(items.length));
+    $btn.removeClass('d-none').text('Ocultar historial');
+    $panel.removeClass('d-none');
+
+    const esc = typeof risEscapeHtml === 'function' ? risEscapeHtml : (s) => String(s ?? '');
     const rows = items.map((app) => {
         const start = app.start_time ? new Date(String(app.start_time).replace(' ', 'T')) : null;
         const fecha = start && !Number.isNaN(start.getTime())
@@ -1788,11 +1830,12 @@ function renderPanelCitasAnterioresAgenda(list) {
         const exams = Array.isArray(app.exams) && app.exams.length
             ? app.exams.join(', ')
             : '—';
+        const sedeSala = [app.laboratory_name, app.machine_name].filter(Boolean).join(' · ') || '—';
         return `<tr class="small">
-            <td class="text-nowrap">${risEscapeHtml(fecha)}</td>
-            <td><span class="badge bg-secondary text-uppercase">${risEscapeHtml(app.status || '')}</span></td>
-            <td>${risEscapeHtml(app.machine_name || '—')}</td>
-            <td>${risEscapeHtml(exams)}</td>
+            <td class="text-nowrap">${esc(fecha)}</td>
+            <td><span class="badge bg-secondary text-uppercase">${esc(app.status || '')}</span></td>
+            <td>${esc(sedeSala)}</td>
+            <td>${esc(exams)}</td>
         </tr>`;
     }).join('');
     $body.html(rows);
@@ -1802,8 +1845,7 @@ function togglePanelCitasAnterioresAgenda() {
     const $panel = $('#agendaCitasAnterioresPanel');
     $panel.toggleClass('d-none');
     const open = !$panel.hasClass('d-none');
-    const countText = $('#btnVerCitasAnteriores').text().replace(/^Ver historial|^Ocultar historial/, '').trim();
-    $('#btnVerCitasAnteriores').text(open ? `Ocultar historial ${countText}` : `Ver historial ${countText}`.trim());
+    $('#btnVerCitasAnteriores').text(open ? 'Ocultar historial' : 'Ver historial');
 }
 window.togglePanelCitasAnterioresAgenda = togglePanelCitasAnterioresAgenda;
 
@@ -2470,6 +2512,9 @@ function abrirModalCita(data) {
         risActualizarEdadPacienteAgenda();
         $("#pEmail").val(p.email || "");
         $("#pPhone").val(p.phone || "");
+        if (p.rut) {
+            cargarHistorialCitasPacienteAgenda(p.rut);
+        }
 
         setAgendaPrevision(p.insurance || null, p.plan || null);
 
@@ -3529,21 +3574,26 @@ async function buscarPacientePorDocumentoAgenda(options = {}) {
                     payload.insurance_plan_id || null
                 );
 
-                if (payload.history_count && payload.history_count > 0) {
+                const prior = Array.isArray(payload.prior_appointments)
+                    ? payload.prior_appointments
+                    : [];
+                const historyCount = Number(payload.history_count || prior.length || 0);
+
+                if (historyCount > 0 || prior.length > 0) {
                     showToast(
-                        `🔔 ${payload.history_count} cita(s) previa(s) en esta sede (registro global de persona).`,
+                        `🔔 ${historyCount || prior.length} cita(s) previa(s) encontradas.`,
                         'info'
                     );
                     $('#pName').addClass('border-info bg-info-subtle');
-                    renderPanelCitasAnterioresAgenda(payload.prior_appointments || []);
+                    renderPanelCitasAnterioresAgenda(prior);
                 } else if (payload.insurance_id) {
                     showToast(
                         'Previsión sugerida desde la última atención registrada.',
                         'info'
                     );
-                    limpiarPanelCitasAnterioresAgenda();
+                    renderPanelCitasAnterioresAgenda([]);
                 } else {
-                    limpiarPanelCitasAnterioresAgenda();
+                    renderPanelCitasAnterioresAgenda([]);
                 }
 
                 showToast('✅ Persona encontrada (registro global).', 'success');
