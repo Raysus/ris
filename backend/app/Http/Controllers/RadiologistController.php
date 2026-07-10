@@ -363,7 +363,7 @@ class RadiologistController extends Controller
 
         $formattedData = $appointments->map(function ($app) {
             $chainMeta = ReportDocumentFormatter::appointmentChainMeta($app);
-            $doctor = ReportDocumentFormatter::doctorPayload($app->destinationDoctor);
+            $doctor = ReportDocumentFormatter::doctorPayload($app->destinationDoctor, $app->laboratory);
 
             $studies = $app->studies->filter(
                 fn ($s) => $app->status === 'para_firma' || $s->status === 'para_firma'

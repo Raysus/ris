@@ -82,14 +82,16 @@
         return label.replace(/:$/, '') + ':';
     }
 
-    function doctorPayload(chain) {
+    function doctorPayload(chain, labInfo) {
         const name = String(chain?.destinationDoctorName || 'Médico Radiólogo').trim();
+        const useSignature = !!(labInfo?.settings?.use_report_signature);
         return {
             displayName: /^DR\.?\s/i.test(name) ? name.toUpperCase() : `DR. ${name.toUpperCase()}`,
             initials: String(chain?.destinationDoctorInitials || '').trim(),
             registration: String(chain?.destinationDoctorRegistration || '').trim(),
-            // Firma visual: se incluye en el texto de transcripción (sin imagen automática).
-            signatureUrl: null,
+            signatureUrl: useSignature
+                ? (chain?.firmaUrl || chain?.signatureUrl || null)
+                : null,
         };
     }
 
@@ -101,7 +103,7 @@
             patientName: formatPatientName(chain?.patient),
             examTitle: formatExamTitle(study?.exam, study?.subExam),
             reportBody: String(study?.reportText || '').trim(),
-            doctor: doctorPayload(chain),
+            doctor: doctorPayload(chain, labInfo),
         };
     }
 
@@ -110,6 +112,10 @@
         const header = (document.headerLines || [])
             .map((line) => `<div class="ris-report-header-line">${escapeHtml(line)}</div>`)
             .join('');
+        const signatureUrl = String(document?.doctor?.signatureUrl || '').trim();
+        const signatureBlock = signatureUrl
+            ? `<div class="ris-report-signature" style="margin-top:28px;"><img src="${escapeHtml(signatureUrl)}" alt="Firma" style="max-height:90px;max-width:280px;"></div>`
+            : '';
 
         return `
 <div class="ris-report-page" style="color:${color};font-family:'Times New Roman',Times,serif;font-size:12pt;line-height:1.45;">
@@ -121,6 +127,7 @@
     </div>
     <div style="font-weight:bold;margin-bottom:10px;">${escapeHtml(document.examTitle)}</div>
     <div class="ris-report-body" style="white-space:pre-wrap;text-align:justify;margin-bottom:24px;">${escapeHtml(document.reportBody)}</div>
+    ${signatureBlock}
 </div>`;
     }
 

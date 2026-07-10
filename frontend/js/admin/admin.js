@@ -1361,9 +1361,11 @@ async function cargarConfigCentro() {
                 $("#cfgColorInforme").val(lab.settings.colorInforme || "#000000");
                 $("#cfgShowAgendaOrigin").prop("checked", !!lab.settings.show_agenda_origin);
                 $("#cfgShowAgendaPriority").prop("checked", !!lab.settings.show_agenda_priority);
+                $("#cfgUseReportSignature").prop("checked", !!lab.settings.use_report_signature);
             } else {
                 $("#cfgShowAgendaOrigin").prop("checked", false);
                 $("#cfgShowAgendaPriority").prop("checked", false);
+                $("#cfgUseReportSignature").prop("checked", false);
             }
 
             if (esSysAdminLogueado()) {
@@ -1495,6 +1497,7 @@ async function guardarConfigCentroAdmin() {
         colorInforme: $("#cfgColorInforme").val(),
         show_agenda_origin: $("#cfgShowAgendaOrigin").is(":checked"),
         show_agenda_priority: $("#cfgShowAgendaPriority").is(":checked"),
+        use_report_signature: $("#cfgUseReportSignature").is(":checked"),
     };
     formData.append('settings', JSON.stringify(settings));
 

@@ -59,12 +59,13 @@ class PatientPortalReportService
 
         $destDoctorName = 'Médico radiólogo';
         $firmaUrl = null;
-        $docPersona = $appointment->destinationDoctor?->persona;
+        $destDoctor = $appointment->destinationDoctor;
+        $docPersona = $destDoctor?->persona;
         if ($docPersona) {
             $destDoctorName = trim("{$docPersona->names} {$docPersona->last_name_1}");
-            if ($docPersona->signature_path) {
-                $firmaUrl = asset('storage/' . $docPersona->signature_path);
-            }
+        }
+        if (ReportDocumentFormatter::labUsesReportSignature($appointment->laboratory)) {
+            $firmaUrl = ReportDocumentFormatter::signaturePublicUrl($destDoctor?->signature_path);
         }
 
         $studies = $appointment->studies

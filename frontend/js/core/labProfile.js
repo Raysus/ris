@@ -14,6 +14,7 @@ const RIS_DEFAULT_PROFILE = {
     show_fonasa_panel: true,
     show_agenda_origin: false,
     show_agenda_priority: false,
+    use_report_signature: false,
     patient_label: 'Paciente',
     patient_id_label: 'RUT / Documento',
     service_code_label: 'Cód. FONASA',

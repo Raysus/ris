@@ -22,6 +22,42 @@ class ReportDocumentFormatter
     }
 
     /** @param Laboratory|object|null $lab */
+    public static function labUsesReportSignature($lab): bool
+    {
+        $settings = [];
+        if ($lab instanceof Laboratory) {
+            $settings = is_array($lab->settings) ? $lab->settings : [];
+        } elseif (is_object($lab)) {
+            $settings = is_array($lab->settings ?? null) ? $lab->settings : [];
+        }
+
+        return (bool) ($settings['use_report_signature'] ?? false);
+    }
+
+    public static function signaturePublicUrl(?string $path): ?string
+    {
+        if ($path === null || trim($path) === '') {
+            return null;
+        }
+
+        if (class_exists(\App\Support\PublicStorageUrl::class)) {
+            return \App\Support\PublicStorageUrl::from($path);
+        }
+
+        $relative = ltrim($path, '/');
+        if (str_starts_with($relative, 'storage/')) {
+            $relative = substr($relative, strlen('storage/'));
+        }
+
+        $risPublic = rtrim((string) config('services.ris.public_url', env('RIS_PUBLIC_URL', '')), '/');
+        if ($risPublic !== '') {
+            return $risPublic . '/storage/' . $relative;
+        }
+
+        return asset('storage/' . $relative);
+    }
+
+    /** @param Laboratory|object|null $lab */
     public static function headerLines($lab): array
     {
         $settings = [];
@@ -111,7 +147,11 @@ class ReportDocumentFormatter
         return rtrim($label, ':') . ':';
     }
 
-    public static function doctorPayload($user): array
+    /**
+     * @param User|object|null $user
+     * @param Laboratory|object|bool|null $labOrIncludeSignature laboratorio o flag explícito
+     */
+    public static function doctorPayload($user, $labOrIncludeSignature = null): array
     {
         if (!$user) {
             return [
@@ -126,10 +166,12 @@ class ReportDocumentFormatter
             $persona = $user->persona;
             $settings = is_array($user->settings) ? $user->settings : [];
             $username = $user->username;
+            $signaturePath = $user->signature_path ?? null;
         } else {
             $persona = $user->persona ?? null;
             $settings = is_array($user->settings ?? null) ? $user->settings : [];
             $username = $user->username ?? null;
+            $signaturePath = $user->signature_path ?? null;
         }
 
         $nameParts = array_filter([
@@ -144,12 +186,16 @@ class ReportDocumentFormatter
 
         $dragonProfile = $user instanceof User ? $user->dragon_profile : ($user->dragon_profile ?? null);
 
+        $includeSignature = is_bool($labOrIncludeSignature)
+            ? $labOrIncludeSignature
+            : self::labUsesReportSignature($labOrIncludeSignature);
+
         return [
             'displayName' => 'DR. ' . mb_strtoupper($fullName, 'UTF-8'),
             'initials' => trim((string) ($settings['inicialesInforme'] ?? $dragonProfile ?? '')),
             'registration' => trim((string) ($settings['registroMedico'] ?? '')),
-            // Firma visual: se incluye en el texto de transcripción (sin imagen automática).
-            'signatureUrl' => null,
+            // Firma visual solo si el laboratorio lo activa (users.signature_path).
+            'signatureUrl' => $includeSignature ? self::signaturePublicUrl($signaturePath) : null,
         ];
     }
 
@@ -176,7 +222,7 @@ class ReportDocumentFormatter
         $doctorUser = $destinationDoctor ?: ($appointment->destinationDoctor ?? null);
 
         return [
-            'headerLines' => self::headerLines($lab instanceof Laboratory ? $lab : null),
+            'headerLines' => self::headerLines($lab instanceof Laboratory || is_object($lab) ? $lab : null),
             'dateLine' => self::formatSpanishDate(
                 $appointment->start_time instanceof Carbon
                     ? $appointment->start_time
@@ -186,7 +232,7 @@ class ReportDocumentFormatter
             'patientName' => self::formatPatientName($patient),
             'examTitle' => self::formatExamTitle($study['exam'] ?? null, $study['subExam'] ?? null),
             'reportBody' => trim((string) ($study['reportText'] ?? $study['report'] ?? '')),
-            'doctor' => self::doctorPayload($doctorUser instanceof User ? $doctorUser : null),
+            'doctor' => self::doctorPayload($doctorUser, $lab),
         ];
     }
 
@@ -223,6 +269,17 @@ class ReportDocumentFormatter
         $patientName = e($document['patientName'] ?? '');
         $examTitle = e($document['examTitle'] ?? 'EXAMEN:');
 
+        $signatureBlock = '';
+        $signatureUrl = trim((string) ($document['doctor']['signatureUrl'] ?? ''));
+        if ($signatureUrl !== '') {
+            $safeUrl = e($signatureUrl);
+            $signatureBlock = <<<HTML
+    <div class="ris-report-signature" style="margin-top: 28px;">
+        <img src="{$safeUrl}" alt="Firma" style="max-height: 90px; max-width: 280px;">
+    </div>
+HTML;
+        }
+
         return <<<HTML
 <div class="ris-report-page" style="color: {$textColor}; font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.45;">
     <div class="ris-report-header" style="text-align:center; margin-bottom: 18px;">{$header}</div>
@@ -233,7 +290,7 @@ class ReportDocumentFormatter
     </div>
     <div style="font-weight: bold; margin-bottom: 10px;">{$examTitle}</div>
     <div class="ris-report-body" style="white-space: pre-wrap; text-align: justify; margin-bottom: 24px;">{$body}</div>
-</div>
+{$signatureBlock}</div>
 HTML;
     }
 
@@ -257,8 +314,8 @@ HTML;
     public static function appointmentChainMeta(Appointment $appointment): array
     {
         $appointment->loadMissing(['destinationDoctor.persona', 'laboratory', 'referringDoctor']);
-        $doctor = self::doctorPayload($appointment->destinationDoctor);
         $lab = $appointment->laboratory;
+        $doctor = self::doctorPayload($appointment->destinationDoctor, $lab);
         $settings = is_array($lab?->settings) ? $lab->settings : [];
 
         $refDoctorName = null;
@@ -272,6 +329,7 @@ HTML;
             'destinationDoctorName' => preg_replace('/^DR\.?\s*/i', '', $doctor['displayName']),
             'destinationDoctorInitials' => $doctor['initials'],
             'destinationDoctorRegistration' => $doctor['registration'],
+            'firmaUrl' => $doctor['signatureUrl'],
             'referringDoctorName' => $refDoctorName,
             'laboratory' => [
                 'name' => $lab?->name,
