@@ -31,11 +31,15 @@ class ThermalEscPosPrinter
 
         $cfg = config('services.thermal_printer', []);
         $width = max(24, (int) ($cfg['width_chars'] ?? 42));
-        $copies = max(1, $copies ?? (int) ($cfg['copies'] ?? 1));
+        $ticketCopies = isset($ticket['copies']) ? (int) $ticket['copies'] : null;
+        $copies = max(1, $copies ?? $ticketCopies ?? (int) ($cfg['copies'] ?? 2));
         $buffer = $this->buildBuffer($ticket, $width);
 
         for ($i = 0; $i < $copies; $i++) {
             $this->send((string) $cfg['interface'], $buffer);
+            if ($i < $copies - 1) {
+                usleep(400000);
+            }
         }
     }
 
@@ -107,13 +111,15 @@ class ThermalEscPosPrinter
         return $out;
     }
 
-    /** Avanza papel y corte total (Epson TM-m30: ESC d + GS V 66). */
+    /** Avanza papel y corte reforzado (parcial + total) para Epson TM. */
     private function feedAndCut(): string
     {
-        $feed = max(3, min(15, (int) (config('services.thermal_printer.cut_feed_lines') ?? 6)));
+        $feed = max(6, min(20, (int) (config('services.thermal_printer.cut_feed_lines') ?? 10)));
 
-        return self::ESC . 'd' . chr($feed)
-            . self::GS . 'V' . "\x42" . chr($feed);
+        return "\n\n"
+            . self::ESC . 'd' . chr($feed)
+            . self::GS . 'V' . "\x42" . chr(min(15, $feed))
+            . self::GS . 'V' . "\x00";
     }
 
     /**
@@ -166,9 +172,47 @@ class ThermalEscPosPrinter
 
     private function encode(string $text): string
     {
-        $converted = @iconv('UTF-8', 'CP850//IGNORE', $text);
+        $clean = $this->sanitizeTicketText($text);
+        $converted = @iconv('UTF-8', 'CP850//IGNORE', $clean);
 
-        return $converted !== false ? $converted : $text;
+        return $converted !== false ? $converted : $clean;
+    }
+
+    /** Elimina NBSP, tipografía rara y deja texto imprimible en térmica. */
+    private function sanitizeTicketText(string $text): string
+    {
+        if (class_exists(\Normalizer::class)) {
+            $normalized = \Normalizer::normalize($text, \Normalizer::FORM_D);
+            if (is_string($normalized)) {
+                $text = $normalized;
+            }
+        }
+        $text = preg_replace('/\p{Mn}/u', '', $text) ?? $text;
+        $map = [
+            "\u{00a0}" => ' ',
+            "\u{202f}" => ' ',
+            "\u{2007}" => ' ',
+            "\u{2009}" => ' ',
+            "\u{2008}" => ' ',
+            "\u{200a}" => ' ',
+            "\u{feff}" => '',
+            '–' => '-',
+            '—' => '-',
+            '―' => '-',
+            '“' => '"',
+            '”' => '"',
+            '«' => '"',
+            '»' => '"',
+            '‘' => "'",
+            '’' => "'",
+            '•' => '-',
+            '·' => '-',
+        ];
+        $text = strtr($text, $map);
+        $text = preg_replace('/[^\x09\x0A\x0D\x20-\x7E]/', '', $text) ?? $text;
+        $text = preg_replace('/ {2,}/', ' ', $text) ?? $text;
+
+        return $text;
     }
 
     private function send(string $interface, string $buffer): void

@@ -42,15 +42,46 @@
                                     class="btn btn-sm btn-outline-primary fw-bold">
                                     Conectar pedalera / SpeechMike
                                 </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary fw-bold"
+                                    id="btnToggleFootPedalMap" title="Asignar acciones a cada pedal">
+                                    <i class="bi bi-sliders me-1"></i>Configurar pedales
+                                </button>
                                 <button type="button" class="btn btn-link btn-sm p-0 text-secondary"
                                     style="font-size: 0.72rem;" id="btnSpeechMikeDebug" title="Doble clic = diagnóstico">
                                     Probar teclas
                                 </button>
                             </div>
+                            <div id="footPedalMapPanel" class="d-none text-start border rounded p-2 mb-2 bg-light small mx-auto"
+                                style="max-width: 32rem;">
+                                <div class="fw-bold mb-2"><i class="bi bi-joystick me-1"></i>Mapeo pedalera LFH2330</div>
+                                <div class="d-flex flex-wrap gap-1 mb-2">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" data-foot-preset="siresa">Perfil Siresa</button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-foot-preset="standard">Perfil estándar</button>
+                                </div>
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <label class="form-label mb-0" for="footPedalMap_left">Izquierdo</label>
+                                        <select id="footPedalMap_left" class="form-select form-select-sm"></select>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label mb-0" for="footPedalMap_center">Centro</label>
+                                        <select id="footPedalMap_center" class="form-select form-select-sm"></select>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label mb-0" for="footPedalMap_right">Derecho</label>
+                                        <select id="footPedalMap_right" class="form-select form-select-sm"></select>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label mb-0" for="footPedalMap_top">Superior</label>
+                                        <select id="footPedalMap_top" class="form-select form-select-sm"></select>
+                                    </div>
+                                </div>
+                                <p class="text-muted mb-0 mt-2" style="font-size:0.7rem;">Se guarda en este navegador.</p>
+                            </div>
                             <p id="speechMikeHidStatus" class="small text-warning mb-2 px-1 text-center"
                                 style="font-size: 0.72rem;">
-                                Pedalera LFH2330: pulse <b>Conectar</b> en Chrome/Edge (HTTPS). Pedal izq. −5 s · centro
-                                play/pausa · der. +5 s.
+                                Pedalera LFH2330: pulse <b>Conectar</b> en Chrome/Edge (HTTPS). Use <b>Configurar pedales</b>
+                                para asignar acciones.
                             </p>
                             <audio id="audioDictado" preload="auto"></audio>
                             <div class="d-flex align-items-center gap-3">

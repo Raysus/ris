@@ -190,6 +190,7 @@ class AppointmentReceiptService
             'obs_label' => 'OBS:',
             'obs_text' => '',
             'footer' => '- COPIA MEDICO -',
+            'copies' => 2,
         ];
     }
 

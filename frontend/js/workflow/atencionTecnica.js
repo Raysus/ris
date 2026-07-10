@@ -63,6 +63,9 @@ function initAtencionTecnicaModule(config = {}) {
             .on('hidden.bs.modal.risAnamnesis', '#modalAtencion', risPersistirBorradorAnamnesis);
         $(document).off('change.risWorklistEquipos', '.filtro-equipo-worklist')
             .on('change.risWorklistEquipos', '.filtro-equipo-worklist', onWorklistMachineFilterChange);
+        if (typeof risEnableTextFilePaste === 'function') {
+            risEnableTextFilePaste(['#txtAnamnesis']);
+        }
     };
 
     if (typeof refreshLabProfileFromApi === 'function') {

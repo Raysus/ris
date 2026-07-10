@@ -64,8 +64,8 @@ $config = @{
         enabled = $true
         interface = $printer
         width_chars = 42
-        copies = 1
-        cut_feed_lines = 6
+        copies = 2
+        cut_feed_lines = 10
     }
 }
 

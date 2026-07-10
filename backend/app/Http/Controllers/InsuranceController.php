@@ -38,7 +38,10 @@ class InsuranceController extends Controller
     {
         $validated = $request->validate([
             'id' => 'nullable|string',
-            'name' => 'required|string|max:255'
+            'name' => 'required|string|max:255',
+            'code' => 'nullable|string|max:50',
+            'type' => 'nullable|string|max:50',
+            'is_active' => 'nullable|boolean',
         ]);
 
         $user = $request->user();
@@ -61,12 +64,31 @@ class InsuranceController extends Controller
             }
 
             $insurance->name = $validated['name'];
+            if (!empty($validated['code'])) {
+                $insurance->code = strtoupper(trim((string) $validated['code']));
+            } elseif (blank($insurance->code)) {
+                $insurance->code = $this->generateInsuranceCode(
+                    $validated['name'],
+                    $insurance->laboratory_id,
+                    $insurance->id
+                );
+            }
+            if (array_key_exists('type', $validated)) {
+                $insurance->type = $validated['type'];
+            }
+            if (array_key_exists('is_active', $validated)) {
+                $insurance->is_active = (bool) $validated['is_active'];
+            }
             $insurance->save();
 
         } else {
 
             $insurance = new Insurance();
             $insurance->name = $validated['name'];
+            $insurance->type = $validated['type'] ?? null;
+            $insurance->is_active = array_key_exists('is_active', $validated)
+                ? (bool) $validated['is_active']
+                : true;
 
             if ($isSysAdmin && (!$labId || $labId === 'ALL')) {
                 $insurance->laboratory_id = null;
@@ -81,10 +103,46 @@ class InsuranceController extends Controller
                 $insurance->laboratory_id = $labId;
             }
 
+            $insurance->code = !empty($validated['code'])
+                ? strtoupper(trim((string) $validated['code']))
+                : $this->generateInsuranceCode($validated['name'], $insurance->laboratory_id);
+
             $insurance->save();
         }
         \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Insurance', 'updated', $insurance->toArray());
         return response()->json(['success' => true, 'data' => $insurance]);
+    }
+
+    /**
+     * Genera un código corto único a partir del nombre (la columna code es NOT NULL).
+     */
+    private function generateInsuranceCode(string $name, ?string $laboratoryId, ?string $excludeId = null): string
+    {
+        $base = strtoupper(preg_replace('/[^A-Z0-9]+/i', '', iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $name) ?: $name) ?? '');
+        $base = substr($base !== '' ? $base : 'PREV', 0, 12);
+
+        $candidate = $base;
+        $suffix = 1;
+        while (
+            Insurance::query()
+                ->when(
+                    $laboratoryId === null,
+                    fn ($q) => $q->whereNull('laboratory_id'),
+                    fn ($q) => $q->where('laboratory_id', $laboratoryId)
+                )
+                ->when($excludeId, fn ($q) => $q->where('id', '!=', $excludeId))
+                ->where('code', $candidate)
+                ->exists()
+        ) {
+            $suffix++;
+            $candidate = substr($base, 0, 10) . $suffix;
+            if ($suffix > 99) {
+                $candidate = 'P' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 8));
+                break;
+            }
+        }
+
+        return $candidate;
     }
 
     public function destroy(Request $request, $id)

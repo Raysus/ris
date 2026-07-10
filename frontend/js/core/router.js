@@ -4,10 +4,11 @@
 
 const RIS_MODULE_SCRIPTS = {
     agenda: "/js/workflow/agenda.js",
-    worklist: ["/js/workflow/atencionTecnica.js", "/js/workflow/worklist.js"],
-    atencion: ["/js/workflow/atencionTecnica.js", "/js/workflow/atencion.js"],
+    worklist: ["/js/shared/text-file-paste.js", "/js/workflow/atencionTecnica.js", "/js/workflow/worklist.js"],
+    atencion: ["/js/shared/text-file-paste.js", "/js/workflow/atencionTecnica.js", "/js/workflow/atencion.js"],
     radiologist: [
         "/js/shared/workflow-inbox.js",
+        "/js/shared/text-file-paste.js",
         "/js/workflow/browser-dictation.js",
         "/js/workflow/speechmike-dictation.js",
         "/js/lib/fix-webm-duration.js",
@@ -15,6 +16,7 @@ const RIS_MODULE_SCRIPTS = {
     ],
     transcription: [
         "/js/shared/workflow-inbox.js",
+        "/js/shared/text-file-paste.js",
         "/js/workflow/speechmike-dictation.js",
         "/js/workflow/transcription.js",
     ],

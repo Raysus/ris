@@ -7,6 +7,20 @@ const { execFile } = require('child_process');
 const ESC = '\x1b';
 const GS = '\x1d';
 
+/** Quita NBSP, comillas tipográficas y caracteres que salen como basura en Epson. */
+function sanitizeEscPosText(text) {
+    return String(text ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[\u00a0\u202f\u2007\u2009\u2008\u200a\ufeff]/g, ' ')
+        .replace(/[–—―]/g, '-')
+        .replace(/[“”«»„]/g, '"')
+        .replace(/[‘’‚‛]/g, "'")
+        .replace(/[•·]/g, '-')
+        .replace(/[^\x09\x0a\x0d\x20-\x7e]/g, '')
+        .replace(/ {2,}/g, ' ');
+}
+
 class EscPosBuilder {
     constructor(width = 48) {
         this.width = width;
@@ -34,7 +48,7 @@ class EscPosBuilder {
     }
 
     line(text = '') {
-        this.parts.push(String(text).slice(0, this.width) + '\n');
+        this.parts.push(sanitizeEscPosText(text).slice(0, this.width) + '\n');
         return this;
     }
 
@@ -44,14 +58,20 @@ class EscPosBuilder {
     }
 
     separator(char = '-') {
-        this.parts.push(String(char).repeat(this.width).slice(0, this.width) + '\n');
+        const ch = sanitizeEscPosText(char).slice(0, 1) || '-';
+        this.parts.push(ch.repeat(this.width).slice(0, this.width) + '\n');
         return this;
     }
 
-    cut(feedLines = 6) {
-        const feed = Math.max(3, Math.min(15, feedLines));
+    /** Alimenta papel y corta (parcial + total) para Epson TM. */
+    cut(feedLines = 10) {
+        const feed = Math.max(6, Math.min(20, feedLines));
+        this.parts.push('\n\n');
         this.parts.push(ESC + 'd' + String.fromCharCode(feed));
-        this.parts.push(GS + 'V\x42' + String.fromCharCode(feed));
+        // Corte parcial con avance (GS V 66 n)
+        this.parts.push(GS + 'V\x42' + String.fromCharCode(Math.min(15, feed)));
+        // Corte total de refuerzo (GS V 0)
+        this.parts.push(GS + 'V\x00');
         return this;
     }
 
@@ -176,7 +196,7 @@ function sendFile(devicePath, buffer) {
     });
 }
 
-function buildBufferFromPayload(payload, width, cutFeedLines = 6) {
+function buildBufferFromPayload(payload, width, cutFeedLines = 10) {
     const b = new EscPosBuilder(width);
     b.parts.push(ESC + 'M\x00', ESC + '2');
 
@@ -242,9 +262,15 @@ async function printComprobante(config, payload) {
         throw new Error('Configure printer.interface (tcp://IP, printer:Nombre en Windows, o /dev/usb/lp0)');
     }
 
-    const width = Number(printerCfg.width_chars) || 48;
-    const copies = Math.max(1, Number(printerCfg.copies) || 1);
-    const cutFeedLines = Math.max(3, Math.min(15, Number(printerCfg.cut_feed_lines) || 6));
+    const width = Number(printerCfg.width_chars) || 42;
+    const copiesFromTicket = Number(payload?.copies);
+    const copies = Math.max(
+        1,
+        Number.isFinite(copiesFromTicket) && copiesFromTicket > 0
+            ? copiesFromTicket
+            : (Number(printerCfg.copies) || 2)
+    );
+    const cutFeedLines = Math.max(6, Math.min(20, Number(printerCfg.cut_feed_lines) || 10));
     const buffer = buildBufferFromPayload(payload, width, cutFeedLines);
     const target = parseInterface(printerCfg.interface);
 
@@ -261,6 +287,9 @@ async function printComprobante(config, payload) {
                 break;
             default:
                 throw new Error('printer.interface no válido');
+        }
+        if (i < copies - 1) {
+            await new Promise((r) => setTimeout(r, 400));
         }
     }
 
@@ -286,6 +315,7 @@ function twoColumns(left, right, width = 48) {
 
 module.exports = {
     EscPosBuilder,
+    sanitizeEscPosText,
     labelValue,
     twoColumns,
     printComprobante,

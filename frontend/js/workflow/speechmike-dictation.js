@@ -109,6 +109,19 @@ function isFootControlDevice(device) {
     return dt === DT.FOOT_CONTROL_ACC_2330 || dt === DT.FOOT_CONTROL_ACC_2310_2320;
 }
 
+const FOOT_PEDAL_MAP_STORAGE = "ris_foot_pedal_map_v1";
+
+const FOOT_PEDAL_ACTION_LABELS = {
+    none: "Sin acción",
+    seek_back: "Retroceder 5 s",
+    seek_forward: "Adelantar 5 s",
+    seek_back_long: "Retroceder 15 s",
+    toggle_play: "Play / pausa",
+    pause: "Pausar audio",
+    record_toggle: "Grabar / detener",
+    record_pause: "Pausa / reanudar grabación",
+};
+
 /** Layout pedalera LFH2330 acordado en SIRESA (solo sedes SIRESA). */
 function isSiresaFootPedalLayout() {
     if (typeof window.RIS_FOOT_PEDAL_LAYOUT === "string") {
@@ -118,26 +131,117 @@ function isSiresaFootPedalLayout() {
     return labName.includes("SIRESA");
 }
 
+function getDefaultFootPedalMap() {
+    if (isSiresaFootPedalLayout()) {
+        return { left: "seek_back", center: "none", right: "toggle_play", top: "none" };
+    }
+    return { left: "seek_back", center: "toggle_play", right: "seek_forward", top: "none" };
+}
+
+function loadFootPedalMap() {
+    try {
+        const raw = localStorage.getItem(FOOT_PEDAL_MAP_STORAGE);
+        if (!raw) return getDefaultFootPedalMap();
+        const parsed = JSON.parse(raw);
+        const defaults = getDefaultFootPedalMap();
+        return {
+            left: FOOT_PEDAL_ACTION_LABELS[parsed.left] ? parsed.left : defaults.left,
+            center: FOOT_PEDAL_ACTION_LABELS[parsed.center] ? parsed.center : defaults.center,
+            right: FOOT_PEDAL_ACTION_LABELS[parsed.right] ? parsed.right : defaults.right,
+            top: FOOT_PEDAL_ACTION_LABELS[parsed.top] ? parsed.top : defaults.top,
+        };
+    } catch (_) {
+        return getDefaultFootPedalMap();
+    }
+}
+
+function saveFootPedalMap(map) {
+    const next = { ...getDefaultFootPedalMap(), ...map };
+    localStorage.setItem(FOOT_PEDAL_MAP_STORAGE, JSON.stringify(next));
+    refreshFootPedalMapUi();
+    updateSiresaFootPedalUiHints();
+}
+
+function footPedalActionHint(map) {
+    const parts = [];
+    if (map.left && map.left !== "none") parts.push(`izq. ${FOOT_PEDAL_ACTION_LABELS[map.left]}`);
+    if (map.center && map.center !== "none") parts.push(`centro ${FOOT_PEDAL_ACTION_LABELS[map.center]}`);
+    if (map.right && map.right !== "none") parts.push(`der. ${FOOT_PEDAL_ACTION_LABELS[map.right]}`);
+    if (map.top && map.top !== "none") parts.push(`sup. ${FOOT_PEDAL_ACTION_LABELS[map.top]}`);
+    return parts.length ? parts.join(" · ") : "sin acciones asignadas";
+}
+
 function siresaFootPedalModeHint() {
-    return "Siresa: izq. −5 s · centro sin uso · der. play/pausa.";
+    return footPedalActionHint(loadFootPedalMap());
 }
 
 function updateSiresaFootPedalUiHints() {
-    if (!isSiresaFootPedalLayout()) {
-        return;
-    }
+    const map = loadFootPedalMap();
+    const hint = footPedalActionHint(map);
     const $status = $("#speechMikeHidStatus");
     if ($status.length && !$status.hasClass("text-success")) {
         $status.text(
-            "Pedalera Siresa (LFH2330): pulse Conectar en Chrome/Edge. Izq. −5 s · centro sin uso · der. play/pausa."
+            `Pedalera LFH2330: pulse Conectar en Chrome/Edge. ${hint}.`
         );
     }
     const $kbd = $("#transcriptionPedalKeyboardHint");
     if ($kbd.length) {
-        $kbd.html(
-            '<i class="bi bi-keyboard me-1"></i> Siresa: pedal izq. −5 s · der. play/pausa · centro deshabilitado'
-        );
+        $kbd.html(`<i class="bi bi-keyboard me-1"></i> Pedales: ${hint}`);
     }
+}
+
+function refreshFootPedalMapUi() {
+    const map = loadFootPedalMap();
+    ["left", "center", "right", "top"].forEach((slot) => {
+        const $sel = $(`#footPedalMap_${slot}`);
+        if ($sel.length) $sel.val(map[slot] || "none");
+    });
+}
+
+function setupFootPedalMapUi() {
+    const $panel = $("#footPedalMapPanel");
+    if (!$panel.length) return;
+
+    ["left", "center", "right", "top"].forEach((slot) => {
+        const $sel = $(`#footPedalMap_${slot}`);
+        if (!$sel.length || $sel.find("option").length) return;
+        Object.entries(FOOT_PEDAL_ACTION_LABELS).forEach(([value, label]) => {
+            $sel.append(`<option value="${value}">${label}</option>`);
+        });
+    });
+
+    refreshFootPedalMapUi();
+
+    $panel
+        .off("change.risFootPedal")
+        .on("change.risFootPedal", "select[id^='footPedalMap_']", function () {
+            const map = loadFootPedalMap();
+            const slot = String(this.id || "").replace("footPedalMap_", "");
+            if (!slot) return;
+            map[slot] = $(this).val() || "none";
+            saveFootPedalMap(map);
+            if (typeof showToast === "function") {
+                showToast("Mapeo de pedalera guardado en este equipo.", "success");
+            }
+        });
+
+    $panel
+        .off("click.risFootPedalPreset")
+        .on("click.risFootPedalPreset", "[data-foot-preset]", function () {
+            const id = $(this).data("foot-preset");
+            let map;
+            if (id === "siresa") {
+                map = { left: "seek_back", center: "none", right: "toggle_play", top: "none" };
+            } else if (id === "standard") {
+                map = { left: "seek_back", center: "toggle_play", right: "seek_forward", top: "none" };
+            } else {
+                map = getDefaultFootPedalMap();
+            }
+            saveFootPedalMap(map);
+            if (typeof showToast === "function") {
+                showToast("Perfil de pedalera aplicado.", "success");
+            }
+        });
 }
 
 function speechMikeDeviceLabel(device) {
@@ -184,9 +288,7 @@ function updateSpeechMikeConnectUi(extraStatus) {
         const name = speechMikeDeviceLabel(first);
         let modeHint;
         if (isFootControlDevice(first)) {
-            modeHint = isSiresaFootPedalLayout()
-                ? siresaFootPedalModeHint()
-                : "Pedales: ◀◀ −5 s · ▶ play/pausa · ▶▶ +5 s (con dictado cargado).";
+            modeHint = footPedalActionHint(loadFootPedalMap());
         } else if (speechMikeSupportsBrowserMode(first)) {
             modeHint = "Modo navegador (F3) opcional.";
         } else {
@@ -379,33 +481,47 @@ function dispatchSpeechMikeAudioAction(action) {
     return executeSpeechMikeAudioAction(action);
 }
 
-function resolveSiresaFootPedalHidAction(newlyPressed, session, preview) {
-    const BE = DictationSupport.ButtonEvent;
+function resolveFootPedalConfiguredAction(actionId, session, preview) {
+    if (!actionId || actionId === "none") return null;
 
-    // Superior (EOL_PRIO): sin acción.
-    if (newlyPressed & BE.EOL_PRIO) {
-        return null;
-    }
-
-    // Izquierdo: retroceder 5 s (igual que antes).
-    if (newlyPressed & BE.REWIND) {
-        return preview && !session ? { type: "audio", action: "seek_back" } : null;
-    }
-
-    // Central (PLAY): vacío.
-    if (newlyPressed & BE.PLAY) {
-        return null;
-    }
-
-    // Derecho: play/pausa (antes era el pedal central).
-    if (newlyPressed & BE.FORWARD) {
-        if (preview && !session) {
-            return { type: "audio", action: "toggle_play" };
+    if (actionId === "record_toggle") {
+        if (preview && !session) dispatchSpeechMikeAudioAction("pause");
+        if (session && typeof isRecordingPaused === "function" && isRecordingPaused()) {
+            return { type: "rec", action: "resume" };
         }
-        if (session) {
+        return { type: "rec", action: session ? "stop" : "start" };
+    }
+
+    if (actionId === "record_pause") {
+        if (!session) return null;
+        return { type: "rec", action: isRecordingPaused() ? "resume" : "pause" };
+    }
+
+    if (!preview || session) {
+        if (session && (actionId === "toggle_play" || actionId === "pause")) {
             return { type: "rec", action: isRecordingPaused() ? "resume" : "pause" };
         }
         return null;
+    }
+
+    return { type: "audio", action: actionId };
+}
+
+function resolveSiresaFootPedalHidAction(newlyPressed, session, preview) {
+    const BE = DictationSupport.ButtonEvent;
+    const map = loadFootPedalMap();
+
+    if (newlyPressed & BE.EOL_PRIO) {
+        return resolveFootPedalConfiguredAction(map.top, session, preview);
+    }
+    if (newlyPressed & BE.REWIND) {
+        return resolveFootPedalConfiguredAction(map.left, session, preview);
+    }
+    if (newlyPressed & BE.PLAY) {
+        return resolveFootPedalConfiguredAction(map.center, session, preview);
+    }
+    if (newlyPressed & BE.FORWARD) {
+        return resolveFootPedalConfiguredAction(map.right, session, preview);
     }
 
     return null;
@@ -525,9 +641,7 @@ function handleSpeechMikeHidButton(device, bitMask) {
     const session = typeof isRecordingSessionActive === "function" && isRecordingSessionActive();
     const preview =
         typeof isAudioPreviewListeningMode === "function" && isAudioPreviewListeningMode();
-    const useSiresaFoot =
-        isFootControlDevice(device) && isSiresaFootPedalLayout();
-    const resolved = useSiresaFoot
+    const resolved = isFootControlDevice(device)
         ? resolveSiresaFootPedalHidAction(newlyPressed, session, preview)
         : resolveSpeechMikeHidAction(newlyPressed, session, preview);
 
@@ -562,9 +676,7 @@ function onSpeechMikeHidConnected() {
     const foot = devices.some((d) => isFootControlDevice(d));
     if (foot) {
         showToast(
-            isSiresaFootPedalLayout()
-                ? "Pedalera Siresa: izq. −5 s · centro sin uso · der. play/pausa (con dictado abierto)."
-                : "Pedalera lista. Con un dictado abierto: pedal izquierdo −5 s, centro play/pausa, derecho +5 s.",
+            `Pedalera lista. Con dictado abierto: ${footPedalActionHint(loadFootPedalMap())}.`,
             "success",
             10000
         );
@@ -941,6 +1053,17 @@ function setupSpeechMikeUiBindings() {
             testSpeechMikeLed();
         }
     });
+
+    $("#btnToggleFootPedalMap")
+        .off("click.risFootPedal")
+        .on("click.risFootPedal", function () {
+            const $panel = $("#footPedalMapPanel");
+            if (!$panel.length) return;
+            $panel.toggleClass("d-none");
+            $(this).toggleClass("active", !$panel.hasClass("d-none"));
+        });
+
+    setupFootPedalMapUi();
 }
 
 async function initSpeechMikeDictation() {

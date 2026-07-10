@@ -201,6 +201,15 @@ function cancelSpeechMikeKeyCapture() {
 function setupSpeechMikeKeymapUi() {
     refreshSpeechMikeKeymapUi();
 
+    $("#btnToggleSpeechMikeKeys")
+        .off("click.risSmKeys")
+        .on("click.risSmKeys", function () {
+            const $panel = $("#speechMikeKeymapPanel");
+            if (!$panel.length) return;
+            $panel.toggleClass("d-none");
+            $(this).toggleClass("active", !$panel.hasClass("d-none"));
+        });
+
     $("#speechMikeKeymapPanel")
         .off("click.risSmPreset")
         .on("click.risSmPreset", "[data-sm-preset]", function () {
@@ -248,6 +257,9 @@ function initRadiologist() {
     setupSpeechMikeShortcuts();
     setupSpeechMikeKeymapUi();
     wireBrowserDictationButton();
+    if (typeof risEnableTextFilePaste === "function") {
+        risEnableTextFilePaste(["#textoInforme", "#txtAnamnesis"]);
+    }
     if (typeof setupBrowserDictationUi === "function") {
         setupBrowserDictationUi();
     } else if (typeof showToast === "function") {

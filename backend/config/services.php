@@ -47,8 +47,8 @@ return [
         'enabled' => filter_var(env('THERMAL_PRINTER_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
         'interface' => env('THERMAL_PRINTER_INTERFACE', ''),
         'width_chars' => (int) env('THERMAL_PRINTER_WIDTH', 42),
-        'copies' => max(1, (int) env('THERMAL_PRINTER_COPIES', 1)),
-        'cut_feed_lines' => max(3, min(15, (int) env('THERMAL_PRINTER_CUT_FEED_LINES', 6))),
+        'copies' => max(1, (int) env('THERMAL_PRINTER_COPIES', 2)),
+        'cut_feed_lines' => max(6, min(20, (int) env('THERMAL_PRINTER_CUT_FEED_LINES', 10))),
     ],
 
     'portal_integration' => [

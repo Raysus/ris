@@ -14,8 +14,8 @@
         "enabled": true,
         "interface": "\\\\localhost\\imprayos",
         "width_chars": 42,
-        "copies": 1,
-        "cut_feed_lines": 6,
+        "copies": 2,
+        "cut_feed_lines": 10,
         "_comment_interface": "\\\\localhost\\imprayos (SIRESA legacy) | printer:EPSON TM-m30 rayos | tcp://192.168.0.240:9100",
         "_comment_siresa": "En Windows ejecute configure-printer-windows.ps1 para detectar la impresora local"
     },

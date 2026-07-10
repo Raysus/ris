@@ -40,8 +40,9 @@ const getLocalConfig = () => {
                 printer: {
                     enabled: false,
                     interface: '',
-                    width_chars: 48,
-                    copies: 1,
+                    width_chars: 42,
+                    copies: 2,
+                    cut_feed_lines: 10,
                 },
             };
         }

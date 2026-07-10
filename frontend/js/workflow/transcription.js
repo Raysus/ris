@@ -28,6 +28,9 @@ function initTranscription() {
     setupKeyboardShortcuts();
     setupAudioListeners();
     setupTranscriptionSpeechMikeHooks();
+    if (typeof risEnableTextFilePaste === "function") {
+        risEnableTextFilePaste(["#textoTranscripcion"]);
+    }
     if (typeof updateSiresaFootPedalUiHints === "function") {
         updateSiresaFootPedalUiHints();
     }
