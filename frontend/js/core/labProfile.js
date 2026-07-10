@@ -12,6 +12,8 @@ const RIS_DEFAULT_PROFILE = {
     uses_clinical_insurance: true,
     show_insurance_fields: true,
     show_fonasa_panel: true,
+    show_agenda_origin: false,
+    show_agenda_priority: false,
     patient_label: 'Paciente',
     patient_id_label: 'RUT / Documento',
     service_code_label: 'Cód. FONASA',
@@ -153,6 +155,25 @@ function applyLabProfileUI(root = document) {
         const plan = byId('pPlan');
         if (ins) ins.value = '';
         if (plan) plan.value = '';
+    }
+
+    const originWrap = byId('agendaProcedenciaWrap') || byId('mProcedencia')?.closest('[data-ris-agenda-field="origin"], .col-md-2');
+    const priorityWrap = byId('agendaPrioridadWrap') || byId('mPriority')?.closest('[data-ris-agenda-field="priority"], .col-md-2');
+    if (originWrap) {
+        originWrap.classList.toggle('d-none', !p.show_agenda_origin);
+        const sel = byId('mProcedencia');
+        if (sel) {
+            sel.required = !!p.show_agenda_origin;
+            if (!p.show_agenda_origin && !sel.value) sel.value = 'Ambulatorio';
+        }
+    }
+    if (priorityWrap) {
+        priorityWrap.classList.toggle('d-none', !p.show_agenda_priority);
+        const sel = byId('mPriority');
+        if (sel) {
+            sel.required = !!p.show_agenda_priority;
+            if (!p.show_agenda_priority && !sel.value) sel.value = 'Normal';
+        }
     }
 
     const copagoReadonly = byId('percentageInsurance');

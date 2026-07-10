@@ -197,12 +197,41 @@ class PatientController extends Controller
 
             $historyInLab = 0;
             $lastWithInsurance = null;
+            $priorAppointments = [];
 
             if ($patientIds->isNotEmpty()) {
                 $historyInLab = Appointment::query()
                     ->where('laboratory_id', $labId)
                     ->whereIn('patient_id', $patientIds)
                     ->count();
+
+                $priorAppointments = Appointment::query()
+                    ->with(['studies:id,appointment_id,exam_name,sub_exam_name,machine_id', 'machine:id,name'])
+                    ->where('laboratory_id', $labId)
+                    ->whereIn('patient_id', $patientIds)
+                    ->orderByDesc('start_time')
+                    ->limit(15)
+                    ->get()
+                    ->map(function (Appointment $app) {
+                        $studies = $app->studies ?? collect();
+                        $examNames = $studies->map(function ($s) {
+                            $name = trim((string) ($s->exam_name ?? ''));
+                            $sub = trim((string) ($s->sub_exam_name ?? ''));
+                            return $sub !== '' ? "{$name} ({$sub})" : $name;
+                        })->filter()->values()->all();
+
+                        return [
+                            'id' => $app->id,
+                            'start_time' => $app->start_time?->format('Y-m-d H:i:s'),
+                            'end_time' => $app->end_time?->format('Y-m-d H:i:s'),
+                            'status' => $app->status,
+                            'machine_name' => $app->machine?->name,
+                            'exams' => $examNames,
+                            'accession_number' => $app->accession_number,
+                        ];
+                    })
+                    ->values()
+                    ->all();
 
                 $lastWithInsurance = Appointment::query()
                     ->whereIn('patient_id', $patientIds)
@@ -241,6 +270,7 @@ class PatientController extends Controller
                 'has_ficha_in_lab' => $patientInLab !== null,
                 'history_count' => $historyInLab,
                 'had_prior_appointment_in_lab' => $historyInLab > 0,
+                'prior_appointments' => $priorAppointments,
             ];
 
             if ($lastWithInsurance) {

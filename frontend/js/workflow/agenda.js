@@ -1138,6 +1138,7 @@ function risPropsEventoCalendario(item) {
         payMethod: item.payMethod,
         paymentStatus: item.paymentStatus,
         transactionCode: item.transactionCode,
+        transactionCode2: item.transactionCode2,
         tipoBono: item.tipoBono,
         entidadPagadora: item.entidadPagadora,
         studies: item.studies,
@@ -1210,7 +1211,7 @@ function aplicarConfigAgendaHorario(schedule) {
     calendar.setOption('slotMaxTime', schedule.horaFin || '20:00:00');
     calendar.setOption('views', buildAgendaCalendarViews(schedule));
     calendar.setOption('slotDuration', slotDur);
-    calendar.setOption('slotLabelInterval', '01:00:00');
+    calendar.setOption('slotLabelInterval', slotDur);
     try {
         calendar.render();
     } catch (e) {
@@ -1690,6 +1691,8 @@ function poblarSelectsAgenda() {
     (catalogosAgenda.referring_doctors || []).forEach(doc => {
         selectTratante.append(`<option value="${doc.id}">${risEscapeHtml(doc.names)} ${risEscapeHtml(doc.last_name_1)}</option>`);
     });
+    $('#mTratanteFilter').val('');
+    filtrarSelectMedicoTratante('');
 
     const selectDestinado = $("#mDestinado");
     selectDestinado.empty().append('<option value="">Seleccione Radiólogo...</option>');
@@ -1734,6 +1737,76 @@ function poblarSelectsAgenda() {
     risPoblarSelectSalasAgenda($('#risBuscarExamMachine'));
 }
 
+function filtrarSelectMedicoTratante(query) {
+    const q = String(query || '').trim().toLowerCase();
+    const $sel = $('#mTratante');
+    if (!$sel.length) return;
+    $sel.find('option').each(function () {
+        const $opt = $(this);
+        const val = String($opt.val() || '');
+        if (val === '' || val === 'NUEVO') {
+            $opt.prop('hidden', false).prop('disabled', false);
+            return;
+        }
+        const text = String($opt.text() || '').toLowerCase();
+        const match = !q || text.includes(q);
+        $opt.prop('hidden', !match).prop('disabled', !match);
+    });
+}
+
+function limpiarPanelCitasAnterioresAgenda() {
+    $('#btnVerCitasAnteriores').addClass('d-none').text('Ver historial');
+    $('#agendaCitasAnterioresPanel').addClass('d-none');
+    $('#agendaCitasAnterioresBody').html(
+        '<tr><td colspan="4" class="text-muted text-center small py-2">Busque un paciente para ver su historial.</td></tr>'
+    );
+}
+
+function renderPanelCitasAnterioresAgenda(list) {
+    const items = Array.isArray(list) ? list : [];
+    const $btn = $('#btnVerCitasAnteriores');
+    const $body = $('#agendaCitasAnterioresBody');
+    if (!items.length) {
+        limpiarPanelCitasAnterioresAgenda();
+        $body.html('<tr><td colspan="4" class="text-muted text-center small py-2">Sin citas anteriores en esta sede.</td></tr>');
+        return;
+    }
+
+    $btn.removeClass('d-none').text(`Ver historial (${items.length})`);
+    const rows = items.map((app) => {
+        const start = app.start_time ? new Date(String(app.start_time).replace(' ', 'T')) : null;
+        const fecha = start && !Number.isNaN(start.getTime())
+            ? start.toLocaleString('es-CL', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false,
+            })
+            : (app.start_time || '—');
+        const exams = Array.isArray(app.exams) && app.exams.length
+            ? app.exams.join(', ')
+            : '—';
+        return `<tr class="small">
+            <td class="text-nowrap">${risEscapeHtml(fecha)}</td>
+            <td><span class="badge bg-secondary text-uppercase">${risEscapeHtml(app.status || '')}</span></td>
+            <td>${risEscapeHtml(app.machine_name || '—')}</td>
+            <td>${risEscapeHtml(exams)}</td>
+        </tr>`;
+    }).join('');
+    $body.html(rows);
+}
+
+function togglePanelCitasAnterioresAgenda() {
+    const $panel = $('#agendaCitasAnterioresPanel');
+    $panel.toggleClass('d-none');
+    const open = !$panel.hasClass('d-none');
+    const countText = $('#btnVerCitasAnteriores').text().replace(/^Ver historial|^Ocultar historial/, '').trim();
+    $('#btnVerCitasAnteriores').text(open ? `Ocultar historial ${countText}` : `Ver historial ${countText}`.trim());
+}
+window.togglePanelCitasAnterioresAgenda = togglePanelCitasAnterioresAgenda;
+
 function normalizarDuracionFC(valor) {
     if (!valor) return '00:15';
     const partes = String(valor).split(':');
@@ -1768,7 +1841,7 @@ function esVistaTimelineSalas(viewType) {
 }
 
 function esVistaGrillaPorDia(viewType) {
-    return viewType === 'resourceTimeGridWeek' || viewType === 'agendaMes';
+    return viewType === 'resourceTimeGridWeek';
 }
 
 /** Día: centra el scroll en la hora actual (si hoy está visible) o al inicio del horario. */
@@ -1823,10 +1896,10 @@ function buildAgendaCalendarViews(config) {
         resourceTimelineDay: {
             type: 'resourceTimeline',
             slotDuration: slotDur,
-            slotMinWidth: 120,
+            slotMinWidth: 72,
             slotMinTime: horaInicio,
             slotMaxTime: horaFin,
-            slotLabelInterval: '01:00:00',
+            slotLabelInterval: slotDur,
             slotLabelFormat: {
                 hour: '2-digit',
                 minute: '2-digit',
@@ -1842,29 +1915,7 @@ function buildAgendaCalendarViews(config) {
             slotDuration: slotDur,
             slotMinTime: horaInicio,
             slotMaxTime: horaFin,
-            slotLabelInterval: '01:00:00',
-            slotLabelFormat: {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false,
-            },
-            dayHeaderFormat: {
-                weekday: 'long',
-                day: 'numeric',
-                month: 'short',
-                omitCommas: true,
-            },
-            dayMinWidth: 155,
-            resourceAreaWidth: '11%',
-            allDaySlot: false,
-        },
-        agendaMes: {
-            type: 'resourceTimeGrid',
-            duration: { months: 1 },
-            slotDuration: slotDur,
-            slotMinTime: horaInicio,
-            slotMaxTime: horaFin,
-            slotLabelInterval: '01:00:00',
+            slotLabelInterval: slotDur,
             slotLabelFormat: {
                 hour: '2-digit',
                 minute: '2-digit',
@@ -1873,11 +1924,19 @@ function buildAgendaCalendarViews(config) {
             dayHeaderFormat: {
                 weekday: 'short',
                 day: 'numeric',
+                month: 'short',
                 omitCommas: true,
             },
-            dayMinWidth: 72,
-            resourceAreaWidth: '11%',
+            dayMinWidth: 140,
+            resourceAreaWidth: '12%',
             allDaySlot: false,
+        },
+        agendaMes: {
+            type: 'dayGridMonth',
+            dayMaxEvents: 4,
+            moreLinkClick: 'popover',
+            fixedWeekCount: false,
+            showNonCurrentDates: true,
         },
     };
 }
@@ -1888,7 +1947,7 @@ function actualizarContextoVistaAgenda(view) {
     const hints = {
         resourceTimelineDay: 'Día: cada fila es una sala; las horas avanzan de izquierda a derecha.',
         resourceTimeGridWeek: 'Semana: reloj a la izquierda · cada columna es un día (lun–dom) · cada fila es una sala.',
-        agendaMes: 'Mes: reloj a la izquierda · una columna por día del mes · cada fila es una sala (desplácese horizontalmente).',
+        agendaMes: 'Mes: calendario mensual · clic en un día para abrir la vista Día · clic en una cita para verla.',
     };
     el.textContent = hints[view.type] || '';
 }
@@ -1961,7 +2020,7 @@ function setupCalendar(el) {
         slotMinTime: configRIS.horaInicio || '08:00:00',
         slotMaxTime: configRIS.horaFin || '20:00:00',
         slotDuration: slotDur,
-        slotLabelInterval: '01:00:00',
+        slotLabelInterval: slotDur,
         slotLabelFormat: {
             hour: '2-digit',
             minute: '2-digit',
@@ -1974,6 +2033,12 @@ function setupCalendar(el) {
         selectable: true,
         editable: true,
         eventResourceEditable: true,
+        dateClick: function (info) {
+            if (info.view?.type !== 'agendaMes') return;
+            if (calendar) {
+                calendar.changeView('resourceTimelineDay', info.date);
+            }
+        },
         eventClassNames: function (arg) {
             const props = arg.event.extendedProps;
             if (risCitaRecepcionBloqueada(props.statusRaw, props.status)) {
@@ -2086,7 +2151,16 @@ function setupCalendar(el) {
             const rangoHora = formatearRangoHoraEvento(arg.event.start, arg.event.end);
             const alert = needsReview ? '<span class="badge bg-danger rounded-pill ms-1" style="font-size:8px">!</span>' : '';
 
-            if (arg.view.type === 'agendaMes' || arg.view.type === 'resourceTimeGridWeek') {
+            if (arg.view.type === 'agendaMes') {
+                const hora = arg.event.start
+                    ? arg.event.start.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false })
+                    : '';
+                return {
+                    html: `<div class="agenda-evento-mes text-truncate px-1">${hora} ${arg.event.title}${alert}</div>`,
+                };
+            }
+
+            if (arg.view.type === 'resourceTimeGridWeek') {
                 return {
                     html: `<div class="agenda-evento-compacto px-1 py-0 text-white fw-semibold" style="font-size:0.72rem;line-height:1.25;background:${bgColor};border-radius:3px;height:100%;"><div class="text-truncate">${lockIcon}<i class="bi bi-clock me-1"></i>${rangoHora}</div><div class="text-truncate opacity-90" style="font-size:0.68rem;">${arg.event.title}${alert}</div></div>`,
                 };
@@ -2157,6 +2231,7 @@ function filtrarAgendaItems(agenda, termRaw) {
 /** Mapea citas RIS → eventos FullCalendar (un bloque por sala, en secuencia). */
 function mapearEventosCalendario(agendaItems, viewType) {
     const events = [];
+    const isMonth = viewType === 'agendaMes';
 
     (agendaItems || []).forEach((item) => {
         const colorEstado = getHexColorEstado(item.status);
@@ -2166,6 +2241,33 @@ function mapearEventosCalendario(agendaItems, viewType) {
         const blocks = risCalcularBloquesPorSala(item);
 
         if (!blocks.length) return;
+
+        // Mes: un evento por cita (sin filas de sala) para no duplicar en dayGrid.
+        if (isMonth) {
+            const bloqueada = risCitaRecepcionBloqueada(item.statusRaw, item.status);
+            const start = blocks[0].start;
+            const end = blocks[blocks.length - 1].end;
+            events.push({
+                id: String(item.id),
+                groupId: String(item.id),
+                title: titulo,
+                start,
+                end,
+                color: colorEstado,
+                textColor: AGENDA_ESTADO_TEXTO,
+                display: 'block',
+                editable: false,
+                resourceEditable: false,
+                startEditable: false,
+                durationEditable: false,
+                extendedProps: {
+                    ...baseProps,
+                    blockIndex: 0,
+                    blockCount: blocks.length,
+                },
+            });
+            return;
+        }
 
         blocks.forEach((block, idx) => {
             const bloqueada = risCitaRecepcionBloqueada(item.statusRaw, item.status);
@@ -2263,6 +2365,7 @@ async function cargarAgendaDesdeServidor() {
                     payMethod: app.payment_method,
                     paymentStatus: app.payment_status || 'Pendiente',
                     transactionCode: app.transaction_code,
+                    transactionCode2: app.transaction_code_2,
                     tipoBono: app.tipo_bono,
                     entidadPagadora: app.entidad_pagadora,
                     patient: {
@@ -2323,6 +2426,7 @@ function abrirModalCita(data) {
     }
     if ($form.length) $form[0].reset();
     poblarSelectsAgenda();
+    limpiarPanelCitasAnterioresAgenda();
     window._risBonoMontos = null;
     $('#agendaObservacion').val('');
     risLimpiarQuickExamEntry();
@@ -2381,6 +2485,7 @@ function abrirModalCita(data) {
         $("#paymentStatus").val(data.paymentStatus || "Pendiente");
         poblarEntidadesPagadorasAgenda(data.entidadPagadora || "");
         $("#pTransactionCode").val(data.transactionCode || "");
+        $("#pTransactionCode2").val(data.transactionCode2 || "");
         if (data.transactionCode) {
             $('#fonasaFolio').val(data.transactionCode);
         }
@@ -2599,6 +2704,7 @@ async function guardarCita() {
         payment_method: $("#payMethod").val(),
         entidad_pagadora: $("#pEntidadPagadora").val(),
         transaction_code: $("#pTransactionCode").val(),
+        transaction_code_2: $("#pTransactionCode2").val(),
         payment_status: $("#paymentStatus").val(),
     };
 
@@ -3429,11 +3535,15 @@ async function buscarPacientePorDocumentoAgenda(options = {}) {
                         'info'
                     );
                     $('#pName').addClass('border-info bg-info-subtle');
+                    renderPanelCitasAnterioresAgenda(payload.prior_appointments || []);
                 } else if (payload.insurance_id) {
                     showToast(
                         'Previsión sugerida desde la última atención registrada.',
                         'info'
                     );
+                    limpiarPanelCitasAnterioresAgenda();
+                } else {
+                    limpiarPanelCitasAnterioresAgenda();
                 }
 
                 showToast('✅ Persona encontrada (registro global).', 'success');
@@ -3449,6 +3559,7 @@ async function buscarPacientePorDocumentoAgenda(options = {}) {
                 $('#pName, #pLastName, #pSecondLastName, #pBirthDate, #pEmail, #pPhone').val('');
                 setAgendaPrevision(null);
                 $('#pSex').val('M');
+                limpiarPanelCitasAnterioresAgenda();
                 $input.data('agendaLastSearch', doc);
                 return true;
             }
@@ -3504,6 +3615,10 @@ function setupProEventListeners() {
             $('#modalNuevoMedico').modal('show');
             $(this).val('');
         }
+    });
+
+    $(document).on('input.agendaPro', '#mTratanteFilter', function () {
+        filtrarSelectMedicoTratante($(this).val());
     });
 
     $(document).on('change.agendaPro', '#pBirthDate', function () {

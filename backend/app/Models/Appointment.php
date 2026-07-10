@@ -26,6 +26,7 @@ class Appointment extends Model
         'payment_method',
         'payment_status',
         'transaction_code',
+        'transaction_code_2',
         'medical_order_path',
         'survey_path',
         'previous_reports_paths',

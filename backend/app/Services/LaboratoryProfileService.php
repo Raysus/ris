@@ -63,6 +63,18 @@ class LaboratoryProfileService
             $usesDicomWorklist = (bool) $labSettings['uses_dicom_worklist'];
         }
 
+        // Procedencia / prioridad en Agenda: ocultos por defecto; admin puede activarlos.
+        $showAgendaOrigin = false;
+        $showAgendaPriority = false;
+        if (is_array($labSettings)) {
+            if (array_key_exists('show_agenda_origin', $labSettings)) {
+                $showAgendaOrigin = (bool) $labSettings['show_agenda_origin'];
+            }
+            if (array_key_exists('show_agenda_priority', $labSettings)) {
+                $showAgendaPriority = (bool) $labSettings['show_agenda_priority'];
+            }
+        }
+
         return [
             'code' => $code,
             'uses_dicom_worklist' => $usesDicomWorklist,
@@ -77,6 +89,8 @@ class LaboratoryProfileService
             'uses_clinical_insurance' => $isClinical,
             'show_insurance_fields' => $isClinical || $isVeterinary,
             'show_fonasa_panel' => $isClinical,
+            'show_agenda_origin' => $showAgendaOrigin,
+            'show_agenda_priority' => $showAgendaPriority,
             'patient_label' => $isVeterinary ? 'Mascota' : 'Paciente',
             'patient_id_label' => $isVeterinary ? 'ID mascota / microchip' : 'RUT / Documento',
             'service_code_label' => $isClinical ? 'Cód. FONASA' : 'Cód. prestación',

@@ -1359,6 +1359,11 @@ async function cargarConfigCentro() {
                 $("#cfgHoraFin").val(lab.settings.horaFin || "");
                 $("#cfgIntervalo").val(lab.settings.intervalo || "00:15:00");
                 $("#cfgColorInforme").val(lab.settings.colorInforme || "#000000");
+                $("#cfgShowAgendaOrigin").prop("checked", !!lab.settings.show_agenda_origin);
+                $("#cfgShowAgendaPriority").prop("checked", !!lab.settings.show_agenda_priority);
+            } else {
+                $("#cfgShowAgendaOrigin").prop("checked", false);
+                $("#cfgShowAgendaPriority").prop("checked", false);
             }
 
             if (esSysAdminLogueado()) {
@@ -1487,7 +1492,9 @@ async function guardarConfigCentroAdmin() {
         horaInicio: $("#cfgHoraInicio").val(),
         horaFin: $("#cfgHoraFin").val(),
         intervalo: $("#cfgIntervalo").val(),
-        colorInforme: $("#cfgColorInforme").val()
+        colorInforme: $("#cfgColorInforme").val(),
+        show_agenda_origin: $("#cfgShowAgendaOrigin").is(":checked"),
+        show_agenda_priority: $("#cfgShowAgendaPriority").is(":checked"),
     };
     formData.append('settings', JSON.stringify(settings));
 
@@ -1510,6 +1517,11 @@ async function guardarConfigCentroAdmin() {
             window.RIS.config = { ...(window.RIS.config || {}), ...settings };
             if (typeof window.aplicarConfigAgendaHorario === 'function') {
                 window.aplicarConfigAgendaHorario(settings);
+            }
+            if (typeof refreshLabProfileFromApi === 'function') {
+                refreshLabProfileFromApi().then(() => {
+                    if (typeof applyLabProfileUI === 'function') applyLabProfileUI();
+                }).catch(() => {});
             }
             showToast("✅ Matriz actualizada.", "success");
         } else {
