@@ -1,0 +1,47 @@
+================================================================================
+RIS Local Bridge — dejarlo SIEMPRE ENCENDIDO (Windows)
+================================================================================
+PC de recepción Siresa. Una sola vez por equipo.
+
+CONTENIDO DE ESTA CARPETA
+-------------------------
+  Instalar-Bridge-Siempre-Encendido.bat   ← ejecute este (doble clic)
+  install-windows-startup.ps1             registra la tarea de Windows
+  start-bridge-hidden.vbs                 arranca el bridge sin ventana
+  start-bridge.bat                        lanza Node
+  server.js                               bridge actualizado (2 páginas, etc.)
+  config.json                             rutas NAPS2 / RadiAnt / Epson Siresa
+
+PASOS
+-----
+1. En la PC de recepción, abra la carpeta del bridge ya instalado.
+   Suele ser algo como:
+     C:\Users\...\HealthTiCloud\ris-local-bridge
+   o la carpeta Instalar-Bridge-Windows\ris-local-bridge
+
+2. Copie DENTRO de esa carpeta todos los archivos de esta carpeta
+   (reemplace server.js y config.json si le pide).
+   Si ya tenía un config.json bueno, conserve el suyo; si no, use el
+   incluido (impresora Epson 192.168.0.117).
+
+3. Ejecute:  Instalar-Bridge-Siempre-Encendido.bat
+   (si Windows bloquea scripts: clic derecho → Ejecutar como administrador)
+
+4. Verifique en el navegador de esa PC:
+     http://127.0.0.1:8181/health
+
+QUÉ HACE
+--------
+- Crea la tarea programada:  HealthTiCloud-RIS-Local-Bridge
+- Arranca el bridge OCULTO al iniciar sesión de Windows
+- Si Node se cae, Windows lo reinicia solo (hasta 5 veces)
+
+NOTAS
+-----
+- El escáner NAPS2 necesita usuario con sesión iniciada (no sirve solo
+  con el PC en pantalla de login).
+- Para quitar el autoinicio, en PowerShell:
+    Unregister-ScheduledTask -TaskName 'HealthTiCloud-RIS-Local-Bridge' -Confirm:$false
+
+Soporte: HealthTiCloud / RIS
+================================================================================
