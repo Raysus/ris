@@ -8,7 +8,8 @@
     },
     "scanner": {
         "naps2_path": "/Applications/NAPS2.app/Contents/MacOS/NAPS2.Console",
-        "profile": "Default"
+        "profile": "Default",
+        "page_delay_ms": 4000
     },
     "printer": {
         "enabled": true,
