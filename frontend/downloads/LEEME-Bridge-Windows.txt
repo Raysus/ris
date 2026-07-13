@@ -1,0 +1,81 @@
+================================================================================
+RIS Local Bridge — Windows (escáner + impresora térmica Epson)
+================================================================================
+Copie esta carpeta a cada PC de recepción y siga los pasos.
+
+CONTENIDO
+---------
+  setup-scanner-windows.bat      Instalador completo (Node + NAPS2 + bridge)
+  configure-printer-windows.ps1  Configura la impresora térmica (imprayos)
+  start-bridge.bat               Arranca el bridge manualmente
+  start-bridge-hidden.vbs        Arranca el bridge oculto
+  install-windows-startup.ps1    Registra inicio automático al iniciar sesión
+  Instalar-Bridge-Siempre-Encendido.bat  Un clic: deja el bridge siempre encendido
+  LEEME-Bridge-Siempre-Encendido.txt     Guía corta del autoinicio
+  config.example.json            Ejemplo de configuración
+  LEEME-Bridge-Windows.txt       Esta guía
+
+  Carpeta ris-local-bridge\      Código del bridge (server.js, lib\, package.json)
+                                 Úsela si ya tiene Node y solo quiere actualizar.
+
+PASO 1 — Instalar el bridge (una vez por PC)
+--------------------------------------------
+1. Abra esta carpeta en el PC de recepción.
+2. Ejecute como Administrador:  setup-scanner-windows.bat
+3. Espere a que termine. Debe decir OK en http://127.0.0.1:8181/health
+
+PASO 2 — Configurar la impresora térmica (como Sistelab)
+--------------------------------------------------------
+En Sistelab se usaba:  \\localhost\imprayos
+
+1. Abra CMD o PowerShell en esta carpeta.
+2. Ejecute:
+
+   powershell -ExecutionPolicy Bypass -File configure-printer-windows.ps1
+
+   Si no detecta la impresora, indíquela a mano:
+
+   powershell -ExecutionPolicy Bypass -File configure-printer-windows.ps1 -PrinterName "\\localhost\imprayos"
+
+   o con el nombre de Windows:
+
+   powershell -ExecutionPolicy Bypass -File configure-printer-windows.ps1 -PrinterName "EPSON TM-m30 rayos"
+
+3. Reinicie el bridge:
+
+   start-bridge.bat
+
+PASO 2b — Dejar el bridge SIEMPRE ENCENDIDO (recomendado)
+---------------------------------------------------------
+En la carpeta del bridge (o en esta carpeta):
+
+  Instalar-Bridge-Siempre-Encendido.bat
+
+Crea la tarea HealthTiCloud-RIS-Local-Bridge: arranca oculto al iniciar
+sesión y se reinicia solo si se cae. Ver LEEME-Bridge-Siempre-Encendido.txt
+
+PASO 3 — Verificar
+------------------
+Abra en el navegador de esa PC:
+
+  http://127.0.0.1:8181/health
+
+Debe mostrar algo como:
+  "printer": "\\\\localhost\\imprayos"
+
+Luego en el RIS (Agenda) imprima un comprobante: no debe pedir elegir impresora
+y el ticket debe cortarse solo.
+
+NOTAS
+-----
+- La impresora Windows debe estar compartida como "imprayos" (Propiedades →
+  Compartir) o use el nombre completo "EPSON TM-m30 rayos".
+- En Propiedades → Puertos, el puerto TCP/IP debe apuntar a la IP real de la
+  Epson (p. ej. 192.168.0.240), no a una IP incorrecta.
+- En Opciones avanzadas, deje desmarcada "Habilitar características de
+  impresión avanzadas" para que el corte ESC/POS funcione.
+- El bridge debe estar corriendo siempre (tarea programada
+  HealthTiCloud-RIS-Local-Bridge).
+
+Soporte: HealthTiCloud / RIS
+================================================================================
