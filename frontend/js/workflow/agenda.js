@@ -4074,12 +4074,23 @@ function verDocumento(tipo) {
 
 async function iniciarEscaneoDirecto(tipo) {
     const btn = tipo === 'orden' ? $('#btnEscanearOrden') : $('#btnEscanearEncuesta');
+    const pagesSelect = tipo === 'orden' ? $('#scanPagesOrden') : $('#scanPagesEncuesta');
+    const pages = Math.min(Math.max(parseInt(pagesSelect.val(), 10) || 1, 1), 5);
     const textoOriginal = btn.html();
 
-    btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>Escaneando...');
+    btn.prop('disabled', true).html(
+        pages > 1
+            ? `<span class="spinner-border spinner-border-sm me-2"></span>Escaneando ${pages} pág...`
+            : '<span class="spinner-border spinner-border-sm me-2"></span>Escaneando...'
+    );
+    pagesSelect.prop('disabled', true);
+
+    if (pages > 1 && typeof showToast === 'function') {
+        showToast('Coloque la 1ª página. Tras el primer pase, gire o cambie a la 2ª página.', 'info');
+    }
 
     try {
-        const response = await fetch(`${LOCAL_BRIDGE_URL}/escanear`);
+        const response = await fetch(`${LOCAL_BRIDGE_URL}/escanear?pages=${pages}`);
         const data = await response.json();
 
         if (response.ok && data.success) {
@@ -4090,15 +4101,21 @@ async function iniciarEscaneoDirecto(tipo) {
                 $('#docEncuesta').val(data.file);
                 $('#btnVerEncuesta, #btnBorrarEncuesta').removeClass('d-none');
             }
-            showToast("✅ Documento digitalizado con éxito.", "success");
+            showToast(
+                pages > 1
+                    ? `✅ Documento de ${pages} páginas digitalizado.`
+                    : '✅ Documento digitalizado con éxito.',
+                'success'
+            );
         } else {
-            throw new Error(data.message || "Error desconocido");
+            throw new Error(data.message || 'Error desconocido');
         }
     } catch (error) {
-        console.error("Error del puente:", error);
-        showToast("❌ No se detectó el Escáner. Asegúrese de tener el 'RIS Bridge' abierto en su PC.", "danger");
+        console.error('Error del puente:', error);
+        showToast("❌ No se detectó el Escáner. Asegúrese de tener el 'RIS Bridge' abierto en su PC.", 'danger');
     } finally {
         btn.prop('disabled', false).html(textoOriginal);
+        pagesSelect.prop('disabled', false);
     }
 }
 

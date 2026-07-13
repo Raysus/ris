@@ -2,7 +2,7 @@
  * RIS Local Bridge — corre en cada PC de recepción / radiología (no en el servidor).
  * Puerto: 127.0.0.1:8181
  *
- * - GET  /escanear              → NAPS2 → PDF base64 (Agenda)
+ * - GET  /escanear?pages=1|2   → NAPS2 → PDF base64 (Agenda; -n páginas)
  * - POST /open-dicom            → RadiAnt, Horos, OsiriX, Weasis (Radiólogo / Validación)
  * - POST /imprimir-comprobante  → Epson térmica ESC/POS (Agenda)
  * - GET  /health                → estado del servicio
@@ -71,23 +71,37 @@ app.get('/escanear', (req, res) => {
         return res.status(500).json({ success: false, message: 'Scanner no configurado en config.json' });
     }
 
+    const pagesRaw = parseInt(String(req.query.pages || '1'), 10);
+    const pages = Number.isFinite(pagesRaw) ? Math.min(Math.max(pagesRaw, 1), 5) : 1;
+    const delayMs = pages > 1
+        ? Math.min(Math.max(parseInt(String(config.scanner?.page_delay_ms || '4000'), 10) || 4000, 0), 30000)
+        : 0;
+
     const outputDir = path.join(__dirname, 'scans');
     if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 
     const outputFile = path.join(outputDir, `temp_scan_${Date.now()}.pdf`);
     const naps2 = config.scanner.naps2_path;
     const profile = config.scanner.profile || 'Default';
-    const cmd = `"${naps2}" -o "${outputFile}" --profile "${profile}" --force`;
+    let cmd = `"${naps2}" -o "${outputFile}" --profile "${profile}" --force -n ${pages}`;
+    if (delayMs > 0) {
+        cmd += ` -d ${delayMs}`;
+    }
 
-    exec(cmd, (error) => {
+    exec(cmd, { timeout: 180000, windowsHide: true }, (error) => {
         if (error) {
-            return res.status(500).json({ success: false, message: 'Escáner no detectado o NAPS2 falló' });
+            return res.status(500).json({
+                success: false,
+                message: pages > 1
+                    ? 'Escáner no detectado o falló el escaneo de varias páginas (NAPS2)'
+                    : 'Escáner no detectado o NAPS2 falló',
+            });
         }
         try {
             if (fs.existsSync(outputFile)) {
                 const base64 = `data:application/pdf;base64,${fs.readFileSync(outputFile).toString('base64')}`;
                 fs.unlinkSync(outputFile);
-                return res.json({ success: true, file: base64 });
+                return res.json({ success: true, file: base64, pages });
             }
             res.status(500).json({ success: false, message: 'Error al generar archivo' });
         } catch (err) {
