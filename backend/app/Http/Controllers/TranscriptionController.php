@@ -19,9 +19,17 @@ class TranscriptionController extends Controller
 
     private const TRANSCRIPTION_ROLES = ['admin', 'sis_admin', 'transcriptor'];
 
+    /** Quién puede adjuntar/reemplazar el PDF de informe (incluye corrección post-firma). */
+    private const REPORT_DOCUMENT_ROLES = ['admin', 'sis_admin', 'transcriptor', 'radiologo'];
+
     private function assertTranscriptionAccess(Request $request): void
     {
         $this->assertAnyRole($request, self::TRANSCRIPTION_ROLES);
+    }
+
+    private function assertReportDocumentAccess(Request $request): void
+    {
+        $this->assertAnyRole($request, self::REPORT_DOCUMENT_ROLES);
     }
 
     private function getSecureAppointmentQuery()
@@ -95,19 +103,28 @@ class TranscriptionController extends Controller
         return response()->json(['success' => true, 'data' => $formattedData]);
     }
 
+    /** Estados en los que se puede adjuntar/reemplazar el documento de informe. */
+    private const REPORT_DOCUMENT_STATUSES = [
+        'en_transcripcion',
+        'para_firma',
+        'entregable',
+        'entregado',
+        'en_informe',
+    ];
+
     public function uploadReportDocument(Request $request, $id)
     {
-        $this->assertTranscriptionAccess($request);
+        $this->assertReportDocumentAccess($request);
         $request->validate([
             'study_id' => 'required|string',
             'document' => 'required|file|mimes:pdf,jpg,jpeg,png,doc,docx|max:20480',
         ]);
 
         $appointment = $this->getSecureAppointmentQuery()->findOrFail($id);
-        if ($appointment->status !== 'en_transcripcion') {
+        if (!in_array((string) $appointment->status, self::REPORT_DOCUMENT_STATUSES, true)) {
             return response()->json([
                 'success' => false,
-                'message' => 'La cita no está en transcripción.',
+                'message' => 'No se puede adjuntar o corregir el informe en el estado actual de la cita (' . $appointment->status . ').',
             ], 422);
         }
 
@@ -152,6 +169,24 @@ class TranscriptionController extends Controller
                 'updated_at' => now(),
             ]);
 
+        // Si se corrige un informe ya firmado, dejar constancia en el log.
+        if (in_array((string) $appointment->status, ['entregable', 'entregado', 'para_firma'], true)) {
+            DB::table('appointment_logs')->insert([
+                'id' => (string) Str::orderedUuid(),
+                'appointment_id' => $appointment->id,
+                'user_id' => $request->user()->id,
+                'action' => 'REPORT_DOCUMENT_REPLACED',
+                'details' => json_encode([
+                    'study_id' => $study->id,
+                    'mensaje' => 'Se reemplazó el documento de informe (corrección).',
+                    'status' => $appointment->status,
+                ]),
+                'ip_address' => $request->ip(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
         $appointment->touch();
         $appointment->load(['patient.persona', 'studies', 'supplies']);
         if (class_exists('\App\Jobs\SyncEntityToCloud')) {
@@ -168,7 +203,7 @@ class TranscriptionController extends Controller
 
     public function deleteReportDocument(Request $request, $id)
     {
-        $this->assertTranscriptionAccess($request);
+        $this->assertReportDocumentAccess($request);
         $studyId = $request->input('study_id') ?: $request->query('study_id');
         if (!$studyId) {
             return response()->json([
@@ -178,10 +213,10 @@ class TranscriptionController extends Controller
         }
 
         $appointment = $this->getSecureAppointmentQuery()->findOrFail($id);
-        if ($appointment->status !== 'en_transcripcion') {
+        if (!in_array((string) $appointment->status, self::REPORT_DOCUMENT_STATUSES, true)) {
             return response()->json([
                 'success' => false,
-                'message' => 'La cita no está en transcripción.',
+                'message' => 'No se puede quitar o corregir el informe en el estado actual de la cita (' . $appointment->status . ').',
             ], 422);
         }
 
@@ -207,10 +242,17 @@ class TranscriptionController extends Controller
             }
         }
 
+        $reportText = trim((string) ($study->report ?? ''));
+        // Si solo había el placeholder del adjunto, limpiarlo para forzar un informe nuevo.
+        if ($reportText === '' || $reportText === 'Informe adjunto como documento.') {
+            $reportText = '';
+        }
+
         DB::table('appointment_studies')
             ->where('id', $study->id)
             ->update([
                 'report_document_path' => null,
+                'report' => $reportText !== '' ? $reportText : null,
                 'updated_at' => now(),
             ]);
 

@@ -89,6 +89,7 @@ function initValidation() {
         });
     }
 
+    setupDocumentoValidacionUi();
     cargarAjustesVisualesValidacion();
     cargarListaValidacion();
     setInterval(() => {
@@ -289,19 +290,136 @@ function cargarEstudioValidacion(studyId) {
         .prop("disabled", true);
 
     const $docBox = $valRoot().find("#documentoValidacionAdjunto");
+    const $docUpload = $valRoot().find("#documentoValidacionSubir");
     if ($docBox.length) {
         if (hasDoc && currentValStudy.reportDocumentUrl) {
             $docBox.removeClass("d-none");
+            $docUpload.addClass("d-none");
             $valRoot().find("#linkDocumentoValidacion").attr("href", currentValStudy.reportDocumentUrl);
         } else {
             $docBox.addClass("d-none");
             $valRoot().find("#linkDocumentoValidacion").attr("href", "#");
+            $docUpload.removeClass("d-none");
         }
     }
 
     renderCartaInformeValidacion();
     $valRoot().find("#finalReportText").removeClass("border border-warning border-2 bg-warning-subtle shadow-sm");
     $valRoot().find("#btnEditarValidacion").html('<i class="bi bi-pencil-square me-1"></i> CORREGIR TYPO').removeClass("btn-warning").addClass("btn-outline-warning");
+}
+
+function setupDocumentoValidacionUi() {
+    const root = $valRoot();
+    root.find("#btnReemplazarDocumentoVal, #btnSubirDocumentoVal")
+        .off("click.risDocVal")
+        .on("click.risDocVal", function () {
+            if (!currentValidationChain || !currentValStudy) {
+                if (typeof showToast === "function") showToast("Seleccione un examen primero.", "warning");
+                return;
+            }
+            root.find("#inputDocumentoValidacion").val("").trigger("click");
+        });
+
+    root.find("#inputDocumentoValidacion")
+        .off("change.risDocVal")
+        .on("change.risDocVal", async function () {
+            const file = this.files && this.files[0];
+            if (!file) return;
+            await subirDocumentoInformeValidacion(file);
+            $(this).val("");
+        });
+
+    root.find("#btnQuitarDocumentoVal")
+        .off("click.risDocVal")
+        .on("click.risDocVal", function () {
+            quitarDocumentoInformeValidacion();
+        });
+}
+
+async function subirDocumentoInformeValidacion(file) {
+    if (!currentValidationChain || !currentValStudy) return;
+
+    const maxBytes = 20 * 1024 * 1024;
+    if (file.size > maxBytes) {
+        if (typeof showToast === "function") showToast("El archivo supera 20 MB.", "warning");
+        return;
+    }
+
+    const token = localStorage.getItem("ris_token");
+    const labId = localStorage.getItem("ris_lab_id");
+
+    try {
+        if (typeof showToast === "function") showToast("Subiendo documento corregido...", "info");
+        const formData = new FormData();
+        formData.append("study_id", currentValStudy.study_id);
+        formData.append("document", file, file.name);
+
+        const response = await fetch(
+            `${API_URL}/transcription/appointments/${currentValidationChain.id}/report-document`,
+            {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}`, "X-Lab-Id": labId },
+                body: formData,
+            }
+        );
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.success) {
+            throw new Error(data.message || "No se pudo subir el documento.");
+        }
+
+        currentValStudy.reportDocumentPath = data.path || null;
+        currentValStudy.reportDocumentUrl = data.url || null;
+        if (data.reportText) {
+            currentValStudy.reportText = data.reportText;
+            $valRoot().find("#finalReportText").val(data.reportText);
+        }
+        cargarEstudioValidacion(currentValStudy.study_id);
+        if (typeof showToast === "function") {
+            showToast("Documento de informe actualizado (corrección).", "success");
+        }
+    } catch (e) {
+        console.error(e);
+        if (typeof showToast === "function") showToast(e.message || "Error al subir documento.", "danger");
+    }
+}
+
+async function quitarDocumentoInformeValidacion() {
+    if (!currentValidationChain || !currentValStudy) return;
+    if (!(currentValStudy.reportDocumentUrl || currentValStudy.reportDocumentPath)) return;
+
+    const ok = typeof showConfirm === "function"
+        ? await showConfirm("¿Quitar el documento adjunto de este examen? Podrá subir uno corregido después.", {
+            title: "Quitar documento",
+            confirmText: "Quitar",
+        })
+        : window.confirm("¿Quitar el documento adjunto?");
+    if (!ok) return;
+
+    const token = localStorage.getItem("ris_token");
+    const labId = localStorage.getItem("ris_lab_id");
+
+    try {
+        const response = await fetch(
+            `${API_URL}/transcription/appointments/${currentValidationChain.id}/report-document?study_id=${encodeURIComponent(currentValStudy.study_id)}`,
+            {
+                method: "DELETE",
+                headers: typeof risBuildAuthHeaders === "function"
+                    ? risBuildAuthHeaders()
+                    : { Authorization: `Bearer ${token}`, "X-Lab-Id": labId },
+            }
+        );
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.success) {
+            throw new Error(data.message || "No se pudo quitar el documento.");
+        }
+        currentValStudy.reportDocumentPath = null;
+        currentValStudy.reportDocumentUrl = null;
+        cargarEstudioValidacion(currentValStudy.study_id);
+        if (typeof showToast === "function") showToast("Documento quitado. Puede subir uno corregido.", "secondary");
+    } catch (e) {
+        console.error(e);
+        if (typeof showToast === "function") showToast(e.message || "Error al quitar documento.", "danger");
+    }
 }
 
 async function firmarInforme() {
@@ -399,6 +517,7 @@ function limpiarPantallaValidacion() {
     $valRoot().find("#reportLetterIntro, #reportLetterFooter").empty();
     $valRoot().find("#examenesValidacion").empty();
     $valRoot().find("#documentoValidacionAdjunto").addClass("d-none");
+    $valRoot().find("#documentoValidacionSubir").addClass("d-none");
     $valRoot().find("#linkDocumentoValidacion").attr("href", "#");
     $valRoot().find("#finalReportText").val("").prop("disabled", true);
 
