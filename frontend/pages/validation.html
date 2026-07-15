@@ -68,9 +68,28 @@
 
                     <div id="documentoValidacionAdjunto" class="alert alert-info py-2 px-3 mb-2 small d-none">
                         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-                            <span><i class="bi bi-paperclip me-1"></i>Este examen tiene un documento de informe adjunto.</span>
-                            <a id="linkDocumentoValidacion" href="#" target="_blank" rel="noopener"
-                                class="btn btn-sm btn-outline-primary fw-bold">Abrir documento</a>
+                            <span><i class="bi bi-paperclip me-1"></i>Documento de informe adjunto (puede reemplazarlo si hay error).</span>
+                            <div class="d-flex flex-wrap gap-2">
+                                <a id="linkDocumentoValidacion" href="#" target="_blank" rel="noopener"
+                                    class="btn btn-sm btn-outline-primary fw-bold">Abrir</a>
+                                <button type="button" id="btnReemplazarDocumentoVal" class="btn btn-sm btn-outline-warning fw-bold">
+                                    Reemplazar
+                                </button>
+                                <button type="button" id="btnQuitarDocumentoVal" class="btn btn-sm btn-outline-danger fw-bold">
+                                    Quitar
+                                </button>
+                            </div>
+                        </div>
+                        <input type="file" id="inputDocumentoValidacion" class="d-none"
+                            accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,application/pdf,image/*">
+                    </div>
+
+                    <div id="documentoValidacionSubir" class="alert alert-secondary py-2 px-3 mb-2 small d-none">
+                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                            <span><i class="bi bi-upload me-1"></i>Sin documento adjunto. Puede subir el informe corregido.</span>
+                            <button type="button" id="btnSubirDocumentoVal" class="btn btn-sm btn-primary fw-bold">
+                                Subir documento
+                            </button>
                         </div>
                     </div>
 
