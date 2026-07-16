@@ -30,11 +30,19 @@ class WorklistController extends Controller
 {
     use ChecksRisAuthorization;
 
-    private const WORKLIST_ROLES = ['admin', 'sis_admin', 'tecnologo', 'tens'];
+    private const WORKLIST_ROLES = ['admin', 'sis_admin', 'tecnologo', 'tens', 'radiologo'];
+
+    /** Roles que pueden finalizar worklist sin anamnesis obligatoria. */
+    private const ANAMNESIS_OPTIONAL_ROLES = ['admin', 'sis_admin', 'radiologo'];
 
     private function assertWorklistAccess(Request $request): void
     {
         $this->assertAnyRole($request, self::WORKLIST_ROLES);
+    }
+
+    private function anamnesisIsOptional(Request $request): bool
+    {
+        return (bool) array_intersect($this->userEffectiveRoles($request), self::ANAMNESIS_OPTIONAL_ROLES);
     }
 
     private function getSecureAppointmentQuery()
@@ -535,7 +543,7 @@ class WorklistController extends Controller
     {
         $this->assertWorklistAccess($request);
         $request->validate([
-            'anamnesis' => 'required|string|max:2000',
+            'anamnesis' => ($this->anamnesisIsOptional($request) ? 'nullable' : 'required') . '|string|max:2000',
         ]);
 
         $appointment = $this->getSecureAppointmentQuery()->findOrFail($appointmentId);
@@ -547,12 +555,12 @@ class WorklistController extends Controller
             ], 422);
         }
 
-        $anamnesis = trim((string) $request->input('anamnesis'));
+        $anamnesis = trim((string) $request->input('anamnesis', ''));
 
         DB::table('appointment_studies')
             ->where('appointment_id', $appointment->id)
             ->update([
-                'anamnesis' => $anamnesis,
+                'anamnesis' => $anamnesis !== '' ? $anamnesis : null,
                 'updated_at' => now(),
             ]);
 
@@ -573,7 +581,7 @@ class WorklistController extends Controller
     {
         $this->assertWorklistAccess($request);
         $request->validate([
-            'anamnesis' => 'required|string',
+            'anamnesis' => ($this->anamnesisIsOptional($request) ? 'nullable' : 'required') . '|string',
             'supplies' => 'array',
             'supplies.*.id' => 'required',
             'supplies.*.quantity' => 'required|integer|min:1',
@@ -581,6 +589,7 @@ class WorklistController extends Controller
         ]);
 
         $userId = $request->user()->id;
+        $anamnesis = trim((string) $request->input('anamnesis', ''));
 
         DB::beginTransaction();
 
@@ -594,7 +603,7 @@ class WorklistController extends Controller
                 ->where('appointment_id', $appointment->id)
                 ->update([
                     'status' => 'pendiente_radiologo',
-                    'anamnesis' => $request->anamnesis,
+                    'anamnesis' => $anamnesis !== '' ? $anamnesis : null,
                     'updated_at' => now()
                 ]);
 
