@@ -9,7 +9,12 @@ use Carbon\Carbon;
 
 class ReportDocumentFormatter
 {
-    /** @return list<string> */
+    /**
+     * Cabecera histórica multi-sede (solo si el laboratorio la configura
+     * explícitamente en settings.reportHeader.branches).
+     *
+     * @return list<string>
+     */
     public static function defaultBranchLines(): array
     {
         return [
@@ -19,6 +24,32 @@ class ReportDocumentFormatter
             'Av. Arturo Prat Nº1130, Victoria. Fono 452 846 238',
             'Av. O´Higgins Nº915, Lautaro. Fono. 452 738218',
         ];
+    }
+
+    /**
+     * Una sola línea de dirección para la sede actual (sin mezclar otras sedes).
+     *
+     * @param  array<string, mixed>  $settings
+     */
+    public static function formatLabAddressLine(?string $address, ?string $city = null, array $settings = []): string
+    {
+        $parts = [];
+        $address = trim((string) $address);
+        $city = trim((string) $city);
+        if ($address !== '') {
+            $parts[] = $address;
+        }
+        if ($city !== '' && ($address === '' || !str_contains(mb_strtolower($address), mb_strtolower($city)))) {
+            $parts[] = $city;
+        }
+
+        $line = implode(', ', $parts);
+        $phone = trim((string) ($settings['phone'] ?? $settings['fono'] ?? $settings['telefono'] ?? ''));
+        if ($phone !== '') {
+            $line = $line !== '' ? ($line . '. Fono: ' . $phone) : ('Fono: ' . $phone);
+        }
+
+        return trim($line, " \t\n\r\0\x0B.");
     }
 
     /** @param Laboratory|object|null $lab */
@@ -75,17 +106,34 @@ class ReportDocumentFormatter
         }
         $reportHeader = is_array($settings['reportHeader'] ?? null) ? $settings['reportHeader'] : [];
 
+        $labCity = null;
+        if ($lab instanceof Laboratory) {
+            $labCity = $lab->city;
+        } elseif (is_object($lab)) {
+            $labCity = $lab->city ?? null;
+        }
+
         $legalName = trim((string) ($reportHeader['legalName'] ?? $labName ?? 'Centro de Diagnóstico y Tratamiento Ltda.'));
         $branches = $reportHeader['branches'] ?? null;
 
+        // Sin branches explícitas: solo la sede actual (nunca el listado multi-sede por defecto).
         if (!is_array($branches) || $branches === []) {
-            $branches = self::defaultBranchLines();
-            if (!empty($labAddress)) {
-                array_unshift($branches, trim((string) $labAddress));
+            $branches = [];
+            $ownLine = self::formatLabAddressLine(
+                $labAddress !== null ? (string) $labAddress : null,
+                $labCity !== null ? (string) $labCity : null,
+                $settings
+            );
+            if ($ownLine !== '') {
+                $branches[] = $ownLine;
             }
         }
 
-        $lines = [$legalName, $legalName];
+        $lines = [];
+        if ($legalName !== '') {
+            $lines[] = $legalName;
+            $lines[] = $legalName;
+        }
         foreach ($branches as $line) {
             $line = trim((string) $line);
             if ($line !== '') {
