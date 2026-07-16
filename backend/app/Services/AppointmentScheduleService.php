@@ -15,7 +15,7 @@ class AppointmentScheduleService
 
     /**
      * @param  list<array{machine_id?: string|null, quantity?: int|float|string|null}>  $studies
-     * @return array{start: CarbonInterface, end: CarbonInterface, adjusted: bool, shift_minutes: int}
+     * @return array{start: CarbonInterface, end: CarbonInterface, adjusted: bool, shift_minutes: int, overbooked: bool}
      */
     public function resolveStartTime(
         string $laboratoryId,
@@ -23,6 +23,7 @@ class AppointmentScheduleService
         array $studies,
         ?string $excludeAppointmentId = null,
         ?string $fallbackMachineId = null,
+        bool $allowOverbook = false,
     ): array {
         $lab = Laboratory::findOrFail($laboratoryId);
         $schedule = $lab->resolveScheduleSettings();
@@ -38,6 +39,29 @@ class AppointmentScheduleService
             $preferred,
             $excludeAppointmentId
         );
+
+        if ($allowOverbook) {
+            $candidateBlocks = $this->buildBlocks($preferred, $studies, $intervalMinutes, $fallbackMachineId);
+
+            if ($candidateBlocks === []) {
+                throw new \RuntimeException('Debe indicar al menos un examen con sala asignada.');
+            }
+
+            if (!$this->blocksWithinLabHours($candidateBlocks, $schedule)) {
+                throw new \RuntimeException('El horario solicitado está fuera del horario de atención del laboratorio.');
+            }
+
+            $end = $candidateBlocks[array_key_last($candidateBlocks)]['end'];
+            $overbooked = $this->blocksOverlapExisting($candidateBlocks, $existingBlocks);
+
+            return [
+                'start' => $preferred->copy()->utc(),
+                'end' => $end->copy()->utc(),
+                'adjusted' => false,
+                'shift_minutes' => 0,
+                'overbooked' => $overbooked,
+            ];
+        }
 
         $cursor = $preferred->copy();
         $maxAttempts = 240;
@@ -61,6 +85,7 @@ class AppointmentScheduleService
                     'end' => $end->copy()->utc(),
                     'adjusted' => $shiftMinutes > 0,
                     'shift_minutes' => $shiftMinutes,
+                    'overbooked' => false,
                 ];
             }
 

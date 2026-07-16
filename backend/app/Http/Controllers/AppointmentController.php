@@ -112,12 +112,14 @@ class AppointmentController extends Controller
                 $data = json_decode($request->input('data'), true);
 
                 $preferredStart = LabTimezone::parseScheduleTime($data['start_time']);
+                $allowOverbook = filter_var($data['allow_overbook'] ?? false, FILTER_VALIDATE_BOOLEAN);
                 $resolved = $this->scheduleService->resolveStartTime(
                     (string) $labId,
                     $preferredStart,
                     $data['studies'] ?? [],
                     null,
                     $data['machine_id'] ?? null,
+                    $allowOverbook,
                 );
                 $start = $resolved['start'];
                 $end = $resolved['end'];
@@ -222,6 +224,7 @@ class AppointmentController extends Controller
                     'confirmation_email' => $confirmationResult,
                     'schedule_adjusted' => $resolved['adjusted'],
                     'schedule_shift_minutes' => $resolved['shift_minutes'],
+                    'schedule_overbooked' => (bool) ($resolved['overbooked'] ?? false),
                     'requested_start_time' => LabTimezone::formatScheduleForApi($preferredStart),
                     'assigned_start_time' => LabTimezone::formatScheduleForApi($start),
                 ], 201);
@@ -258,12 +261,14 @@ class AppointmentController extends Controller
                     ->all();
 
                 $preferredStart = LabTimezone::parseScheduleTime((string) ($request->start_time ?? $request->start));
+                $allowOverbook = filter_var($request->input('allow_overbook', false), FILTER_VALIDATE_BOOLEAN);
                 $resolved = $this->scheduleService->resolveStartTime(
                     (string) $appointment->laboratory_id,
                     $preferredStart,
                     $studiesPayload,
                     (string) $appointment->id,
                     (string) ($request->machine_id ?? $request->machine ?? $appointment->machine_id),
+                    $allowOverbook,
                 );
 
                 $appointment->update([
@@ -285,6 +290,7 @@ class AppointmentController extends Controller
                     'success' => true,
                     'schedule_adjusted' => $resolved['adjusted'],
                     'schedule_shift_minutes' => $resolved['shift_minutes'],
+                    'schedule_overbooked' => (bool) ($resolved['overbooked'] ?? false),
                     'assigned_start_time' => LabTimezone::formatScheduleForApi($resolved['start']),
                 ]);
             }
@@ -309,12 +315,14 @@ class AppointmentController extends Controller
             }
 
             $preferredStart = LabTimezone::parseScheduleTime($data['start_time']);
+            $allowOverbook = filter_var($data['allow_overbook'] ?? false, FILTER_VALIDATE_BOOLEAN);
             $resolved = $this->scheduleService->resolveStartTime(
                 (string) $appointment->laboratory_id,
                 $preferredStart,
                 $data['studies'] ?? [],
                 (string) $appointment->id,
                 $data['machine_id'] ?? null,
+                $allowOverbook,
             );
 
             $appointment->update([
@@ -401,6 +409,7 @@ class AppointmentController extends Controller
                 'success' => true,
                 'schedule_adjusted' => $resolved['adjusted'],
                 'schedule_shift_minutes' => $resolved['shift_minutes'],
+                'schedule_overbooked' => (bool) ($resolved['overbooked'] ?? false),
                 'requested_start_time' => LabTimezone::formatScheduleForApi($preferredStart),
                 'assigned_start_time' => LabTimezone::formatScheduleForApi($resolved['start']),
             ]);

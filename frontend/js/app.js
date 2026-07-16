@@ -39,8 +39,8 @@ $(document).ready(async function () {
     const permisosModulos = {
         "dashboard": ["admin", "recepcion", "tecnologo", "radiologo", "transcriptor", "tens", "sis_admin"],
         "agenda": ["admin", "recepcion", "secretaria", "secretario", "tens", "sis_admin"],
-        "worklist": ["admin", "tecnologo", "tens", "sis_admin"],
-        "atencion": ["admin", "tecnologo", "tens", "sis_admin"],
+        "worklist": ["admin", "tecnologo", "tens", "sis_admin", "radiologo"],
+        "atencion": ["admin", "tecnologo", "tens", "sis_admin", "radiologo"],
         "radiologist": ["admin", "radiologo", "sis_admin"],
         "transcription": ["admin", "transcriptor", "sis_admin"],
         "validation": ["admin", "radiologo", "sis_admin"],

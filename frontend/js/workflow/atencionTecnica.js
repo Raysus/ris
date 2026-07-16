@@ -17,6 +17,36 @@ let _atencionRefreshTimer = null;
 /** Borradores locales de anamnesis por cadena (paciente+día) mientras se atiende la worklist. */
 let anamnesisDrafts = {};
 
+function risUserHasAnyRole(roles) {
+    const wanted = (roles || []).map((r) => String(r).toLowerCase());
+    const profileName = (localStorage.getItem('ris_user_profile') || '').toLowerCase();
+    if (wanted.includes(profileName)) {
+        return true;
+    }
+    try {
+        const userData = JSON.parse(localStorage.getItem('ris_user_data') || '{}');
+        const userRoles = Array.isArray(userData.settings?.roles) ? userData.settings.roles : [];
+        if (userRoles.some((r) => wanted.includes(String(r).toLowerCase()))) {
+            return true;
+        }
+        if (typeof risIsClinicAdmin === 'function' && risIsClinicAdmin() && wanted.includes('admin')) {
+            return true;
+        }
+        if (typeof risIsSysAdmin === 'function' && risIsSysAdmin()
+            && (wanted.includes('admin') || wanted.includes('sis_admin'))) {
+            return true;
+        }
+    } catch (e) {
+        /* ignore */
+    }
+    return false;
+}
+
+/** Admin / radiólogo: anamnesis opcional al finalizar worklist. */
+function risAnamnesisOpcionalWorklist() {
+    return risUserHasAnyRole(['admin', 'sis_admin', 'radiologo']);
+}
+
 const pesosPrioridad = {
     "Urgencia": 3,
     "Alta": 2,
@@ -967,7 +997,7 @@ async function guardarAnamnesisWorklist() {
     if (!currentAtencionChain) return;
 
     const anamnesis = $("#txtAnamnesis").val().trim();
-    if (!anamnesis) {
+    if (!anamnesis && !risAnamnesisOpcionalWorklist()) {
         return showToast('Escriba los síntomas o la anamnesis antes de guardar.', 'warning');
     }
 
@@ -1010,7 +1040,9 @@ async function finalizarAtencion() {
     if (!currentAtencionChain) return;
 
     const anamnesis = $("#txtAnamnesis").val().trim();
-    if (!anamnesis) return showToast("⚠️ La anamnesis/notas técnicas son obligatorias.", "warning");
+    if (!anamnesis && !risAnamnesisOpcionalWorklist()) {
+        return showToast("⚠️ La anamnesis/notas técnicas son obligatorias.", "warning");
+    }
 
     const btn = $("#btnFinalizar");
     btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Finalizando...');

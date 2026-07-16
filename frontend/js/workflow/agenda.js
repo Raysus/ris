@@ -1062,20 +1062,54 @@ function risHayColisionEnSala(machineId, start, end, excludeAppointmentId = null
     });
 }
 
-/** Busca el primer inicio libre (mismo criterio que el servidor) a partir de una hora preferida. */
-function risResolverInicioDisponible(preferredStart, estudios, excludeAppointmentId = null) {
+/** Busca el primer inicio libre (mismo criterio que el servidor) a partir de una hora preferida.
+ *  Con allowOverbook=true usa la hora pedida aunque solape (sigue respetando horario del lab). */
+function risResolverInicioDisponible(preferredStart, estudios, excludeAppointmentId = null, allowOverbook = false) {
     const cfg = getAgendaScheduleConfig();
     const intervaloMin = intervaloAMinutos(cfg.intervalo);
     let candidato = redondearDatetimeAlIntervalo(new Date(preferredStart), cfg.intervalo);
     if (Number.isNaN(candidato.getTime())) return null;
 
-    for (let i = 0; i < 240; i++) {
+    const buildResult = (start, adjusted, overbooked) => {
         let duracionTotalMinutos = 0;
         estudios.forEach((s) => {
             duracionTotalMinutos += calcularDuracionCita(s.machine_id, s.quantity);
         });
         duracionTotalMinutos = risSnapDuracionMinutos(duracionTotalMinutos);
 
+        const bloques = risCalcularBloquesPorSala({
+            start,
+            machine: estudios[0]?.machine_id,
+            studies: estudios.map((s) => ({
+                machine_id: s.machine_id,
+                quantity: s.quantity,
+            })),
+        });
+        const ultimoBloque = bloques[bloques.length - 1];
+        return {
+            start,
+            end: ultimoBloque?.end || new Date(start.getTime() + duracionTotalMinutos * 60000),
+            adjusted,
+            overbooked: !!overbooked,
+        };
+    };
+
+    if (allowOverbook) {
+        const bloques = risCalcularBloquesPorSala({
+            start: candidato,
+            machine: estudios[0]?.machine_id,
+            studies: estudios.map((s) => ({
+                machine_id: s.machine_id,
+                quantity: s.quantity,
+            })),
+        });
+        const hayColision = bloques.some((block) =>
+            risHayColisionEnSala(block.machineId, block.start, block.end, excludeAppointmentId)
+        );
+        return buildResult(candidato, false, hayColision);
+    }
+
+    for (let i = 0; i < 240; i++) {
         const bloques = risCalcularBloquesPorSala({
             start: candidato,
             machine: estudios[0]?.machine_id,
@@ -1090,12 +1124,7 @@ function risResolverInicioDisponible(preferredStart, estudios, excludeAppointmen
         );
 
         if (!hayColision) {
-            const ultimoBloque = bloques[bloques.length - 1];
-            return {
-                start: candidato,
-                end: ultimoBloque?.end || new Date(candidato.getTime() + duracionTotalMinutos * 60000),
-                adjusted: i > 0,
-            };
+            return buildResult(candidato, i > 0, false);
         }
 
         candidato = new Date(candidato.getTime() + intervaloMin * 60000);
@@ -2147,6 +2176,23 @@ function setupCalendar(el) {
                 return;
             }
 
+            const machineDestino = appointment?.machine
+                || info.newResource?.id
+                || info.event.getResources()?.[0]?.id;
+            const hayColisionDrop = risHayColisionEnSala(
+                machineDestino,
+                appointmentStart,
+                appointmentEnd,
+                apptId
+            );
+            let allowOverbookDrop = false;
+            if (hayColisionDrop) {
+                allowOverbookDrop = await showConfirm(
+                    'El horario elegido solapa con otra cita en la misma sala.\n\nAceptar = guardar como sobrecupo.\nCancelar = usar el siguiente hueco libre.',
+                    { title: 'Sobrecupo' }
+                );
+            }
+
             const token = localStorage.getItem('ris_token');
             const labId = localStorage.getItem('ris_lab_id');
 
@@ -2156,9 +2202,10 @@ function setupCalendar(el) {
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Lab-Id': labId },
                     body: JSON.stringify({
                         is_drag_and_drop: true,
+                        allow_overbook: !!allowOverbookDrop,
                         start_time: toLocalISOString(appointmentStart),
                         end_time: toLocalISOString(appointmentEnd),
-                        machine_id: appointment?.machine || info.newResource?.id || info.event.getResources()[0]?.id,
+                        machine_id: machineDestino,
                     })
                 });
 
@@ -2471,6 +2518,7 @@ function abrirModalCita(data) {
     limpiarPanelCitasAnterioresAgenda();
     window._risBonoMontos = null;
     $('#agendaObservacion').val('');
+    $('#chkPermitirSobrecupo').prop('checked', false);
     risLimpiarQuickExamEntry();
 
     $("#studyBody").empty();
@@ -2722,9 +2770,24 @@ async function guardarCita() {
 
     await cargarAgendaDesdeServidor();
 
-    const horarioResuelto = risResolverInicioDisponible(citaStart, todosLosEstudios, idOriginal);
+    const permitirSobrecupo = $('#chkPermitirSobrecupo').is(':checked');
+    const horarioResuelto = risResolverInicioDisponible(
+        citaStart,
+        todosLosEstudios,
+        idOriginal,
+        permitirSobrecupo
+    );
     if (!horarioResuelto) {
         return showToast('No hay huecos disponibles en el horario del laboratorio para las salas seleccionadas.', 'danger');
+    }
+
+    if (permitirSobrecupo && horarioResuelto.overbooked) {
+        const ok = window.confirm(
+            'El horario elegido solapa con otra cita en la misma sala.\n\n¿Confirma guardar como sobrecupo?'
+        );
+        if (!ok) {
+            return;
+        }
     }
 
     citaStart = horarioResuelto.start;
@@ -2738,6 +2801,7 @@ async function guardarCita() {
         end_time: toLocalISOString(citaEnd),
         machine_id: Array.from(salasInvolucradas)[0],
         status: statusSeleccionado,
+        allow_overbook: !!permitirSobrecupo,
         patient: snapshotPaciente,
         studies: todosLosEstudios,
         supplies: (currentInsumos || []).map(ins => ({ id: ins.id, quantity: ins.quantity || 1, price: ins.price })),
