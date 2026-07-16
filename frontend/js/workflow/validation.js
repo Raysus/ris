@@ -25,13 +25,18 @@ function formatearFechaValidacion(dateStr) {
 }
 
 function actualizarDocClinicaValidacion() {
+    // Prioridad: laboratorio de la cita abierta (no mezclar otras sedes).
     if (currentValidationChain?.laboratory) {
+        const lab = currentValidationChain.laboratory;
         labInfoValidacion = {
-            name: currentValidationChain.laboratory.name || labInfoValidacion.name,
-            address: currentValidationChain.laboratory.address || labInfoValidacion.address,
-            city: currentValidationChain.laboratory.city || labInfoValidacion.city,
-            settings: currentValidationChain.laboratory.settings || labInfoValidacion.settings || {},
+            name: lab.name || '',
+            address: lab.address || '',
+            city: lab.city || '',
+            settings: lab.settings || {},
         };
+        if (lab.settings?.colorInforme) {
+            colorInformeGlobalValidation = lab.settings.colorInforme;
+        }
     }
 }
 

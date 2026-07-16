@@ -105,4 +105,44 @@ class ReportDocumentFormatterTest extends TestCase
             'settings' => ['use_report_signature' => true],
         ]));
     }
+
+    public function test_header_lines_use_only_selected_lab_address(): void
+    {
+        $lines = ReportDocumentFormatter::headerLines((object) [
+            'name' => 'Siresa Lautaro',
+            'address' => "Av. O'higgins 915",
+            'city' => 'Lautaro',
+            'settings' => [],
+        ]);
+
+        $this->assertSame('Siresa Lautaro', $lines[0]);
+        $this->assertSame('Siresa Lautaro', $lines[1]);
+        $this->assertSame("Av. O'higgins 915, Lautaro", $lines[2]);
+        $this->assertCount(3, $lines);
+        $joined = implode("\n", $lines);
+        $this->assertStringNotContainsString('Victoria', $joined);
+        $this->assertStringNotContainsString('Dinamarca', $joined);
+        $this->assertStringNotContainsString('Manuel Montt', $joined);
+    }
+
+    public function test_header_lines_honor_explicit_report_header_branches(): void
+    {
+        $lines = ReportDocumentFormatter::headerLines((object) [
+            'name' => 'Siresa',
+            'address' => 'Manuel Montt 942',
+            'city' => 'Temuco',
+            'settings' => [
+                'reportHeader' => [
+                    'legalName' => 'Centro de Diagnóstico y Tratamiento Ltda.',
+                    'branches' => [
+                        'Manuel Montt Nº942, Temuco',
+                        'Dinamarca Nº661, Temuco',
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->assertSame('Centro de Diagnóstico y Tratamiento Ltda.', $lines[0]);
+        $this->assertContains('Dinamarca Nº661, Temuco', $lines);
+    }
 }

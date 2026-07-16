@@ -2,14 +2,6 @@
 (function (global) {
     'use strict';
 
-    const DEFAULT_BRANCHES = [
-        'Manuel Montt Nº942, Temuco. Fono: central 452 690000. WhatsApp +569 63128654.',
-        'Centro médico 452 690037/39',
-        'Dinamarca Nº661, Temuco. Fono 452 888724 Cel. +5696312109',
-        'Av. Arturo Prat Nº1130, Victoria. Fono 452 846 238',
-        'Av. O´Higgins Nº915, Lautaro. Fono. 452 738218',
-    ];
-
     function escapeHtml(text) {
         return String(text ?? '')
             .replace(/&/g, '&amp;')
@@ -18,21 +10,43 @@
             .replace(/"/g, '&quot;');
     }
 
+    /** Dirección de la sede actual (sin mezclar otras sucursales). */
+    function formatLabAddressLine(labInfo) {
+        const settings = labInfo?.settings || {};
+        const address = String(labInfo?.address || '').trim();
+        const city = String(labInfo?.city || '').trim();
+        const parts = [];
+        if (address) parts.push(address);
+        if (city && (!address || !address.toLowerCase().includes(city.toLowerCase()))) {
+            parts.push(city);
+        }
+        let line = parts.join(', ');
+        const phone = String(settings.phone || settings.fono || settings.telefono || '').trim();
+        if (phone) {
+            line = line ? `${line}. Fono: ${phone}` : `Fono: ${phone}`;
+        }
+        return line.replace(/[.\s]+$/g, '').trim();
+    }
+
     function headerLines(labInfo) {
         const settings = labInfo?.settings || {};
         const reportHeader = settings.reportHeader || {};
         const legalName = (reportHeader.legalName || labInfo?.name || 'Centro de Diagnóstico y Tratamiento Ltda.').trim();
-        let branches = Array.isArray(reportHeader.branches) && reportHeader.branches.length
-            ? reportHeader.branches
-            : DEFAULT_BRANCHES.slice();
 
-        if (!Array.isArray(reportHeader.branches) || !reportHeader.branches.length) {
-            if (labInfo?.address) {
-                branches = [labInfo.address, ...branches];
-            }
+        // Solo usar listado multi-sede si el laboratorio lo configuró explícitamente.
+        let branches = Array.isArray(reportHeader.branches) && reportHeader.branches.length
+            ? reportHeader.branches.slice()
+            : [];
+
+        if (!branches.length) {
+            const ownLine = formatLabAddressLine(labInfo);
+            if (ownLine) branches = [ownLine];
         }
 
-        const lines = [legalName, legalName];
+        const lines = [];
+        if (legalName) {
+            lines.push(legalName, legalName);
+        }
         branches.forEach((line) => {
             const trimmed = String(line || '').trim();
             if (trimmed) lines.push(trimmed);
