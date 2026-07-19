@@ -3,13 +3,13 @@
 
         <div class="col-12 col-lg-3 d-flex flex-column ris-split-col-list">
             <div class="card shadow-sm border-0 flex-grow-1 ris-split-card">
-                <div class="card-header bg-dark text-white py-3">
+                <div class="card-header ris-inbox-header py-3">
                     <h6 class="mb-0 fw-bold"><i class="bi bi-pen me-2"></i>Bandeja de Firma</h6>
                     <small class="opacity-75">Informes listos para validar (<span id="badgeParaFirma">0</span>)</small>
                     <div class="mt-2" data-ris-exam-date-filter>
-                        <label class="small fw-bold opacity-75 mb-1 d-block"><i class="bi bi-calendar3 me-1"></i>Fecha examen</label>
+                        <label class="small fw-bold opacity-75 mb-1 d-block" for="risExamDateInputValidation"><i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Fecha examen</label>
                         <div class="d-flex flex-wrap gap-1 align-items-center">
-                            <input type="date" data-ris-exam-date-input class="form-control form-control-sm bg-dark text-white border-secondary" style="max-width:9.5rem">
+                            <input type="date" id="risExamDateInputValidation" data-ris-exam-date-input class="form-control form-control-sm ris-date-input-sm">
                             <button type="button" class="btn btn-sm btn-outline-light" data-ris-exam-date-preset="today">Hoy</button>
                             <button type="button" class="btn btn-sm btn-outline-light" data-ris-exam-date-preset="tomorrow">Mañana</button>
                             <button type="button" class="btn btn-sm btn-outline-light" data-ris-exam-date-preset="all">Todos</button>
@@ -38,11 +38,11 @@
                             Seleccione un informe para validar y firmar.
                         </div>
 
-                        <div class="d-flex gap-2 ms-auto" id="toolbarValidacion" style="display: none !important;">
+                        <div class="d-flex gap-2 ms-auto ris-validation-toolbar-hidden" id="toolbarValidacion">
                         <div class="btn-group">
                             <button class="btn btn-sm btn-outline-secondary fw-bold shadow-sm" id="btnVisorPacsValidacion"
                                 onclick="abrirVisorPACSValidacion()" disabled title="Bridge → URL custom → OHIF">
-                                <i class="bi bi-display me-1"></i> VISOR PACS
+                                <i class="bi bi-display me-1"></i> Visor PACS
                             </button>
                             <button class="btn btn-sm btn-outline-primary fw-bold shadow-sm" id="btnVisorOhifValidacion"
                                 onclick="abrirVisorSoloOHIFValidacion()" disabled title="Solo visor web OHIF">
@@ -51,7 +51,7 @@
                         </div>
                         <button class="btn btn-sm btn-outline-warning text-dark fw-bold shadow-sm"
                             id="btnEditarValidacion" onclick="habilitarEdicionValidacion()" disabled>
-                            <i class="bi bi-pencil-square me-1"></i> CORREGIR TYPO
+                            <i class="bi bi-pencil-square me-1"></i> Corregir texto
                         </button>
                         <button class="btn btn-sm btn-outline-info fw-bold shadow-sm" id="btnPreview"
                             onclick="generarVistaPrevia()" disabled>
@@ -98,8 +98,7 @@
 
                         <div id="reportLetterIntro" class="ris-report-letter-intro"></div>
 
-                        <textarea id="finalReportText" class="form-control border-0 flex-grow-1 p-0 mt-2 mb-2"
-                            style="resize: none; font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.45; background-color: transparent;"
+                        <textarea id="finalReportText" class="form-control border-0 flex-grow-1 p-0 mt-2 mb-2 ris-report-preview-editor"
                             disabled></textarea>
 
                         <div id="reportLetterFooter" class="ris-report-letter-footer"></div>

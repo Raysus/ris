@@ -3,7 +3,7 @@ function initWorklist() {
     return initAtencionTecnicaModule({
         pageId: 'worklist',
         forceWorklistOnly: true,
-        listTitle: 'Worklist operativa',
+        listTitle: 'Lista de trabajo',
         listSubtitle: 'Pacientes confirmados en agenda — envío DICOM a modalidades',
     });
 }

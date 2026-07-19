@@ -3,7 +3,7 @@
 
         <div class="col-12 col-lg-3 d-flex flex-column ris-radiologist-col-list">
             <div class="card shadow-sm border-0 flex-grow-1 ris-radiologist-card">
-                <div class="card-header bg-dark text-white py-3">
+                <div class="card-header ris-inbox-header py-3">
                     <h6 class="mb-0 fw-bold"><i class="bi bi-inbox me-2"></i>Bandeja de Informes</h6>
                     <small class="opacity-75">Estudios listos para lectura (<span
                             id="badgePendientesInformar">0</span>)</small>
@@ -18,9 +18,9 @@
                         </select>
                     </div>
                     <div class="mt-2" data-ris-exam-date-filter>
-                        <label class="small fw-bold opacity-75 mb-1 d-block"><i class="bi bi-calendar3 me-1"></i>Fecha examen</label>
+                        <label class="small fw-bold opacity-75 mb-1 d-block" for="risExamDateInputRadiologist"><i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Fecha examen</label>
                         <div class="d-flex flex-wrap gap-1 align-items-center">
-                            <input type="date" data-ris-exam-date-input class="form-control form-control-sm bg-dark text-white border-secondary" style="max-width:9.5rem">
+                            <input type="date" id="risExamDateInputRadiologist" data-ris-exam-date-input class="form-control form-control-sm ris-date-input-sm">
                             <button type="button" class="btn btn-sm btn-outline-light" data-ris-exam-date-preset="today">Hoy</button>
                             <button type="button" class="btn btn-sm btn-outline-light" data-ris-exam-date-preset="tomorrow">Mañana</button>
                             <button type="button" class="btn btn-sm btn-outline-light" data-ris-exam-date-preset="all">Todos</button>
@@ -52,13 +52,13 @@
                                     type="button" data-bs-toggle="dropdown" disabled>
                                     <i class="bi bi-journal-text me-1"></i> Insertar Plantilla
                                 </button>
-                                <ul class="dropdown-menu shadow-sm" id="dropdownPlantillas"
-                                    style="max-height: 300px; overflow-y: auto;">
+                                <ul class="dropdown-menu shadow-sm ris-dropdown-scroll" id="dropdownPlantillas"
+                                   >
                                     <li><span class="dropdown-item text-muted">Cargando plantillas...</span></li>
                                 </ul>
                             </div>
                             <div class="d-flex gap-2 align-items-center flex-wrap radiologist-toolbar ris-module-toolbar">
-                                <small id="autoSaveIndicator" class="text-muted me-2 fw-bold" style="display: none;">
+                                <small id="autoSaveIndicator" class="text-muted me-2 fw-bold ris-is-hidden">
                                     <i class="bi bi-cloud-arrow-up text-success me-1"></i>Guardado
                                 </small>
                                 <button class="btn btn-sm btn-warning text-dark fw-bold shadow-sm" id="btnAdenda"
@@ -74,7 +74,7 @@
                                 <div class="btn-group">
                                     <button type="button" class="btn btn-sm btn-secondary fw-bold shadow-sm"
                                         onclick="abrirVisorDicom()" title="Bridge local → URL custom → OHIF">
-                                        <i class="bi bi-display me-1"></i> VISOR PACS
+                                        <i class="bi bi-display me-1"></i> Visor PACS
                                     </button>
                                     <button type="button" class="btn btn-sm btn-outline-primary fw-bold shadow-sm"
                                         onclick="abrirVisorDicomSoloOhif()" title="Abrir solo visor web OHIF">
@@ -87,20 +87,27 @@
                         <div id="listaExamenesRadiologo" class="mb-2 text-primary small ps-1"></div>
 
                         <textarea id="textoInforme"
-                            class="form-control border-0 shadow-sm flex-grow-1 mb-3 p-3 transition-all"
-                            style="resize: none; font-size: 1rem; line-height: 1.5;"
+                            class="form-control border-0 shadow-sm flex-grow-1 mb-3 p-3 transition-all ris-report-textarea"
                             placeholder="Redacte aquí el informe, dictado por voz o Dragon..." disabled></textarea>
 
+                        <div class="mb-2">
+                            <label for="selRadiologistDictationMode" class="form-label small fw-semibold mb-1">Destino del audio grabado</label>
+                            <select id="selRadiologistDictationMode" class="form-select form-select-sm" disabled>
+                                <option value="audio_tm">Audio a transcripción (secretaría)</option>
+                                <option value="ai">Transcripción con IA (nube)</option>
+                            </select>
+                            <p id="radiologistDictationModeHint" class="form-text mb-0 mt-1">
+                                El micrófono siempre está disponible. Elija si el audio va a secretaría o a IA en la nube.
+                            </p>
+                        </div>
+
                         <div class="row g-2 mb-1">
-                            <div class="col-12 col-xl-6">
-                                <div
-                                    class="bg-white p-3 rounded border border-primary shadow-sm mb-2 d-flex flex-column text-center">
-                                    <h6 class="fw-bold mb-2 text-primary"><i class="bi bi-mic-fill me-1"></i>Dictado por
-                                        voz (navegador)</h6>
-                                    <div class="d-flex gap-2 mb-2 align-items-center">
+                            <div class="col-12 col-xl-6" id="panelDictationVoice">
+                                <div class="bg-white p-3 rounded border border-primary shadow-sm mb-2 d-flex flex-column text-center">
+                                    <h6 class="ris-section-title mb-2"><i class="bi bi-mic-fill me-1" aria-hidden="true"></i>Dictado por voz</h6>
+                                    <div class="d-flex gap-2 mb-2 align-items-center justify-content-center">
                                         <label class="small text-muted mb-0" for="selDictationLang">Idioma</label>
-                                        <select id="selDictationLang" class="form-select form-select-sm"
-                                            style="max-width: 8rem;">
+                                        <select id="selDictationLang" class="form-select form-select-sm ris-ctrl-sm-w">
                                             <option value="es-CL" selected>Español (CL)</option>
                                             <option value="es-ES">Español (ES)</option>
                                             <option value="es-MX">Español (MX)</option>
@@ -108,138 +115,66 @@
                                         </select>
                                     </div>
                                     <button type="button" id="btnBrowserDictation"
-                                        class="btn btn-sm btn-outline-primary fw-bold w-100">
-                                        <i class="bi bi-mic-fill me-1"></i> INICIAR DICTADO VOZ
+                                        class="btn btn-sm btn-outline-primary w-100">
+                                        <i class="bi bi-mic-fill me-1" aria-hidden="true"></i> Iniciar dictado por voz
                                     </button>
                                     <p id="browserDictationStatus" class="small text-muted mb-0 mt-2" aria-live="polite"></p>
                                 </div>
-                                <div
-                                    class="bg-white p-3 rounded border shadow-sm d-flex flex-column text-center">
-                                    <h6 class="fw-bold mb-1 text-success"><i class="bi bi-soundwave me-1"></i>Dragon
-                                        Medical <span class="text-muted fw-normal">(opcional)</span></h6>
-                                    <small class="text-muted mb-2 text-start" style="font-size: 0.72rem;">
-                                        Solo si tiene <b>Dragon / DMO</b> instalado en la PC. SpeechControl puede mapear
-                                        el botón Record del SpeechMike al micrófono de Dragon.
+                                <div class="bg-white p-3 rounded border shadow-sm d-flex flex-column text-center">
+                                    <h6 class="ris-section-title mb-1 text-success"><i class="bi bi-soundwave me-1" aria-hidden="true"></i>Dragon Medical <span class="text-muted fw-normal">(opcional)</span></h6>
+                                    <small class="text-muted mb-2 text-start ris-text-xs">
+                                        Solo si tiene Dragon / DMO instalado en la PC.
                                     </small>
-                                    <button type="button" id="btnDragon" class="btn btn-sm btn-outline-success fw-bold w-100"
-                                        disabled>
-                                        <i class="bi bi-cursor-text me-1"></i> ACTIVAR DRAGON
+                                    <button type="button" id="btnDragon" class="btn btn-sm btn-outline-success w-100" disabled>
+                                        <i class="bi bi-cursor-text me-1" aria-hidden="true"></i> Activar Dragon
                                     </button>
                                 </div>
                             </div>
 
-                            <div class="col-12 col-xl-6">
-                                <div
-                                    class="bg-white p-3 rounded border shadow-sm h-100 d-flex flex-column justify-content-center text-center">
-                                    <h6 class="fw-bold mb-1 text-danger"><i class="bi bi-mic-fill me-1"></i>Audio a
-                                        Transcripción</h6>
-                                    <small class="text-muted mb-2">Grabe para la secretaría (Máx 10 min).</small>
+                            <div class="col-12 col-xl-6" id="panelDictationAudio">
+                                <div class="bg-white p-3 rounded border shadow-sm h-100 d-flex flex-column justify-content-center text-center">
+                                    <h6 class="ris-section-title mb-1 text-danger" id="audioPanelTitle">
+                                        <i class="bi bi-mic-fill me-1" aria-hidden="true"></i> Grabar audio
+                                    </h6>
+                                    <small class="text-muted mb-2" id="audioPanelSubtitle">Micrófono del PC (máx. 10 min).</small>
                                     <div class="d-flex flex-wrap align-items-center justify-content-center gap-2 mb-2">
                                         <button type="button" id="btnConnectSpeechMike"
                                             class="btn btn-sm btn-outline-primary fw-bold">
                                             Conectar pedalera / SpeechMike
                                         </button>
-                                        <button type="button" class="btn btn-sm btn-outline-secondary fw-bold"
-                                            id="btnToggleFootPedalMap" title="Asignar acciones a cada pedal">
-                                            <i class="bi bi-sliders me-1"></i>Configurar pedales
-                                        </button>
-                                        <button type="button" class="btn btn-sm btn-outline-secondary fw-bold"
-                                            id="btnToggleSpeechMikeKeys" title="Mapear teclas SpeechControl">
-                                            <i class="bi bi-keyboard me-1"></i>Teclas
-                                        </button>
-                                        <button type="button" class="btn btn-link btn-sm p-0 text-secondary"
-                                            style="font-size: 0.72rem;" id="btnSpeechMikeDebug">
-                                            Probar teclas
-                                        </button>
                                     </div>
-                                    <div id="footPedalMapPanel" class="d-none text-start border rounded p-2 mb-2 bg-light small">
-                                        <div class="fw-bold mb-2"><i class="bi bi-joystick me-1"></i>Mapeo pedalera LFH2330 / ACC2330</div>
-                                        <div class="d-flex flex-wrap gap-1 mb-2">
-                                            <button type="button" class="btn btn-sm btn-outline-primary" data-foot-preset="siresa">Perfil Siresa</button>
-                                            <button type="button" class="btn btn-sm btn-outline-secondary" data-foot-preset="acc2330">Perfil ACC2330</button>
-                                            <button type="button" class="btn btn-sm btn-outline-secondary" data-foot-preset="lfh2330">Perfil LFH2330</button>
-                                            <button type="button" class="btn btn-sm btn-outline-secondary" data-foot-preset="standard">Perfil estándar</button>
-                                        </div>
-                                        <div class="row g-2">
-                                            <div class="col-6">
-                                                <label class="form-label mb-0" for="footPedalMap_left">Izquierdo</label>
-                                                <select id="footPedalMap_left" class="form-select form-select-sm"></select>
-                                            </div>
-                                            <div class="col-6">
-                                                <label class="form-label mb-0" for="footPedalMap_center">Centro</label>
-                                                <select id="footPedalMap_center" class="form-select form-select-sm"></select>
-                                            </div>
-                                            <div class="col-6">
-                                                <label class="form-label mb-0" for="footPedalMap_right">Derecho</label>
-                                                <select id="footPedalMap_right" class="form-select form-select-sm"></select>
-                                            </div>
-                                            <div class="col-6">
-                                                <label class="form-label mb-0" for="footPedalMap_top">Superior</label>
-                                                <select id="footPedalMap_top" class="form-select form-select-sm"></select>
-                                            </div>
-                                        </div>
-                                        <p class="text-muted mb-0 mt-2" style="font-size:0.7rem;">Se guarda en este navegador. También puede mapear teclas SpeechControl abajo.</p>
-                                    </div>
-                                    <div id="speechMikeKeymapPanel" class="d-none text-start border rounded p-2 mb-2 bg-white small">
-                                        <div class="fw-bold mb-2"><i class="bi bi-keyboard me-1"></i>Teclas SpeechControl (modo teclado)</div>
-                                        <div class="d-flex flex-wrap gap-1 mb-2">
-                                            <button type="button" class="btn btn-sm btn-outline-primary" data-sm-preset="philips">Philips (Num+/F4/F7)</button>
-                                            <button type="button" class="btn btn-sm btn-outline-secondary" data-sm-preset="f8">F8 / F4 / F7</button>
-                                            <button type="button" class="btn btn-sm btn-outline-secondary" data-sm-preset="insert">Insert / F10 / F7</button>
-                                        </div>
-                                        <div class="row g-1 align-items-center mb-1">
-                                            <div class="col-5">Grabar / detener</div>
-                                            <div class="col-4"><code id="smKeyDisplayRecord">—</code></div>
-                                            <div class="col-3"><button type="button" class="btn btn-sm btn-outline-dark w-100" data-sm-capture="record">Capturar</button></div>
-                                        </div>
-                                        <div class="row g-1 align-items-center mb-1">
-                                            <div class="col-5">Detener</div>
-                                            <div class="col-4"><code id="smKeyDisplayStop">—</code></div>
-                                            <div class="col-3"><button type="button" class="btn btn-sm btn-outline-dark w-100" data-sm-capture="stop">Capturar</button></div>
-                                        </div>
-                                        <div class="row g-1 align-items-center">
-                                            <div class="col-5">Pausa</div>
-                                            <div class="col-4"><code id="smKeyDisplayPause">—</code></div>
-                                            <div class="col-3"><button type="button" class="btn btn-sm btn-outline-dark w-100" data-sm-capture="pause">Capturar</button></div>
-                                        </div>
-                                        <p id="smKeyCaptureHint" class="d-none text-primary fw-bold mb-0 mt-2" style="font-size:0.7rem;"></p>
-                                    </div>
-                                    <p id="speechMikeHidStatus" class="small text-warning mb-2 px-1" style="font-size: 0.72rem;">
+                                    <p id="speechMikeHidStatus" class="small text-warning mb-2 px-1 ris-text-xs">
                                         Al pulsar <b>Conectar</b>: ventana de Chrome con dispositivos Philips (o un aviso si ya
                                         tenía permiso). Luego texto verde «Conectado: …». Si no sale nada: use Chrome/Edge + HTTPS.
                                     </p>
+                                    <div id="aiCloudStatus" class="alert alert-light border py-2 small d-none mb-2" role="status"></div>
 
                                     <div class="d-flex flex-column justify-content-center align-items-center gap-2 w-100">
                                         <div id="recordingPulse" class="d-none text-danger fw-bold small">
-                                            <span class="spinner-grow spinner-grow-sm me-1"></span> Grabando <span
-                                                id="audioTimer">00:00</span>
+                                            <span class="spinner-grow spinner-grow-sm me-1"></span> Grabando <span id="audioTimer">00:00</span>
                                         </div>
                                         <div id="audioPreviewWrap" class="d-none w-100">
                                             <div class="d-flex justify-content-center align-items-center gap-1 mb-1 flex-wrap">
-                                                <button type="button" id="btnAudioRewind"
-                                                    class="btn btn-sm btn-outline-secondary"
-                                                    title="Retroceder 5 segundos (SpeechMike: ◀◀)">
-                                                    <i class="bi bi-skip-backward-fill"></i> -5s
+                                                <button type="button" id="btnAudioRewind" class="btn btn-sm btn-outline-secondary" title="Retroceder 5 segundos">
+                                                    <i class="bi bi-skip-backward-fill" aria-hidden="true"></i> -5s
                                                 </button>
-                                                <button type="button" id="btnAudioPlayPause"
-                                                    class="btn btn-sm btn-outline-primary px-3"
-                                                    title="Reproducir / pausar (SpeechMike: ▶)">
-                                                    <i class="bi bi-play-fill" id="iconAudioPlayPause"></i>
+                                                <button type="button" id="btnAudioPlayPause" class="btn btn-sm btn-outline-primary px-3" title="Reproducir / pausar">
+                                                    <i class="bi bi-play-fill" id="iconAudioPlayPause" aria-hidden="true"></i>
                                                 </button>
-                                                <button type="button" id="btnAudioForward"
-                                                    class="btn btn-sm btn-outline-secondary"
-                                                    title="Adelantar 5 segundos (SpeechMike: ▶▶)">
-                                                    <i class="bi bi-skip-forward-fill"></i> +5s
+                                                <button type="button" id="btnAudioForward" class="btn btn-sm btn-outline-secondary" title="Adelantar 5 segundos">
+                                                    <i class="bi bi-skip-forward-fill" aria-hidden="true"></i> +5s
                                                 </button>
                                             </div>
-                                            <audio id="audioPreview" controls class="w-100"
-                                                style="height: 30px;"></audio>
+                                            <audio id="audioPreview" controls class="w-100 ris-audio-inline"></audio>
                                         </div>
-                                        <button id="btnRecord" class="btn btn-sm btn-danger fw-bold w-100" disabled>
-                                            <i class="bi bi-mic me-1"></i> GRABAR AUDIO
+                                        <button type="button" id="btnRecord" class="btn btn-sm btn-danger w-100" disabled>
+                                            <i class="bi bi-mic me-1" aria-hidden="true"></i> Grabar audio
                                         </button>
-                                        <button id="btnStop" class="btn btn-sm btn-dark fw-bold w-100 d-none">
-                                            <i class="bi bi-stop-circle me-1"></i> DETENER
+                                        <button type="button" id="btnStop" class="btn btn-sm btn-dark w-100 d-none">
+                                            <i class="bi bi-stop-circle me-1" aria-hidden="true"></i> Detener
+                                        </button>
+                                        <button type="button" id="btnAiTranscribe" class="btn btn-sm btn-primary w-100 d-none" disabled>
+                                            <i class="bi bi-stars me-1" aria-hidden="true"></i> Transcribir con IA
                                         </button>
                                     </div>
                                 </div>
@@ -247,9 +182,9 @@
                         </div>
                     </div>
 
-                    <div class="d-none h-100 border-start ms-3 ps-3 flex-column ris-radiologist-history" id="colHistorial" style="width: 50%;">
+                    <div class="d-none h-100 border-start ms-3 ps-3 flex-column ris-radiologist-history ris-history-pane" id="colHistorial">
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h6 class="fw-bold text-primary mb-0"><i class="bi bi-clock-history me-1"></i> Informes
+                            <h6 class="ris-section-title mb-0"><i class="bi bi-clock-history me-1"></i> Informes
                                 Anteriores</h6>
                             <button class="btn-close" onclick="toggleHistorialPanel()"></button>
                         </div>

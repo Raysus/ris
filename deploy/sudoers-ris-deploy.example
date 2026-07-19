@@ -8,6 +8,7 @@
 
 Cmnd_Alias RIS_DEPLOY_CHOWN = /usr/bin/chown, /usr/bin/chmod, /bin/chown, /bin/chmod
 Cmnd_Alias RIS_DEPLOY_ARTISAN = /usr/bin/php /var/www/ris.healthticloud.cl/backend/artisan *
+Cmnd_Alias RIS_DEPLOY_NGINX = /usr/bin/cp, /bin/cp, /usr/bin/ln, /bin/ln, /usr/sbin/nginx, /bin/systemctl, /usr/bin/systemctl
 
-userit ALL=(root) NOPASSWD: RIS_DEPLOY_CHOWN
+userit ALL=(root) NOPASSWD: RIS_DEPLOY_CHOWN, RIS_DEPLOY_NGINX
 userit ALL=(www-data) NOPASSWD: RIS_DEPLOY_ARTISAN

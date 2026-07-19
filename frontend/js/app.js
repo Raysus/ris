@@ -97,9 +97,11 @@ $(document).ready(async function () {
     });
 
     $('#toggleSidebar').click(function () {
+        if (window.innerWidth <= 768) return;
         $('#sidebar').toggleClass('collapsed');
         const isCollapsed = $('#sidebar').hasClass('collapsed');
         localStorage.setItem('ris_sidebar_collapsed', isCollapsed ? 'true' : 'false');
+        if (typeof risSyncSidebarAria === 'function') risSyncSidebarAria();
     });
 
     $('#darkMode').click(function () {
@@ -169,6 +171,7 @@ function risApplyLaptopLayout() {
     } else if (collapsed === 'false') {
         $('#sidebar').removeClass('collapsed');
     }
+    if (typeof risSyncSidebarAria === 'function') risSyncSidebarAria();
 }
 
 $(window).on('resize', function () {

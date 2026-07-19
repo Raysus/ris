@@ -82,156 +82,191 @@ function wireBrowserDictationButton() {
     );
 }
 let recordingMediaStream = null;
-let _speechMikeShortcutsBound = false;
-let _speechMikeLastKeyAt = 0;
-let _speechMikeLastKeySig = "";
-let _speechMikeKeyCaptureSlot = null;
 
-const SPEECHMIKE_KEYMAP_STORAGE = "ris_speechmike_keymap_v1";
+const DICTATION_MODE_STORAGE = "ris_radiologist_dictation_mode_v1";
+let radiologistAiStatus = null;
 
-const SPEECHMIKE_KEYMAP_PRESETS = {
-    philips: { record: "NumpadAdd", stop: "F4", pause: "F7" },
-    f8: { record: "F8", stop: "F4", pause: "F7" },
-    insert: { record: "Insert", stop: "F10", pause: "F7" },
-};
-
-function getDefaultSpeechMikeKeymap() {
-    return { ...SPEECHMIKE_KEYMAP_PRESETS.philips };
-}
-
-function loadSpeechMikeKeymap() {
+function getRadiologistDictationMode() {
+    const $sel = $("#selRadiologistDictationMode");
+    if ($sel.length) {
+        const v = $sel.val() || "audio_tm";
+        return v === "voice" ? "audio_tm" : v;
+    }
     try {
-        const raw = localStorage.getItem(SPEECHMIKE_KEYMAP_STORAGE);
-        if (!raw) {
-            return getDefaultSpeechMikeKeymap();
-        }
-        const parsed = JSON.parse(raw);
-        return {
-            record: parsed.record || "NumpadAdd",
-            stop: parsed.stop || "F4",
-            pause: parsed.pause || "F7",
-        };
+        const saved = localStorage.getItem(DICTATION_MODE_STORAGE) || "audio_tm";
+        return saved === "voice" ? "audio_tm" : saved;
     } catch (e) {
-        return getDefaultSpeechMikeKeymap();
+        return "audio_tm";
     }
 }
 
-function saveSpeechMikeKeymap(map) {
-    localStorage.setItem(SPEECHMIKE_KEYMAP_STORAGE, JSON.stringify(map));
-    refreshSpeechMikeKeymapUi();
+function saveRadiologistDictationMode(mode) {
+    try {
+        localStorage.setItem(DICTATION_MODE_STORAGE, mode);
+    } catch (e) { /* ignore */ }
 }
 
-function refreshSpeechMikeKeymapUi() {
-    const map = loadSpeechMikeKeymap();
-    $("#smKeyDisplayRecord").text(map.record || "—");
-    $("#smKeyDisplayStop").text(map.stop || "—");
-    $("#smKeyDisplayPause").text(map.pause || "—");
-}
+function applyRadiologistDictationMode(mode) {
+    const m = mode || getRadiologistDictationMode();
+    const isAi = m === "ai";
 
-function eventMatchesSpeechMikeCode(event, code) {
-    if (!code || !event) {
-        return false;
-    }
-    if (event.code === code) {
-        return true;
-    }
-    if (code === "NumpadAdd" && event.code === "NumpadAdd") {
-        return true;
-    }
-    if (code === "NumpadAdd" && event.key === "+" && event.location === 3) {
-        return true;
-    }
-    return false;
-}
+    // Voz (navegador/Dragon) y micrófono siempre visibles; solo cambia el destino del audio.
+    $("#panelDictationVoice, #panelDictationAudio").removeClass("d-none");
 
-function getSpeechMikeActionFromCustomKeymap(event) {
-    const map = loadSpeechMikeKeymap();
-    const session = isRecordingSessionActive();
-    const code = event.code || "";
-
-    if (map.stop && eventMatchesSpeechMikeCode(event, map.stop) && session) {
-        return "stop";
-    }
-
-    if (map.pause && eventMatchesSpeechMikeCode(event, map.pause)) {
-        if (isAudioPreviewListeningMode() && !session) {
-            return "preview_toggle";
-        }
-        if (!session) {
-            return null;
-        }
-        return isRecordingPaused() ? "resume" : "pause";
-    }
-
-    if (map.record && eventMatchesSpeechMikeCode(event, map.record)) {
-        if (session && isRecordingPaused()) {
-            return "resume";
-        }
-        return session ? "stop" : "start";
-    }
-
-    return null;
-}
-
-function startSpeechMikeKeyCapture(slot) {
-    _speechMikeKeyCaptureSlot = slot;
-    const labels = { record: "Grabar / detener", stop: "Detener", pause: "Pausa" };
-    const $hint = $("#smKeyCaptureHint");
-    $hint
-        .removeClass("d-none")
-        .text(`Pulse ahora el botón del SpeechMike para «${labels[slot] || slot}»…`);
-    if (typeof showToast === "function") {
-        showToast(
-            `Capturando tecla para «${labels[slot]}». Pulse el botón del micrófono (con SpeechControl activo).`,
-            "info",
-            8000
+    if (isAi) {
+        $("#audioPanelTitle").html('<i class="bi bi-stars me-1" aria-hidden="true"></i> Grabar para IA');
+        $("#audioPanelSubtitle").text("Micrófono del PC → transcripción en la nube (requiere internet).");
+        $("#btnAiTranscribe").removeClass("d-none");
+        $("#radiologistDictationModeHint").text(
+            "Dictado por voz y micrófono disponibles. Tras grabar, use «Transcribir con IA»."
+        );
+        refreshRadiologistAiStatus();
+    } else {
+        $("#audioPanelTitle").html('<i class="bi bi-mic-fill me-1" aria-hidden="true"></i> Grabar audio');
+        $("#audioPanelSubtitle").text("Micrófono del PC para secretaría (máx. 10 min).");
+        $("#btnAiTranscribe").addClass("d-none");
+        $("#aiCloudStatus").addClass("d-none");
+        $("#radiologistDictationModeHint").text(
+            "Dictado por voz y micrófono disponibles. El audio se envía con «Enviar a Transcripción»."
         );
     }
-    const panel = document.getElementById("speechMikeKeymapPanel");
-    if (panel && !panel.classList.contains("show")) {
-        panel.classList.add("show");
+
+    syncAiTranscribeButton();
+}
+
+function setupDictationModeUi() {
+    const $sel = $("#selRadiologistDictationMode");
+    if (!$sel.length) {
+        return;
+    }
+    let saved = "audio_tm";
+    try {
+        saved = localStorage.getItem(DICTATION_MODE_STORAGE) || "audio_tm";
+    } catch (e) { /* ignore */ }
+    if (saved === "voice") {
+        saved = "audio_tm";
+    }
+    if (["audio_tm", "ai"].includes(saved)) {
+        $sel.val(saved);
+    }
+    $sel.off("change.risDictMode").on("change.risDictMode", function () {
+        const mode = $(this).val();
+        saveRadiologistDictationMode(mode);
+        applyRadiologistDictationMode(mode);
+    });
+    applyRadiologistDictationMode($sel.val());
+}
+
+async function refreshRadiologistAiStatus() {
+    const $box = $("#aiCloudStatus");
+    if (!$box.length || getRadiologistDictationMode() !== "ai") {
+        return;
+    }
+    $box.removeClass("d-none alert-success alert-warning alert-danger alert-light")
+        .addClass("alert-light")
+        .html('<span class="spinner-border spinner-border-sm me-1"></span> Comprobando conexión a la nube…');
+
+    try {
+        const response = await fetch(`${API_URL}/radiologist/ai-transcription/status`, {
+            headers: typeof risBuildAuthHeaders === "function" ? risBuildAuthHeaders() : {},
+        });
+        const data = await response.json().catch(() => ({}));
+        radiologistAiStatus = data;
+        const available = !!data.available;
+        const msg = data.message || (available ? "IA disponible." : "IA no disponible.");
+        $box
+            .removeClass("alert-light alert-success alert-warning alert-danger")
+            .addClass(available ? "alert-success" : "alert-warning")
+            .html(
+                available
+                    ? `<i class="bi bi-cloud-check me-1" aria-hidden="true"></i>${risEscapeHtml(msg)}`
+                    : `<i class="bi bi-cloud-slash me-1" aria-hidden="true"></i>${risEscapeHtml(msg)}`
+            );
+        syncAiTranscribeButton();
+    } catch (e) {
+        radiologistAiStatus = { available: false };
+        $box
+            .removeClass("alert-light alert-success")
+            .addClass("alert-danger")
+            .html('<i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i> No se pudo comprobar el estado de la IA.');
+        syncAiTranscribeButton();
     }
 }
 
-function cancelSpeechMikeKeyCapture() {
-    _speechMikeKeyCaptureSlot = null;
-    $("#smKeyCaptureHint").addClass("d-none").text("");
+function syncAiTranscribeButton() {
+    const mode = getRadiologistDictationMode();
+    const $btn = $("#btnAiTranscribe");
+    if (!$btn.length) {
+        return;
+    }
+    if (mode !== "ai") {
+        $btn.addClass("d-none").prop("disabled", true);
+        return;
+    }
+    $btn.removeClass("d-none");
+    const aiOk = radiologistAiStatus == null || radiologistAiStatus.available !== false;
+    $btn.prop("disabled", !audioBlob || !currentRadioStudy || !aiOk);
 }
 
-function setupSpeechMikeKeymapUi() {
-    refreshSpeechMikeKeymapUi();
+async function enviarATranscripcionIa() {
+    if (!currentRadioStudy || !audioBlob) {
+        if (typeof showToast === "function") {
+            showToast("Grabe un audio primero para transcribir con IA.", "warning");
+        }
+        return;
+    }
+    if (radiologistAiStatus && radiologistAiStatus.available === false) {
+        if (typeof showToast === "function") {
+            showToast(radiologistAiStatus.message || "IA no disponible (sin conexión a la nube).", "warning");
+        }
+        await refreshRadiologistAiStatus();
+        return;
+    }
 
-    $("#btnToggleSpeechMikeKeys")
-        .off("click.risSmKeys")
-        .on("click.risSmKeys", function () {
-            const $panel = $("#speechMikeKeymapPanel");
-            if (!$panel.length) return;
-            $panel.toggleClass("d-none");
-            $(this).toggleClass("active", !$panel.hasClass("d-none"));
-        });
+    const $btn = $("#btnAiTranscribe");
+    const prevHtml = $btn.html();
+    try {
+        $btn.prop("disabled", true).html('<span class="spinner-border spinner-border-sm"></span> Transcribiendo…');
+        const formData = new FormData();
+        formData.append("audio", audioBlob, `dictado_${currentRadioStudy.study_id}.webm`);
+        formData.append("study_id", currentRadioStudy.study_id);
+        formData.append("language", "es");
 
-    $("#speechMikeKeymapPanel")
-        .off("click.risSmPreset")
-        .on("click.risSmPreset", "[data-sm-preset]", function () {
-            const id = $(this).data("sm-preset");
-            const preset = SPEECHMIKE_KEYMAP_PRESETS[id];
-            if (!preset) {
-                return;
-            }
-            saveSpeechMikeKeymap({ ...preset });
-            if (typeof showToast === "function") {
-                showToast(
-                    "Perfil aplicado. En SpeechControl use las mismas teclas (Num+, F4, F7).",
-                    "success"
-                );
-            }
+        const token = localStorage.getItem("ris_token");
+        const labId = localStorage.getItem("ris_lab_id");
+        const response = await fetch(`${API_URL}/radiologist/ai-transcription`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}`, "X-Lab-Id": labId },
+            body: formData,
         });
-
-    $("#speechMikeKeymapPanel")
-        .off("click.risSmCapture")
-        .on("click.risSmCapture", "[data-sm-capture]", function () {
-            startSpeechMikeKeyCapture($(this).data("sm-capture"));
-        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.success === false) {
+            throw new Error(data.message || `Error ${response.status}`);
+        }
+        const text = (data.text || "").trim();
+        if (!text) {
+            throw new Error("La IA no devolvió texto.");
+        }
+        const $ta = $("#textoInforme");
+        const existing = ($ta.val() || "").trim();
+        const merged = existing ? `${existing}\n\n${text}` : text;
+        $ta.val(merged).prop("disabled", false).trigger("input");
+        if (currentRadioStudy) {
+            currentRadioStudy.reportText = merged;
+        }
+        currentDictationMethod = "ai";
+        if (typeof showToast === "function") {
+            showToast("Texto transcrito con IA. Revíselo antes de firmar.", "success");
+        }
+    } catch (e) {
+        if (typeof showToast === "function") {
+            showToast(e.message || "Error al transcribir con IA", "danger");
+        }
+        await refreshRadiologistAiStatus();
+    } finally {
+        $btn.html(prevHtml);
+        syncAiTranscribeButton();
+    }
 }
 
 function initRadiologist() {
@@ -254,8 +289,7 @@ function initRadiologist() {
     cargarPlantillasRadiologo();
     cargarEstudiosRadiologo();
     setupAudioEvents();
-    setupSpeechMikeShortcuts();
-    setupSpeechMikeKeymapUi();
+    setupDictationModeUi();
     wireBrowserDictationButton();
     if (typeof risEnableTextFilePaste === "function") {
         risEnableTextFilePaste(["#textoInforme", "#txtAnamnesis"]);
@@ -264,6 +298,12 @@ function initRadiologist() {
         setupBrowserDictationUi();
     } else if (typeof showToast === "function") {
         showToast("Dictado por voz: módulo no cargado. Pulse Ctrl+F5.", "warning");
+    }
+    if (typeof setupSpeechMikeUiBindings === "function") {
+        setupSpeechMikeUiBindings();
+    }
+    if (typeof initSpeechMikeDictation === "function") {
+        initSpeechMikeDictation();
     }
     $("#btnDragon").off("click.risDragon").on("click.risDragon", activarDragon);
     $(document)
@@ -278,20 +318,12 @@ function initRadiologist() {
             e.preventDefault();
             enviarATranscripcion();
         });
-    $("#btnSpeechMikeDebug").off("click.risSpeechMike").on("click.risSpeechMike", toggleSpeechMikeDebug);
-    syncSpeechMikeDebugButtonUi();
-    if (typeof setupSpeechMikeUiBindings === "function") {
-        setupSpeechMikeUiBindings();
-    }
-    if (typeof initSpeechMikeDictation === "function") {
-        initSpeechMikeDictation();
-    } else if (typeof showToast === "function") {
-        showToast(
-            "SpeechMike: script no cargado. Ctrl+F5. Si persiste, revise la consola (F12).",
-            "warning",
-            10000
-        );
-    }
+    $(document)
+        .off("click.risAiTranscribe", "#btnAiTranscribe")
+        .on("click.risAiTranscribe", "#btnAiTranscribe", function (e) {
+            e.preventDefault();
+            enviarATranscripcionIa();
+        });
 
     if (radiologistRefreshInterval) clearInterval(radiologistRefreshInterval);
 
@@ -431,14 +463,14 @@ async function cargarHistorialSplit() {
 
             data.data.forEach(informe => {
                 contenedor.append(`
-                    <div class="card shadow-sm border-0 mb-3" style="font-size: 0.85rem;">
+                    <div class="card shadow-sm border-0 mb-3 ris-font-sm">
                         <div class="card-header bg-white d-flex justify-content-between align-items-center py-2 border-0">
                             <strong class="text-dark">${risEscapeHtml(informe.exam_name)}</strong>
                             <span class="badge bg-secondary">${new Date(informe.date).toLocaleDateString('es-CL')}</span>
                         </div>
                         <div class="card-body py-2">
-                            <p class="text-muted mb-2" style="font-size: 0.75rem;">Dr(a). ${risEscapeHtml(informe.doctor_name)}</p>
-                            <div class="p-2 bg-white border rounded text-dark" style="white-space: pre-wrap; user-select: all;">${risEscapeHtml(informe.report_text)}</div>
+                            <p class="text-muted mb-2 ris-font-075">Dr(a). ${risEscapeHtml(informe.doctor_name)}</p>
+                            <div class="p-2 bg-white border rounded text-dark ris-pre-wrap-select">${risEscapeHtml(informe.report_text)}</div>
                         </div>
                     </div>
                 `);
@@ -550,7 +582,9 @@ function abrirRadiologo(id) {
 
 function renderRadiologistStudies() {
     const contenedor = $("#radiologistStudies");
-    const emptyHtml = '<div class="p-4 text-center text-muted small"><i class="bi bi-check2-circle fs-3 d-block mb-2 text-success"></i>Bandeja al día. No tienes pacientes pendientes.</div>';
+    const emptyHtml = typeof risEmptyStateHtml === 'function'
+        ? risEmptyStateHtml({ icon: 'bi-check2-circle', title: 'Bandeja al día', message: 'No tienes pacientes pendientes.' })
+        : '<div class="p-4 text-center text-muted small">Bandeja al día.</div>';
 
     if (currentRadiologistData.length === 0) {
         contenedor.empty().append(emptyHtml);
@@ -582,10 +616,10 @@ function renderRadiologistStudies() {
         return `
             <button type="button" class="list-group-item list-group-item-action p-3 d-flex flex-column align-items-start gap-1 ${selectedClass} ${claseBorde}" onclick="abrirRadiologo('${app.id}')">
                 <div class="d-flex w-100 justify-content-between align-items-center gap-1">
-                    <h6 class="mb-0 fw-bold font-monospace text-truncate" style="max-width: 150px;">${risEscapeHtml(app.accessionNumber)}</h6>
+                    <h6 class="mb-0 fw-bold font-monospace text-truncate ris-truncate-150">${risEscapeHtml(app.accessionNumber)}</h6>
                     ${fechaBadge}
                 </div>
-                <strong class="m-0 text-truncate w-100" style="font-size: 0.95rem;">${risEscapeHtml(nombreCompleto)}</strong>
+                <strong class="m-0 text-truncate w-100 ris-font-095">${risEscapeHtml(nombreCompleto)}</strong>
                 <div class="d-flex w-100 justify-content-between align-items-center mt-1 opacity-75 small">
                     <span>RUT: ${risEscapeHtml(app.patient.rut)}</span>
                     <span>Edad: ${app.patient.age}</span>
@@ -643,19 +677,22 @@ function cargarEstudioEnEditor(studyId) {
 
     $("#btnPlantilla, #btnDevolver, #btnEnviarTranscripcion, #btnFirmarDirecto, #btnHistorialPaciente, #btnAdenda, #btnDragon, #btnBrowserDictation")
         .prop("disabled", false);
+    $("#selRadiologistDictationMode").prop("disabled", false);
 
     audioBlob = null;
     $("#audioPreview").attr("src", "");
     $("#audioPreviewWrap").addClass("d-none");
     updateAudioPreviewControlsUi();
-    $("#btnRecord").removeClass("d-none").prop("disabled", false).html('<i class="bi bi-mic me-1"></i> GRABAR AUDIO');
+    $("#btnRecord").removeClass("d-none").prop("disabled", false).html('<i class="bi bi-mic me-1" aria-hidden="true"></i> Grabar audio');
     $("#btnStop").addClass("d-none");
     $("#recordingPulse").addClass("d-none");
+    syncAiTranscribeButton();
+    applyRadiologistDictationMode();
 
     $("#btnDragon")
         .removeClass("btn-success")
         .addClass("btn-outline-success")
-        .html('<i class="bi bi-cursor-text me-1"></i> ACTIVAR DRAGON');
+        .html('<i class="bi bi-cursor-text me-1" aria-hidden="true"></i> Activar Dragon');
     if (dragonSyncInterval) {
         clearInterval(dragonSyncInterval);
         dragonSyncInterval = null;
@@ -744,7 +781,7 @@ async function devolverATecnologo() {
         });
 
         if (response.ok) {
-            showToast("⚠️ Cadena devuelta a la Worklist del T.M.", "warning");
+            showToast("Cadena devuelta a la lista de trabajo del T.M.", "warning");
             limpiarPantallaRadiologo();
             cargarEstudiosRadiologo();
         }
@@ -805,7 +842,7 @@ async function enviarATranscripcion() {
         }
 }
 
-// === 5. AUDIO (MEDIA RECORDER) + SPEECHMIKE / PEDAL ===
+// === 5. AUDIO (MEDIA RECORDER) ===
 
 function canControlAudioRecording() {
     return !!currentRadioStudy && !$("#btnRecord").prop("disabled");
@@ -832,16 +869,6 @@ function setRecordingTracksEnabled(enabled) {
     recordingMediaStream.getAudioTracks().forEach((track) => {
         track.enabled = enabled;
     });
-}
-
-function canHandleSpeechMikeHotkey() {
-    if (isRecordingSessionActive()) {
-        return true;
-    }
-    if (isAudioPreviewListeningMode()) {
-        return true;
-    }
-    return canControlAudioRecording();
 }
 
 const AUDIO_PREVIEW_SEEK_STEP = 5;
@@ -1001,6 +1028,7 @@ function updateRecordingUi(mode) {
         $("#btnRecord").removeClass("d-none");
         $("#recordingPulse").addClass("d-none");
         updateAudioPreviewControlsUi();
+        syncAiTranscribeButton();
     }
 }
 
@@ -1108,10 +1136,8 @@ async function startAudioRecording() {
             releaseRecordingStream();
             updateRecordingUi(false);
             updateAudioPreviewControlsUi();
-            $("#btnRecord").html('<i class="bi bi-mic me-1"></i> REGRABAR (Sobrescribe)');
-            if (typeof trySetSpeechMikeRecordingLed === "function") {
-                trySetSpeechMikeRecordingLed(false);
-            }
+            $("#btnRecord").html('<i class="bi bi-mic me-1" aria-hidden="true"></i> Regrabar (sobrescribe)');
+            syncAiTranscribeButton();
         };
 
         // Sin timeslice: los chunks WebM con intervalo solo reproducen el tramo final (~5s).
@@ -1119,9 +1145,6 @@ async function startAudioRecording() {
         updateRecordingUi("recording");
         $("#audioTimer").text("00:00");
         startRecordingTimer();
-        if (typeof trySetSpeechMikeRecordingLed === "function") {
-            trySetSpeechMikeRecordingLed(true);
-        }
 
         return true;
     } catch (err) {
@@ -1208,282 +1231,6 @@ function toggleAudioRecordingPause() {
     return startAudioRecording();
 }
 
-/**
- * Philips SpeechMike / pedaleras en modo teclado (SpeechControl → Keyboard mode).
- * Usamos event.code (más fiable que event.key) y keyup+keydown.
- */
-function getSpeechMikeRecordingAction(event) {
-    if (event.type !== "keydown") {
-        return null;
-    }
-
-    const customAction = getSpeechMikeActionFromCustomKeymap(event);
-    if (customAction) {
-        return customAction;
-    }
-
-    const key = event.key || "";
-    const code = event.code || "";
-    const loc = event.location;
-    const session = isRecordingSessionActive();
-    const preview = isAudioPreviewListeningMode();
-
-    const matches = (codes, keys) => codes.has(code) || keys.has(key);
-
-    if (preview && !session) {
-        const rewindCodes = new Set([
-            "ArrowLeft", "MediaTrackPrevious", "MediaRewind", "Numpad4", "PageUp",
-        ]);
-        const forwardCodes = new Set([
-            "ArrowRight", "MediaTrackNext", "MediaFastForward", "Numpad6", "PageDown",
-        ]);
-        const playCodes = new Set(["MediaPlayPause", "Numpad5", "Play"]);
-        const rewindKeys = new Set(["ArrowLeft"]);
-        const forwardKeys = new Set(["ArrowRight"]);
-
-        if (matches(rewindCodes, rewindKeys)) {
-            return "seek_back";
-        }
-        if (matches(forwardCodes, forwardKeys)) {
-            return "seek_forward";
-        }
-        if (matches(playCodes, new Set([" "])) && code === "Space" && !event.ctrlKey && !event.altKey) {
-            return "preview_toggle";
-        }
-        if (code === "MediaPlayPause" || code === "Numpad5" || code === "Play") {
-            return "preview_toggle";
-        }
-    }
-
-    const stopCodes = new Set([
-        "F4", "F5", "F6", "F10", "Escape", "End", "Delete", "MediaStop",
-        "NumpadEnter", "Enter", "Backspace",
-    ]);
-    const stopKeys = new Set(["F4", "F5", "F6", "F10", "Escape", "End", "Delete"]);
-
-    const pauseCodes = new Set([
-        "MediaPlayPause", "MediaPause", "Pause", "F7", "Space",
-    ]);
-    const pauseKeys = new Set(["F7", " "]);
-
-    const toggleCodes = new Set([
-        "NumpadAdd", "MediaRecord", "F8", "F9", "F11", "F12", "Insert", "Home",
-        "NumpadMultiply", "F1",
-    ]);
-    const toggleKeys = new Set(["F8", "F9", "F11", "F12", "Insert", "F1"]);
-
-    const startCodes = new Set(["F2", "F3", "NumpadDecimal"]);
-    const startKeys = new Set(["F2", "F3"]);
-
-    if (matches(stopCodes, stopKeys) && session) {
-        return "stop";
-    }
-
-    if (code === "NumpadEnter" && session) {
-        return "stop";
-    }
-
-    if (key === "g" || key === "G") {
-        return session ? "stop" : "start";
-    }
-
-    if (key === "e" || key === "E") {
-        if (!session) {
-            return "start";
-        }
-        return isRecordingPaused() ? "resume" : "pause";
-    }
-
-    if (matches(pauseCodes, pauseKeys)) {
-        if (!session) {
-            return null;
-        }
-        if (code === "Space" && !event.ctrlKey && !event.altKey) {
-            return isRecordingPaused() ? "resume" : "pause";
-        }
-        return isRecordingPaused() ? "resume" : "pause";
-    }
-
-    if (
-        code === "NumpadAdd"
-        || (key === "+" && loc === 3)
-        || (key === "=" && loc === 3)
-        || matches(toggleCodes, toggleKeys)
-    ) {
-        return "toggle";
-    }
-
-    if (matches(startCodes, startKeys)) {
-        return session ? "stop" : "start";
-    }
-
-    if (key === " " && event.ctrlKey && session) {
-        return "stop";
-    }
-
-    return null;
-}
-
-function isDuplicateSpeechMikeEvent(event) {
-    const sig = `${event.type}:${event.code || ""}:${event.key || ""}:${event.location}`;
-    const now = Date.now();
-    if (sig === _speechMikeLastKeySig && now - _speechMikeLastKeyAt < 280) {
-        return true;
-    }
-    _speechMikeLastKeySig = sig;
-    _speechMikeLastKeyAt = now;
-    return false;
-}
-
-function toggleSpeechMikeDebug() {
-    const on = localStorage.getItem("ris_debug_speechmike") === "1";
-    if (on) {
-        localStorage.removeItem("ris_debug_speechmike");
-        $("#btnSpeechMikeDebug").removeClass("text-primary fw-bold").addClass("text-secondary");
-        if (typeof showToast === "function") {
-            showToast("Modo prueba SpeechMike desactivado.", "secondary");
-        }
-    } else {
-        localStorage.setItem("ris_debug_speechmike", "1");
-        $("#btnSpeechMikeDebug").addClass("text-primary fw-bold").removeClass("text-secondary");
-        if (typeof showToast === "function") {
-            showToast(
-                "Modo prueba: pulse botones del micrófono. Si no aparece nada, use Conectar SpeechMike o asigne Num+/F4 en SpeechControl. Doble clic en este enlace = diagnóstico HID.",
-                "info",
-                10000
-            );
-        }
-    }
-}
-
-function syncSpeechMikeDebugButtonUi() {
-    const on = localStorage.getItem("ris_debug_speechmike") === "1";
-    const $btn = $("#btnSpeechMikeDebug");
-    if (!$btn.length) {
-        return;
-    }
-    $btn.toggleClass("text-primary fw-bold", on).toggleClass("text-secondary", !on);
-}
-
-function maybeDebugSpeechMikeKey(event, action) {
-    if (localStorage.getItem("ris_debug_speechmike") !== "1") {
-        return;
-    }
-    console.info("[SpeechMike]", {
-        type: event.type,
-        key: event.key,
-        code: event.code,
-        location: event.location,
-        action,
-    });
-    if (typeof showToast === "function") {
-        const label = event.code || event.key || "?";
-        const map = loadSpeechMikeKeymap();
-        showToast(
-            `SM: ${label} → ${action || `(sin mapeo — use Configurar teclas; guardado: ${map.record}/${map.stop})`}`,
-            action ? "info" : "secondary"
-        );
-    }
-}
-
-function isRadiologistSpeechMikePageActive() {
-    return $("#btnConnectSpeechMike").length > 0;
-}
-
-function handleSpeechMikeRecordingShortcut(event) {
-    if (!isRadiologistSpeechMikePageActive()) {
-        return;
-    }
-
-    if (event.type !== "keydown") {
-        if (localStorage.getItem("ris_debug_speechmike") === "1") {
-            maybeDebugSpeechMikeKey(event, null);
-        }
-        return;
-    }
-
-    if (_speechMikeKeyCaptureSlot && event.code) {
-        if (["Control", "Alt", "Shift", "Meta", "Tab"].includes(event.key)) {
-            return;
-        }
-        const map = loadSpeechMikeKeymap();
-        map[_speechMikeKeyCaptureSlot] = event.code;
-        saveSpeechMikeKeymap(map);
-        cancelSpeechMikeKeyCapture();
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        if (typeof showToast === "function") {
-            showToast(`Tecla guardada: ${event.code}`, "success");
-        }
-        return;
-    }
-
-    const action = getSpeechMikeRecordingAction(event);
-    maybeDebugSpeechMikeKey(event, action);
-
-    if (!canHandleSpeechMikeHotkey()) {
-        if (action && typeof showToast === "function") {
-            showToast("Seleccione un examen antes de grabar audio.", "warning");
-        }
-        return;
-    }
-
-    if (!action) {
-        return;
-    }
-
-    if (isDuplicateSpeechMikeEvent(event)) {
-        return;
-    }
-
-    if (event.repeat && ["toggle", "start", "pause", "resume"].includes(action)) {
-        return;
-    }
-
-    event.preventDefault();
-    event.stopImmediatePropagation();
-
-    switch (action) {
-        case "stop":
-            stopAudioRecording();
-            break;
-        case "start":
-            startAudioRecording();
-            break;
-        case "toggle":
-            toggleAudioRecording();
-            break;
-        case "pause":
-            toggleAudioRecordingPause();
-            break;
-        case "resume":
-            resumeAudioRecording();
-            break;
-        case "seek_back":
-            executeSpeechMikeAudioAction("seek_back");
-            break;
-        case "seek_forward":
-            executeSpeechMikeAudioAction("seek_forward");
-            break;
-        case "preview_toggle":
-            executeSpeechMikeAudioAction("toggle_play");
-            break;
-        default:
-            break;
-    }
-}
-
-function setupSpeechMikeShortcuts() {
-    if (_speechMikeShortcutsBound) {
-        return;
-    }
-    _speechMikeShortcutsBound = true;
-
-    const opts = { capture: true };
-    window.addEventListener("keydown", handleSpeechMikeRecordingShortcut, opts);
-    document.addEventListener("keydown", handleSpeechMikeRecordingShortcut, opts);
-}
-
 function setupAudioEvents() {
     $("#btnRecord").click(async function () {
         if (isRecordingPaused()) {
@@ -1536,14 +1283,16 @@ function limpiarPantallaRadiologo() {
     $("#infoPacienteRadiologo").html('<div class="text-center text-muted p-5"><i class="bi bi-file-earmark-medical fs-1 d-block mb-3"></i>Seleccione paciente.</div>');
     $("#listaExamenesRadiologo").empty();
     $("#textoInforme").val("").prop("disabled", true);
-    $("#btnPlantilla, #btnDevolver, #btnEnviarTranscripcion, #btnFirmarDirecto, #btnHistorialPaciente, #btnAdenda").prop("disabled", true);
+    $("#btnPlantilla, #btnDevolver, #btnEnviarTranscripcion, #btnFirmarDirecto, #btnHistorialPaciente, #btnAdenda, #btnDragon, #btnBrowserDictation").prop("disabled", true);
+    $("#selRadiologistDictationMode").prop("disabled", true);
     audioBlob = null;
     $("#audioPreview").attr("src", "");
     $("#audioPreviewWrap").addClass("d-none");
     updateAudioPreviewControlsUi();
-    $("#btnRecord").removeClass("d-none").prop("disabled", true).html('<i class="bi bi-mic me-1"></i> GRABAR AUDIO');
+    $("#btnRecord").removeClass("d-none").prop("disabled", true).html('<i class="bi bi-mic me-1" aria-hidden="true"></i> Grabar audio');
     $("#btnStop").addClass("d-none");
     $("#recordingPulse").addClass("d-none");
+    syncAiTranscribeButton();
 
     if (isSplitScreen) toggleHistorialPanel(); // Cerrar split screen
 }
@@ -1585,7 +1334,7 @@ function activarDragon() {
 
     if (typeof showToast === "function") {
         showToast(
-            "Dragon: haga clic en el cuadro del informe, encienda el micrófono de Dragon (o botón Record del SpeechMike si SpeechControl está configurado para Dragon). El texto aparecerá aquí.",
+            "Dragon: haga clic en el cuadro del informe y encienda el micrófono de Dragon. El texto aparecerá aquí.",
             "success",
             12000
         );
@@ -1625,7 +1374,6 @@ function abrirVisorDicomSoloOhif() {
 
 /* abrirVisorPACS / abrirVisorSoloOHIF en js/core/viewer.js */
 
-window.toggleSpeechMikeDebug = toggleSpeechMikeDebug;
 window.activarDragon = activarDragon;
 window.firmarDirecto = firmarDirecto;
 window.enviarATranscripcion = enviarATranscripcion;

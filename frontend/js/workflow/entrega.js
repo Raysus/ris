@@ -90,14 +90,17 @@ function renderTablaEntrega() {
     });
 
     if (datosFiltrados.length === 0) {
-        tbody.append('<tr><td colspan="6" class="text-center text-muted py-4"><i class="bi bi-inbox fs-2 d-block mb-2"></i>No se encontraron informes.</td></tr>');
+        const emptyHtml = typeof risEmptyStateHtml === 'function'
+            ? risEmptyStateHtml({ icon: 'bi-inbox', title: 'Sin resultados', message: 'No se encontraron informes.' })
+            : '<span class="text-muted">No se encontraron informes.</span>';
+        tbody.append(`<tr><td colspan="5">${emptyHtml}</td></tr>`);
         return;
     }
 
     datosFiltrados.forEach(item => {
         let badgeEstado = item.status === 'entregado'
-            ? '<span class="badge bg-success shadow-sm"><i class="bi bi-check-all me-1"></i>Entregado</span>'
-            : '<span class="badge bg-warning text-dark shadow-sm"><i class="bi bi-clock me-1"></i>Pendiente</span>';
+            ? (typeof risStatusChipHtml === 'function' ? risStatusChipHtml('Entregado', 'success') : '<span class="ris-status-chip ris-status-chip--success">Entregado</span>')
+            : (typeof risStatusChipHtml === 'function' ? risStatusChipHtml('Pendiente', 'warning') : '<span class="ris-status-chip ris-status-chip--warning">Pendiente</span>');
 
         // === BOTONES MEJORADOS (Email e Impresión) ===
         let btnEntregar = `<button class="btn btn-sm btn-primary fw-bold shadow-sm" onclick="abrirModalEntrega('${item.id}')" title="Entrega Física Presencial"><i class="bi bi-person-check me-1"></i> Entregar</button>`;
@@ -308,7 +311,7 @@ function imprimirEtiquetaCD(citaId) {
                 <div class="data-row"><b>RUT:</b> ${baseItem.patient.rut}</div>
                 <div class="data-row"><b>N° Orden (A.N):</b> ${baseItem.accessionNumber}</div>
                 <div class="data-row"><b>Fecha:</b> ${fecha}</div>
-                <div class="exams-box">IMÁGENES DICOM<br><span style="font-weight: normal; font-size: 10px;">${examsStr}</span></div>
+                <div class="exams-box">IMÁGENES DICOM<br><span class="ticket-exams-sub">${examsStr}</span></div>
             </div>
             <script>setTimeout(() => { window.print(); window.close(); }, 500);<\/script>
         </body>

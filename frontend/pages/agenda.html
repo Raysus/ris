@@ -1,12 +1,12 @@
 <div class="container-fluid p-2 agenda-page">
-    <div class="row mb-3 align-items-center g-2">
-        <div class="col-lg-4">
-            <h4 class="mb-0 text-primary fw-bold"><i class="bi bi-calendar3 me-2"></i>Agenda Central</h4>
-            <p class="text-muted small mb-0 mt-1">Recepción y agendamiento por sala</p>
+    <div class="ris-page-header">
+        <div class="ris-page-header__main">
+            <h1 class="ris-page-title"><i class="bi bi-calendar3 me-2" aria-hidden="true"></i>Agenda</h1>
+            <p class="ris-page-subtitle">Recepción y agendamiento por sala</p>
         </div>
-        <div class="col-lg-8">
+        <div class="ris-page-header__actions ris-toolbar col-lg-7 flex-grow-1">
             <label for="searchAgenda" class="visually-hidden">Buscar paciente en agenda</label>
-            <div class="input-group shadow-sm">
+            <div class="input-group shadow-sm w-100">
                 <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted" aria-hidden="true"></i></span>
                 <input type="search" id="searchAgenda" class="form-control border-start-0"
                     placeholder="Buscar paciente por RUT o apellido..." aria-label="Buscar paciente por RUT o apellido">
@@ -53,8 +53,7 @@
 <div class="modal fade" id="appointmentModal" tabindex="-1" data-bs-backdrop="static" aria-labelledby="modalTitle" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable agenda-appointment-dialog">
 
-        <form id="formCita" class="modal-content border-0 shadow-lg"
-            style="border-radius: 12px; background-color: #f4f6f9;">
+        <form id="formCita" class="modal-content border-0 shadow-lg agenda-legend-panel">
 
             <div class="modal-header bg-primary text-white py-3">
                 <h5 class="modal-title fw-bold" id="modalTitle"><i class="bi bi-calendar-plus me-2"></i>Gestión de Cita
@@ -76,7 +75,7 @@
 
                 <div class="card border-0 shadow-sm mb-4">
                     <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
-                        <h6 class="fw-bold text-primary mb-0"><i class="bi bi-person-vcard me-2"></i>1. Identidad y
+                        <h6 class="ris-section-title mb-0"><i class="bi bi-person-vcard me-2"></i>1. Identidad y
                             Previsión</h6>
                     </div>
                     <div class="card-body">
@@ -165,7 +164,7 @@
                                         </button>
                                     </div>
                                     <div id="agendaCitasAnterioresPanel" class="mt-1">
-                                        <div class="table-responsive bg-white border rounded" style="max-height: 220px; overflow-y: auto;">
+                                        <div class="table-responsive bg-white border rounded ris-scroll-220">
                                             <table class="table table-sm table-hover mb-0 align-middle">
                                                 <thead class="table-light sticky-top">
                                                     <tr class="small">
@@ -206,7 +205,7 @@
 
                 <div class="card border-0 shadow-sm mb-4">
                     <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
-                        <h6 class="fw-bold text-primary mb-0"><i class="bi bi-calendar-event me-2"></i>2. Datos de la cita</h6>
+                        <h6 class="ris-section-title mb-0"><i class="bi bi-calendar-event me-2"></i>2. Datos de la cita</h6>
                     </div>
                     <div class="card-body bg-light rounded">
                         <div class="row g-3 align-items-end">
@@ -348,7 +347,7 @@
 
                 <div class="card agenda-studies-card shadow-sm mb-4">
                     <div class="card-header bg-white border-bottom pt-3 pb-2">
-                        <h6 class="fw-bold text-primary mb-0"><i class="bi bi-ui-checks-grid me-2"></i>Prestaciones y Exámenes</h6>
+                        <h6 class="ris-section-title mb-0"><i class="bi bi-ui-checks-grid me-2"></i>Prestaciones y Exámenes</h6>
                     </div>
                     <div class="card-body p-0">
                         <div class="agenda-studies-wrap">
@@ -389,8 +388,7 @@
                                 <div id="insumosButtons" class="d-flex flex-wrap gap-2 mb-3">
                                 </div>
 
-                                <div id="insumosListContainer" class="bg-light rounded border p-2 flex-grow-1"
-                                    style="min-height: 100px;">
+                                <div id="insumosListContainer" class="bg-light rounded border p-2 flex-grow-1 ris-min-h-100">
                                     <table class="table table-sm table-borderless mb-0">
                                         <tbody id="insumosListBody">
                                         </tbody>
@@ -412,8 +410,7 @@
                                         <input type="file" id="fileOrdenMedica" class="d-none"
                                             accept="image/*,application/pdf">
                                         <input type="hidden" id="docOrdenMedica">
-                                        <select id="scanPagesOrden" class="form-select form-select-sm"
-                                            style="width: auto; min-width: 5.5rem;" title="Cantidad de páginas a escanear">
+                                        <select id="scanPagesOrden" class="form-select form-select-sm ris-scan-pages" title="Cantidad de páginas a escanear">
                                             <option value="1" selected>1 pág</option>
                                             <option value="2">2 pág</option>
                                         </select>
@@ -440,8 +437,7 @@
                                         <input type="file" id="fileEncuesta" class="d-none"
                                             accept="image/*,application/pdf">
                                         <input type="hidden" id="docEncuesta">
-                                        <select id="scanPagesEncuesta" class="form-select form-select-sm"
-                                            style="width: auto; min-width: 5.5rem;" title="Cantidad de páginas a escanear">
+                                        <select id="scanPagesEncuesta" class="form-select form-select-sm ris-scan-pages" title="Cantidad de páginas a escanear">
                                             <option value="1" selected>1 pág</option>
                                             <option value="2">2 pág</option>
                                         </select>
@@ -485,8 +481,8 @@
                         <div class="row g-2 align-items-end">
                             <div class="col-md-2">
                                 <label class="form-label small fw-bold text-muted mb-1">% Copago (plan)</label>
-                                <input type="number" id="percentageInsurance" class="form-control form-control-sm"
-                                    value="0" min="0" max="100" readonly style="background-color: #f8f9fa;">
+                                <input class="form-control form-control-sm ris-readonly-soft" type="number" id="percentageInsurance"
+                                    value="0" min="0" max="100" readonly>
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label small fw-bold text-muted mb-1">Tipo Bono</label>
@@ -600,8 +596,8 @@
                             </div>
                             <div class="col-md-4 text-end">
                                 <h6 class="mb-0 text-muted fw-bold">TOTAL A PAGAR</h6>
-                                <h1 class="mb-0 fw-bold text-success display-6" id="totalCopay"
-                                    style="letter-spacing: -1px;">$0</h1>
+                                <h1 class="mb-0 fw-bold text-success display-6 ris-total-display" id="totalCopay"
+                                   >$0</h1>
                             </div>
                         </div>
                     </div>

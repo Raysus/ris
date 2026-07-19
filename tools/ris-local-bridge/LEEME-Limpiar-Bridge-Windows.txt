@@ -1,0 +1,42 @@
+================================================================================
+RIS Local Bridge — LIMPIAR y REINSTALAR (Windows)
+================================================================================
+Use esto cuando el puerto 8181 no abre o el bridge quedó “zombie”.
+
+CONTENIDO
+---------
+  Limpiar-Reinstalar-Bridge.bat           ← doble clic aquí
+  limpiar-reinstalar-bridge-windows.ps1   limpia puerto / reinstala / arranca
+  server.js, package.json, config.json    bridge completo
+  start-bridge.bat / start-bridge-hidden.vbs / install-windows-startup.ps1
+
+PASOS EN LA PC DE RECEPCIÓN
+---------------------------
+1. Copie TODA esta carpeta a la PC (p. ej. Desktop\Limpiar-Bridge-Windows
+   o reemplazando la carpeta del bridge ya instalada).
+
+2. Si Node.js no está instalado: https://nodejs.org (LTS) y reinicie.
+
+3. Ejecute:  Limpiar-Reinstalar-Bridge.bat
+   (si Windows bloquea: clic derecho → Ejecutar como administrador)
+
+4. Debe mostrar el JSON de health. Compruebe en el navegador:
+     http://127.0.0.1:8181/health
+
+QUÉ HACE EL SCRIPT
+------------------
+- Detiene y elimina la tarea HealthTiCloud-RIS-Local-Bridge
+- Mata procesos que ocupan el puerto 8181 / node server.js
+- Reinstala node_modules
+- Conserva config.json si ya existía
+- Vuelve a registrar el autoinicio y arranca el bridge
+
+SI SIGUE SIN ABRIR
+------------------
+- Antivirus / firewall bloqueando node.exe
+- Abrir start-bridge.bat en una ventana visible y leer el error
+- Confirmar que NAPS2 / RadiAnt existen solo si va a escanear o abrir DICOM
+  (el /health debe funcionar igual sin ellos)
+
+Soporte: HealthTiCloud / RIS
+================================================================================

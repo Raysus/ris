@@ -50,18 +50,16 @@ function renderCartaInformeValidacion() {
     const doc = risReportDocument.buildStudyDocument(currentValidationChain, study, labInfoValidacion);
     const e = (value) => (typeof risEscapeHtml === 'function' ? risEscapeHtml(value) : String(value ?? ''));
     const headerHtml = (doc.headerLines || [])
-        .map((line) => `<div style="text-align:center;">${e(line)}</div>`)
+        .map((line) => `<div class="ris-report-center">${e(line)}</div>`)
         .join('');
 
     $valRoot().find("#reportLetterIntro").html(`
-        <div style="font-family:'Times New Roman',Times,serif;font-size:12pt;line-height:1.45;color:${colorInformeGlobalValidation};">
-            <div style="text-align:center;margin-bottom:18px;">${headerHtml}</div>
-            <div style="margin-bottom:14px;">${e(doc.dateLine)}</div>
-            <div style="margin-bottom:10px;">Estimado Doctor:</div>
-            <div style="margin-bottom:14px;text-align:justify;">
-                El examen realizado a su paciente Sr(a) ${e(doc.patientName)}, ha dado el siguiente resultado:
-            </div>
-            <div style="font-weight:bold;margin-bottom:10px;">${e(doc.examTitle)}</div>
+        <div class="ris-report-page" style="--ris-report-color:${colorInformeGlobalValidation}">
+            <div class="ris-report-header">${headerHtml}</div>
+            <div class="ris-report-block">${e(doc.dateLine)}</div>
+            <div class="ris-report-block--sm">${e(doc.greeting || 'Estimado Doctor:')}</div>
+            <div class="ris-report-block--justify">${e(doc.patientIntro || (`El examen realizado a su paciente Sr(a) ${doc.patientName}, ha dado el siguiente resultado:`))}</div>
+            <div class="ris-report-exam-title">${e(doc.examTitle)}</div>
         </div>
     `);
 
@@ -164,7 +162,9 @@ async function cargarListaValidacion() {
 
 function renderValidationStudies() {
     const lista = $("#validationStudies");
-    const emptyHtml = '<div class="p-4 text-center text-muted"><i class="bi bi-check-circle fs-2 d-block mb-2 text-success"></i>Bandeja al día.</div>';
+    const emptyHtml = typeof risEmptyStateHtml === 'function'
+        ? risEmptyStateHtml({ icon: 'bi-check-circle', title: 'Bandeja al día', message: 'No hay informes pendientes de firma.' })
+        : '<div class="p-4 text-center text-muted">Bandeja al día.</div>';
 
     $("#badgeParaFirma").text(currentValidationData.length);
 
@@ -264,7 +264,7 @@ function abrirValidacion(citaId) {
     }
 
     // === ACTIVAR BOTONES DE HERRAMIENTAS ENTERPRISE ===
-    $valRoot().find("#toolbarValidacion").attr("style", "display: flex !important;");
+    $valRoot().find("#toolbarValidacion").removeClass("ris-validation-toolbar-hidden").css("display", "flex");
     $valRoot().find("#btnRechazar, #btnAprobar, #btnPreview, #btnVisorPacsValidacion, #btnVisorOhifValidacion, #btnEditarValidacion").prop("disabled", false);
 }
 
@@ -310,7 +310,7 @@ function cargarEstudioValidacion(studyId) {
 
     renderCartaInformeValidacion();
     $valRoot().find("#finalReportText").removeClass("border border-warning border-2 bg-warning-subtle shadow-sm");
-    $valRoot().find("#btnEditarValidacion").html('<i class="bi bi-pencil-square me-1"></i> CORREGIR TYPO').removeClass("btn-warning").addClass("btn-outline-warning");
+    $valRoot().find("#btnEditarValidacion").html('<i class="bi bi-pencil-square me-1"></i> Corregir texto').removeClass("btn-warning").addClass("btn-outline-warning");
 }
 
 function setupDocumentoValidacionUi() {
@@ -527,12 +527,12 @@ function limpiarPantallaValidacion() {
     $valRoot().find("#finalReportText").val("").prop("disabled", true);
 
     // Desactivar herramientas Enterprise
-    $valRoot().find("#toolbarValidacion").attr("style", "display: none !important;");
+    $valRoot().find("#toolbarValidacion").addClass("ris-validation-toolbar-hidden").css("display", "");
     $valRoot().find("#btnRechazar, #btnAprobar, #btnPreview, #btnVisorPacsValidacion, #btnVisorOhifValidacion, #btnEditarValidacion").prop("disabled", true);
 
     // Limpiar estilos si quedó editando
     $valRoot().find("#finalReportText").removeClass("border border-warning border-2 bg-warning-subtle shadow-sm");
-    $valRoot().find("#btnEditarValidacion").html('<i class="bi bi-pencil-square me-1"></i> CORREGIR TYPO').removeClass("btn-warning").addClass("btn-outline-warning");
+    $valRoot().find("#btnEditarValidacion").html('<i class="bi bi-pencil-square me-1"></i> Corregir texto').removeClass("btn-warning").addClass("btn-outline-warning");
 
     renderValidationStudies();
 }
@@ -598,7 +598,7 @@ function habilitarEdicionValidacion() {
         // Bloquear de nuevo
         txt.prop("disabled", true);
         txt.removeClass("border border-warning border-2 bg-warning-subtle shadow-sm");
-        btn.html('<i class="bi bi-pencil-square me-1"></i> CORREGIR TYPO').removeClass("btn-warning").addClass("btn-outline-warning");
+        btn.html('<i class="bi bi-pencil-square me-1"></i> Corregir texto').removeClass("btn-warning").addClass("btn-outline-warning");
     }
 }
 

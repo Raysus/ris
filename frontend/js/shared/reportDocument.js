@@ -21,11 +21,26 @@
             parts.push(city);
         }
         let line = parts.join(', ');
-        const phone = String(settings.phone || settings.fono || settings.telefono || '').trim();
+        const phone = String(
+            labInfo?.phone || settings.phone || settings.fono || settings.telefono || ''
+        ).trim();
         if (phone) {
             line = line ? `${line}. Fono: ${phone}` : `Fono: ${phone}`;
         }
         return line.replace(/[.\s]+$/g, '').trim();
+    }
+
+    function letterCopy(labInfo) {
+        const reportHeader = labInfo?.settings?.reportHeader || {};
+        const greeting = String(reportHeader.greeting || '').trim() || 'Estimado Doctor:';
+        const patientIntro = String(reportHeader.patientIntro || '').trim()
+            || 'El examen realizado a su paciente Sr(a) {patient}, ha dado el siguiente resultado:';
+        return { greeting, patientIntro };
+    }
+
+    function resolvePatientIntro(template, patientName) {
+        return String(template || '')
+            .replace(/\{patient\}/gi, String(patientName || 'Paciente'));
     }
 
     function headerLines(labInfo) {
@@ -111,10 +126,14 @@
 
     function buildStudyDocument(chain, study, labInfo) {
         const city = (labInfo?.city || 'Temuco').trim() || 'Temuco';
+        const patientName = formatPatientName(chain?.patient);
+        const copy = letterCopy(labInfo);
         return {
             headerLines: headerLines(labInfo),
             dateLine: formatSpanishDate(chain?.start_time || chain?.signatureDate, city),
-            patientName: formatPatientName(chain?.patient),
+            patientName,
+            greeting: copy.greeting,
+            patientIntro: resolvePatientIntro(copy.patientIntro, patientName),
             examTitle: formatExamTitle(study?.exam, study?.subExam),
             reportBody: String(study?.reportText || '').trim(),
             doctor: doctorPayload(chain, labInfo),
@@ -128,19 +147,20 @@
             .join('');
         const signatureUrl = String(document?.doctor?.signatureUrl || '').trim();
         const signatureBlock = signatureUrl
-            ? `<div class="ris-report-signature" style="margin-top:28px;"><img src="${escapeHtml(signatureUrl)}" alt="Firma" style="max-height:90px;max-width:280px;"></div>`
+            ? `<div class="ris-report-signature"><img src="${escapeHtml(signatureUrl)}" alt="Firma"></div>`
             : '';
+        const greeting = String(document.greeting || 'Estimado Doctor:').trim() || 'Estimado Doctor:';
+        const patientIntro = String(document.patientIntro || '').trim()
+            || `El examen realizado a su paciente Sr(a) ${document.patientName || 'Paciente'}, ha dado el siguiente resultado:`;
 
         return `
-<div class="ris-report-page" style="color:${color};font-family:'Times New Roman',Times,serif;font-size:12pt;line-height:1.45;">
-    <div class="ris-report-header" style="text-align:center;margin-bottom:18px;">${header}</div>
-    <div style="margin-bottom:14px;">${escapeHtml(document.dateLine)}</div>
-    <div style="margin-bottom:10px;">Estimado Doctor:</div>
-    <div style="margin-bottom:14px;text-align:justify;">
-        El examen realizado a su paciente Sr(a) ${escapeHtml(document.patientName)}, ha dado el siguiente resultado:
-    </div>
-    <div style="font-weight:bold;margin-bottom:10px;">${escapeHtml(document.examTitle)}</div>
-    <div class="ris-report-body" style="white-space:pre-wrap;text-align:justify;margin-bottom:24px;">${escapeHtml(document.reportBody)}</div>
+<div class="ris-report-page" style="--ris-report-color:${color}">
+    <div class="ris-report-header">${header}</div>
+    <div class="ris-report-block">${escapeHtml(document.dateLine)}</div>
+    <div class="ris-report-block--sm">${escapeHtml(greeting)}</div>
+    <div class="ris-report-block--justify">${escapeHtml(patientIntro)}</div>
+    <div class="ris-report-exam-title">${escapeHtml(document.examTitle)}</div>
+    <div class="ris-report-body">${escapeHtml(document.reportBody)}</div>
     ${signatureBlock}
 </div>`;
     }
@@ -149,7 +169,7 @@
         return (studies || []).map((study, index) => {
             const doc = buildStudyDocument(chain, study, labInfo);
             const html = buildHtml(doc, textColor);
-            return index > 0 ? `<div style="page-break-before:always;"></div>${html}` : html;
+            return index > 0 ? `<div class="ris-page-break"></div>${html}` : html;
         }).join('\n');
     }
 

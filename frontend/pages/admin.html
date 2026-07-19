@@ -1,110 +1,123 @@
 <div class="container-fluid p-4 h-100 d-flex flex-column admin-module">
 
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <div>
-            <h3 class="fw-bold text-primary mb-0"><i class="bi bi-sliders me-2"></i>Centro de Administración</h3>
+    <div class="ris-page-header mb-3">
+        <div class="ris-page-header__main">
+            <h1 class="ris-page-title"><i class="bi bi-sliders me-2" aria-hidden="true"></i>Administración</h1>
+            <p class="ris-page-subtitle">Directorio, operación clínica, reportes e integraciones</p>
         </div>
     </div>
 
     <div class="row flex-grow-1 overflow-auto mt-3">
 
-        <div class="col-md-3 col-lg-2 h-100 overflow-auto border-end pe-3 pb-4">
-            <div class="nav flex-column nav-pills fw-bold gap-1" id="adminTabs" role="tablist"
+        <div class="col-md-3 col-lg-2 h-100 overflow-auto border-end pe-3 pb-4 admin-nav-col">
+            <div class="nav flex-column nav-pills gap-0" id="adminTabs" role="tablist"
                 aria-orientation="vertical">
 
-                <span class="small text-muted text-uppercase fw-bolder mb-1 mt-2 px-2"
-                    style="font-size: 0.7rem;">Directorio</span>
-                <button class="nav-link active text-start px-3 py-2 text-dark" data-bs-toggle="tab"
-                    data-bs-target="#tab-usuarios" type="button" role="tab">
-                    <i class="bi bi-people-fill me-2 text-primary"></i>Usuarios
-                </button>
-                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
-                    data-bs-target="#tab-pacientes" type="button" role="tab">
-                    <i class="bi bi-person-vcard me-2 text-success"></i>Pacientes
-                </button>
-                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
-                    data-bs-target="#tab-medicos-referentes" type="button" role="tab">
-                    <i class="bi bi-person-plus me-2 text-info"></i>Médicos referentes
-                </button>
+                <details class="admin-hub" open>
+                    <summary class="admin-hub-summary" aria-expanded="true">Directorio</summary>
+                    <div class="admin-hub-body">
+                        <button class="nav-link active text-start px-3 py-2" data-bs-toggle="tab"
+                            data-bs-target="#tab-usuarios" type="button" role="tab">
+                            <i class="bi bi-people-fill me-2" aria-hidden="true"></i>Usuarios
+                        </button>
+                        <button class="nav-link text-start px-3 py-2" data-bs-toggle="tab"
+                            data-bs-target="#tab-pacientes" type="button" role="tab">
+                            <i class="bi bi-person-vcard me-2" aria-hidden="true"></i>Pacientes
+                        </button>
+                        <button class="nav-link text-start px-3 py-2" data-bs-toggle="tab"
+                            data-bs-target="#tab-medicos-referentes" type="button" role="tab">
+                            <i class="bi bi-person-plus me-2" aria-hidden="true"></i>Médicos referentes
+                        </button>
+                    </div>
+                </details>
 
-                <span class="small text-muted text-uppercase fw-bolder mb-1 mt-3 px-2"
-                    style="font-size: 0.7rem;">Operación Clínica</span>
-                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab" data-bs-target="#tab-salas"
-                    type="button" role="tab">
-                    <i class="bi bi-display me-2 text-info"></i>Salas y Equipos
-                </button>
-                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
-                    data-bs-target="#tab-previsiones" type="button" role="tab">
-                    <i class="bi bi-heart-pulse-fill me-2 text-danger"></i>Previsiones
-                </button>
-                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
-                    data-bs-target="#tab-planes" type="button" role="tab">
-                    <i class="bi bi-shield-check me-2 text-primary"></i>Planes y Convenios
-                </button>
-                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
-                    data-bs-target="#tab-catalogo" type="button" role="tab">
-                    <i class="bi bi-tags-fill me-2 text-danger"></i>Aranceles / Exámenes
-                </button>
-                <!--<button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
-                    data-bs-target="#tab-servicios" type="button" role="tab">
-                    <i class="bi bi-hospital me-2 text-info"></i>Servicios Clínicos
-                </button>-->
-                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
-                    data-bs-target="#tab-insumos" type="button" role="tab">
-                    <i class="bi bi-boxes me-2 text-warning"></i>Inventario
-                </button>
-                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
-                    data-bs-target="#tab-plantillas" type="button" role="tab">
-                    <i class="bi bi-file-earmark-text-fill me-2 text-warning"></i>Plantillas Médicas
-                </button>
-                <span class="small text-muted text-uppercase fw-bolder mb-1 mt-3 px-2"
-                    style="font-size: 0.7rem;">Reportes</span>
-                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
-                    data-bs-target="#tab-honorarios" type="button" role="tab">
-                    <i class="bi bi-cash-coin me-2 text-success"></i>Honorarios
-                </button>
-                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
-                    data-bs-target="#tab-examenes" type="button" role="tab">
-                    <i class="bi bi-file-medical me-2 text-primary"></i>Producción Mensual
-                </button>
-                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
-                    data-bs-target="#tab-nomina" type="button" role="tab">
-                    <i class="bi bi-table me-2 text-success"></i>Nómina Diaria
-                </button>
-                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
-                    data-bs-target="#tab-agenda-semanal" type="button" role="tab">
-                    <i class="bi bi-calendar-week me-2 text-info"></i>Agenda Semanal
-                </button>
-                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
-                    data-bs-target="#tab-caja" type="button" role="tab">
-                    <i class="bi bi-wallet2 me-2 text-warning"></i>Cierre de Caja
-                </button>
-                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
-                    data-bs-target="#tab-consolidado" type="button" role="tab">
-                    <i class="bi bi-buildings me-2 text-primary"></i>Matriz / Sucursales
-                </button>
-                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
-                    data-bs-target="#tab-dte" type="button" role="tab">
-                    <i class="bi bi-receipt me-2 text-danger"></i>DTE / Boletas
-                </button>
+                <details class="admin-hub" open>
+                    <summary class="admin-hub-summary" aria-expanded="true">Operación clínica</summary>
+                    <div class="admin-hub-body">
+                        <button class="nav-link text-start px-3 py-2" data-bs-toggle="tab" data-bs-target="#tab-salas"
+                            type="button" role="tab">
+                            <i class="bi bi-display me-2" aria-hidden="true"></i>Salas y equipos
+                        </button>
+                        <button class="nav-link text-start px-3 py-2" data-bs-toggle="tab"
+                            data-bs-target="#tab-previsiones" type="button" role="tab">
+                            <i class="bi bi-heart-pulse-fill me-2" aria-hidden="true"></i>Previsiones
+                        </button>
+                        <button class="nav-link text-start px-3 py-2" data-bs-toggle="tab"
+                            data-bs-target="#tab-planes" type="button" role="tab">
+                            <i class="bi bi-shield-check me-2" aria-hidden="true"></i>Planes y convenios
+                        </button>
+                        <button class="nav-link text-start px-3 py-2" data-bs-toggle="tab"
+                            data-bs-target="#tab-catalogo" type="button" role="tab">
+                            <i class="bi bi-tags-fill me-2" aria-hidden="true"></i>Aranceles / exámenes
+                        </button>
+                        <button class="nav-link text-start px-3 py-2" data-bs-toggle="tab"
+                            data-bs-target="#tab-insumos" type="button" role="tab">
+                            <i class="bi bi-boxes me-2" aria-hidden="true"></i>Inventario
+                        </button>
+                        <button class="nav-link text-start px-3 py-2" data-bs-toggle="tab"
+                            data-bs-target="#tab-plantillas" type="button" role="tab">
+                            <i class="bi bi-file-earmark-text-fill me-2" aria-hidden="true"></i>Plantillas médicas
+                        </button>
+                    </div>
+                </details>
 
-                <span class="small text-muted text-uppercase fw-bolder mb-1 mt-3 px-2"
-                    style="font-size: 0.7rem;">Integraciones</span>
-                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
-                    data-bs-target="#tab-cloud-sync" type="button" role="tab">
-                    <i class="bi bi-cloud-arrow-up me-2 text-info"></i>Sync Nube
-                </button>
-                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
-                    data-bs-target="#tab-hl7" type="button" role="tab">
-                    <i class="bi bi-hdd-network me-2 text-secondary"></i>HL7 / HIS
-                </button>
+                <details class="admin-hub">
+                    <summary class="admin-hub-summary" aria-expanded="false">Reportes</summary>
+                    <div class="admin-hub-body">
+                        <button class="nav-link text-start px-3 py-2" data-bs-toggle="tab"
+                            data-bs-target="#tab-honorarios" type="button" role="tab">
+                            <i class="bi bi-cash-coin me-2" aria-hidden="true"></i>Honorarios
+                        </button>
+                        <button class="nav-link text-start px-3 py-2" data-bs-toggle="tab"
+                            data-bs-target="#tab-examenes" type="button" role="tab">
+                            <i class="bi bi-file-medical me-2" aria-hidden="true"></i>Producción mensual
+                        </button>
+                        <button class="nav-link text-start px-3 py-2" data-bs-toggle="tab"
+                            data-bs-target="#tab-nomina" type="button" role="tab">
+                            <i class="bi bi-table me-2" aria-hidden="true"></i>Nómina diaria
+                        </button>
+                        <button class="nav-link text-start px-3 py-2" data-bs-toggle="tab"
+                            data-bs-target="#tab-agenda-semanal" type="button" role="tab">
+                            <i class="bi bi-calendar-week me-2" aria-hidden="true"></i>Agenda semanal
+                        </button>
+                        <button class="nav-link text-start px-3 py-2" data-bs-toggle="tab"
+                            data-bs-target="#tab-caja" type="button" role="tab">
+                            <i class="bi bi-wallet2 me-2" aria-hidden="true"></i>Cierre de caja
+                        </button>
+                        <button class="nav-link text-start px-3 py-2" data-bs-toggle="tab"
+                            data-bs-target="#tab-consolidado" type="button" role="tab">
+                            <i class="bi bi-buildings me-2" aria-hidden="true"></i>Matriz / sucursales
+                        </button>
+                        <button class="nav-link text-start px-3 py-2" data-bs-toggle="tab"
+                            data-bs-target="#tab-dte" type="button" role="tab">
+                            <i class="bi bi-receipt me-2" aria-hidden="true"></i>DTE / boletas
+                        </button>
+                    </div>
+                </details>
 
-                <span class="small text-muted text-uppercase fw-bolder mb-1 mt-3 px-2"
-                    style="font-size: 0.7rem;">Sistema</span>
-                <button class="nav-link text-start px-3 py-2 text-dark" data-bs-toggle="tab"
-                    data-bs-target="#tab-config" type="button" role="tab">
-                    <i class="bi bi-gear-fill me-2 text-secondary"></i>Ajustes Generales
-                </button>
+                <details class="admin-hub">
+                    <summary class="admin-hub-summary" aria-expanded="false">Integraciones</summary>
+                    <div class="admin-hub-body">
+                        <button class="nav-link text-start px-3 py-2" data-bs-toggle="tab"
+                            data-bs-target="#tab-cloud-sync" type="button" role="tab">
+                            <i class="bi bi-cloud-arrow-up me-2" aria-hidden="true"></i>Sincronización nube
+                        </button>
+                        <button class="nav-link text-start px-3 py-2" data-bs-toggle="tab"
+                            data-bs-target="#tab-hl7" type="button" role="tab">
+                            <i class="bi bi-hdd-network me-2" aria-hidden="true"></i>HL7 / HIS
+                        </button>
+                    </div>
+                </details>
+
+                <details class="admin-hub">
+                    <summary class="admin-hub-summary" aria-expanded="false">Sistema</summary>
+                    <div class="admin-hub-body">
+                        <button class="nav-link text-start px-3 py-2" data-bs-toggle="tab"
+                            data-bs-target="#tab-config" type="button" role="tab">
+                            <i class="bi bi-gear-fill me-2" aria-hidden="true"></i>Ajustes generales
+                        </button>
+                    </div>
+                </details>
             </div>
         </div>
 
@@ -277,7 +290,7 @@
                 <div class="tab-pane fade h-100" id="tab-catalogo" role="tabpanel">
                     <div class="d-flex flex-column h-100">
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h5 class="fw-bold text-danger mb-0"><i class="bi bi-tags-fill me-2"></i>Catálogo de
+                            <h5 class="ris-section-title mb-0"><i class="bi bi-tags-fill me-2"></i>Catálogo de
                                 Prestaciones</h5>
                             <div class="d-flex gap-2">
                                 <button class="btn btn-sm btn-outline-success fw-bold shadow-sm"
@@ -314,18 +327,18 @@
                             <div class="card-body py-3 d-flex justify-content-between align-items-end">
                                 <div class="d-flex gap-4">
                                     <div>
-                                        <label class="form-label small fw-bold text-muted mb-1"><i
+                                        <label for="mesHonorarios" class="form-label small fw-bold text-muted mb-1"><i
                                                 class="bi bi-calendar-month me-1"></i>Mes Producción</label>
                                         <input type="month" id="mesHonorarios" class="form-control fw-bold text-primary"
                                             onchange="renderReporteHonorarios()">
                                     </div>
                                     <div>
-                                        <label class="form-label small fw-bold text-muted mb-1"><i
+                                        <label for="mesExamenes" class="form-label small fw-bold text-muted mb-1"><i
                                                 class="bi bi-percent me-1"></i>Comisión Rad.</label>
                                         <div class="input-group">
-                                            <input type="number" id="porcentajeComision"
-                                                class="form-control fw-bold text-center" value="25" min="1" max="100"
-                                                style="width: 80px;" onchange="renderReporteHonorarios()">
+                                            <input class="form-control fw-bold text-center ris-ctrl-sm-w" type="number" id="porcentajeComision"
+                                                value="25" min="1" max="100"
+                                                onchange="renderReporteHonorarios()">
                                             <span class="input-group-text bg-light">%</span>
                                         </div>
                                     </div>
@@ -365,7 +378,7 @@
                             <div class="card-body py-3 d-flex justify-content-between align-items-end">
                                 <div class="d-flex gap-4">
                                     <div>
-                                        <label class="form-label small fw-bold text-muted mb-1"><i
+                                        <label for="mesExamenes" class="form-label small fw-bold text-muted mb-1"><i
                                                 class="bi bi-calendar-month me-1"></i>Mes a Consultar</label>
                                         <input type="month" id="mesExamenes" class="form-control fw-bold text-primary"
                                             onchange="renderReporteExamenes()">
@@ -403,14 +416,14 @@
                             <div class="card-body py-3">
                                 <div class="row g-3 align-items-end">
                                     <div class="col-md-4">
-                                        <label class="form-label small fw-bold text-muted mb-1">
+                                        <label for="fechaNomina" class="form-label small fw-bold text-muted mb-1">
                                             <i class="bi bi-calendar-date me-1"></i>Nómina del día
                                         </label>
                                         <input type="date" id="fechaNomina" class="form-control fw-bold text-primary"
                                             onchange="renderNominaDiaria()">
                                     </div>
                                     <div class="col-md-4">
-                                        <label class="form-label small fw-bold text-muted mb-1">
+                                        <label for="mesNomina" class="form-label small fw-bold text-muted mb-1">
                                             <i class="bi bi-calendar-month me-1"></i>Exportar mes completo
                                         </label>
                                         <input type="month" id="mesNomina" class="form-control fw-bold text-success">
@@ -463,14 +476,14 @@
                             <div class="card-body py-3">
                                 <div class="row g-3 align-items-end">
                                     <div class="col-md-3">
-                                        <label class="form-label small fw-bold text-muted mb-1">
+                                        <label for="fechaAgendaSemanal" class="form-label small fw-bold text-muted mb-1">
                                             <i class="bi bi-calendar-week me-1"></i>Semana (cualquier día)
                                         </label>
                                         <input type="date" id="fechaAgendaSemanal" class="form-control fw-bold text-primary"
                                             onchange="renderAgendaSemanalMedico()">
                                     </div>
                                     <div class="col-md-4">
-                                        <label class="form-label small fw-bold text-muted mb-1">
+                                        <label for="medicoDestinatarioAgendaSemanal" class="form-label small fw-bold text-muted mb-1">
                                             <i class="bi bi-person-check me-1"></i>Médico destinatario
                                         </label>
                                         <select id="medicoDestinatarioAgendaSemanal" class="form-select fw-bold"
@@ -496,7 +509,7 @@
                                     </div>
                                 </div>
                                 <div class="mt-3">
-                                    <label class="form-label small fw-bold text-muted mb-1">
+                                    <label for="fechaCierreCaja" class="form-label small fw-bold text-muted mb-1">
                                         <i class="bi bi-hdd-stack me-1"></i>Equipos / salas
                                     </label>
                                     <div id="filtroEquiposAgendaSemanal" class="d-flex flex-wrap gap-2">
@@ -521,7 +534,7 @@
                             <div class="card-body py-3">
                                 <div class="row g-3 align-items-end">
                                     <div class="col-md-4">
-                                        <label class="form-label small fw-bold text-muted mb-1">Fecha de cierre</label>
+                                        <label for="fechaCierreCaja" class="form-label small fw-bold text-muted mb-1">Fecha de cierre</label>
                                         <input type="date" id="fechaCierreCaja" class="form-control fw-bold text-primary"
                                             onchange="cargarCierreCaja()">
                                     </div>
@@ -561,7 +574,7 @@
                         <div class="card bg-white border-0 shadow-sm mb-3">
                             <div class="card-body py-3 row g-3 align-items-end">
                                 <div class="col-md-4">
-                                    <label class="form-label small fw-bold text-muted mb-1">Mes</label>
+                                    <label for="mesConsolidado" class="form-label small fw-bold text-muted mb-1">Mes</label>
                                     <input type="month" id="mesConsolidado" class="form-control" onchange="cargarConsolidadoMatriz()">
                                 </div>
                                 <div class="col-md-8 text-md-end">
@@ -584,7 +597,7 @@
                 <div class="tab-pane fade h-100" id="tab-dte" role="tabpanel">
                     <div class="d-flex flex-column h-100">
                         <div class="d-flex justify-content-between mb-3">
-                            <h5 class="fw-bold text-danger mb-0"><i class="bi bi-receipt me-2"></i>Documentos tributarios electrónicos</h5>
+                            <h5 class="ris-section-title mb-0"><i class="bi bi-receipt me-2"></i>Documentos tributarios electrónicos</h5>
                             <button class="btn btn-sm btn-outline-primary fw-bold" onclick="cargarListaDte()"><i class="bi bi-arrow-clockwise"></i> Actualizar</button>
                         </div>
                         <div class="card shadow-sm border-0 flex-grow-1 overflow-auto">
@@ -599,7 +612,7 @@
                 <div class="tab-pane fade h-100" id="tab-cloud-sync" role="tabpanel">
                     <div class="d-flex flex-column h-100">
                         <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-                            <h5 class="fw-bold text-info mb-0"><i class="bi bi-cloud-arrow-up me-2"></i>Sincronización nube</h5>
+                            <h5 class="ris-section-title mb-0"><i class="bi bi-cloud-arrow-up me-2"></i>Sincronización nube</h5>
                             <div class="d-flex flex-wrap gap-1">
                                 <button type="button" class="btn btn-sm btn-success fw-bold" onclick="pullCatalogoDesdeNube(false, true)">
                                     <i class="bi bi-cloud-download me-1"></i>Catálogo + usuarios
@@ -634,7 +647,7 @@
                 <div class="tab-pane fade h-100" id="tab-hl7" role="tabpanel">
                     <div class="d-flex flex-column h-100">
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h5 class="fw-bold text-secondary mb-0"><i class="bi bi-hdd-network me-2"></i>Mensajes HL7</h5>
+                            <h5 class="ris-section-title mb-0"><i class="bi bi-hdd-network me-2"></i>Mensajes HL7</h5>
                             <button class="btn btn-sm btn-outline-secondary fw-bold" onclick="cargarHl7Messages()">
                                 <i class="bi bi-arrow-clockwise me-1"></i>Actualizar
                             </button>
@@ -657,7 +670,7 @@
                 <div class="tab-pane fade h-100 overflow-y-auto custom-scrollbar" id="tab-config" role="tabpanel">
                     <div class="card shadow-sm border-0 p-4 min-vh-100 bg-white">
                         <div class="d-flex justify-content-between align-items-center mb-4">
-                            <h5 class="fw-bold text-secondary mb-0"><i class="bi bi-building-gear me-2"></i>Identidad
+                            <h5 class="ris-section-title mb-0"><i class="bi bi-building-gear me-2"></i>Identidad
                                 Institucional y Operaciones</h5>
                             <div class="d-flex gap-2">
                             <button class="btn btn-sm btn-outline-danger fw-bold shadow-sm d-none" id="btnEliminarMatriz"
@@ -674,44 +687,38 @@
                         <form id="formConfigCentro">
                             <div class="row g-4 mb-3">
                                 <div class="col-md-4">
-                                    <label class="form-label fw-bold small text-muted">Tipo de Laboratorio *</label>
+                                    <label for="cfgTipo" class="form-label fw-bold small text-muted">Tipo de Laboratorio *</label>
                                     <select class="form-select" id="cfgTipo"></select>
                                 </div>
                                 <div class="col-md-8">
-                                    <label class="form-label fw-bold small text-muted">Nombre de la Clínica / Centro
+                                    <label for="cfgNombre" class="form-label fw-bold small text-muted">Nombre de la Clínica / Centro
                                         Matriz</label>
                                     <input type="text" class="form-control" id="cfgNombre">
                                 </div>
                                 <div class="col-md-6">
-                                    <label class="form-label fw-bold small text-muted">Dirección Comercial</label>
+                                    <label for="cfgDireccion" class="form-label fw-bold small text-muted">Dirección Comercial</label>
                                     <input type="text" class="form-control" id="cfgDireccion"
                                         placeholder="Ej. Av. Las Araucarias 1020">
                                 </div>
                                 <div class="col-md-4">
-                                    <label class="form-label fw-bold small text-muted">Ciudad</label>
+                                    <label for="cfgCiudad" class="form-label fw-bold small text-muted">Ciudad</label>
                                     <input type="text" class="form-control" id="cfgCiudad" placeholder="Ej. Temuco">
                                 </div>
                                 <div class="col-md-4">
-                                    <label class="form-label fw-bold small text-muted">Teléfono de Contacto</label>
+                                    <label for="cfgTelefono" class="form-label fw-bold small text-muted">Teléfono de Contacto</label>
                                     <input type="text" class="form-control" id="cfgTelefono"
                                         placeholder="Ej. +56 9 1234 5678">
                                 </div>
                                 <div class="col-md-4">
-                                    <label class="form-label fw-bold small text-muted">Correo Electrónico
+                                    <label for="cfgEmail" class="form-label fw-bold small text-muted">Correo Electrónico
                                         Oficial</label>
                                     <input type="email" class="form-control" id="cfgEmail"
                                         placeholder="contacto@clinica.cl">
                                 </div>
                                 <div class="col-md-6">
-                                    <label class="form-label fw-bold text-secondary small">Logo del Centro
+                                    <label for="cfgLogo" class="form-label fw-bold text-secondary small">Logo del Centro
                                         (JPG/PNG)</label>
                                     <input type="file" id="cfgLogo" class="form-control" accept="image/png, image/jpeg">
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label fw-bold text-secondary small">Color del Texto
-                                        (Informe)</label>
-                                    <input type="color" id="cfgColorInforme"
-                                        class="form-control form-control-color w-100" title="Elegir color">
                                 </div>
                             </div>
 
@@ -719,15 +726,15 @@
                             </h6>
                             <div class="row g-4 mb-4">
                                 <div class="col-md-4">
-                                    <label class="form-label fw-bold small text-muted">Hora de Apertura</label>
+                                    <label for="cfgHoraInicio" class="form-label fw-bold small text-muted">Hora de Apertura</label>
                                     <input type="time" class="form-control" id="cfgHoraInicio">
                                 </div>
                                 <div class="col-md-4">
-                                    <label class="form-label fw-bold small text-muted">Hora de Cierre</label>
+                                    <label for="cfgHoraFin" class="form-label fw-bold small text-muted">Hora de Cierre</label>
                                     <input type="time" class="form-control" id="cfgHoraFin">
                                 </div>
                                 <div class="col-md-4">
-                                    <label class="form-label fw-bold small text-muted">Intervalo Base (Bloques)</label>
+                                    <label for="cfgIntervalo" class="form-label fw-bold small text-muted">Intervalo Base (Bloques)</label>
                                     <select class="form-select" id="cfgIntervalo">
                                         <option value="00:10:00">10 Minutos</option>
                                         <option value="00:15:00">15 Minutos</option>
@@ -739,7 +746,7 @@
                             </div>
                             <div class="row g-3 mb-4">
                                 <div class="col-12">
-                                    <label class="form-label fw-bold small text-muted mb-2">Campos visibles en Agenda (cita)</label>
+                                    <label for="sucTipo" class="form-label fw-bold small text-muted mb-2">Campos visibles en Agenda (cita)</label>
                                     <div class="form-check">
                                         <input class="form-check-input" type="checkbox" id="cfgShowAgendaOrigin">
                                         <label class="form-check-label" for="cfgShowAgendaOrigin">
@@ -757,14 +764,55 @@
                             </div>
                             <div class="row g-3 mb-4">
                                 <div class="col-12">
-                                    <label class="form-label fw-bold small text-muted mb-2">Informes</label>
+                                    <h6 class="ris-section-title mb-2 border-bottom pb-2">Texto de impresión (informes)</h6>
+                                    <p class="form-text mt-0 mb-3">
+                                        Define la cabecera y el texto fijo de la carta al imprimir o entregar informes.
+                                        Si deja las líneas de sede vacías, se usa la dirección y teléfono del centro.
+                                    </p>
+                                </div>
+                                <div class="col-md-8">
+                                    <label for="cfgReportLegalName" class="form-label fw-bold small text-muted">Nombre legal / razón social</label>
+                                    <input type="text" class="form-control" id="cfgReportLegalName"
+                                        placeholder="Ej. Centro de Diagnóstico y Tratamiento Ltda."
+                                        autocomplete="organization">
+                                    <div class="form-text">Aparece duplicado en la cabecera (estilo carta). Vacío = nombre del centro.</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="cfgColorInforme" class="form-label fw-bold text-secondary small">Color del texto</label>
+                                    <input type="color" id="cfgColorInforme"
+                                        class="form-control form-control-color w-100" title="Elegir color">
+                                </div>
+                                <div class="col-12">
+                                    <label for="cfgReportBranches" class="form-label fw-bold small text-muted">Líneas de cabecera (sedes / contactos)</label>
+                                    <textarea class="form-control font-monospace" id="cfgReportBranches" rows="4"
+                                        placeholder="Una línea por sede o dato de contacto&#10;Ej. Manuel Montt Nº942, Temuco. Fono: 45 269 0000"></textarea>
+                                    <div class="form-text">Una línea por renglón. Vacío = solo la dirección de esta sede.</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="cfgReportGreeting" class="form-label fw-bold small text-muted">Saludo</label>
+                                    <input type="text" class="form-control" id="cfgReportGreeting"
+                                        placeholder="Estimado Doctor:">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="cfgReportPatientIntro" class="form-label fw-bold small text-muted">Párrafo del paciente</label>
+                                    <input type="text" class="form-control" id="cfgReportPatientIntro"
+                                        placeholder="El examen realizado a su paciente Sr(a) {patient}, ha dado el siguiente resultado:">
+                                    <div class="form-text">Use <code>{patient}</code> donde vaya el nombre del paciente.</div>
+                                </div>
+                                <div class="col-12">
                                     <div class="form-check">
                                         <input class="form-check-input" type="checkbox" id="cfgUseReportSignature">
                                         <label class="form-check-label" for="cfgUseReportSignature">
                                             Incluir <strong>firma digitalizada</strong> del médico en el informe
                                         </label>
                                     </div>
-                                    <div class="form-text">Desactivado por defecto (p. ej. Siresa). Si se activa, se usa la imagen de firma del usuario radiólogo cuando exista.</div>
+                                    <div class="form-text">Desactivado por defecto. Si se activa, se usa la imagen de firma del radiólogo cuando exista.</div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="border rounded-3 p-3 bg-white" id="cfgReportPreview" aria-live="polite">
+                                        <div class="small text-muted text-uppercase fw-bold mb-2">Vista previa de cabecera</div>
+                                        <div id="cfgReportPreviewBody" class="small text-center text-dark" style="font-family: 'Times New Roman', Times, serif;"></div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -777,7 +825,7 @@
                         </form>
 
                         <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2 mt-4">
-                            <h5 class="fw-bold text-primary mb-0"><i class="bi bi-diagram-3-fill me-2"></i>Sucursales
+                            <h5 class="ris-section-title mb-0"><i class="bi bi-diagram-3-fill me-2"></i>Sucursales
                                 (Laboratorios Hijos)</h5>
                             <button class="btn btn-sm btn-primary fw-bold shadow-sm" onclick="nuevaSucursal()">
                                 <i class="bi bi-plus-lg me-1"></i> Añadir Sucursal
@@ -940,24 +988,24 @@
                     <input type="hidden" id="sucId">
 
                     <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">Tipo de Sucursal *</label>
+                        <label class="form-label fw-bold small text-muted" for="sucTipo">Tipo de Sucursal *</label>
                         <select class="form-select req-suc" id="sucTipo"></select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">Nombre de la Sucursal *</label>
+                        <label for="sucNombre" class="form-label fw-bold small text-muted">Nombre de la Sucursal *</label>
                         <input type="text" class="form-control req-suc" id="sucNombre">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">Dirección</label>
+                        <label for="sucDireccion" class="form-label fw-bold small text-muted">Dirección</label>
                         <input type="text" class="form-control" id="sucDireccion">
                     </div>
                     <div class="row g-3 mb-3">
                         <div class="col-6">
-                            <label class="form-label fw-bold small text-muted">Ciudad</label>
+                            <label for="sucCiudad" class="form-label fw-bold small text-muted">Ciudad</label>
                             <input type="text" class="form-control" id="sucCiudad">
                         </div>
                         <div class="col-6">
-                            <label class="form-label fw-bold small text-muted">Teléfono</label>
+                            <label for="sucTelefono" class="form-label fw-bold small text-muted">Teléfono</label>
                             <input type="text" class="form-control" id="sucTelefono">
                         </div>
                     </div>
@@ -991,30 +1039,30 @@
             <div class="modal-body bg-light p-4">
                 <form id="adminForm" onsubmit="event.preventDefault();">
                     <input type="hidden" id="uId">
-                    <h6 class="fw-bold text-primary mb-3 border-bottom pb-2">1. Identidad Personal</h6>
+                    <h6 class="ris-section-title mb-3 border-bottom pb-2">1. Identidad Personal</h6>
                     <div class="row g-3 mb-4">
                         <div class="col-md-4">
-                            <label class="form-label small fw-bold">RUT</label>
+                            <label for="uRut" class="form-label small fw-bold">RUT</label>
                             <input type="text" class="form-control req-user" id="uRut" placeholder="12.345.678-9">
                         </div>
-                        <div class="col-md-8"><label class="form-label small fw-bold">Nombres</label><input type="text"
+                        <div class="col-md-8"><label for="uNombres" class="form-label small fw-bold">Nombres</label><input type="text"
                                 class="form-control req-user" id="uNombres"></div>
-                        <div class="col-md-6"><label class="form-label small fw-bold">Ap. Paterno</label><input
+                        <div class="col-md-6"><label for="uPrimerApellido" class="form-label small fw-bold">Ap. Paterno</label><input
                                 type="text" class="form-control req-user" id="uPrimerApellido"></div>
-                        <div class="col-md-6"><label class="form-label small fw-bold">Ap. Materno</label><input
+                        <div class="col-md-6"><label for="uSegundoApellido" class="form-label small fw-bold">Ap. Materno</label><input
                                 type="text" class="form-control" id="uSegundoApellido"></div>
                         <div class="col-md-12">
-                            <label class="form-label small fw-bold">Correo electrónico</label>
+                            <label for="uEmail" class="form-label small fw-bold">Correo electrónico</label>
                             <input type="email" class="form-control" id="uEmail" placeholder="usuario@centro.cl"
                                 autocomplete="email">
                             <small class="text-muted">Se guarda en la ficha y se envía a Keycloak al crear o actualizar el
                                 usuario (correo de bienvenida / acciones requeridas).</small>
                         </div>
                     </div>
-                    <h6 class="fw-bold text-primary mb-3 border-bottom pb-2">2. Privilegios de Sistema</h6>
+                    <h6 class="ris-section-title mb-3 border-bottom pb-2">2. Privilegios de Sistema</h6>
                     <div class="row g-3 mb-4">
                         <div class="col-md-4">
-                            <label class="form-label small fw-bold">Título</label>
+                            <label for="uTitulo" class="form-label small fw-bold">Título</label>
                             <select class="form-select" id="uTitulo">
                                 <option value="">Ninguno</option>
                                 <option value="Dr.">Dr.</option>
@@ -1025,36 +1073,36 @@
                             </select>
                         </div>
                         <div class="col-md-12 mt-2">
-                            <label class="form-label fw-bold small text-muted"><i
-                                    class="bi bi-building me-1"></i>Sucursales Asignadas *</label>
-                            <div id="userLaboratoriesContainer"
+                            <label id="lblUserLabs" class="form-label fw-bold small text-muted"><i
+                                    class="bi bi-building me-1" aria-hidden="true"></i>Sucursales asignadas *</label>
+                            <div id="userLaboratoriesContainer" role="group" aria-labelledby="lblUserLabs"
                                 class="border rounded p-3 bg-light d-flex flex-wrap gap-3">
                                 <span class="text-muted small">Cargando sucursales...</span>
                             </div>
-                            <small class="text-muted" style="font-size: 0.7rem;">Active los interruptores de las
+                            <small class="text-muted ris-text-xxs">Active los interruptores de las
                                 clínicas a las que este usuario tendrá acceso.</small>
                         </div>
                         <div class="col-md-12">
-                            <label class="form-label fw-bold small text-muted">Roles del Sistema *</label>
-                            <div id="contenedorRolesAdmin" class="d-flex flex-wrap gap-3 p-2 bg-white border rounded">
+                            <label id="lblUserRoles" class="form-label fw-bold small text-muted">Roles del sistema *</label>
+                            <div id="contenedorRolesAdmin" class="d-flex flex-wrap gap-3 p-2 bg-white border rounded" role="group" aria-labelledby="lblUserRoles">
                                 <span class="text-muted small">Cargando roles...</span>
                             </div>
                         </div>
                     </div>
-                    <h6 class="fw-bold text-primary mb-3 border-bottom pb-2">3. Credenciales e Integración</h6>
+                    <h6 class="ris-section-title mb-3 border-bottom pb-2">3. Credenciales e Integración</h6>
                     <div class="row g-3">
-                        <div class="col-md-6"><label class="form-label small fw-bold">Username</label><input type="text"
+                        <div class="col-md-6"><label class="form-label small fw-bold" for="uUsername">Username</label><input type="text"
                                 class="form-control req-user" id="uUsername"></div>
-                        <div class="col-md-6"><label class="form-label small fw-bold">Contraseña</label><input
+                        <div class="col-md-6"><label for="uPassword" class="form-label small fw-bold">Contraseña</label><input
                                 type="password" class="form-control req-user" id="uPassword" minlength="4"
                                 autocomplete="new-password">
                             <small class="text-muted">Mínimo 4 caracteres (obligatoria en usuarios nuevos).</small></div>
-                        <div class="col-md-6"><label class="form-label small fw-bold">Perfil Dragon</label><input
+                        <div class="col-md-6"><label for="uDragonProfile" class="form-label small fw-bold">Perfil Dragon</label><input
                                 type="text" class="form-control" id="uDragonProfile" placeholder="Ej. DrPerez_Voz">
                         </div>
                     </div>
                     <div class="row g-3 mt-2">
-                        <div class="col-md-12"><label class="form-label small fw-bold">Firma Digitalizada</label> <input
+                        <div class="col-md-12"><label for="uFirma" class="form-label small fw-bold">Firma Digitalizada</label> <input
                                 type="file" id="uFirma" class="form-control" accept="image/png, image/jpeg">
                             <small class="text-muted">Recomendado: Imagen PNG con fondo transparente.</small>
                         </div>
@@ -1087,7 +1135,7 @@
                 <form id="formInsumo">
                     <input type="hidden" id="insId">
                     <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">Categoría del Insumo</label>
+                        <label for="insCategoria" class="form-label fw-bold small text-muted">Categoría del Insumo</label>
                         <select class="form-select req-ins" id="insCategoria">
                             <option value="CONTRASTE">Contraste / Sueros</option>
                             <option value="FUNGIBLE">Fungibles / Agujas</option>
@@ -1095,16 +1143,16 @@
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">Nombre del Insumo</label>
+                        <label for="insNombre" class="form-label fw-bold small text-muted">Nombre del Insumo</label>
                         <input type="text" class="form-control req-ins" id="insNombre" placeholder="Ej. Jeringa 20cc">
                     </div>
                     <div class="row g-3">
                         <div class="col-6">
-                            <label class="form-label fw-bold small text-muted">Stock Actual</label>
+                            <label for="insStock" class="form-label fw-bold small text-muted">Stock Actual</label>
                             <input type="number" class="form-control req-ins text-center" id="insStock" min="0">
                         </div>
                         <div class="col-6">
-                            <label class="form-label fw-bold small text-muted">Capacidad Máxima</label>
+                            <label for="insTotal" class="form-label fw-bold small text-muted">Capacidad Máxima</label>
                             <input type="number" class="form-control req-ins text-center" id="insTotal" min="1">
                         </div>
                     </div>
@@ -1143,20 +1191,20 @@
                 </div>
 
                 <div class="col-12 mt-4">
-                    <h6 class="fw-bold text-primary border-bottom pb-2"><i
+                    <h6 class="ris-section-title border-bottom pb-2"><i
                             class="bi bi-hdd-network me-2"></i>Configuración de Red (DICOM)</h6>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label fw-bold small text-muted">AE Title</label>
+                    <label for="salaAeTitle" class="form-label fw-bold small text-muted">AE Title</label>
                     <input type="text" class="form-control" id="salaAeTitle" placeholder="Ej. CT_SALA1">
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label fw-bold small text-muted">Dirección IP del equipo</label>
+                    <label for="salaIp" class="form-label fw-bold small text-muted">Dirección IP del equipo</label>
                     <input type="text" class="form-control" id="salaIp" placeholder="Ej. 192.168.0.108">
                     <div class="form-text">IP LAN del <strong>equipo de rayos/CR/ecógrafo</strong>, no la URL del PACS en nube.</div>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label fw-bold small text-muted">Puerto DICOM</label>
+                    <label for="salaPort" class="form-label fw-bold small text-muted">Puerto DICOM</label>
                     <input type="number" class="form-control" id="salaPort" placeholder="104 o 4242">
                     <div class="form-text">Puerto del modalidad (Fuji/CR suele usar <strong>104</strong>; DICOM estándar <strong>4242</strong>).</div>
                 </div>
@@ -1164,15 +1212,15 @@
                     <h6 class="fw-bold text-secondary border-bottom pb-2">Información del Equipo (Opcional)</h6>
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label fw-bold small text-muted">Marca / Fabricante</label>
+                    <label for="salaManufacturer" class="form-label fw-bold small text-muted">Marca / Fabricante</label>
                     <input type="text" class="form-control" id="salaManufacturer" placeholder="Ej. General Electric">
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label fw-bold small text-muted">Modelo</label>
+                    <label for="salaModel" class="form-label fw-bold small text-muted">Modelo</label>
                     <input type="text" class="form-control" id="salaModel" placeholder="Ej. Optima MR360">
                 </div>
                 <div class="col-12">
-                    <label class="form-label fw-bold small text-muted">Descripción o Notas</label>
+                    <label for="salaDescription" class="form-label fw-bold small text-muted">Descripción o Notas</label>
                     <input type="text" class="form-control" id="salaDescription">
                 </div>
             </div>
@@ -1202,37 +1250,37 @@
                     <input type="hidden" id="catNombreOriginal">
 
                     <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">Grupo Base / Modalidad</label>
+                        <label for="catGrupo" class="form-label fw-bold small text-muted">Grupo Base / Modalidad</label>
                         <select class="form-select req-cat" id="catGrupo" data-ris-modality-select="exam"></select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">Nombre del Examen</label>
+                        <label for="catNombre" class="form-label fw-bold small text-muted">Nombre del Examen</label>
                         <input type="text" class="form-control req-cat" id="catNombre"
                             placeholder="Ej. TC de Abdomen y Pelvis">
                     </div>
                     <div class="row g-3 mb-3">
                         <div class="col-6">
-                            <label class="form-label fw-bold small text-muted">Código FONASA/Interno</label>
+                            <label for="catCodigo" class="form-label fw-bold small text-muted">Código FONASA/Interno</label>
                             <input type="text" class="form-control req-cat" id="catCodigo" placeholder="Ej. 04-02-005">
                         </div>
                         <div class="col-6">
-                            <label class="form-label fw-bold small text-muted">Arancel Particular ($)</label>
+                            <label for="catPrecio" class="form-label fw-bold small text-muted">Arancel Particular ($)</label>
                             <input type="number" class="form-control req-cat" id="catPrecio" min="0"
                                 placeholder="Ej. 120000">
                         </div>
                     </div>
                     <div class="row g-3 mb-3">
                         <div class="col-6">
-                            <label class="form-label fw-bold small text-muted">Arancel FONASA ($)</label>
+                            <label for="catFonasaPrecio" class="form-label fw-bold small text-muted">Arancel FONASA ($)</label>
                             <input type="number" class="form-control" id="catFonasaPrecio" min="0"
                                 placeholder="Valor arancel Fonasa (sin % de plan)">
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">Sub-Exámenes / Variantes</label>
+                        <label for="catSubs" class="form-label fw-bold small text-muted">Sub-Exámenes / Variantes</label>
                         <input type="text" class="form-control" id="catSubs"
                             placeholder="Ej. Con Contraste, Sin Contraste">
-                        <div class="form-text" style="font-size: 0.7rem;">Sepárelos por comas. Déjelo en blanco si no
+                        <div class="form-text ris-text-xxs">Sepárelos por comas. Déjelo en blanco si no
                             tiene variantes.</div>
                     </div>
 
@@ -1240,12 +1288,12 @@
                     <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-envelope-paper me-2"></i>Instrucciones por correo (opcional)</h6>
                     <p class="small text-muted mb-3">Se envían al paciente al agendar la cita, excepto si la procedencia es <strong>Ambulatorio</strong>.</p>
                     <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">Asunto personalizado (opcional)</label>
+                        <label for="catInstrSubject" class="form-label fw-bold small text-muted">Asunto personalizado (opcional)</label>
                         <input type="text" class="form-control" id="catInstrSubject"
                             placeholder="Ej. Preparación para TC con contraste">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">Texto de instrucciones</label>
+                        <label for="catInstrBody" class="form-label fw-bold small text-muted">Texto de instrucciones</label>
                         <textarea class="form-control" id="catInstrBody" rows="5"
                             placeholder="Ej. Ayuno de 6 horas, suspender metformina 48h antes..."></textarea>
                     </div>
@@ -1279,12 +1327,12 @@
                 <form id="formServicio">
                     <input type="hidden" id="srvId">
                     <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">Nombre del Servicio *</label>
+                        <label for="srvNombre" class="form-label fw-bold small text-muted">Nombre del Servicio *</label>
                         <input type="text" class="form-control req-srv" id="srvNombre"
                             placeholder="Ej. Urgencias, UCI, Traumatología">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">Descripción (Opcional)</label>
+                        <label for="srvDesc" class="form-label fw-bold small text-muted">Descripción (Opcional)</label>
                         <input type="text" class="form-control" id="srvDesc" placeholder="Detalles adicionales...">
                     </div>
                 </form>
@@ -1327,13 +1375,13 @@
                 </div>
 
                 <div class="mb-3">
-                    <label class="form-label fw-bold small text-muted">Subir Archivo Listo</label>
+                    <label for="archivoExamenes" class="form-label fw-bold small text-muted">Subir Archivo Listo</label>
                     <input type="file" id="archivoExamenes" class="form-control" accept=".xlsx, .xls, .csv">
                 </div>
                 <div id="progresoImportacion" class="d-none">
-                    <div class="progress" style="height: 10px;">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-success"
-                            role="progressbar" style="width: 100%"></div>
+                    <div class="progress ris-progress-sm">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-success progress-bar w-100"
+                            role="progressbar"></div>
                     </div>
                     <p class="text-center small mt-2 fw-bold text-success">Procesando datos, por favor espere...</p>
                 </div>
@@ -1360,17 +1408,17 @@
                 <form id="formPlan">
                     <input type="hidden" id="planId">
                     <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">Previsión / Aseguradora *</label>
+                        <label for="planInsurance" class="form-label fw-bold small text-muted">Previsión / Aseguradora *</label>
                         <select class="form-select req-plan" id="planInsurance">
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">Nombre del Plan *</label>
+                        <label for="planNombre" class="form-label fw-bold small text-muted">Nombre del Plan *</label>
                         <input type="text" class="form-control req-plan" id="planNombre"
                             placeholder="Ej. Fonasa Nivel 1, Isapre Banmédica...">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">Porcentaje de Descuento (%) *</label>
+                        <label for="refDoctorRut" class="form-label fw-bold small text-muted">Porcentaje de Descuento (%) *</label>
                         <div class="input-group">
                             <input type="number" class="form-control req-plan text-center" id="planPorcentaje" min="0"
                                 max="100" step="0.1" placeholder="Ej. 10.5">
@@ -1455,7 +1503,7 @@
                 <form id="formPrevision">
                     <input type="hidden" id="prevId">
                     <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">Nombre de la Previsión / Empresa *</label>
+                        <label for="prevNombre" class="form-label fw-bold small text-muted">Nombre de la Previsión / Empresa *</label>
                         <input type="text" class="form-control req-prev" id="prevNombre"
                             placeholder="Ej. Isapre CruzBlanca, Convenio Empresa X...">
                     </div>
@@ -1484,12 +1532,12 @@
             <div class="modal-body bg-light p-4">
                 <div class="row g-4">
                     <div class="col-md-6 border-bottom pb-2">
-                        <label class="small fw-bold text-muted mb-1 d-block"><i
+                        <label for="matrizTipo" class="small fw-bold text-muted mb-1 d-block"><i
                                 class="bi bi-person-badge me-1"></i>RUT</label>
                         <div id="detRut" class="fw-bold text-dark fs-6"></div>
                     </div>
                     <div class="col-md-6 border-bottom pb-2">
-                        <label class="small fw-bold text-muted mb-1 d-block"><i
+                        <label for="matrizTipo" class="small fw-bold text-muted mb-1 d-block"><i
                                 class="bi bi-person-fill me-1"></i>Nombre Completo</label>
                         <div id="detNombre" class="fw-bold text-dark fs-6"></div>
                     </div>
@@ -1533,25 +1581,25 @@
             <div class="modal-body bg-light p-4">
                 <form id="formMatriz">
                     <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">Tipo de Laboratorio / Clínica *</label>
+                        <label class="form-label fw-bold small text-muted" for="matrizTipo">Tipo de Laboratorio / Clínica *</label>
                         <select class="form-select req-matriz" id="matrizTipo"></select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">Nombre Comercial *</label>
+                        <label for="matrizNombre" class="form-label fw-bold small text-muted">Nombre Comercial *</label>
                         <input type="text" class="form-control req-matriz" id="matrizNombre"
                             placeholder="Ej. Centro Médico Vida Salud">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">Dirección Principal</label>
+                        <label for="matrizDireccion" class="form-label fw-bold small text-muted">Dirección Principal</label>
                         <input type="text" class="form-control" id="matrizDireccion">
                     </div>
                     <div class="row g-3 mb-3">
                         <div class="col-6">
-                            <label class="form-label fw-bold small text-muted">Ciudad</label>
+                            <label for="matrizCiudad" class="form-label fw-bold small text-muted">Ciudad</label>
                             <input type="text" class="form-control" id="matrizCiudad">
                         </div>
                         <div class="col-6">
-                            <label class="form-label fw-bold small text-muted">Teléfono</label>
+                            <label for="matrizTelefono" class="form-label fw-bold small text-muted">Teléfono</label>
                             <input type="text" class="form-control" id="matrizTelefono">
                         </div>
                     </div>
@@ -1579,18 +1627,18 @@
                     <input type="hidden" id="tplId">
                     <div class="row g-3 mb-3">
                         <div class="col-md-4">
-                            <label class="form-label fw-bold small text-muted">Modalidad / Grupo *</label>
+                            <label for="tplGrupo" class="form-label fw-bold small text-muted">Modalidad / Grupo *</label>
                             <select class="form-select req-tpl" id="tplGrupo" data-ris-modality-select="exam"></select>
                         </div>
                         <div class="col-md-8">
-                            <label class="form-label fw-bold small text-muted">Título Descriptivo *</label>
+                            <label for="tplTitulo" class="form-label fw-bold small text-muted">Título Descriptivo *</label>
                             <input type="text" class="form-control req-tpl" id="tplTitulo"
                                 placeholder="Ej. Tórax Normal 2 Proyecciones">
                         </div>
                     </div>
                     <div class="mb-2">
                         <div class="d-flex justify-content-between align-items-center mb-1">
-                            <label class="form-label fw-bold small text-muted mb-0">Contenido del Informe *</label>
+                            <label for="inputImportPlantillaWordModal" class="form-label fw-bold small text-muted mb-0">Contenido del Informe *</label>
                             <input type="file" id="inputImportPlantillaWordModal" class="d-none"
                                 accept=".docx,.doc,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword"
                                 onchange="procesarImportacionPlantillaWord(this)">
@@ -1628,34 +1676,34 @@
             <div class="modal-body row g-3">
                 <input type="hidden" id="pacienteId">
                 <div class="col-md-4">
-                    <label class="form-label fw-bold small text-muted">Tipo Documento *</label>
+                    <label for="pacTipoDoc" class="form-label fw-bold small text-muted">Tipo Documento *</label>
                     <select class="form-select req-pac" id="pacTipoDoc" onchange="toggleFormatoDocumento()">
                         <option value="RUT">RUT (Chile)</option>
                         <option value="PASAPORTE">Pasaporte / DNI Extranjero</option>
                     </select>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label fw-bold small text-muted">N° de Documento *</label>
+                    <label for="pacRUT" class="form-label fw-bold small text-muted">N° de Documento *</label>
                     <input type="text" class="form-control req-pac" id="pacRUT" placeholder="12.345.678-9">
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label fw-bold small text-muted">Nombres *</label>
+                    <label for="pacNombres" class="form-label fw-bold small text-muted">Nombres *</label>
                     <input type="text" class="form-control req-pac" id="pacNombres">
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label fw-bold small text-muted">Apellido Paterno *</label>
+                    <label for="pacApellido1" class="form-label fw-bold small text-muted">Apellido Paterno *</label>
                     <input type="text" class="form-control req-pac" id="pacApellido1">
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label fw-bold small text-muted">Apellido Materno</label>
+                    <label for="pacApellido2" class="form-label fw-bold small text-muted">Apellido Materno</label>
                     <input type="text" class="form-control" id="pacApellido2">
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label fw-bold small text-muted">Fecha Nacimiento</label>
+                    <label for="pacNacimiento" class="form-label fw-bold small text-muted">Fecha Nacimiento</label>
                     <input type="date" class="form-control" id="pacNacimiento">
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label fw-bold small text-muted">Género</label>
+                    <label for="pacGenero" class="form-label fw-bold small text-muted">Género</label>
                     <select class="form-select" id="pacGenero">
                         <option value="">Seleccione...</option>
                         <option value="M">Masculino</option>
@@ -1664,16 +1712,16 @@
                     </select>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label fw-bold small text-muted">Teléfono</label>
+                    <label for="pacTelefono" class="form-label fw-bold small text-muted">Teléfono</label>
                     <input type="text" class="form-control" id="pacTelefono">
                 </div>
                 <div class="col-md-8">
-                    <label class="form-label fw-bold small text-muted">Correo Electrónico (Para portal de
+                    <label for="pacEmail" class="form-label fw-bold small text-muted">Correo Electrónico (Para portal de
                         resultados)</label>
                     <input type="email" class="form-control" id="pacEmail">
                 </div>
                 <div class="col-md-12">
-                    <label class="form-label fw-bold small text-muted">Previsión / Seguro Médico</label>
+                    <label for="pacSeguro" class="form-label fw-bold small text-muted">Previsión / Seguro Médico</label>
                     <select class="form-select" id="pacSeguro"></select>
                 </div>
             </div>

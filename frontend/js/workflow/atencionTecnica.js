@@ -53,8 +53,35 @@ const pesosPrioridad = {
     "Normal": 1
 };
 
+async function risEnsureModalAtencion(pageId) {
+    if (!document.getElementById('modalAtencion')) {
+        const url = typeof risAssetUrl === 'function'
+            ? risAssetUrl('pages/partials/modal-atencion.html')
+            : `pages/partials/modal-atencion.html?v=${Date.now()}`;
+        const html = await $.get(url);
+        $('body').append(html);
+        if (typeof risEnsureModalInBody === 'function') {
+            risEnsureModalInBody(document.getElementById('modalAtencion'));
+        }
+    }
+    risApplyModalAtencionTitle(pageId);
+}
+
+function risApplyModalAtencionTitle(pageId) {
+    const el = document.getElementById('modalAtencionTitleText');
+    const icon = document.querySelector('#modalAtencionTitle .bi');
+    if (!el) return;
+    if (pageId === 'atencion') {
+        el.textContent = 'Atención en sala';
+        if (icon) icon.className = 'bi bi-door-open me-2';
+    } else {
+        el.textContent = 'Atención técnica';
+        if (icon) icon.className = 'bi bi-person-bounding-box me-2';
+    }
+}
+
 /**
- * @param {{ pageId?: string, forceManualUpload?: boolean, forceWorklistOnly?: boolean }} config
+ * @param {{ pageId?: string, forceManualUpload?: boolean, forceWorklistOnly?: boolean, listTitle?: string, listSubtitle?: string }} config
  */
 function initAtencionTecnicaModule(config = {}) {
     const profile = typeof getLabProfile === 'function' ? getLabProfile() : { uses_dicom_worklist: true };
@@ -72,13 +99,16 @@ function initAtencionTecnicaModule(config = {}) {
     };
 
     if ($('#atencionPageTitle').length && config.listTitle) {
-        $('#atencionPageTitle').text(config.listTitle);
+        const safeTitle = typeof risEscapeHtml === 'function' ? risEscapeHtml(config.listTitle) : String(config.listTitle);
+        const icon = config.pageId === 'atencion' ? 'bi-door-open' : 'bi-list-task';
+        $('#atencionPageTitle').html(`<i class="bi ${icon} me-2" aria-hidden="true"></i>${safeTitle}`);
     }
     if ($('#atencionPageSubtitle').length && config.listSubtitle) {
         $('#atencionPageSubtitle').text(config.listSubtitle);
     }
 
     const boot = async () => {
+        await risEnsureModalAtencion(ATENCION_MODULO.pageId);
         await cargarMaquinasFiltro();
         cargarInsumosBodega();
         await cargarWorklistDesdeServidor();
@@ -99,10 +129,9 @@ function initAtencionTecnicaModule(config = {}) {
     };
 
     if (typeof refreshLabProfileFromApi === 'function') {
-        refreshLabProfileFromApi().then(boot);
-    } else {
-        boot();
+        return refreshLabProfileFromApi().then(boot);
     }
+    return boot();
 }
 
 window.initAtencionTecnicaModule = initAtencionTecnicaModule;
@@ -358,9 +387,14 @@ function risAbrirDocumentoEnNuevaVentana(path) {
 }
 
 function getBadgePrioridad(prioridad) {
-    if (prioridad === 'Urgencia') return '<span class="badge bg-danger fw-bold shadow-sm" style="animation: pulse 1.5s infinite;">🚨 Urgencia</span>';
-    if (prioridad === 'Alta') return '<span class="badge bg-warning text-dark fw-bold">Alta</span>';
-    return '<span class="badge bg-light text-secondary border">Normal</span>';
+    if (typeof risStatusChipHtml === 'function') {
+        if (prioridad === 'Urgencia') return risStatusChipHtml('Urgencia', 'danger');
+        if (prioridad === 'Alta') return risStatusChipHtml('Alta', 'warning');
+        return risStatusChipHtml('Normal', 'neutral');
+    }
+    if (prioridad === 'Urgencia') return '<span class="ris-status-chip ris-status-chip--danger">Urgencia</span>';
+    if (prioridad === 'Alta') return '<span class="ris-status-chip ris-status-chip--warning">Alta</span>';
+    return '<span class="ris-status-chip ris-status-chip--neutral">Normal</span>';
 }
 
 function renderWorklist() {
@@ -436,7 +470,14 @@ function renderWorklist() {
     const cadenasArray = Object.values(currentCadenas);
 
     if (cadenasArray.length === 0) {
-        tbody.append(`<tr><td colspan="7" class="text-center text-muted p-5"><i class="bi bi-cup-hot fs-1 d-block mb-3"></i>No hay pacientes en espera en este momento.</td></tr>`);
+        const emptyHtml = typeof risEmptyStateHtml === 'function'
+            ? risEmptyStateHtml({
+                icon: 'bi-cup-hot',
+                title: 'Sin pacientes en espera',
+                message: 'No hay pacientes en espera en este momento.',
+            })
+            : '<span class="text-muted">No hay pacientes en espera en este momento.</span>';
+        tbody.append(`<tr><td colspan="7">${emptyHtml}</td></tr>`);
         return;
     }
 
@@ -451,12 +492,12 @@ function renderWorklist() {
         let statusText;
         if (cadena.statusGlobal === 'dicom_enviado') {
             statusText = usesDicomWorklist()
-                ? '<span class="badge bg-info text-white"><i class="bi bi-cpu me-1"></i>En Modalidad</span>'
-                : '<span class="badge bg-success text-white"><i class="bi bi-cloud-check me-1"></i>Imágenes en PACS</span>';
+                ? (typeof risStatusChipHtml === 'function' ? risStatusChipHtml('En modalidad', 'info') : '<span class="ris-status-chip ris-status-chip--info">En modalidad</span>')
+                : (typeof risStatusChipHtml === 'function' ? risStatusChipHtml('Imágenes en PACS', 'success') : '<span class="ris-status-chip ris-status-chip--success">Imágenes en PACS</span>');
         } else {
             statusText = usesDicomWorklist()
-                ? '<span class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i>En Espera</span>'
-                : '<span class="badge bg-warning text-dark"><i class="bi bi-cloud-upload me-1"></i>Pendiente subida</span>';
+                ? (typeof risStatusChipHtml === 'function' ? risStatusChipHtml('En espera', 'warning') : '<span class="ris-status-chip ris-status-chip--warning">En espera</span>')
+                : (typeof risStatusChipHtml === 'function' ? risStatusChipHtml('Pendiente subida', 'warning') : '<span class="ris-status-chip ris-status-chip--warning">Pendiente subida</span>');
         }
 
         const accLabel = cadena.accessionGlobal
@@ -568,7 +609,7 @@ function renderAtencionEstudios(chain) {
                 <div class="flex-grow-1">
                     <strong class="text-dark">${item.exam_name}</strong>
                     <small class="d-block text-muted">Sub-examen: ${item.sub_exam_name || 'N/A'}</small>
-                    <div class="mt-2" style="max-width: 280px;">
+                    <div class="mt-2 ris-max-w-280">
                         <label class="form-label small text-muted fw-bold mb-0">Sala</label>
                         <select class="form-select form-select-sm wl-study-machine"
                             data-study-id="${item.id}"
@@ -981,7 +1022,7 @@ function renderAlertasInsumos() {
 
     if (alertasHtml !== '') {
         container.html(`
-            <div class="alert border-danger shadow-sm py-2 mb-0 d-flex align-items-center" style="background-color: #fff5f5;">
+            <div class="alert border-danger shadow-sm py-2 mb-0 d-flex align-items-center ris-alert-soft-danger">
                 <i class="bi bi-boxes fs-3 me-3 text-danger pulse-icon"></i>
                 <div>
                     <strong class="d-block text-danger mb-1">Alertas de Inventario Clínico</strong>

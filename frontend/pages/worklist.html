@@ -3,232 +3,44 @@
     <div id="alertasInsumosContainer" class="mb-3"></div>
 
     <div class="card shadow-sm border-0 mb-4">
-        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-            <div>
-                <h5 class="mb-0 fw-bold text-primary" id="atencionPageTitle"><i class="bi bi-list-task me-2"></i>Worklist operativa</h5>
-                <small class="text-muted" id="atencionPageSubtitle">Pacientes confirmados en agenda — envío DICOM a modalidades</small>
-            </div>
-            <div class="d-flex gap-2 flex-wrap worklist-toolbar ris-module-toolbar">
-                <button class="btn btn-sm btn-outline-primary" onclick="cargarWorklistDesdeServidor()"
-                    aria-label="Actualizar lista de worklist">
-                    <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
-                </button>
-                <div id="filtroEquiposWorklist" class="d-flex flex-wrap gap-2 align-items-center worklist-filter-equipos"
-                    role="group" aria-label="Filtrar por equipo">
-                    <span class="small text-muted">Equipos:</span>
+        <div class="card-header bg-white py-3">
+            <div class="ris-page-header mb-0">
+                <div class="ris-page-header__main">
+                    <h1 class="ris-page-title" id="atencionPageTitle"><i class="bi bi-list-task me-2" aria-hidden="true"></i>Lista de trabajo</h1>
+                    <p class="ris-page-subtitle mb-0" id="atencionPageSubtitle">Pacientes confirmados en agenda — envío DICOM a modalidades</p>
                 </div>
-                <label for="searchPatient" class="visually-hidden">Buscar paciente</label>
-                <input type="search" id="searchPatient" class="form-control form-control-sm search-patient-input"
-                    placeholder="Buscar RUT o Nombre..." onkeyup="renderWorklist()" aria-label="Buscar paciente por RUT o nombre">
+                <div class="ris-page-header__actions ris-toolbar worklist-toolbar ris-module-toolbar">
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="cargarWorklistDesdeServidor()"
+                        aria-label="Actualizar lista de trabajo">
+                        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+                    </button>
+                    <div id="filtroEquiposWorklist" class="d-flex flex-wrap gap-2 align-items-center worklist-filter-equipos"
+                        role="group" aria-label="Filtrar por equipo">
+                        <span class="small text-muted">Equipos:</span>
+                    </div>
+                    <label for="searchPatient" class="visually-hidden">Buscar paciente</label>
+                    <input type="search" id="searchPatient" class="form-control form-control-sm search-patient-input"
+                        placeholder="Buscar RUT o Nombre..." onkeyup="renderWorklist()" aria-label="Buscar paciente por RUT o nombre">
+                </div>
             </div>
         </div>
         <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0" id="worklistTable">
-                    <thead class="bg-light">
+            <div class="table-responsive ris-table-scroll">
+                <table class="table table-hover align-middle mb-0 ris-data-table" id="worklistTable">
+                    <thead>
                         <tr>
-                            <th>Hora Cita</th>
+                            <th>Hora</th>
                             <th>Paciente / RUT</th>
-                            <th>Estudios en la Cadena</th>
-                            <th>Salas Asignadas</th>
+                            <th class="wl-col-cadena">Estudios</th>
+                            <th class="wl-col-salas">Salas</th>
                             <th class="text-center">Prioridad</th>
-                            <th class="text-center">Estado Actual</th>
-                            <th class="text-center">Acción</th>
+                            <th class="text-center wl-col-estado">Estado</th>
+                            <th class="text-center ris-col-actions">Acción</th>
                         </tr>
                     </thead>
                     <tbody>
                     </tbody>
                 </table>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="modalAtencion" tabindex="-1" data-bs-backdrop="static">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
-        <div class="modal-content border-0 shadow-lg">
-            <div class="modal-header bg-dark text-white py-3">
-                <h5 class="modal-title fw-bold"><i class="bi bi-person-bounding-box me-2"></i>Atención Técnica de
-                    Paciente</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-
-            <div class="modal-body bg-light p-4">
-
-                <div class="card border-0 shadow-sm mb-3 border-start border-primary border-4">
-                    <div class="card-body py-2">
-                        <div class="row align-items-center">
-                            <div class="col-md-4">
-                                <small class="text-muted d-block fw-bold">Paciente</small>
-                                <strong class="fs-5 text-dark" id="atencionNombre">Cargando...</strong>
-                            </div>
-                            <div class="col-md-2">
-                                <small class="text-muted d-block fw-bold">RUT</small>
-                                <strong class="fs-6 text-secondary" id="atencionRut">---</strong>
-                            </div>
-                            <div class="col-md-3">
-                                <small class="text-muted d-block fw-bold">ID Cadena</small>
-                                <strong class="text-secondary small" id="atencionId">---</strong>
-                            </div>
-                            <div class="col-md-3">
-                                <small class="text-muted d-block fw-bold">Sala(s)</small>
-                                <strong class="text-primary badge bg-primary-subtle border border-primary-subtle"
-                                    id="atencionSala">---</strong>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="row g-3">
-                    <div class="col-md-5">
-                        <div class="card border-0 shadow-sm h-100">
-                            <div class="card-body">
-                                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-clipboard2-pulse me-2"></i>Estudios en la cadena</h6>
-                                <div id="atencionEstudios" class="list-group list-group-flush mb-4" role="list" aria-label="Estudios programados"></div>
-
-                                <h6 class="fw-bold text-dark mb-2 mt-2"><i
-                                        class="bi bi-folder-check text-success me-1"></i> Documentos del Paciente</h6>
-                                <div class="d-flex gap-2 mb-2 flex-wrap">
-                                    <button id="btnVerOrdenTM" class="btn btn-sm btn-outline-success flex-fill fw-bold"
-                                        onclick="abrirDocWorklist('orden')" disabled>
-                                        <i class="bi bi-file-earmark-medical me-1"></i> Ver Orden
-                                    </button>
-                                </div>
-                                <div class="d-flex gap-2 mb-2 flex-wrap">
-                                    <button id="btnEscanearEncuestaTM" class="btn btn-sm btn-outline-danger flex-fill fw-bold"
-                                        onclick="escanearDocumentoWorklist('encuesta')">
-                                        <i class="bi bi-upc-scan me-1"></i> Escanear Encuesta
-                                    </button>
-                                    <button id="btnVerEncuestaTM"
-                                        class="btn btn-sm btn-outline-danger flex-fill fw-bold"
-                                        onclick="abrirDocWorklist('encuesta')" disabled>
-                                        <i class="bi bi-ui-checks me-1"></i> Ver Encuesta
-                                    </button>
-                                </div>
-                                <div class="d-flex gap-2 mb-4 flex-wrap align-items-center">
-                                    <button id="btnEscanearInformesPreviosTM"
-                                        class="btn btn-sm btn-outline-secondary flex-fill fw-bold"
-                                        onclick="escanearDocumentoWorklist('previos')">
-                                        <i class="bi bi-file-earmark-plus me-1"></i> Escanear Informe Previo
-                                    </button>
-                                    <button id="btnVerInformesPreviosTM"
-                                        class="btn btn-sm btn-outline-secondary flex-fill fw-bold"
-                                        onclick="abrirDocWorklist('previos')" disabled>
-                                        <i class="bi bi-journal-medical me-1"></i> Ver Informes
-                                        <span id="badgeInformesPrevios" class="badge bg-secondary ms-1 d-none">0</span>
-                                    </button>
-                                </div>
-                                <h6 class="fw-bold text-dark mb-2"><i class="bi bi-hdd-network text-info me-1"></i>
-                                    Integración DICOM</h6>
-
-                                <div id="dicomWorklistPanel">
-                                    <button id="btnDicom" onclick="enviarADicom()"
-                                        class="btn btn-info w-100 fw-bold py-2 shadow-sm text-white fs-6 mb-2">
-                                        <i class="bi bi-broadcast me-2"></i> CREAR A.N. Y ENVIAR A EQUIPOS
-                                    </button>
-                                    <p class="small text-muted mb-0">
-                                        El RIS sube la orden al <strong>PACS en nube</strong> (HTTPS). La mamógrafo/CR debe
-                                        <strong>consultar la worklist por DICOM</strong> (puerto 4242, AE del PACS) con el mismo
-                                        <strong>AE de estación</strong> configurado en Admin → Salas. Ver la orden en la web del PACS
-                                        no significa que el equipo ya la recibió.
-                                    </p>
-                                </div>
-
-                                <div id="dicomManualUploadPanel" class="d-none">
-                                    <p class="small text-muted mb-2">Sin worklist en el equipo: suba el CBCT o exportación DICOM (.dcm o .zip).</p>
-                                    <input type="file" id="dicomManualFile" class="form-control form-control-sm mb-2"
-                                        accept=".dcm,.zip,application/dicom,application/zip">
-                                    <button type="button" id="btnDicomUpload" onclick="subirDicomManual()"
-                                        class="btn btn-info w-100 fw-bold py-2 shadow-sm text-white fs-6 mb-2">
-                                        <i class="bi bi-cloud-upload me-2"></i> SUBIR IMÁGENES A PACS
-                                    </button>
-                                </div>
-
-                                <div id="dicomStatus" class="mt-1 text-center small fw-bold"></div>
-                                <div id="globalAccessionDisplay"
-                                    class="mt-2 text-center fw-bold text-primary fs-5 d-none"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="col-md-7">
-                        <div class="card border-0 shadow-sm mb-3">
-                            <div class="card-body">
-                                <div class="d-flex justify-content-between align-items-center mb-2 gap-2 flex-wrap">
-                                    <h6 class="fw-bold text-primary mb-0"><i class="bi bi-chat-left-text me-2"></i>2.
-                                        Síntomas / Anamnesis</h6>
-                                    <button type="button" id="btnGuardarAnamnesis" onclick="guardarAnamnesisWorklist()"
-                                        class="btn btn-sm btn-outline-primary fw-bold">
-                                        <i class="bi bi-save me-1"></i> Guardar
-                                    </button>
-                                </div>
-                                <textarea id="txtAnamnesis" class="form-control" rows="3"
-                                    placeholder="Describa síntomas generales para el médico radiólogo..."></textarea>
-                                <div class="form-text" id="txtAnamnesisHelp">
-                                    Obligatoria al finalizar (excepto admin / radiólogo). Guarde antes de cambiar de paciente; el texto se conserva al volver.
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="card border-0 shadow-sm border-top border-warning border-3">
-                            <div class="card-body">
-                                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-box-seam me-2 text-warning"></i>3.
-                                    Registro de Insumos</h6>
-                                <p class="small text-muted mb-3">Se descontarán del inventario automáticamente.</p>
-
-                                <div class="row g-2 mb-3 align-items-end">
-                                    <div class="col-md-8">
-                                        <label class="form-label small text-muted fw-bold mb-1">Insumo /
-                                            Medicamento</label>
-                                        <select id="insumoSelect" class="form-select form-select-sm border-secondary">
-                                            <option value="">Cargando bodega...</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-2">
-                                        <label class="form-label small text-muted fw-bold mb-1">Cant.</label>
-                                        <input type="number" id="insumoQty"
-                                            class="form-control form-control-sm text-center" value="1" min="1">
-                                    </div>
-                                    <div class="col-md-2">
-                                        <button class="btn btn-sm btn-dark w-100 fw-bold"
-                                            onclick="agregarInsumoAAtencion()">Añadir</button>
-                                    </div>
-                                </div>
-
-                                <div class="table-responsive bg-light rounded border">
-                                    <table class="table table-sm table-hover align-middle mb-0" id="tablaInsumosUsados">
-                                        <thead class="table-light text-muted small">
-                                            <tr>
-                                                <th class="ps-3">Insumo Registrado</th>
-                                                <th width="80" class="text-center">Cant.</th>
-                                                <th width="50" class="text-center"><i class="bi bi-trash"></i></th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="modal-footer bg-white border-top-0 shadow-sm d-flex justify-content-between py-3 px-4">
-                <div class="d-flex gap-2">
-                    <button onclick="devolverAAgenda()" class="btn btn-outline-danger btn-sm fw-bold">
-                        <i class="bi bi-reply-all"></i> Devolver a Recepción
-                    </button>
-                </div>
-
-                <div>
-                    <button type="button" class="btn btn-light text-dark fw-bold px-4 border"
-                        data-bs-dismiss="modal">Cerrar</button>
-                    <button onclick="finalizarAtencion()" id="btnFinalizar"
-                        class="btn btn-success px-4 fw-bold shadow-sm ms-2">
-                        <i class="bi bi-check-circle me-1"></i> FINALIZAR Y ENVIAR A RADIÓLOGO
-                    </button>
-                </div>
             </div>
         </div>
     </div>
