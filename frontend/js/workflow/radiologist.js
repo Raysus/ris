@@ -89,12 +89,14 @@ let radiologistAiStatus = null;
 function getRadiologistDictationMode() {
     const $sel = $("#selRadiologistDictationMode");
     if ($sel.length) {
-        return $sel.val() || "voice";
+        const v = $sel.val() || "audio_tm";
+        return v === "voice" ? "audio_tm" : v;
     }
     try {
-        return localStorage.getItem(DICTATION_MODE_STORAGE) || "voice";
+        const saved = localStorage.getItem(DICTATION_MODE_STORAGE) || "audio_tm";
+        return saved === "voice" ? "audio_tm" : saved;
     } catch (e) {
-        return "voice";
+        return "audio_tm";
     }
 }
 
@@ -106,42 +108,30 @@ function saveRadiologistDictationMode(mode) {
 
 function applyRadiologistDictationMode(mode) {
     const m = mode || getRadiologistDictationMode();
-    const isVoice = m === "voice";
     const isAi = m === "ai";
-    const isAudioTm = m === "audio_tm";
 
-    $("#panelDictationVoice").toggleClass("d-none", !isVoice);
-    $("#panelDictationAudio").toggleClass("d-none", isVoice);
+    // Voz (navegador/Dragon) y micrófono siempre visibles; solo cambia el destino del audio.
+    $("#panelDictationVoice, #panelDictationAudio").removeClass("d-none");
 
     if (isAi) {
-        $("#audioPanelTitle").html('<i class="bi bi-stars me-1" aria-hidden="true"></i> Transcripción con IA');
-        $("#audioPanelSubtitle").text("Grabe el informe; se enviará a la nube para transcribir (requiere internet).");
+        $("#audioPanelTitle").html('<i class="bi bi-stars me-1" aria-hidden="true"></i> Grabar para IA');
+        $("#audioPanelSubtitle").text("Micrófono del PC → transcripción en la nube (requiere internet).");
         $("#btnAiTranscribe").removeClass("d-none");
         $("#radiologistDictationModeHint").text(
-            "La IA corre en la nube. Solo funciona si el servidor local tiene conexión a internet hacia la nube."
+            "Dictado por voz y micrófono disponibles. Tras grabar, use «Transcribir con IA»."
         );
         refreshRadiologistAiStatus();
-    } else if (isAudioTm) {
-        $("#audioPanelTitle").html('<i class="bi bi-mic-fill me-1" aria-hidden="true"></i> Audio a transcripción');
-        $("#audioPanelSubtitle").text("Grabe para la secretaría (máx. 10 min).");
-        $("#btnAiTranscribe").addClass("d-none");
-        $("#aiCloudStatus").addClass("d-none");
-        $("#radiologistDictationModeHint").text(
-            "El audio se envía a la bandeja de transcripción (secretaría). Use «Enviar a Transcripción»."
-        );
     } else {
+        $("#audioPanelTitle").html('<i class="bi bi-mic-fill me-1" aria-hidden="true"></i> Grabar audio');
+        $("#audioPanelSubtitle").text("Micrófono del PC para secretaría (máx. 10 min).");
         $("#btnAiTranscribe").addClass("d-none");
         $("#aiCloudStatus").addClass("d-none");
         $("#radiologistDictationModeHint").text(
-            "Dictado en vivo en el navegador (o Dragon). El texto queda en el informe."
+            "Dictado por voz y micrófono disponibles. El audio se envía con «Enviar a Transcripción»."
         );
     }
 
     syncAiTranscribeButton();
-
-    if (!isVoice && typeof stopBrowserDictation === "function") {
-        stopBrowserDictation(true);
-    }
 }
 
 function setupDictationModeUi() {
@@ -149,11 +139,14 @@ function setupDictationModeUi() {
     if (!$sel.length) {
         return;
     }
-    let saved = "voice";
+    let saved = "audio_tm";
     try {
-        saved = localStorage.getItem(DICTATION_MODE_STORAGE) || "voice";
+        saved = localStorage.getItem(DICTATION_MODE_STORAGE) || "audio_tm";
     } catch (e) { /* ignore */ }
-    if (["voice", "audio_tm", "ai"].includes(saved)) {
+    if (saved === "voice") {
+        saved = "audio_tm";
+    }
+    if (["audio_tm", "ai"].includes(saved)) {
         $sel.val(saved);
     }
     $sel.off("change.risDictMode").on("change.risDictMode", function () {
@@ -305,6 +298,12 @@ function initRadiologist() {
         setupBrowserDictationUi();
     } else if (typeof showToast === "function") {
         showToast("Dictado por voz: módulo no cargado. Pulse Ctrl+F5.", "warning");
+    }
+    if (typeof setupSpeechMikeUiBindings === "function") {
+        setupSpeechMikeUiBindings();
+    }
+    if (typeof initSpeechMikeDictation === "function") {
+        initSpeechMikeDictation();
     }
     $("#btnDragon").off("click.risDragon").on("click.risDragon", activarDragon);
     $(document)
