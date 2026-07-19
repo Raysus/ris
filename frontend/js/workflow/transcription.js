@@ -88,7 +88,9 @@ async function cargarListaTranscripcion() {
 
 function renderListaTranscripcion() {
     const contenedor = $("#listaTranscripcion");
-    const emptyHtml = '<div class="p-4 text-center text-muted small"><i class="bi bi-check2-circle fs-3 d-block mb-2 text-success"></i>Bandeja al día. No hay dictados.</div>';
+    const emptyHtml = typeof risEmptyStateHtml === 'function'
+        ? risEmptyStateHtml({ icon: 'bi-check2-circle', title: 'Bandeja al día', message: 'No hay dictados pendientes.' })
+        : '<div class="p-4 text-center text-muted small">Bandeja al día.</div>';
 
     if (currentTranscriptionData.length === 0) {
         contenedor.empty().append(emptyHtml);
@@ -123,10 +125,10 @@ function renderListaTranscripcion() {
         return `
             <button type="button" class="list-group-item list-group-item-action p-3 d-flex flex-column align-items-start gap-1 ${selectedClass} ${claseBorde}" onclick="abrirTranscripcion('${app.id}')">
                 <div class="d-flex w-100 justify-content-between align-items-center gap-1 flex-wrap">
-                    <h6 class="mb-0 fw-bold font-monospace text-truncate" style="max-width: 150px;">${risEscapeHtml(app.accessionNumber)}</h6>
+                    <h6 class="mb-0 fw-bold font-monospace text-truncate ris-truncate-150">${risEscapeHtml(app.accessionNumber)}</h6>
                     <div class="d-flex gap-1 align-items-center">${fechaBadge} ${badgeAudio}</div>
                 </div>
-                <strong class="m-0 text-truncate w-100" style="font-size: 0.95rem;">${risEscapeHtml(nombreCompleto)}</strong>
+                <strong class="m-0 text-truncate w-100 ris-font-095">${risEscapeHtml(nombreCompleto)}</strong>
                 <div class="d-flex w-100 justify-content-between align-items-center mt-1 opacity-75 small">
                     <span>RUT: ${risEscapeHtml(app.patient.rut)}</span>
                     <span>Edad: ${app.patient.age}</span>
@@ -680,7 +682,7 @@ async function cargarPlantillasTranscripcion() {
                 return;
             }
             data.data.forEach(t => {
-                const item = $(`<li><a class="dropdown-item small" style="cursor:pointer;"><b>${t.title}</b> <small class="text-muted">(${t.exam_name || 'General'})</small></a></li>`);
+                const item = $(`<li><a class="dropdown-item small ris-cursor-pointer"><b>${t.title}</b> <small class="text-muted">(${t.exam_name || 'General'})</small></a></li>`);
                 item.find('a').on('click', () => {
                     const txt = $("#textoTranscripcion");
                     const currentVal = txt.val();

@@ -93,7 +93,7 @@ function setBrowserDictationButtonBusy(busy, label) {
     if (busy && label) {
         btn.innerHTML = label;
     } else if (!busy && !_browserDictationActive) {
-        btn.innerHTML = '<i class="bi bi-mic-fill me-1"></i> INICIAR DICTADO VOZ';
+        btn.innerHTML = '<i class="bi bi-mic-fill me-1"></i> Iniciar dictado por voz';
     }
 }
 
@@ -119,7 +119,7 @@ function updateBrowserDictationUi(active, hint) {
         $btn
             .removeClass("btn-primary")
             .addClass("btn-outline-primary")
-            .html('<i class="bi bi-mic-fill me-1"></i> INICIAR DICTADO VOZ');
+            .html('<i class="bi bi-mic-fill me-1"></i> Iniciar dictado por voz');
         if (hint) {
             setBrowserDictationStatusMessage(hint, false);
         } else {

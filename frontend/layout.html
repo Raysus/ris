@@ -11,7 +11,7 @@
     <link rel="apple-touch-icon" href="assets/brand/healthticloud-logo.png">
     <link rel="stylesheet" href="assets/lib/bootstrap/5.3.2/bootstrap.min.css">
     <link rel="stylesheet" href="assets/lib/bootstrap-icons/1.11.1/bootstrap-icons.min.css">
-    <link rel="stylesheet" href="css/style.css?v=20260708a">
+    <link rel="stylesheet" href="css/style.css?v=20260719d">
     <script src="assets/lib/jquery/jquery-3.7.1.min.js"></script>
     <script src="assets/lib/fullcalendar/6.1.11/scheduler.index.global.min.js"></script>
     <script src="assets/lib/fullcalendar/6.1.11/list.index.global.min.js"></script>
@@ -39,15 +39,15 @@
             </div>
 
             <nav aria-label="Módulos del sistema">
-                <a href="#" data-page="agenda" role="menuitem"><i class="bi bi-calendar3 me-2" aria-hidden="true"></i> <span>Agenda</span></a>
-                <a href="#" data-page="worklist" role="menuitem"><i class="bi bi-list-ul me-2" aria-hidden="true"></i> <span>Worklist</span></a>
-                <a href="#" data-page="atencion" class="d-none" role="menuitem"><i class="bi bi-door-open me-2" aria-hidden="true"></i> <span>Atención en salas</span></a>
-                <a href="#" data-page="radiologist" role="menuitem"><i class="bi bi-person-video me-2" aria-hidden="true"></i> <span>Radiólogo</span></a>
-                <a href="#" data-page="transcription" role="menuitem"><i class="bi bi-mic me-2" aria-hidden="true"></i> <span>Transcripción</span></a>
-                <a href="#" data-page="validation" role="menuitem"><i class="bi bi-check2-all me-2" aria-hidden="true"></i> <span>Validación</span></a>
-                <a href="#" data-page="entrega" role="menuitem"><i class="bi bi-box-seam me-2" aria-hidden="true"></i> <span>Entrega/Retiro</span></a>
-                <a href="#" data-page="admin" role="menuitem"><i class="bi bi-gear-fill me-2 text-secondary" aria-hidden="true"></i> <span>Administración</span></a>
-                <a href="#" data-page="dashboard" role="menuitem"><i class="bi bi-speedometer2 me-2 text-secondary" aria-hidden="true"></i> <span>Dashboard</span></a>
+                <a href="#" data-page="agenda"><i class="bi bi-calendar3 me-2" aria-hidden="true"></i> <span>Agenda</span></a>
+                <a href="#" data-page="worklist"><i class="bi bi-list-ul me-2" aria-hidden="true"></i> <span>Lista de trabajo</span></a>
+                <a href="#" data-page="atencion" class="d-none"><i class="bi bi-door-open me-2" aria-hidden="true"></i> <span>Atención en salas</span></a>
+                <a href="#" data-page="radiologist"><i class="bi bi-person-video me-2" aria-hidden="true"></i> <span>Radiólogo</span></a>
+                <a href="#" data-page="transcription"><i class="bi bi-mic me-2" aria-hidden="true"></i> <span>Transcripción</span></a>
+                <a href="#" data-page="validation"><i class="bi bi-check2-all me-2" aria-hidden="true"></i> <span>Validación</span></a>
+                <a href="#" data-page="entrega"><i class="bi bi-box-seam me-2" aria-hidden="true"></i> <span>Entrega/Retiro</span></a>
+                <a href="#" data-page="admin"><i class="bi bi-gear-fill me-2" aria-hidden="true"></i> <span>Administración</span></a>
+                <a href="#" data-page="dashboard"><i class="bi bi-speedometer2 me-2" aria-hidden="true"></i> <span>Panel</span></a>
             </nav>
         </aside>
 
@@ -73,15 +73,14 @@
                     </div>
                     <div class="text-end lh-1">
                         <span id="userNameDisplay" class="fw-bold text-primary small d-block">Cargando...</span>
-                        <span id="userRoleDisplay" class="text-muted"
-                            style="font-size: 0.65rem; text-transform: uppercase;">Rol</span>
+                        <span id="userRoleDisplay" class="user-role-display text-muted">Rol</span>
                     </div>
                     <button id="darkMode" class="btn btn-outline-secondary btn-sm rounded-circle shadow-sm" type="button"
                         aria-label="Alternar modo oscuro">
                         <i class="bi bi-moon-stars" aria-hidden="true"></i>
                     </button>
                     <div class="vr" aria-hidden="true"></div>
-                    <button id="btnLogout" class="btn btn-danger btn-sm rounded-circle shadow-sm" type="button"
+                    <button id="btnLogout" class="btn btn-outline-secondary btn-sm rounded-circle shadow-sm" type="button"
                         aria-label="Cerrar sesión">
                         <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
                     </button>
@@ -158,14 +157,15 @@
         </div>
     </div>
 
-    <script src="js/core/escape.js?v=20260625"></script>
+    <script src="js/core/escape.js?v=20260719a"></script>
+    <script src="js/core/ris-ui-kit.js?v=20260719d"></script>
     <script src="js/config.js?v=20260706o"></script>
-    <script src="js/workflow/browser-dictation.js?v=20260624a"></script>
+    <script src="js/workflow/browser-dictation.js?v=20260719a"></script>
     <script src="js/core/labProfile.js?v=20260624a"></script>
-    <script src="js/core/ui.js?v=20260624a"></script>
+    <script src="js/core/ui.js?v=20260719c"></script>
     <script src="js/core/viewer.js?v=20260706e"></script>
     <script src="js/core/router.js?v=20260624a"></script>
-    <script src="js/app.js?v=20260625"></script>
+    <script src="js/app.js?v=20260719c"></script>
 </body>
 
 </html>

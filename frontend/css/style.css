@@ -219,6 +219,18 @@ body {
     border-bottom: 1px solid var(--border-color);
 }
 
+.user-role-display {
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    display: block;
+}
+
+.ris-badge-urgencia {
+    letter-spacing: 0.02em;
+}
+
 #appContent {
     flex: 1;
     overflow-y: auto;
@@ -2373,4 +2385,595 @@ body.recovery-page .card-recovery .card-body {
     margin-top: 0.35rem;
     padding-top: 0.35rem;
     border-top: 1px dashed rgba(0, 0, 0, 0.08);
+}
+/* =========================================
+   RIS UI KIT — tipografía, headers, tablas, admin, dark, tablet
+   ========================================= */
+
+.ris-page-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem 1.25rem;
+    margin-bottom: 1rem;
+}
+
+.ris-page-header__main {
+    min-width: 0;
+    flex: 1 1 14rem;
+}
+
+.ris-page-header__actions,
+.ris-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    justify-content: flex-end;
+}
+
+.ris-page-title {
+    margin: 0;
+    font-size: 1.35rem;
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--text-main);
+}
+
+.ris-page-title .bi {
+    color: var(--primary);
+}
+
+.ris-page-subtitle {
+    margin: 0.25rem 0 0;
+    font-size: 0.875rem;
+    font-weight: 400;
+    color: var(--text-muted);
+}
+
+.ris-section-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.ris-meta {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+/* Botones: primaria única; no gritar con bold en todo */
+.ris-toolbar .btn-primary,
+.ris-module-toolbar .btn-primary {
+    font-weight: 600;
+}
+
+.ris-toolbar .btn-outline-primary,
+.ris-toolbar .btn-outline-secondary,
+.ris-module-toolbar .btn-outline-primary,
+.ris-module-toolbar .btn-outline-secondary,
+.ris-module-toolbar .btn-outline-light {
+    font-weight: 500;
+}
+
+.ris-empty-state {
+    text-align: center;
+    padding: 2.5rem 1.25rem;
+    color: var(--text-muted);
+}
+
+.ris-empty-state__icon {
+    font-size: 2.25rem;
+    display: block;
+    margin-bottom: 0.75rem;
+    opacity: 0.55;
+}
+
+.ris-empty-state__title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-main);
+    margin-bottom: 0.25rem;
+}
+
+.ris-empty-state__message {
+    font-size: 0.875rem;
+    max-width: 28rem;
+    margin: 0 auto;
+}
+
+.ris-empty-state__cta {
+    margin-top: 1rem;
+}
+
+.ris-status-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+    border: 1px solid transparent;
+    white-space: nowrap;
+}
+
+.ris-status-chip--neutral {
+    background: rgba(74, 85, 104, 0.12);
+    color: var(--secondary);
+}
+
+.ris-status-chip--primary {
+    background: rgba(var(--primary-rgb), 0.12);
+    color: var(--primary);
+}
+
+.ris-status-chip--success {
+    background: rgba(45, 122, 94, 0.14);
+    color: var(--success);
+}
+
+.ris-status-chip--warning {
+    background: rgba(184, 134, 11, 0.16);
+    color: #8a6508;
+}
+
+.ris-status-chip--danger {
+    background: rgba(196, 30, 58, 0.14);
+    color: var(--danger);
+}
+
+.ris-status-chip--info {
+    background: rgba(45, 106, 158, 0.14);
+    color: var(--info);
+}
+
+.ris-status-chip--agenda-pre { background: color-mix(in srgb, var(--agenda-pre) 22%, transparent); color: var(--agenda-pre); }
+.ris-status-chip--agenda-agendado { background: color-mix(in srgb, var(--agenda-agendado) 22%, transparent); color: var(--agenda-agendado); }
+.ris-status-chip--agenda-confirmado { background: color-mix(in srgb, var(--agenda-confirmado) 22%, transparent); color: var(--agenda-confirmado); }
+.ris-status-chip--agenda-espera { background: color-mix(in srgb, var(--agenda-espera) 22%, transparent); color: var(--agenda-espera); }
+.ris-status-chip--agenda-anulado { background: color-mix(in srgb, var(--agenda-anulado) 22%, transparent); color: var(--agenda-anulado); }
+.ris-status-chip--agenda-atendido { background: color-mix(in srgb, var(--agenda-atendido) 22%, transparent); color: var(--agenda-atendido); }
+
+/* Inbox clínico (radiólogo / transcripción / validación) */
+.ris-inbox-header {
+    background: var(--htc-navy) !important;
+    color: var(--text-on-dark) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ris-inbox-header .form-control,
+.ris-inbox-header .form-select {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.22);
+    color: var(--text-on-dark);
+}
+
+.ris-inbox-header .btn-outline-light {
+    --bs-btn-color: #e8ecf8;
+    --bs-btn-border-color: rgba(255, 255, 255, 0.35);
+}
+
+/* Data tables */
+.ris-data-table {
+    margin-bottom: 0;
+}
+
+.ris-data-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--bg-card);
+    box-shadow: inset 0 -1px 0 var(--border-color);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    font-weight: 600;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.ris-data-table .ris-col-actions {
+    text-align: center;
+    white-space: nowrap;
+}
+
+.ris-table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.toast-container-ris {
+    z-index: 11000;
+}
+
+.ris-chart-box {
+    height: 300px;
+    position: relative;
+}
+
+.ris-history-pane {
+    width: 50%;
+}
+
+.ris-report-editor {
+    font-family: "Times New Roman", Times, serif;
+    resize: none;
+    line-height: 1.5;
+}
+
+.ris-audio-play-btn {
+    width: 3rem;
+    height: 3rem;
+}
+
+.agenda-ayuda-panel {
+    background: var(--bg-app);
+}
+
+.form-control.ris-readonly-soft,
+.ris-readonly-soft {
+    background-color: #f8f9fa;
+}
+
+[data-bs-theme="dark"] .form-control.ris-readonly-soft,
+[data-bs-theme="dark"] .ris-readonly-soft {
+    background-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+.entrega-toolbar {
+    max-width: 40rem;
+    flex-grow: 1;
+}
+
+#tablaEntrega thead.sticky-top {
+    z-index: 10;
+}
+
+/* Admin hubs */
+.admin-nav-col {
+    min-width: 0;
+}
+
+.admin-hub {
+    border: none;
+    margin: 0 0 0.35rem;
+    padding: 0;
+}
+
+.admin-hub-summary {
+    list-style: none;
+    cursor: pointer;
+    user-select: none;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    padding: 0.45rem 0.5rem;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.admin-hub-summary::-webkit-details-marker {
+    display: none;
+}
+
+.admin-hub-summary::after {
+    content: "\F282";
+    font-family: "bootstrap-icons";
+    font-size: 0.75rem;
+    transition: transform 0.2s ease;
+}
+
+.admin-hub[open] > .admin-hub-summary::after {
+    transform: rotate(180deg);
+}
+
+.admin-hub-summary:hover {
+    background: rgba(var(--primary-rgb), 0.06);
+    color: var(--text-main);
+}
+
+.admin-hub-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.15rem 0 0.35rem;
+}
+
+#adminTabs.nav-pills .nav-link {
+    font-weight: 500;
+    color: var(--text-main) !important;
+}
+
+#adminTabs.nav-pills .nav-link .bi {
+    color: var(--text-muted) !important;
+}
+
+#adminTabs.nav-pills .nav-link.active {
+    font-weight: 600;
+    background: rgba(var(--primary-rgb), 0.12) !important;
+    color: var(--primary) !important;
+}
+
+#adminTabs.nav-pills .nav-link.active .bi {
+    color: var(--primary) !important;
+}
+
+.admin-search-input {
+    max-width: 100%;
+}
+
+/* Worklist: columnas secundarias ocultas en tablet */
+@media (max-width: 1199.98px) {
+    #worklistTable .wl-col-salas,
+    #worklistTable th.wl-col-salas {
+        display: none;
+    }
+
+    #tableStudies {
+        min-width: 640px;
+    }
+
+    #tableStudies .col-code,
+    #tableStudies .col-dif {
+        display: none;
+    }
+
+    .ris-history-pane {
+        width: 100%;
+    }
+}
+
+@media (max-width: 991.98px) {
+    #worklistTable .wl-col-cadena,
+    #worklistTable th.wl-col-cadena {
+        display: none;
+    }
+
+    .ris-page-title {
+        font-size: 1.2rem;
+    }
+
+    .entrega-page .card-header .input-group-lg > .form-control,
+    .entrega-page .card-header .input-group-lg > .form-select,
+    .entrega-page .card-header .input-group-lg > .input-group-text {
+        padding: 0.45rem 0.75rem;
+        font-size: 0.95rem;
+    }
+
+    .entrega-filtro-estado {
+        max-width: none;
+        min-width: 10rem;
+    }
+
+    #tablaEntrega .col-entrega-acc {
+        display: none;
+    }
+
+    .agenda-page #calendar {
+        min-height: 28rem;
+    }
+
+    .fc .fc-toolbar {
+        flex-wrap: wrap;
+        gap: 0.35rem;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .ris-page-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .ris-page-header__actions,
+    .ris-toolbar {
+        justify-content: flex-start;
+    }
+
+    #worklistTable .wl-col-estado,
+    #worklistTable th.wl-col-estado {
+        display: none;
+    }
+
+    #tablaEntrega .col-entrega-exams {
+        width: 40%;
+    }
+}
+
+/* Dark mode — inbox + surfaces */
+[data-bs-theme="dark"] .ris-inbox-header {
+    background: #0a0e24 !important;
+    border-bottom-color: var(--border-color);
+}
+
+[data-bs-theme="dark"] .ris-inbox-header .form-control,
+[data-bs-theme="dark"] .ris-inbox-header .form-select {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-main);
+}
+
+[data-bs-theme="dark"] .card-header.bg-white,
+[data-bs-theme="dark"] .card-header.bg-light,
+[data-bs-theme="dark"] .modal-footer.bg-white {
+    background-color: var(--bg-card) !important;
+    color: var(--text-main) !important;
+}
+
+[data-bs-theme="dark"] .ris-data-table thead th,
+[data-bs-theme="dark"] #worklistTable thead,
+[data-bs-theme="dark"] #tablaEntrega thead {
+    background: #1a2248 !important;
+}
+
+[data-bs-theme="dark"] .agenda-studies-thead th {
+    background: #1a2248 !important;
+    color: var(--text-muted) !important;
+    border-bottom-color: var(--border-color);
+}
+
+[data-bs-theme="dark"] .admin-hub-summary:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+[data-bs-theme="dark"] .ris-status-chip--warning {
+    color: #e6c35c;
+}
+
+[data-bs-theme="dark"] .agenda-ayuda-panel {
+    background: var(--bg-card);
+}
+
+.ris-date-input-sm { max-width: 9.5rem; }
+.ris-dropdown-scroll { max-height: 300px; overflow-y: auto; }
+.ris-is-hidden { display: none; }
+.ris-report-textarea { resize: none; font-size: 1rem; line-height: 1.5; }
+.ris-ctrl-sm-w { max-width: 8rem; }
+.ris-text-xs { font-size: 0.72rem; }
+.ris-text-xxs { font-size: 0.7rem; }
+.ris-audio-inline { height: 30px; }
+.ris-inbox-header .ris-date-input-sm {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.22);
+    color: #f5f3f8;
+}
+
+.ris-toolbar-wide { max-width: 32rem; }
+.ris-play-btn { width: 50px; height: 50px; }
+.ris-play-icon { margin-left: 4px; }
+.ris-scroll-220 { max-height: 220px; overflow-y: auto; }
+.ris-min-h-100 { min-height: 100px; }
+.ris-scan-pages { width: auto; min-width: 5.5rem; }
+.ris-total-display { letter-spacing: -1px; }
+.agenda-legend-panel { border-radius: 12px; background-color: #f4f6f9; }
+[data-bs-theme="dark"] .agenda-legend-panel { background-color: var(--bg-card); }
+.ris-validation-toolbar-hidden { display: none !important; }
+.ris-report-preview-editor {
+  resize: none;
+  font-family: "Times New Roman", Times, serif;
+  font-size: 12pt;
+  line-height: 1.45;
+  background-color: transparent;
+}
+.ris-progress-sm { height: 10px; }
+
+/* —— Pulido pendiente: JS templates / KPI / reportes —— */
+.ris-kpi-row > [class*="col"] {
+    flex: 1 1 10rem;
+    max-width: 100%;
+}
+
+.ris-truncate-200 { max-width: 200px; }
+.ris-truncate-150 { max-width: 150px; }
+.ris-cursor-pointer { cursor: pointer; }
+.ris-alert-soft-danger { background-color: #fff5f5; }
+[data-bs-theme="dark"] .ris-alert-soft-danger { background-color: rgba(196, 30, 58, 0.15); }
+.ris-max-w-280 { max-width: 280px; }
+.ris-pre-wrap-select { white-space: pre-wrap; user-select: all; }
+.ris-font-sm { font-size: 0.85rem; }
+.ris-font-075 { font-size: 0.75rem; }
+.ris-font-095 { font-size: 0.95rem; }
+.ris-th-hora { width: 5rem; }
+.ris-th-rut { width: 7rem; }
+.ris-w-30 { width: 30px; }
+.ris-badge-micro {
+    font-size: 8px;
+    line-height: 1;
+    padding: 0.2em 0.4em;
+}
+.ris-inbox-group-sticky {
+    top: 0;
+    z-index: 2;
+}
+.ris-badge-xs { font-size: 0.7rem; }
+
+.agenda-evento-fallback,
+.agenda-evento-compacto,
+.agenda-evento-dia {
+    background: var(--agenda-event-bg, var(--primary));
+    color: #fff;
+    border-radius: 3px;
+    height: 100%;
+}
+.agenda-evento-compacto {
+    font-size: 0.72rem;
+    line-height: 1.25;
+}
+.agenda-evento-compacto .agenda-evento-sub {
+    font-size: 0.68rem;
+}
+.agenda-evento-dia {
+    line-height: 1.2;
+    border-radius: 4px;
+    border-left: 4px solid rgba(255,255,255,0.4);
+    padding: 0.25rem 0.35rem;
+}
+.agenda-evento-dia .agenda-evento-title {
+    font-size: 0.85rem;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.25);
+}
+.agenda-evento-dia .agenda-evento-meta {
+    font-size: 0.7rem;
+    opacity: 0.95;
+}
+.agenda-evento-dia .agenda-evento-exam {
+    font-size: 0.72rem;
+}
+.agenda-review-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    background-color: var(--danger);
+    color: #fff;
+    border-radius: 50%;
+    font-weight: 900;
+    font-size: 13px;
+}
+
+/* Report preview (screen + print-ish) */
+.ris-report-page {
+    color: var(--ris-report-color, #101860);
+    font-family: "Times New Roman", Times, serif;
+    font-size: 12pt;
+    line-height: 1.45;
+}
+.ris-report-header { text-align: center; margin-bottom: 18px; }
+.ris-report-block { margin-bottom: 14px; }
+.ris-report-block--sm { margin-bottom: 10px; }
+.ris-report-block--justify { text-align: justify; margin-bottom: 14px; }
+.ris-report-exam-title { font-weight: bold; margin-bottom: 10px; }
+.ris-report-body { white-space: pre-wrap; text-align: justify; margin-bottom: 24px; }
+.ris-report-signature { margin-top: 28px; }
+.ris-report-signature img { max-height: 90px; max-width: 280px; }
+.ris-report-center { text-align: center; }
+.ris-page-break { page-break-before: always; }
+
+.ticket-exams-sub {
+    font-weight: normal;
+    font-size: 10px;
+}
+
+/* Section titles inside cards/modals */
+h6.ris-section-title,
+.ris-section-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-main);
+    margin-bottom: 0.5rem;
+}
+h6.ris-section-title .bi,
+.ris-section-title .bi {
+    color: var(--primary);
 }

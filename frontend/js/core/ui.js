@@ -27,7 +27,7 @@ function hideLoader() {
 function _ensureToastContainer() {
     if (!$(".toast-container-ris").length) {
         $("body").append(
-            '<div class="toast-container toast-container-ris position-fixed bottom-0 end-0 p-3" style="z-index: 11000;" aria-live="polite" aria-atomic="true"></div>'
+            '<div class="toast-container toast-container-ris position-fixed bottom-0 end-0 p-3" aria-live="polite" aria-atomic="true"></div>'
         );
     }
 }
@@ -40,13 +40,21 @@ function showToast(msg, tipo = "info") {
         : tipo === "success" ? "text-bg-success"
         : "text-bg-primary";
 
+    const iconClass = tipo === "danger" ? "bi-x-circle-fill"
+        : tipo === "warning" ? "bi-exclamation-triangle-fill"
+        : tipo === "success" ? "bi-check-circle-fill"
+        : "bi-info-circle-fill";
+
     const closeClass = tipo === "warning" ? "btn-close" : "btn-close btn-close-white";
     const id = `toast-${Date.now()}`;
+    const safeMsg = typeof risSanitizeToastMessage === "function"
+        ? risSanitizeToastMessage(msg)
+        : String(msg ?? "");
 
     const html = `
         <div id="${id}" class="toast align-items-center ${bgClass} border-0" role="alert" aria-live="assertive" aria-atomic="true">
             <div class="d-flex">
-                <div class="toast-body">${msg}</div>
+                <div class="toast-body"><i class="bi ${iconClass} me-2" aria-hidden="true"></i>${safeMsg}</div>
                 <button type="button" class="${closeClass} me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button>
             </div>
         </div>`;
@@ -326,21 +334,27 @@ function initMobileSidebar() {
     const $toggle = $("#toggleSidebar");
 
     $toggle.off("click.mobileSidebar").on("click.mobileSidebar", () => {
+        if (window.innerWidth > 768) return;
         $sidebar.toggleClass("mobile-open");
-        $overlay.toggleClass("show");
+        $overlay.toggleClass("show", $sidebar.hasClass("mobile-open"));
+        if (typeof risSyncSidebarAria === "function") risSyncSidebarAria();
     });
 
     $overlay.off("click.mobileSidebar").on("click.mobileSidebar", () => {
         $sidebar.removeClass("mobile-open");
         $overlay.removeClass("show");
+        if (typeof risSyncSidebarAria === "function") risSyncSidebarAria();
     });
 
     $("#sidebar nav a").off("click.mobileSidebar").on("click.mobileSidebar", () => {
         if (window.innerWidth <= 768) {
             $sidebar.removeClass("mobile-open");
             $overlay.removeClass("show");
+            if (typeof risSyncSidebarAria === "function") risSyncSidebarAria();
         }
     });
+
+    if (typeof risSyncSidebarAria === "function") risSyncSidebarAria();
 }
 
 /* Wizard de agenda */
@@ -482,5 +496,8 @@ window.updateAgendaWizardUI = updateAgendaWizardUI;
 $(document).ready(function () {
     risInitSystemModals();
     initMobileSidebar();
-    $(window).on("resize", initMobileSidebar);
+    $(window).on("resize", function () {
+        initMobileSidebar();
+        if (typeof risSyncSidebarAria === "function") risSyncSidebarAria();
+    });
 });

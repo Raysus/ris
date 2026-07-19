@@ -1369,7 +1369,7 @@ function actualizarCtaAtencionSalas() {
         return;
     }
     const p = typeof getLabProfile === 'function' ? getLabProfile() : {};
-    const moduloLabel = p.technician_module_label || (p.uses_dicom_worklist === false ? 'Atención en salas' : 'Worklist');
+    const moduloLabel = p.technician_module_label || (p.uses_dicom_worklist === false ? 'Atención en salas' : 'Lista de trabajo');
     const icon = p.uses_dicom_worklist === false ? 'bi-door-open' : 'bi-list-task';
     wrap.removeClass('d-none');
     $("#agendaIrAtencionTexto").html(
@@ -2238,7 +2238,7 @@ function setupCalendar(el) {
 
             const bgColor = arg.event.backgroundColor || arg.event.borderColor || '#7d2181';
             const rangoHora = formatearRangoHoraEvento(arg.event.start, arg.event.end);
-            const alert = needsReview ? '<span class="badge bg-danger rounded-pill ms-1" style="font-size:8px">!</span>' : '';
+            const alert = needsReview ? '<span class="badge bg-danger rounded-pill ms-1 ris-badge-micro">!</span>' : '';
 
             if (arg.view.type === 'agendaMes') {
                 const hora = arg.event.start
@@ -2251,33 +2251,30 @@ function setupCalendar(el) {
 
             if (arg.view.type === 'resourceTimeGridWeek') {
                 return {
-                    html: `<div class="agenda-evento-compacto px-1 py-0 text-white fw-semibold" style="font-size:0.72rem;line-height:1.25;background:${bgColor};border-radius:3px;height:100%;"><div class="text-truncate">${lockIcon}<i class="bi bi-clock me-1"></i>${rangoHora}</div><div class="text-truncate opacity-90" style="font-size:0.68rem;">${arg.event.title}${alert}</div></div>`,
+                    html: `<div class="agenda-evento-compacto px-1 py-0 text-white fw-semibold" style="--agenda-event-bg:${bgColor}"><div class="text-truncate">${lockIcon}<i class="bi bi-clock me-1"></i>${rangoHora}</div><div class="text-truncate opacity-90 agenda-evento-sub">${arg.event.title}${alert}</div></div>`,
                 };
             }
 
-            if (!patient) return { html: `<div class="p-1" style="background-color:${bgColor}; color:white; border-radius:3px;">${lockIcon}${arg.event.title}</div>` };
+            if (!patient) {
+                return {
+                    html: `<div class="agenda-evento-fallback p-1" style="--agenda-event-bg:${bgColor}">${lockIcon}${arg.event.title}</div>`,
+                };
+            }
 
             const alertIcon = needsReview
-                ? `<span class="blink-icon me-2 shadow-sm" title="Devuelto por Tecnólogo - Revisar" 
-                         style="display: inline-flex; align-items: center; justify-content: center; 
-                                width: 18px; height: 18px; background-color: red; color: white; 
-                                border-radius: 50%; font-weight: 900; font-size: 13px; 
-                                border: 1px solid white; flex-shrink: 0; box-shadow: 0 0 5px rgba(255,0,0,0.8);">!</span>`
+                ? `<span class="agenda-review-dot blink-icon me-2" title="Devuelto por Tecnólogo - Revisar">!</span>`
                 : `<i class="bi bi-person-fill me-1"></i>`;
 
             return {
                 html: `
-                <div class="d-flex flex-column justify-content-center h-100 p-1 shadow-sm text-white" 
-                     style="line-height: 1.2; border-radius: 4px; background-color: ${bgColor}; border-left: 4px solid rgba(255,255,255,0.4);">
-                    
-                    <div class="fw-bold text-truncate text-uppercase d-flex align-items-center" style="font-size: 0.85rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.3);">
+                <div class="agenda-evento-dia d-flex flex-column justify-content-center h-100 p-1 shadow-sm text-white" style="--agenda-event-bg:${bgColor}">
+                    <div class="agenda-evento-title fw-bold text-truncate text-uppercase d-flex align-items-center">
                         ${alertIcon} ${lockIcon} <span class="text-truncate">${arg.event.title}</span>
                     </div>
-                    
-                    <div class="text-truncate opacity-100 fw-bold" style="font-size: 0.7rem; opacity: 0.95;">
+                    <div class="agenda-evento-meta text-truncate">
                         <i class="bi bi-clock me-1"></i>${rangoHora}
                     </div>
-                    <div class="text-truncate opacity-100 mt-1" style="font-size: 0.72rem;">
+                    <div class="agenda-evento-exam text-truncate mt-1">
                         <i class="bi bi-person-vcard me-1"></i>${patient.rut || ''}
                     </div>
                 </div>`
@@ -2782,9 +2779,12 @@ async function guardarCita() {
     }
 
     if (permitirSobrecupo && horarioResuelto.overbooked) {
-        const ok = window.confirm(
-            'El horario elegido solapa con otra cita en la misma sala.\n\n¿Confirma guardar como sobrecupo?'
-        );
+        const ok = typeof showConfirm === 'function'
+            ? await showConfirm(
+                'El horario elegido solapa con otra cita en la misma sala. ¿Confirma guardar como sobrecupo?',
+                { title: 'Sobrecupo', confirmText: 'Guardar sobrecupo', cancelText: 'Cancelar' }
+            )
+            : window.confirm('El horario elegido solapa con otra cita en la misma sala.\n\n¿Confirma guardar como sobrecupo?');
         if (!ok) {
             return;
         }
@@ -3351,10 +3351,10 @@ function calculateTotal() {
 
     let textoTotal = `$${Math.round(totalFinal).toLocaleString('es-CL')}`;
     if (porcentajeDescuento > 0 && !window._risBonoMontos) {
-        textoTotal += ` <span class="badge bg-success ms-2" style="font-size:0.7rem;">Copago aplicado</span>`;
+        textoTotal += ` <span class="ris-status-chip ris-status-chip--success ms-2">Copago aplicado</span>`;
     }
     if (window._risBonoMontos) {
-        textoTotal += ` <span class="badge bg-primary ms-2" style="font-size:0.7rem;">Bono ingresado</span>`;
+        textoTotal += ` <span class="ris-status-chip ris-status-chip--primary ms-2">Bono ingresado</span>`;
     }
     $("#percentageInsurance").val(porcentajeDescuento);
     $("#totalCopay").html(textoTotal);
@@ -3410,7 +3410,7 @@ function renderInsumos() {
                 </td>
                 <td class="text-center">x${ins.quantity || 1}</td>
                 <td class="text-end text-primary fw-bold">$${subtotal.toLocaleString('es-CL')}</td>
-                <td style="width:30px;" class="text-end">
+                <td class="ris-w-30 text-end">
                     <button type="button" class="btn btn-sm text-danger p-0" onclick="quitarInsumo(${idx})">
                         <i class="bi bi-x-circle-fill"></i>
                     </button>

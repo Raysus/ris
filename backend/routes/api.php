@@ -29,6 +29,7 @@ use App\Http\Controllers\HealthController;
 use App\Http\Controllers\ViewerConfigController;
 use App\Http\Controllers\CloudSyncController;
 use App\Http\Controllers\CloudSyncInboundController;
+use App\Http\Controllers\AiTranscriptionController;
 use App\Http\Controllers\LocalAppointmentSyncController;
 use App\Http\Controllers\LocalMwlRelayController;
 use App\Http\Controllers\LocalReceiptRelayController;
@@ -46,6 +47,7 @@ Route::post('/hl7/inbound', [Hl7Controller::class, 'inbound']);
 Route::middleware('cloud.sync')->group(function () {
     Route::post('/integrations/cloud-sync/inbound', [CloudSyncInboundController::class, 'receive']);
     Route::get('/integrations/cloud-sync/export', [CloudSyncInboundController::class, 'export']);
+    Route::post('/integrations/ai/transcribe', [AiTranscriptionController::class, 'transcribe']);
     Route::post('/integrations/local-mwl/relay', [LocalMwlRelayController::class, 'receive']);
     Route::post('/integrations/local-receipt/print', [LocalReceiptRelayController::class, 'receive']);
     Route::post('/integrations/local-sync/appointment', [LocalAppointmentSyncController::class, 'receive']);
@@ -122,6 +124,8 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::post('/radiologist/appointments/{id}/draft', [RadiologistController::class, 'saveDraft']);
     Route::post('/radiologist/appointments/{id}/return', [RadiologistController::class, 'returnToTechnologist']);
     Route::post('/radiologist/appointments/{id}/transcribe', [RadiologistController::class, 'sendToTranscription']);
+    Route::get('/radiologist/ai-transcription/status', [RadiologistController::class, 'aiTranscriptionStatus']);
+    Route::post('/radiologist/ai-transcription', [RadiologistController::class, 'aiTranscribe']);
     Route::post('/radiologist/studies/{studyId}/upload', [RadiologistController::class, 'uploadStudyAudio']);
 
     // MÓDULO DE TRANSCRIPCIÓN

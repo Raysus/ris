@@ -49,7 +49,43 @@ class ReportDocumentFormatter
             $line = $line !== '' ? ($line . '. Fono: ' . $phone) : ('Fono: ' . $phone);
         }
 
-        return trim($line, " \t\n\r\0\x0B.");
+        return rtrim($line, " .\t\n\r\0\x0B");
+    }
+
+    /**
+     * Textos fijos de la carta (saludo e intro).
+     *
+     * @param  Laboratory|object|null  $lab
+     * @return array{greeting: string, patientIntro: string}
+     */
+    public static function letterCopy($lab): array
+    {
+        $settings = [];
+        if ($lab instanceof Laboratory) {
+            $settings = is_array($lab->settings) ? $lab->settings : [];
+        } elseif (is_object($lab)) {
+            $settings = is_array($lab->settings ?? null) ? $lab->settings : [];
+        }
+        $reportHeader = is_array($settings['reportHeader'] ?? null) ? $settings['reportHeader'] : [];
+
+        $greeting = trim((string) ($reportHeader['greeting'] ?? ''));
+        if ($greeting === '') {
+            $greeting = 'Estimado Doctor:';
+        }
+        $patientIntro = trim((string) ($reportHeader['patientIntro'] ?? ''));
+        if ($patientIntro === '') {
+            $patientIntro = 'El examen realizado a su paciente Sr(a) {patient}, ha dado el siguiente resultado:';
+        }
+
+        return [
+            'greeting' => $greeting,
+            'patientIntro' => $patientIntro,
+        ];
+    }
+
+    public static function resolvePatientIntro(string $template, string $patientName): string
+    {
+        return str_ireplace('{patient}', $patientName, $template);
     }
 
     /** @param Laboratory|object|null $lab */
@@ -119,10 +155,23 @@ class ReportDocumentFormatter
         // Sin branches explícitas: solo la sede actual (nunca el listado multi-sede por defecto).
         if (!is_array($branches) || $branches === []) {
             $branches = [];
+            $settingsForLine = $settings;
+            $labPhone = null;
+            if ($lab instanceof Laboratory) {
+                $labPhone = $lab->phone;
+            } elseif (is_object($lab)) {
+                $labPhone = $lab->phone ?? null;
+            }
+            if (
+                trim((string) ($settingsForLine['phone'] ?? $settingsForLine['fono'] ?? $settingsForLine['telefono'] ?? '')) === ''
+                && $labPhone
+            ) {
+                $settingsForLine['phone'] = (string) $labPhone;
+            }
             $ownLine = self::formatLabAddressLine(
                 $labAddress !== null ? (string) $labAddress : null,
                 $labCity !== null ? (string) $labCity : null,
-                $settings
+                $settingsForLine
             );
             if ($ownLine !== '') {
                 $branches[] = $ownLine;
@@ -268,16 +317,21 @@ class ReportDocumentFormatter
         }
 
         $doctorUser = $destinationDoctor ?: ($appointment->destinationDoctor ?? null);
+        $labObj = $lab instanceof Laboratory || is_object($lab) ? $lab : null;
+        $patientName = self::formatPatientName($patient);
+        $copy = self::letterCopy($labObj);
 
         return [
-            'headerLines' => self::headerLines($lab instanceof Laboratory || is_object($lab) ? $lab : null),
+            'headerLines' => self::headerLines($labObj),
             'dateLine' => self::formatSpanishDate(
                 $appointment->start_time instanceof Carbon
                     ? $appointment->start_time
                     : ($appointment->start_time ? Carbon::parse($appointment->start_time) : null),
                 $city
             ),
-            'patientName' => self::formatPatientName($patient),
+            'patientName' => $patientName,
+            'greeting' => $copy['greeting'],
+            'patientIntro' => self::resolvePatientIntro($copy['patientIntro'], $patientName),
             'examTitle' => self::formatExamTitle($study['exam'] ?? null, $study['subExam'] ?? null),
             'reportBody' => trim((string) ($study['reportText'] ?? $study['report'] ?? '')),
             'doctor' => self::doctorPayload($doctorUser, $lab),
@@ -287,13 +341,19 @@ class ReportDocumentFormatter
     /** @param array<string, mixed> $document */
     public static function buildPlainText(array $document): string
     {
+        $greeting = trim((string) ($document['greeting'] ?? '')) ?: 'Estimado Doctor:';
+        $patientIntro = trim((string) ($document['patientIntro'] ?? ''));
+        if ($patientIntro === '') {
+            $patientIntro = 'El examen realizado a su paciente Sr(a) ' . ($document['patientName'] ?? 'Paciente') . ', ha dado el siguiente resultado:';
+        }
+
         $lines = $document['headerLines'] ?? [];
         $lines[] = '';
         $lines[] = $document['dateLine'] ?? '';
         $lines[] = '';
-        $lines[] = 'Estimado Doctor:';
+        $lines[] = $greeting;
         $lines[] = '';
-        $lines[] = 'El examen realizado a su paciente Sr(a) ' . ($document['patientName'] ?? 'Paciente') . ', ha dado el siguiente resultado:';
+        $lines[] = $patientIntro;
         $lines[] = '';
         $lines[] = $document['examTitle'] ?? 'EXAMEN:';
         $lines[] = '';
@@ -314,8 +374,13 @@ class ReportDocumentFormatter
         $body = nl2br(e($document['reportBody'] ?? ''));
 
         $dateLine = e($document['dateLine'] ?? '');
-        $patientName = e($document['patientName'] ?? '');
         $examTitle = e($document['examTitle'] ?? 'EXAMEN:');
+        $greeting = e(trim((string) ($document['greeting'] ?? '')) ?: 'Estimado Doctor:');
+        $patientIntro = trim((string) ($document['patientIntro'] ?? ''));
+        if ($patientIntro === '') {
+            $patientIntro = 'El examen realizado a su paciente Sr(a) ' . ($document['patientName'] ?? 'Paciente') . ', ha dado el siguiente resultado:';
+        }
+        $patientIntro = e($patientIntro);
 
         $signatureBlock = '';
         $signatureUrl = trim((string) ($document['doctor']['signatureUrl'] ?? ''));
@@ -332,9 +397,9 @@ HTML;
 <div class="ris-report-page" style="color: {$textColor}; font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.45;">
     <div class="ris-report-header" style="text-align:center; margin-bottom: 18px;">{$header}</div>
     <div style="margin-bottom: 14px;">{$dateLine}</div>
-    <div style="margin-bottom: 10px;">Estimado Doctor:</div>
+    <div style="margin-bottom: 10px;">{$greeting}</div>
     <div style="margin-bottom: 14px; text-align: justify;">
-        El examen realizado a su paciente Sr(a) {$patientName}, ha dado el siguiente resultado:
+        {$patientIntro}
     </div>
     <div style="font-weight: bold; margin-bottom: 10px;">{$examTitle}</div>
     <div class="ris-report-body" style="white-space: pre-wrap; text-align: justify; margin-bottom: 24px;">{$body}</div>

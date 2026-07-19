@@ -1,25 +1,26 @@
-<div class="container-fluid p-3 h-100">
+<div class="container-fluid p-3 h-100 entrega-page">
     <div class="card shadow-sm border-0 h-100 d-flex flex-column">
 
-        <div class="card-header bg-white py-4 border-bottom">
-            <div class="row align-items-center">
-                <div class="col-md-5">
-                    <h4 class="mb-0 fw-bold text-primary"><i class="bi bi-envelope-paper me-2"></i>Entrega de Resultados
-                    </h4>
-                    <small class="text-muted">Informes médicos firmados listos para retiro</small>
+        <div class="card-header bg-white py-3 border-bottom">
+            <div class="ris-page-header mb-0">
+                <div class="ris-page-header__main">
+                    <h1 class="ris-page-title"><i class="bi bi-envelope-paper me-2" aria-hidden="true"></i>Entrega de resultados</h1>
+                    <p class="ris-page-subtitle">Informes firmados listos para retiro</p>
                 </div>
-                <div class="col-md-7">
-                    <div class="input-group input-group-lg shadow-sm">
+                <div class="ris-page-header__actions ris-toolbar entrega-toolbar">
+                    <div class="input-group shadow-sm w-100">
                         <span class="input-group-text bg-white border-end-0 text-primary"><i
-                                class="bi bi-search"></i></span>
-                        <input type="text" id="searchEntrega" class="form-control border-start-0 ps-0"
-                            placeholder="Escanee o escriba el RUT / Nombre del paciente..."
-                            onkeyup="renderTablaEntrega()">
-                        <select id="filtroEstadoEntrega" class="form-select" style="max-width: 200px;"
+                                class="bi bi-search" aria-hidden="true"></i></span>
+                        <label for="searchEntrega" class="visually-hidden">Buscar paciente</label>
+                        <input type="search" id="searchEntrega" class="form-control border-start-0 ps-0"
+                            placeholder="RUT / nombre del paciente..."
+                            onkeyup="renderTablaEntrega()" aria-label="Buscar paciente por RUT o nombre">
+                        <label for="filtroEstadoEntrega" class="visually-hidden">Filtrar por estado</label>
+                        <select id="filtroEstadoEntrega" class="form-select entrega-filtro-estado"
                             onchange="renderTablaEntrega()">
-                            <option value="entregable">Pendientes de Retiro</option>
-                            <option value="entregado">Ya Entregados</option>
-                            <option value="todos">Mostrar Todos</option>
+                            <option value="entregable">Pendientes de retiro</option>
+                            <option value="entregado">Ya entregados</option>
+                            <option value="todos">Mostrar todos</option>
                         </select>
                     </div>
                 </div>
@@ -27,15 +28,15 @@
         </div>
 
         <div class="card-body p-0 flex-grow-1 overflow-auto">
-            <div class="table-responsive h-100">
-                <table class="table table-hover align-middle mb-0" id="tablaEntrega">
-                    <thead class="bg-light sticky-top shadow-sm" style="z-index: 10;">
+            <div class="table-responsive h-100 ris-table-scroll">
+                <table class="table table-hover align-middle mb-0 ris-data-table" id="tablaEntrega">
+                    <thead class="sticky-top">
                         <tr>
                             <th class="ps-4 col-entrega-paciente">Paciente</th>
                             <th class="col-entrega-acc">Accession</th>
-                            <th class="col-entrega-exams">Exámenes Solicitados</th>
+                            <th class="col-entrega-exams">Exámenes</th>
                             <th class="col-entrega-estado">Estado</th>
-                            <th class="text-center pe-4 col-entrega-acciones">Acciones</th>
+                            <th class="text-center pe-4 col-entrega-acciones ris-col-actions">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -46,49 +47,49 @@
 
     </div>
 </div>
-<div class="modal fade" id="modalEntrega" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="modalEntrega" tabindex="-1" aria-hidden="true" aria-labelledby="modalEntregaTitle">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow">
             <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title fw-bold"><i class="bi bi-person-check-fill me-2"></i>Registrar Retiro de Exámenes
+                <h5 class="modal-title" id="modalEntregaTitle"><i class="bi bi-person-check-fill me-2" aria-hidden="true"></i>Registrar retiro de exámenes
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body p-4 bg-light">
                 <div class="mb-3">
-                    <label class="form-label fw-bold text-secondary small">RUT de quien retira</label>
-                    <input type="text" id="entregaRut" class="form-control" placeholder="Ej: 11.222.333-4">
+                    <label class="form-label text-secondary small" for="entregaRut">RUT de quien retira</label>
+                    <input type="text" id="entregaRut" class="form-control" placeholder="Ej: 11.222.333-4" autocomplete="off">
                 </div>
                 <div class="mb-3">
-                    <label class="form-label fw-bold text-secondary small">Nombre Completo</label>
-                    <input type="text" id="entregaNombre" class="form-control" placeholder="Nombre de quien recibe">
+                    <label class="form-label text-secondary small" for="entregaNombre">Nombre completo</label>
+                    <input type="text" id="entregaNombre" class="form-control" placeholder="Nombre de quien recibe" autocomplete="name">
                 </div>
                 <div class="row g-2">
                     <div class="col-6">
-                        <label class="form-label fw-bold text-secondary small">Parentesco / Relación</label>
+                        <label class="form-label text-secondary small" for="entregaRelacion">Parentesco / relación</label>
                         <select id="entregaRelacion" class="form-select">
-                            <option value="Mismo Paciente">Mismo Paciente</option>
+                            <option value="Mismo Paciente">Mismo paciente</option>
                             <option value="Familiar (Padre/Madre/Hijo)">Familiar</option>
                             <option value="Cónyuge">Cónyuge</option>
-                            <option value="Representante Legal">Representante Legal</option>
+                            <option value="Representante Legal">Representante legal</option>
                             <option value="Otro">Otro</option>
                         </select>
                     </div>
                     <div class="col-6">
-                        <label class="form-label fw-bold text-secondary small">Método</label>
+                        <label class="form-label text-secondary small" for="entregaMetodo">Método</label>
                         <select id="entregaMetodo" class="form-select">
-                            <option value="Presencial (Impreso)">Presencial (Impreso)</option>
-                            <option value="Digital (Email/CD)">Digital (Email/CD)</option>
+                            <option value="Presencial (Impreso)">Presencial (impreso)</option>
+                            <option value="Digital (Email/CD)">Digital (email/CD)</option>
                         </select>
                     </div>
                 </div>
             </div>
             <div class="modal-footer bg-white">
-                <button type="button" class="btn btn-outline-secondary fw-bold"
+                <button type="button" class="btn btn-outline-secondary"
                     data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-success fw-bold px-4 shadow-sm" id="btnConfirmarEntrega"
+                <button type="button" class="btn btn-success px-4" id="btnConfirmarEntrega"
                     onclick="procesarEntrega()">
-                    <i class="bi bi-check2-circle me-1"></i> Confirmar Entrega
+                    <i class="bi bi-check2-circle me-1" aria-hidden="true"></i> Confirmar entrega
                 </button>
             </div>
         </div>

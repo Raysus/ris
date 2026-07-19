@@ -204,7 +204,7 @@
         const groups = risGroupInboxByExamDate(items);
         groups.forEach((group) => {
             $container.append(
-                `<div class="list-group-item bg-body-secondary py-1 px-3 small fw-bold text-secondary border-0 sticky-top" style="top:0;z-index:2;">` +
+                `<div class="list-group-item bg-body-secondary py-1 px-3 small fw-bold text-secondary border-0 sticky-top ris-inbox-group-sticky">` +
                     `<i class="bi bi-calendar3 me-1"></i>${group.label}` +
                     ` <span class="badge bg-secondary ms-1">${group.items.length}</span>` +
                 `</div>`
@@ -219,7 +219,7 @@
         const label = risFormatWorkflowExamDateLabel(app.examDate);
         const time = risFormatWorkflowExamTime(app.examDateTime, app.examTime);
         const text = time ? `${label} · ${time}` : label;
-        return `<span class="badge bg-dark-subtle text-dark border font-monospace" style="font-size:0.7rem;">` +
+        return `<span class="badge bg-dark-subtle text-dark border font-monospace ris-badge-xs">` +
             `<i class="bi bi-calendar-event me-1"></i>${typeof risEscapeHtml === "function" ? risEscapeHtml(text) : text}</span>`;
     }
 

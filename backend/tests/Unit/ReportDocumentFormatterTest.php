@@ -145,4 +145,36 @@ class ReportDocumentFormatterTest extends TestCase
         $this->assertSame('Centro de Diagnóstico y Tratamiento Ltda.', $lines[0]);
         $this->assertContains('Dinamarca Nº661, Temuco', $lines);
     }
+
+    public function test_letter_copy_uses_report_header_templates(): void
+    {
+        $copy = ReportDocumentFormatter::letterCopy((object) [
+            'settings' => [
+                'reportHeader' => [
+                    'greeting' => 'Estimada Doctora:',
+                    'patientIntro' => 'Respecto de {patient}, el resultado es:',
+                ],
+            ],
+        ]);
+
+        $this->assertSame('Estimada Doctora:', $copy['greeting']);
+        $this->assertSame(
+            'Respecto de Ana Pérez, el resultado es:',
+            ReportDocumentFormatter::resolvePatientIntro($copy['patientIntro'], 'Ana Pérez')
+        );
+
+        $text = ReportDocumentFormatter::buildPlainText([
+            'headerLines' => ['Centro Demo'],
+            'dateLine' => 'Temuco, 19 de julio de 2026.',
+            'patientName' => 'Ana Pérez',
+            'greeting' => $copy['greeting'],
+            'patientIntro' => ReportDocumentFormatter::resolvePatientIntro($copy['patientIntro'], 'Ana Pérez'),
+            'examTitle' => 'RX. TORAX:',
+            'reportBody' => 'Sin hallazgos.',
+        ]);
+
+        $this->assertStringContainsString('Estimada Doctora:', $text);
+        $this->assertStringContainsString('Respecto de Ana Pérez, el resultado es:', $text);
+        $this->assertStringNotContainsString('Estimado Doctor:', $text);
+    }
 }

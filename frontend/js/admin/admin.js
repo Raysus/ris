@@ -183,6 +183,7 @@ async function cargarTiposLaboratorio() {
 
 function initAdmin() {
     if (typeof applyLabProfileUI === 'function') applyLabProfileUI();
+    if (typeof risInitAdminHubs === 'function') risInitAdminHubs();
     risPoblarSelectModalidades('#catGrupo');
     risPoblarSelectModalidades('#tplGrupo');
     risPoblarSelectModalidades('#salaGroup', RIS_MACHINE_MODALITY_OPTIONS);
@@ -416,7 +417,7 @@ async function cargarCloudSyncLogs() {
                 <td class="small">${log.action}</td>
                 <td><span class="badge bg-${badge}-subtle text-${badge}">${log.status}</span></td>
                 <td>${log.attempts}</td>
-                <td class="small text-danger text-truncate" style="max-width:200px" title="${log.last_error || ''}">${log.last_error || '-'}</td>
+                <td class="small text-danger text-truncate ris-truncate-200" title="${log.last_error || ''}">${log.last_error || '-'}</td>
                 <td>${retryBtn}</td>
             </tr>`);
         });
@@ -777,7 +778,7 @@ async function cargarCatalogoRoles() {
                 contenedor.append(`
                     <div class="form-check">
                         <input class="form-check-input role-check req-user-role" type="checkbox" value="${slug}" id="rol_${rol.id}">
-                        <label class="form-check-label fw-bold text-secondary" style="cursor:pointer;" for="rol_${rol.id}">
+                        <label class="form-check-label fw-bold text-secondary ris-cursor-pointer" for="rol_${rol.id}">
                             ${rol.description}
                         </label>
                     </div>
@@ -1208,7 +1209,7 @@ async function renderListaSalasAdmin() {
                     <tr>
                         <td class="fw-bold text-dark">
                             <i class="bi bi-display me-2 text-muted"></i>${res.name}
-                            <small class="d-block text-muted" style="font-size:0.7rem">${res.manufacturer || ''} ${res.model_name || ''}</small>
+                            <small class="d-block text-muted ris-text-xxs">${res.manufacturer || ''} ${res.model_name || ''}</small>
                         </td>
                         <td><span class="badge ${badgeColor} px-3 py-2">${res.group}</span></td>
                         <td class="text-center pe-4">
@@ -1362,11 +1363,25 @@ async function cargarConfigCentro() {
                 $("#cfgShowAgendaOrigin").prop("checked", !!lab.settings.show_agenda_origin);
                 $("#cfgShowAgendaPriority").prop("checked", !!lab.settings.show_agenda_priority);
                 $("#cfgUseReportSignature").prop("checked", !!lab.settings.use_report_signature);
+                const reportHeader = lab.settings.reportHeader || {};
+                $("#cfgReportLegalName").val(reportHeader.legalName || "");
+                $("#cfgReportBranches").val(
+                    Array.isArray(reportHeader.branches) ? reportHeader.branches.join("\n") : ""
+                );
+                $("#cfgReportGreeting").val(reportHeader.greeting || "");
+                $("#cfgReportPatientIntro").val(reportHeader.patientIntro || "");
             } else {
                 $("#cfgShowAgendaOrigin").prop("checked", false);
                 $("#cfgShowAgendaPriority").prop("checked", false);
                 $("#cfgUseReportSignature").prop("checked", false);
+                $("#cfgReportLegalName").val("");
+                $("#cfgReportBranches").val("");
+                $("#cfgReportGreeting").val("");
+                $("#cfgReportPatientIntro").val("");
             }
+            actualizarVistaPreviaInformeAdmin();
+            risBindReportPreviewInputs();
+
 
             if (esSysAdminLogueado()) {
                 actualizarBotonesMatrizSysAdmin();
@@ -1490,6 +1505,11 @@ async function guardarConfigCentroAdmin() {
     formData.append('phone', $("#cfgTelefono").val().trim());
     formData.append('email', $("#cfgEmail").val().trim());
 
+    const branchLines = String($("#cfgReportBranches").val() || "")
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+
     const settings = {
         horaInicio: $("#cfgHoraInicio").val(),
         horaFin: $("#cfgHoraFin").val(),
@@ -1498,6 +1518,12 @@ async function guardarConfigCentroAdmin() {
         show_agenda_origin: $("#cfgShowAgendaOrigin").is(":checked"),
         show_agenda_priority: $("#cfgShowAgendaPriority").is(":checked"),
         use_report_signature: $("#cfgUseReportSignature").is(":checked"),
+        reportHeader: {
+            legalName: $("#cfgReportLegalName").val().trim(),
+            branches: branchLines,
+            greeting: $("#cfgReportGreeting").val().trim(),
+            patientIntro: $("#cfgReportPatientIntro").val().trim(),
+        },
     };
     formData.append('settings', JSON.stringify(settings));
 
@@ -1532,6 +1558,60 @@ async function guardarConfigCentroAdmin() {
             showToast(`❌ ${data.message || 'No se pudo guardar la configuración.'}`, "danger");
         }
     } catch (e) { showToast("Error al guardar", "danger"); }
+}
+
+function risBindReportPreviewInputs() {
+    if (window._risReportPreviewBound) return;
+    window._risReportPreviewBound = true;
+    $(document).on(
+        'input change',
+        '#cfgReportLegalName, #cfgReportBranches, #cfgReportGreeting, #cfgReportPatientIntro, #cfgColorInforme, #cfgNombre, #cfgDireccion, #cfgCiudad, #cfgTelefono',
+        actualizarVistaPreviaInformeAdmin
+    );
+}
+
+function actualizarVistaPreviaInformeAdmin() {
+    const $body = $("#cfgReportPreviewBody");
+    if (!$body.length) return;
+
+    const legalName = ($("#cfgReportLegalName").val() || $("#cfgNombre").val() || "Centro de Diagnóstico y Tratamiento Ltda.").trim();
+    const branchLines = String($("#cfgReportBranches").val() || "")
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+    let branches = branchLines.slice();
+    if (!branches.length) {
+        const address = ($("#cfgDireccion").val() || "").trim();
+        const city = ($("#cfgCiudad").val() || "").trim();
+        const phone = ($("#cfgTelefono").val() || "").trim();
+        const parts = [];
+        if (address) parts.push(address);
+        if (city && (!address || !address.toLowerCase().includes(city.toLowerCase()))) parts.push(city);
+        let line = parts.join(", ");
+        if (phone) line = line ? `${line}. Fono: ${phone}` : `Fono: ${phone}`;
+        if (line) branches = [line];
+    }
+
+    const greeting = ($("#cfgReportGreeting").val() || "Estimado Doctor:").trim() || "Estimado Doctor:";
+    const introTpl = ($("#cfgReportPatientIntro").val() ||
+        "El examen realizado a su paciente Sr(a) {patient}, ha dado el siguiente resultado:").trim();
+    const intro = introTpl.replace(/\{patient\}/gi, "Juan Pérez");
+    const color = $("#cfgColorInforme").val() || "#000000";
+
+    const esc = typeof risEscapeHtml === "function" ? risEscapeHtml : (s) => String(s ?? "");
+    const headerHtml = [legalName, legalName, ...branches]
+        .filter(Boolean)
+        .map((line) => `<div>${esc(line)}</div>`)
+        .join("");
+
+    $body.css("color", color).html(`
+        ${headerHtml}
+        <div class="mt-3 text-start">${esc(greeting)}</div>
+        <div class="mt-2 text-start" style="text-align:justify;">${esc(intro)}</div>
+        <div class="mt-2 text-start fw-bold">RX. TORAX:</div>
+        <div class="mt-1 text-start text-muted">[Texto del informe…]</div>
+    `);
 }
 
 function renderTablaSucursales() {
@@ -1677,7 +1757,7 @@ async function renderCatalogoAdmin() {
                         <tr>
                             <td class="ps-4"><span class="badge ${badgeColor}">${grupo}</span></td>
                             <td class="fw-bold text-dark">${nombreExamen}
-                                <small class="d-block text-muted" style="font-size: 0.75rem;">${(exData.subs || []).map(risNombreSubExamenAdmin).filter(Boolean).join(", ")}</small>
+                                <small class="d-block text-muted ris-font-075">${(exData.subs || []).map(risNombreSubExamenAdmin).filter(Boolean).join(", ")}</small>
                             </td>
                             <td class="font-monospace text-secondary">${exData.code || '--'}</td>
                             <td class="text-end fw-bold text-success">$${parseFloat(exData.price).toLocaleString('es-CL')}</td>
@@ -2096,9 +2176,9 @@ function pintarAgendaSemanalMedico(res) {
                     <table class="table table-sm table-hover align-middle mb-0">
                         <thead class="small text-muted">
                             <tr>
-                                <th style="width:5rem">Hora</th>
+                                <th class="ris-th-hora">Hora</th>
                                 <th>Paciente</th>
-                                <th style="width:7rem">RUT</th>
+                                <th class="ris-th-rut">RUT</th>
                                 <th>Exámenes</th>
                                 <th>Sala</th>
                                 <th>Méd. referente</th>
@@ -4020,7 +4100,7 @@ function renderCheckboxesSucursales() {
     currentLaboratoriesTree.forEach(matriz => {
         let groupHtml = `
             <div class="w-100 mb-2 mt-1">
-                <div class="text-primary fw-bold border-bottom pb-1 mb-2" style="font-size: 0.85rem;">
+                <div class="text-primary fw-bold border-bottom pb-1 mb-2 ris-font-sm">
                     <i class="bi bi-diagram-3-fill me-1"></i> ${matriz.name || 'Casa Matriz'}
                 </div>
                 <div class="d-flex flex-wrap gap-3 ps-3">

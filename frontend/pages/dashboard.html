@@ -1,21 +1,22 @@
 <div class="container-fluid p-4 h-100 bg-light">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h3 class="fw-bold text-primary mb-0"><i class="bi bi-graph-up-arrow me-2"></i>Centro de Comando RIS</h3>
-            <small class="text-muted">Métricas y flujo operativo</small>
+    <div class="ris-page-header mb-4">
+        <div class="ris-page-header__main">
+            <h1 class="ris-page-title"><i class="bi bi-graph-up-arrow me-2" aria-hidden="true"></i>Panel operativo</h1>
+            <p class="ris-page-subtitle">Métricas y flujo operativo</p>
         </div>
-        <div class="d-flex gap-2">
+        <div class="ris-page-header__actions ris-toolbar">
+            <label for="filtroFechaDash" class="visually-hidden">Fecha del panel</label>
             <input type="date" id="filtroFechaDash" class="form-control shadow-sm" onchange="actualizarMetricas()">
             <div class="badge bg-white text-dark border p-2 shadow-sm fs-6 d-flex align-items-center">
-                <i class="bi bi-calendar-event me-2"></i><span id="dashFechaActual">--/--/----</span>
+                <i class="bi bi-calendar-event me-2" aria-hidden="true"></i><span id="dashFechaActual">--/--/----</span>
             </div>
         </div>
     </div>
 
 
 
-    <div class="row g-3 mb-4">
-        <div class="col-md-3">
+    <div class="row g-3 mb-4 ris-kpi-row">
+        <div class="col-6 col-xl">
             <div class="card border-0 shadow-sm border-start border-4 border-primary h-100">
                 <div class="card-body">
                     <h6 class="text-muted fw-bold mb-1">Pacientes Agendados Hoy</h6>
@@ -23,7 +24,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-6 col-xl">
             <div class="card border-0 shadow-sm border-start border-4 border-info h-100">
                 <div class="card-body">
                     <h6 class="text-muted fw-bold mb-1">Exámenes Realizados</h6>
@@ -31,7 +32,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-6 col-xl">
             <div class="card border-0 shadow-sm border-start border-4 border-warning h-100">
                 <div class="card-body">
                     <h6 class="text-muted fw-bold mb-1">Informes Pendientes (Bandejas)</h6>
@@ -39,7 +40,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-6 col-xl">
             <div class="card border-0 shadow-sm border-start border-4 border-success h-100">
                 <div class="card-body">
                     <h6 class="text-muted fw-bold mb-1">Ingresos de la Fecha</h6>
@@ -48,7 +49,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-6 col-xl">
             <div class="card border-0 shadow-sm border-start border-4 border-secondary h-100">
                 <div class="card-body">
                     <h6 class="text-muted fw-bold mb-1">Tiempo Prom. Entrega (TAT)</h6>
@@ -70,8 +71,7 @@
                     <h6 class="fw-bold text-dark mb-0"><i class="bi bi-pie-chart-fill text-primary me-2"></i>Estado del
                         Flujo Clínico</h6>
                 </div>
-                <div class="card-body d-flex justify-content-center align-items-center"
-                    style="position: relative; height: 300px;">
+                <div class="card-body d-flex justify-content-center align-items-center ris-chart-box">
                     <canvas id="chartEstados" aria-label="Gráfico de estado del flujo clínico" role="img"></canvas>
                 </div>
             </div>
@@ -84,7 +84,7 @@
                     <h6 class="fw-bold text-dark mb-0"><i class="bi bi-bar-chart-fill text-info me-2"></i>Producción por
                         Modalidad (Equipos)</h6>
                 </div>
-                <div class="card-body" style="position: relative; height: 300px;">
+                <div class="card-body ris-chart-box">
                     <canvas id="chartModalidades" aria-label="Gráfico de producción por modalidad" role="img"></canvas>
                 </div>
             </div>

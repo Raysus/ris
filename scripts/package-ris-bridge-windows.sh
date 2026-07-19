@@ -41,6 +41,29 @@ cp -a "$SRC/Instalar-Bridge-Siempre-Encendido.bat" "$SRC/install-windows-startup
 [[ -f "$SRC/config.json" ]] && cp -a "$SRC/config.json" "$ALWAYS/"
 (cd "$OUT_DIR" && rm -f Instalar-Bridge-Siempre-Encendido.zip && zip -qr Instalar-Bridge-Siempre-Encendido.zip Instalar-Bridge-Siempre-Encendido)
 
+# Kit: limpiar / reinstalar cuando el puerto 8181 no abre
+CLEAN="$OUT_DIR/Limpiar-Bridge-Windows"
+rm -rf "$CLEAN"
+mkdir -p "$CLEAN/lib"
+cp -a "$SRC/Limpiar-Reinstalar-Bridge.bat" "$SRC/limpiar-reinstalar-bridge-windows.ps1" \
+  "$SRC/LEEME-Limpiar-Bridge-Windows.txt" \
+  "$SRC/server.js" "$SRC/package.json" "$SRC/package-lock.json" \
+  "$SRC/start-bridge.bat" "$SRC/start-bridge-hidden.vbs" \
+  "$SRC/install-windows-startup.ps1" \
+  "$SRC/Instalar-Bridge-Siempre-Encendido.bat" \
+  "$SRC/config.example.json" \
+  "$CLEAN/"
+[[ -f "$SRC/config.json" ]] && cp -a "$SRC/config.json" "$CLEAN/"
+cp -a "$SRC/lib/." "$CLEAN/lib/"
+# También en el zip Windows completo
+cp -a "$SRC/Limpiar-Reinstalar-Bridge.bat" "$SRC/limpiar-reinstalar-bridge-windows.ps1" \
+  "$SRC/LEEME-Limpiar-Bridge-Windows.txt" "$PKG/" "$PKG/ris-local-bridge/" 2>/dev/null || true
+cp -a "$SRC/Limpiar-Reinstalar-Bridge.bat" "$SRC/limpiar-reinstalar-bridge-windows.ps1" \
+  "$SRC/LEEME-Limpiar-Bridge-Windows.txt" "$PKG/"
+cp -a "$SRC/Limpiar-Reinstalar-Bridge.bat" "$SRC/limpiar-reinstalar-bridge-windows.ps1" \
+  "$SRC/LEEME-Limpiar-Bridge-Windows.txt" "$PKG/ris-local-bridge/"
+(cd "$OUT_DIR" && rm -f Limpiar-Bridge-Windows.zip && zip -qr Limpiar-Bridge-Windows.zip Limpiar-Bridge-Windows)
+
 if [[ -f "$OUT_DIR/LEEME-Bridge-Windows.txt" ]]; then
   cp -f "$OUT_DIR/LEEME-Bridge-Windows.txt" "$PKG/"
 else

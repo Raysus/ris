@@ -6,12 +6,14 @@ use App\Http\Controllers\Concerns\ChecksRisAuthorization;
 use App\Http\Controllers\Concerns\FormatsAppointmentInbox;
 use Illuminate\Http\Request;
 use App\Models\Appointment;
+use App\Services\AiTranscriptionService;
 use App\Services\ReportDocumentFormatter;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use App\Support\PublicStorageUrl;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 class RadiologistController extends Controller
 {
@@ -498,5 +500,75 @@ class RadiologistController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    public function aiTranscriptionStatus(Request $request, AiTranscriptionService $ai)
+    {
+        $this->assertRadiologistAccess($request);
+
+        return response()->json(array_merge([
+            'success' => true,
+        ], $ai->status()));
+    }
+
+    public function aiTranscribe(Request $request, AiTranscriptionService $ai)
+    {
+        $this->assertRadiologistAccess($request);
+
+        $request->validate([
+            'audio' => 'required|file|mimes:webm,mp3,wav,ogg,mp4,m4a,mpeg|max:20480',
+            'study_id' => 'nullable|string',
+            'language' => 'nullable|string|max:8',
+        ]);
+
+        try {
+            $text = $ai->transcribe(
+                $request->file('audio'),
+                $request->input('language')
+            );
+        } catch (RuntimeException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al transcribir con IA.',
+            ], 500);
+        }
+
+        $userId = $request->user()?->id;
+        if ($userId && $request->filled('study_id')) {
+            try {
+                $appointmentId = DB::table('appointment_studies')
+                    ->where('id', $request->study_id)
+                    ->value('appointment_id');
+                if ($appointmentId) {
+                    DB::table('appointment_logs')->insert([
+                        'id' => (string) Str::orderedUuid(),
+                        'appointment_id' => $appointmentId,
+                        'user_id' => $userId,
+                        'action' => 'AI_TRANSCRIPTION',
+                        'details' => json_encode([
+                            'study_id' => $request->study_id,
+                            'chars' => mb_strlen($text),
+                        ]),
+                        'ip_address' => $request->ip(),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                Log::debug('AI transcription log skipped', ['error' => $e->getMessage()]);
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'text' => $text,
+        ]);
     }
 }
