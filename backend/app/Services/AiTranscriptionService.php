@@ -20,12 +20,13 @@ class AiTranscriptionService
 
         $message = match (true) {
             !$enabled => 'La transcripción con IA está desactivada en este servidor.',
-            !$reachable => CloudSyncMode::isLocal()
-                ? 'Sin conexión a la nube desde el servidor local. La IA no está disponible.'
-                : 'No hay conectividad para el proveedor de IA.',
+            // Configuración primero: en nube "reachable" no debe confundirse con falta de API key.
             !$configured => CloudSyncMode::isLocal()
                 ? 'La nube no tiene configurada la transcripción IA (API key).'
-                : 'Falta AI_TRANSCRIPTION_API_KEY / OPENAI_API_KEY en el servidor nube.',
+                : 'Falta configurar AI_TRANSCRIPTION_API_KEY u OPENAI_API_KEY en el servidor nube.',
+            !$reachable => CloudSyncMode::isLocal()
+                ? 'Sin conexión a la nube desde el servidor local. La IA no está disponible.'
+                : 'No hay conectividad hacia el proveedor de IA (OpenAI).',
             default => 'Transcripción con IA disponible.',
         };
 
@@ -101,13 +102,14 @@ class AiTranscriptionService
     }
 
     /**
-     * Local: debe alcanzar la nube. Nube: OK si hay API key (Internet hacia OpenAI).
+     * Local: debe alcanzar la nube.
+     * Nube: la ruta al proveedor se valida al transcribir; aquí no mezclar con "hay API key".
      * Desarrollo local con allow_local_provider: no exige nube.
      */
     private function cloudPathReachable(): bool
     {
         if (CloudSyncMode::isCloud()) {
-            return $this->hasApiKey();
+            return true;
         }
 
         if ((bool) config('ai_transcription.allow_local_provider', false) && $this->hasApiKey()) {

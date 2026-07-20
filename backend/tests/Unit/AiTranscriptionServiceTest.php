@@ -23,6 +23,24 @@ class AiTranscriptionServiceTest extends TestCase
         $this->assertStringContainsString('desactivada', $status['message']);
     }
 
+    public function test_cloud_without_api_key_reports_configuration_not_connectivity(): void
+    {
+        config([
+            'ai_transcription.enabled' => true,
+            'ai_transcription.api_key' => '',
+            'ai_transcription.proxy_to_cloud' => false,
+            'cloud_sync.role' => 'cloud',
+        ]);
+
+        $status = app(AiTranscriptionService::class)->status();
+
+        $this->assertTrue($status['cloud_reachable']);
+        $this->assertFalse($status['configured']);
+        $this->assertFalse($status['available']);
+        $this->assertStringContainsString('API_KEY', $status['message']);
+        $this->assertStringNotContainsString('conectividad', mb_strtolower($status['message']));
+    }
+
     public function test_local_without_cloud_url_is_not_configured(): void
     {
         config([
