@@ -23,6 +23,14 @@ class CloudSyncTransportTest extends TestCase
         $this->assertTrue(CloudSyncTransport::isPermanentHttpStatus(422));
     }
 
+    public function test_detects_413_as_oversized_payload(): void
+    {
+        $this->assertTrue(CloudSyncTransport::isOversizedPayloadMessage(
+            'Sync bundle falló en App\Models\Appointment: HTTP 413 — Request Entity Too Large'
+        ));
+        $this->assertFalse(CloudSyncTransport::isOversizedPayloadMessage('HTTP 422 Unprocessable'));
+    }
+
     public function test_release_delay_grows_with_attempts(): void
     {
         config(['cloud_sync.pending_release_seconds' => 60, 'cloud_sync.max_release_backoff' => 900]);

@@ -54,9 +54,61 @@ class CloudSyncFilePackager
      *
      * @param  array<string, mixed>  $payload
      */
-    public static function packAppointmentPayload(array &$payload): void
+    public static function packAppointmentPayload(array &$payload, bool $includeFiles = true): void
     {
+        if (!$includeFiles) {
+            return;
+        }
         self::packEntityPayload($payload, true);
+    }
+
+    /**
+     * Quita campos *_base64 del payload (sync liviano de estado/metadatos).
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    public static function withoutBase64(array $payload): array
+    {
+        unset($payload['audio_path_base64'], $payload['medical_order_path_base64'], $payload['survey_path_base64'], $payload['signature_path_base64']);
+
+        if (isset($payload['studies']) && is_array($payload['studies'])) {
+            foreach ($payload['studies'] as $key => $study) {
+                if (!is_array($study)) {
+                    continue;
+                }
+                unset(
+                    $payload['studies'][$key]['audio_path_base64'],
+                    $payload['studies'][$key]['report_document_path_base64']
+                );
+            }
+        }
+
+        return $payload;
+    }
+
+    public static function payloadHasBase64(array $payload): bool
+    {
+        foreach ($payload as $key => $value) {
+            if (is_string($key) && str_ends_with($key, '_base64') && $value) {
+                return true;
+            }
+        }
+
+        if (isset($payload['studies']) && is_array($payload['studies'])) {
+            foreach ($payload['studies'] as $study) {
+                if (!is_array($study)) {
+                    continue;
+                }
+                foreach ($study as $key => $value) {
+                    if (is_string($key) && str_ends_with($key, '_base64') && $value) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     public static function fileToBase64(?string $path): ?string

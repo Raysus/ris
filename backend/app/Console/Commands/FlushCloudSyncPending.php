@@ -60,7 +60,8 @@ class FlushCloudSyncPending extends Command
                 ->orderBy('created_at')
                 ->limit($remaining)
                 ->get()
-                ->filter(fn (CloudSyncLog $log) => CloudSyncTransport::isTransientMessage($log->last_error));
+                ->filter(fn (CloudSyncLog $log) => CloudSyncTransport::isTransientMessage($log->last_error)
+                    || CloudSyncTransport::isOversizedPayloadMessage($log->last_error));
 
             foreach ($failed as $log) {
                 $log->update(['status' => 'pending', 'last_error' => null]);

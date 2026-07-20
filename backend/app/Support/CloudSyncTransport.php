@@ -114,6 +114,20 @@ class CloudSyncTransport
         return false;
     }
 
+    /** Payload demasiado grande (nginx 413) — reintentable tras subir límites o con sync liviano. */
+    public static function isOversizedPayloadMessage(?string $message): bool
+    {
+        if ($message === null || $message === '') {
+            return false;
+        }
+
+        $msg = strtolower($message);
+
+        return str_contains($msg, '413')
+            || str_contains($msg, 'request entity too large')
+            || str_contains($msg, 'entity too large');
+    }
+
     public static function isPermanentHttpStatus(?int $status): bool
     {
         if ($status === null) {
