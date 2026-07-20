@@ -149,7 +149,7 @@
                             </div>
                             <button type="button" id="btnSubirDocumentoTrans"
                                 class="btn btn-sm btn-outline-secondary fw-bold bg-white" disabled
-                                title="Subir PDF/imagen del informe en lugar de transcribir">
+                                title="Subir PDF/imagen del informe a los exámenes marcados">
                                 <i class="bi bi-upload me-1"></i> Subir documento
                             </button>
                             <input type="file" id="inputDocumentoTrans" class="d-none"
@@ -164,6 +164,16 @@
                         </div>
                     </div>
 
+                    <div id="examenesTransToolbar" class="d-none mb-2 d-flex flex-wrap align-items-center gap-2">
+                        <span class="small text-muted fw-semibold">Aplicar texto/documento a:</span>
+                        <button type="button" id="btnSeleccionarTodosExamenesTrans" class="btn btn-sm btn-outline-secondary fw-bold">
+                            Seleccionar todos
+                        </button>
+                        <button type="button" id="btnSeleccionarNingunExamenTrans" class="btn btn-sm btn-outline-secondary">
+                            Ninguno
+                        </button>
+                        <small id="hintExamenesTransSeleccion" class="text-muted"></small>
+                    </div>
                     <div id="listaExamenesTranscripcion" class="mb-3 d-flex gap-2 flex-wrap"></div>
                     <div id="documentoTransAdjunto" class="alert alert-info py-2 px-3 mb-2 small d-none">
                         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
@@ -175,7 +185,7 @@
                         </div>
                     </div>
                     <textarea id="textoTranscripcion" class="form-control border-0 shadow-sm flex-grow-1 p-3 ris-report-textarea"
-                        placeholder="Escuche el audio y transcriba el informe aquí… o suba un documento con el botón «Subir documento»." disabled></textarea>
+                        placeholder="Escuche el audio y transcriba aquí… El texto y los documentos se aplican a los exámenes marcados." disabled></textarea>
                 </div>
 
                 <div class="card-footer bg-white py-3 d-flex justify-content-between border-top">
