@@ -226,6 +226,20 @@ body {
     padding: 2rem;
 }
 
+/* Evita doble scroll cuando el módulo workflow ya ocupa el viewport */
+#appContent:has(.workflow-module) {
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 1rem 1.25rem;
+}
+
+#appContent:has(.workflow-module) > .workflow-module {
+    flex: 1 1 auto;
+    height: 100%;
+    max-height: 100%;
+}
+
 /* Confirmación / alerta / prompt del sistema: siempre sobre modales de módulo */
 .modal.ris-system-modal {
     pointer-events: auto;
@@ -1281,4 +1295,101 @@ body.recovery-page .card-recovery .card-body {
     margin-top: 0.35rem;
     padding-top: 0.35rem;
     border-top: 1px dashed rgba(0, 0, 0, 0.08);
+}
+
+/* =========================================
+   Radiólogo / Transcripción / Validación
+   Panel de pacientes con scroll; pie de
+   botones fijo en viewport.
+   ========================================= */
+.workflow-module {
+    display: flex;
+    flex-direction: column;
+    height: calc(100dvh - 7.5rem);
+    max-height: calc(100dvh - 7.5rem);
+    overflow: hidden;
+    min-height: 0;
+}
+
+.workflow-module > .row {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+}
+
+.workflow-module > .row > [class*="col-"] {
+    min-height: 0;
+    height: 100%;
+}
+
+.workflow-inbox-card,
+.workflow-main-card {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.workflow-inbox-card > .card-header,
+.workflow-main-card > .card-header,
+.workflow-main-card > .card-footer {
+    flex: 0 0 auto;
+}
+
+.workflow-inbox-list {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.workflow-main-body {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+.workflow-inbox-list::-webkit-scrollbar,
+.workflow-main-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.workflow-inbox-list::-webkit-scrollbar-thumb,
+.workflow-main-body::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 10px;
+}
+
+@media (max-width: 767.98px) {
+    .workflow-module {
+        height: auto;
+        max-height: none;
+        overflow: visible;
+    }
+
+    .workflow-module > .row > [class*="col-"] {
+        height: auto;
+        max-height: none;
+    }
+
+    .workflow-inbox-card {
+        height: auto;
+        max-height: min(55dvh, 28rem);
+    }
+
+    .workflow-inbox-list {
+        max-height: min(45dvh, 22rem);
+    }
+
+    .workflow-main-card {
+        height: auto;
+        max-height: none;
+    }
+
+    .workflow-main-body {
+        overflow: visible;
+    }
 }
