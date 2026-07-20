@@ -5,24 +5,30 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 VENV="$ROOT/.venv"
 FFMPEG_DIR="$ROOT/bin"
-PY="${PYTHON:-python3}"
+export PATH="${HOME}/.local/bin:${PATH}"
 
 cd "$ROOT"
 
-echo "==> venv ($PY)"
-if [ ! -d "$VENV" ]; then
-  "$PY" -m venv "$VENV"
+if ! command -v uv >/dev/null 2>&1; then
+  echo "==> instalando uv"
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  # shellcheck disable=SC1091
+  source "${HOME}/.local/bin/env" 2>/dev/null || true
+  export PATH="${HOME}/.local/bin:${PATH}"
 fi
+
+echo "==> venv (uv + Python 3.12)"
+rm -rf "$VENV"
+uv python install 3.12
+uv venv --python 3.12 "$VENV"
 # shellcheck disable=SC1091
 source "$VENV/bin/activate"
-pip install --upgrade pip wheel
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 
 echo "==> ffmpeg estático (si falta)"
 mkdir -p "$FFMPEG_DIR"
 if [ ! -x "$FFMPEG_DIR/ffmpeg" ]; then
   TMP="$(mktemp -d)"
-  # Build estático amd64 (johnvansickle) — sin root.
   curl -fsSL -o "$TMP/ffmpeg.tar.xz" \
     "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
   tar -xJf "$TMP/ffmpeg.tar.xz" -C "$TMP"
