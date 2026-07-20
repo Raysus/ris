@@ -300,11 +300,12 @@ body {
     min-height: 0;
     overflow-x: hidden;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .ris-radiologist-workspace #colEditor {
     height: auto;
-    min-height: 100%;
+    min-height: min-content;
     overflow: visible;
 }
 
@@ -2979,7 +2980,7 @@ body.recovery-page .card-recovery .card-body {
     display: flex;
     flex-direction: column;
     flex: 1 1 auto;
-    min-height: 100%;
+    min-height: min-content;
     height: auto;
     overflow: visible;
 }
@@ -2988,6 +2989,9 @@ body.recovery-page .card-recovery .card-body {
     display: flex;
     flex-direction: row;
     align-items: flex-start;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
 }
 
 .ris-dictation-panels {
