@@ -187,10 +187,13 @@ function abrirTranscripcion(id) {
     $("#btnSubirDocumentoTrans").prop("disabled", false);
 }
 
+let transcriptionExamSelectAnchorIndex = 0;
+
 function renderListaExamenesTranscripcion(studies) {
     const contenedorExamenes = $("#listaExamenesTranscripcion");
     const $toolbar = $("#examenesTransToolbar");
     contenedorExamenes.empty();
+    transcriptionExamSelectAnchorIndex = 0;
 
     const list = Array.isArray(studies) ? studies : [];
     if (!list.length) {
@@ -201,26 +204,30 @@ function renderListaExamenesTranscripcion(studies) {
     $toolbar.removeClass("d-none");
     setupExamenesTransSeleccionUi();
 
-    list.forEach((study) => {
+    list.forEach((study, idx) => {
         const subExamenLabel = study.subExam ? ` - <small class="opacity-75">${study.subExam}</small>` : "";
         const sid = String(study.study_id);
         const wrap = $(`
-            <div class="btn-group shadow-sm" role="group" data-trans-study-id="${risEscapeHtml(sid)}">
-                <label class="btn btn-sm btn-outline-dark fw-bold mb-0 d-flex align-items-center gap-1 ris-cursor-pointer">
-                    <input type="checkbox" class="form-check-input m-0 trans-exam-check" value="${risEscapeHtml(sid)}" checked>
+            <div class="btn-group shadow-sm trans-exam-item" role="group" data-trans-study-id="${risEscapeHtml(sid)}" data-trans-exam-index="${idx}">
+                <label class="btn btn-sm btn-outline-dark fw-bold mb-0 d-flex align-items-center gap-1 ris-cursor-pointer" title="Incluir en el informe / documento">
+                    <input type="checkbox" class="form-check-input m-0 trans-exam-check" value="${risEscapeHtml(sid)}">
                     <span class="visually-hidden">Incluir examen</span>
                 </label>
-                <button type="button" class="btn btn-sm btn-outline-dark fw-bold text-start trans-exam-focus">
+                <button type="button" class="btn btn-sm btn-outline-dark fw-bold text-start trans-exam-focus"
+                    title="Clic: este examen · Ctrl/⌘: sumar/quitar · Shift: rango">
                     <i class="bi bi-file-earmark-medical me-1" aria-hidden="true"></i>${risEscapeHtml(study.exam)}${subExamenLabel}
                 </button>
             </div>
         `);
 
-        wrap.find(".trans-exam-check").on("change", function () {
+        wrap.find(".trans-exam-check").on("click", function (e) {
+            // Evita que el label dispare lógica rara; manejamos selección abajo.
+            e.stopPropagation();
+        }).on("change", function () {
             if ($(this).is(":checked") && currentTransStudy) {
-                // Al marcar un examen extra, copia el texto actual del editor.
                 study.reportText = $("#textoTranscripcion").val() || "";
             }
+            transcriptionExamSelectAnchorIndex = idx;
             actualizarHintExamenesTransSeleccion();
             if (!$(this).is(":checked") && currentTransStudy && String(currentTransStudy.study_id) === sid) {
                 const next = getSelectedTranscriptionStudies().find((s) => String(s.study_id) !== sid);
@@ -230,41 +237,110 @@ function renderListaExamenesTranscripcion(studies) {
             }
         });
 
-        wrap.find(".trans-exam-focus").on("click", function () {
-            cargarEstudioTranscripcion(study.study_id);
-            actualizarHintExamenesTransSeleccion();
+        wrap.find(".trans-exam-focus").on("click", function (e) {
+            e.preventDefault();
+            handleTranscriptionExamClick(idx, e);
         });
 
         contenedorExamenes.append(wrap);
     });
 
-    // Por defecto: solo el primer examen marcado (evita sobrescribir otros al abrir).
-    contenedorExamenes.find(".trans-exam-check").prop("checked", false);
-    const $first = contenedorExamenes.find(".btn-group").first();
-    $first.find(".trans-exam-check").prop("checked", true);
-    $first.find(".trans-exam-focus").trigger("click");
+    // Por defecto: solo el primer examen marcado (una accession puede tener varios informes).
+    setTranscriptionExamSelection([0], { focusIndex: 0, copyText: false });
+}
+
+/**
+ * Clic en examen:
+ * - normal: solo ese (un informe por examen)
+ * - Ctrl/⌘: sumar o quitar de la selección (varios informes / mismo documento)
+ * - Shift: rango desde el ancla (varios exámenes → un solo informe/documento)
+ */
+function handleTranscriptionExamClick(index, e) {
+    const $checks = $("#listaExamenesTranscripcion .trans-exam-check");
+    const total = $checks.length;
+    if (index < 0 || index >= total) return;
+
+    const shift = !!(e && e.shiftKey);
+    const multi = !!(e && (e.ctrlKey || e.metaKey));
+
+    if (shift) {
+        const from = Math.min(transcriptionExamSelectAnchorIndex, index);
+        const to = Math.max(transcriptionExamSelectAnchorIndex, index);
+        const indices = [];
+        for (let i = from; i <= to; i++) indices.push(i);
+        setTranscriptionExamSelection(indices, { focusIndex: index, copyText: true });
+        return;
+    }
+
+    if (multi) {
+        const $check = $checks.eq(index);
+        const willCheck = !$check.is(":checked");
+        $check.prop("checked", willCheck);
+        if (willCheck && currentTransStudy) {
+            const study = currentTranscriptionChain?.studies?.[index];
+            if (study) study.reportText = $("#textoTranscripcion").val() || "";
+        }
+        transcriptionExamSelectAnchorIndex = index;
+        cargarEstudioTranscripcion($check.val());
+        actualizarHintExamenesTransSeleccion();
+        return;
+    }
+
+    // Clic simple: un solo examen seleccionado (accession con varios informes distintos).
+    setTranscriptionExamSelection([index], { focusIndex: index, copyText: false });
+}
+
+function setTranscriptionExamSelection(indices, options = {}) {
+    const idxList = Array.isArray(indices) ? indices.map((n) => Number(n)).filter((n) => Number.isFinite(n)) : [];
+    const $checks = $("#listaExamenesTranscripcion .trans-exam-check");
+    $checks.prop("checked", false);
+    idxList.forEach((i) => {
+        if (i >= 0 && i < $checks.length) {
+            $checks.eq(i).prop("checked", true);
+        }
+    });
+
+    const focusIndex = options.focusIndex != null ? Number(options.focusIndex) : idxList[0];
+    if (Number.isFinite(focusIndex) && focusIndex >= 0 && focusIndex < $checks.length) {
+        transcriptionExamSelectAnchorIndex = focusIndex;
+        const studyId = $checks.eq(focusIndex).val();
+        if (options.copyText && currentTransStudy) {
+            const txt = $("#textoTranscripcion").val() || "";
+            idxList.forEach((i) => {
+                const study = currentTranscriptionChain?.studies?.[i];
+                if (study) study.reportText = txt;
+            });
+        }
+        cargarEstudioTranscripcion(studyId);
+    }
+    actualizarHintExamenesTransSeleccion();
 }
 
 function setupExamenesTransSeleccionUi() {
     $("#btnSeleccionarTodosExamenesTrans")
         .off("click.risTransExamSel")
         .on("click.risTransExamSel", function () {
-            $("#listaExamenesTranscripcion .trans-exam-check").prop("checked", true);
-            actualizarHintExamenesTransSeleccion();
+            const total = $("#listaExamenesTranscripcion .trans-exam-check").length;
+            const indices = Array.from({ length: total }, (_, i) => i);
+            setTranscriptionExamSelection(indices, {
+                focusIndex: currentTransStudy
+                    ? (currentTranscriptionChain?.studies || []).findIndex((s) => String(s.study_id) === String(currentTransStudy.study_id))
+                    : 0,
+                copyText: true,
+            });
         });
 
     $("#btnSeleccionarNingunExamenTrans")
         .off("click.risTransExamSel")
         .on("click.risTransExamSel", function () {
-            $("#listaExamenesTranscripcion .trans-exam-check").prop("checked", false);
-            // Mantener al menos el examen en foco si hay uno.
+            let focusIndex = 0;
             if (currentTransStudy) {
-                const focusId = String(currentTransStudy.study_id);
-                $("#listaExamenesTranscripcion .trans-exam-check").filter(function () {
-                    return String($(this).val()) === focusId;
-                }).prop("checked", true);
+                const found = (currentTranscriptionChain?.studies || []).findIndex(
+                    (s) => String(s.study_id) === String(currentTransStudy.study_id)
+                );
+                if (found >= 0) focusIndex = found;
             }
-            actualizarHintExamenesTransSeleccion();
+            setTranscriptionExamSelection([focusIndex], { focusIndex, copyText: false });
         });
 }
 
@@ -293,25 +369,33 @@ function actualizarHintExamenesTransSeleccion() {
         $hint.text("");
         return;
     }
-    $hint.text(
-        selected === total
-            ? `Todos (${total})`
-            : `${selected} de ${total} examen${total === 1 ? "" : "es"}`
+    const base = selected === total
+        ? `Todos (${total})`
+        : `${selected} de ${total} examen${total === 1 ? "" : "es"}`;
+    $hint.html(
+        `${risEscapeHtml(base)} · <span class="text-muted">Shift=rango · Ctrl/⌘=sumar</span>`
     );
 
-    // Resaltar el examen en foco (audio/editor).
+    const selectedIds = new Set(getSelectedTranscriptionStudyIds());
     $("#listaExamenesTranscripcion .btn-group").each(function () {
         const sid = String($(this).data("trans-study-id") || "");
         const isFocus = currentTransStudy && String(currentTransStudy.study_id) === sid;
+        const isSelected = selectedIds.has(sid);
         const $focusBtn = $(this).find(".trans-exam-focus");
         const $checkLbl = $(this).find("label.btn");
-        if (isFocus) {
-            $focusBtn.removeClass("btn-outline-dark").addClass("btn-dark text-white");
-            $checkLbl.removeClass("btn-outline-dark").addClass("btn-dark text-white");
+
+        $focusBtn.removeClass("btn-dark text-white btn-primary btn-outline-primary btn-outline-dark");
+        $checkLbl.removeClass("btn-dark text-white btn-primary btn-outline-primary btn-outline-dark");
+
+        if (isSelected) {
+            $focusBtn.addClass("btn-primary text-white");
+            $checkLbl.addClass("btn-primary text-white");
         } else {
-            $focusBtn.removeClass("btn-dark text-white").addClass("btn-outline-dark");
-            $checkLbl.removeClass("btn-dark text-white").addClass("btn-outline-dark");
+            $focusBtn.addClass("btn-outline-dark");
+            $checkLbl.addClass("btn-outline-dark");
         }
+        // Foco (audio): borde más marcado
+        $(this).toggleClass("border border-2 border-dark rounded", !!isFocus);
     });
 }
 
