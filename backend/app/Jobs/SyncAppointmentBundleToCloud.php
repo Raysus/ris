@@ -10,19 +10,20 @@ use App\Support\CloudSyncMode;
 use App\Support\CloudSyncTransport;
 use App\Support\RisHttp;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Contracts\Queue\ShouldQueueAfterCommit;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Envía persona → paciente → cita a la nube en un solo job (orden garantizado).
+ *
+ * Dos fases en la cita: (1) metadatos/estado sin base64, (2) archivos.
+ * Así la nube no queda atrasada (p. ej. en_transcripcion) si los PDF/audio dan 413.
  */
-class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommit, ShouldBeUnique
+class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommit
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -34,18 +35,11 @@ class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommi
 
     public int $tries = 3;
 
-    public int $uniqueFor = 120;
-
     public function __construct(string $appointmentId, string $action = 'created', ?string $syncLogId = null)
     {
         $this->appointmentId = $appointmentId;
         $this->action = $action;
         $this->syncLogId = $syncLogId;
-    }
-
-    public function uniqueId(): string
-    {
-        return 'appointment-bundle:' . $this->action . ':' . $this->appointmentId;
     }
 
     public function handle(): void
@@ -54,47 +48,20 @@ class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommi
             return;
         }
 
-        $appointment = Appointment::with([
-            'patient.persona',
-            'studies.exam',
-            'studies.subExam',
-            'studies.machine',
-            'supplies',
-            'machine',
-            'referringDoctor',
-            'insurance',
-            'insurancePlan',
-        ])->find($this->appointmentId);
+        $appointment = $this->loadAppointment();
         if (!$appointment?->patient?->persona) {
             return;
         }
 
-        $payload = $appointment->toArray();
-        if ($appointment->relationLoaded('supplies')) {
-            $payload['supplies'] = $appointment->supplies
-                ->map(fn ($supply) => [
-                    'id' => $supply->id,
-                    'quantity' => (int) ($supply->pivot->quantity ?? 1),
-                    'price' => (float) ($supply->pivot->price_charged ?? 0),
-                    'price_charged' => (float) ($supply->pivot->price_charged ?? 0),
-                ])
-                ->values()
-                ->all();
-        }
-        CloudSyncFilePackager::packAppointmentPayload($payload);
+        $metaPayload = $this->buildAppointmentPayload($appointment, false);
         if (!$this->syncLogId) {
-            $this->syncLogId = CloudSyncLogger::startPending('App\Models\Appointment', $this->action, $payload)->id;
+            $this->syncLogId = CloudSyncLogger::startPending('App\Models\Appointment', $this->action, $metaPayload)->id;
         } else {
             CloudSyncLogger::markAttempt($this->syncLogId);
         }
 
         $cloudUrl = config('cloud_sync.inbound_url');
         $secret = config('cloud_sync.secret');
-
-        $http = RisHttp::client(CloudSyncTransport::timeoutForPayload($payload))
-            ->withToken($secret)
-            ->acceptJson()
-            ->asJson();
 
         $headers = [
             'User-Agent' => 'HealthTiCloud-RIS/1.0',
@@ -141,14 +108,21 @@ class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommi
             }
         }
 
+        // Fase 1: estado/metadatos (siempre, liviano).
         $chunks[] = [
             'model' => 'App\Models\Appointment',
             'action' => $this->action,
-            'data' => $payload,
+            'data' => $metaPayload,
         ];
 
         try {
             foreach ($chunks as $chunk) {
+                $timeout = CloudSyncTransport::timeoutForPayload($chunk['data'] ?? []);
+                $http = RisHttp::client($timeout)
+                    ->withToken($secret)
+                    ->acceptJson()
+                    ->asJson();
+
                 $response = $http->withHeaders($headers)->post($cloudUrl, $chunk);
                 if ($response->failed()) {
                     $error = CloudSyncTransport::exceptionFromResponse(
@@ -161,6 +135,53 @@ class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommi
                     }
 
                     throw $error;
+                }
+            }
+
+            // Recargar por si el estado cambió mientras corrían los chunks previos.
+            $appointment = $this->loadAppointment();
+            if (!$appointment) {
+                if ($this->syncLogId) {
+                    CloudSyncLogger::markSuccess($this->syncLogId);
+                }
+
+                return;
+            }
+
+            $filePayload = $this->buildAppointmentPayload($appointment, true);
+            if (CloudSyncFilePackager::payloadHasBase64($filePayload)) {
+                $timeout = CloudSyncTransport::timeoutForPayload($filePayload);
+                $http = RisHttp::client($timeout)
+                    ->withToken($secret)
+                    ->acceptJson()
+                    ->asJson();
+
+                $response = $http->withHeaders($headers)->post($cloudUrl, [
+                    'model' => 'App\Models\Appointment',
+                    'action' => $this->action,
+                    'data' => $filePayload,
+                ]);
+
+                if ($response->failed()) {
+                    $status = $response->status();
+                    // Estado ya quedó en la nube; no revertir el éxito de metadatos por 413 de archivos.
+                    if ($status === 413) {
+                        Log::warning('Cloud sync: metadatos OK; archivos rechazados por tamaño (413)', [
+                            'appointment_id' => $this->appointmentId,
+                            'sync_log_id' => $this->syncLogId,
+                        ]);
+                    } else {
+                        $error = CloudSyncTransport::exceptionFromResponse(
+                            $response,
+                            'Sync bundle falló en archivos App\Models\Appointment'
+                        );
+
+                        if ($this->deferTransientFailure($error, $status)) {
+                            return;
+                        }
+
+                        throw $error;
+                    }
                 }
             }
 
@@ -190,6 +211,44 @@ class SyncAppointmentBundleToCloud implements ShouldQueue, ShouldQueueAfterCommi
         if ($this->syncLogId) {
             CloudSyncLogger::markFailed($this->syncLogId, $exception);
         }
+    }
+
+    private function loadAppointment(): ?Appointment
+    {
+        return Appointment::with([
+            'patient.persona',
+            'studies.exam',
+            'studies.subExam',
+            'studies.machine',
+            'supplies',
+            'machine',
+            'referringDoctor',
+            'insurance',
+            'insurancePlan',
+        ])->find($this->appointmentId);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildAppointmentPayload(Appointment $appointment, bool $includeFiles): array
+    {
+        $payload = $appointment->toArray();
+        if ($appointment->relationLoaded('supplies')) {
+            $payload['supplies'] = $appointment->supplies
+                ->map(fn ($supply) => [
+                    'id' => $supply->id,
+                    'quantity' => (int) ($supply->pivot->quantity ?? 1),
+                    'price' => (float) ($supply->pivot->price_charged ?? 0),
+                    'price_charged' => (float) ($supply->pivot->price_charged ?? 0),
+                ])
+                ->values()
+                ->all();
+        }
+
+        CloudSyncFilePackager::packAppointmentPayload($payload, $includeFiles);
+
+        return $includeFiles ? $payload : CloudSyncFilePackager::withoutBase64($payload);
     }
 
     private function deferTransientFailure(\Throwable $e, ?int $httpStatus = null): bool

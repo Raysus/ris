@@ -100,6 +100,41 @@ class SyncEntityToCloud implements ShouldQueue, ShouldBeUnique
                 ]);
 
             if ($response->failed()) {
+                // Cita con archivos demasiado grandes: reintentar solo metadatos/estado.
+                if (
+                    $response->status() === 413
+                    && is_array($this->payload)
+                    && str_contains((string) $this->entityType, 'Appointment')
+                    && CloudSyncFilePackager::payloadHasBase64($this->payload)
+                ) {
+                    $light = CloudSyncFilePackager::withoutBase64($this->payload);
+                    $lightResponse = RisHttp::client(CloudSyncTransport::defaultTimeout())
+                        ->withToken($secret)
+                        ->acceptJson()
+                        ->asJson()
+                        ->withHeaders([
+                            'User-Agent' => 'HealthTiCloud-RIS/1.0',
+                            'X-Requested-With' => 'XMLHttpRequest',
+                        ])
+                        ->post($cloudUrl, [
+                            'model' => $this->entityType,
+                            'action' => $this->action,
+                            'data' => $light,
+                        ]);
+
+                    if ($lightResponse->successful()) {
+                        Log::warning('Cloud sync entity: metadatos OK tras 413; archivos omitidos', [
+                            'entity_type' => $this->entityType,
+                            'sync_log_id' => $this->syncLogId,
+                        ]);
+                        if ($this->syncLogId) {
+                            CloudSyncLogger::markSuccess($this->syncLogId);
+                        }
+
+                        return;
+                    }
+                }
+
                 $error = CloudSyncTransport::exceptionFromResponse(
                     $response,
                     "Fallo al sincronizar {$this->entityType}"
