@@ -118,18 +118,14 @@
                                         <h6 class="ris-section-title mb-1 text-primary">
                                             <i class="bi bi-stars me-1" aria-hidden="true"></i> Transcripción con IA
                                         </h6>
-                                        <small class="text-muted d-block mb-2">
-                                            Grabe a la derecha y pulse para insertar el texto en el informe.
+                                        <small id="aiAutoHint" class="text-muted d-block mb-2">
+                                            Al detener la grabación, el texto se inserta solo en el informe.
                                         </small>
-                                        <div id="aiCloudStatus" class="alert alert-light border py-2 small mb-2" role="status">
-                                            Comprobando disponibilidad de IA…
-                                        </div>
-                                        <button type="button" id="btnAiTranscribe" class="btn btn-sm btn-primary w-100" disabled>
-                                            <i class="bi bi-stars me-1" aria-hidden="true"></i> Transcribir con IA
-                                        </button>
-                                        <p id="radiologistDictationModeHint" class="form-text mb-0 mt-2">
-                                            Revise el texto antes de firmar.
+                                        <div id="aiCloudStatus" class="alert alert-warning border py-2 small mb-2 d-none" role="status"></div>
+                                        <p id="aiTranscribeProgress" class="small text-primary fw-semibold mb-0 d-none" aria-live="polite">
+                                            <span class="spinner-border spinner-border-sm me-1"></span> Transcribiendo…
                                         </p>
+                                        <p id="radiologistDictationModeHint" class="form-text mb-0 mt-2 d-none"></p>
                                         <select id="selRadiologistDictationMode" class="d-none" aria-hidden="true" tabindex="-1">
                                             <option value="audio_tm">audio_tm</option>
                                             <option value="ai" selected>ai</option>
@@ -155,7 +151,7 @@
                                     <h6 class="ris-section-title mb-1 text-danger" id="audioPanelTitle">
                                         <i class="bi bi-mic-fill me-1" aria-hidden="true"></i> Grabar audio
                                     </h6>
-                                    <small class="text-muted mb-2" id="audioPanelSubtitle">Micrófono del PC (máx. 10 min). Para IA o secretaría.</small>
+                                    <small class="text-muted mb-2" id="audioPanelSubtitle">Micrófono del PC (máx. 10 min). Al detener, la IA inserta el texto en el informe.</small>
                                     <div class="d-flex flex-wrap align-items-center justify-content-center gap-2 mb-2">
                                         <button type="button" id="btnConnectSpeechMike"
                                             class="btn btn-sm btn-outline-primary fw-bold">
