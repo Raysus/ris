@@ -107,64 +107,32 @@ function saveRadiologistDictationMode(mode) {
 }
 
 function applyRadiologistDictationMode(mode) {
-    const m = mode || getRadiologistDictationMode();
-    const isAi = m === "ai";
+    // Ambos paneles siempre visibles: voz+IA a la izquierda, grabación a la derecha.
+    $("#panelDictationVoice, #panelDictationAudio, #panelAiTranscription").removeClass("d-none");
 
-    // Voz (navegador/Dragon) y micrófono siempre visibles; solo cambia el destino del audio.
-    $("#panelDictationVoice, #panelDictationAudio").removeClass("d-none");
+    $("#audioPanelTitle").html('<i class="bi bi-mic-fill me-1" aria-hidden="true"></i> Grabar audio');
+    $("#audioPanelSubtitle").text("Micrófono del PC (máx. 10 min). Al detener, la IA inserta el texto en el informe.");
+    $("#aiAutoHint").text("Al detener la grabación, el texto se inserta solo en el informe.");
 
-    if (isAi) {
-        $("#audioPanelTitle").html('<i class="bi bi-stars me-1" aria-hidden="true"></i> Grabar para IA');
-        $("#audioPanelSubtitle").text("Micrófono del PC → transcripción en la nube (requiere internet).");
-        $("#btnAiTranscribe").removeClass("d-none");
-        $("#radiologistDictationModeHint").text(
-            "Dictado por voz y micrófono disponibles. Tras grabar, use «Transcribir con IA»."
-        );
-        refreshRadiologistAiStatus();
-    } else {
-        $("#audioPanelTitle").html('<i class="bi bi-mic-fill me-1" aria-hidden="true"></i> Grabar audio');
-        $("#audioPanelSubtitle").text("Micrófono del PC para secretaría (máx. 10 min).");
-        $("#btnAiTranscribe").addClass("d-none");
-        $("#aiCloudStatus").addClass("d-none");
-        $("#radiologistDictationModeHint").text(
-            "Dictado por voz y micrófono disponibles. El audio se envía con «Enviar a Transcripción»."
-        );
-    }
-
-    syncAiTranscribeButton();
+    refreshRadiologistAiStatus();
 }
 
 function setupDictationModeUi() {
     const $sel = $("#selRadiologistDictationMode");
-    if (!$sel.length) {
-        return;
+    if ($sel.length) {
+        $sel.val("ai");
+        saveRadiologistDictationMode("ai");
     }
-    let saved = "audio_tm";
-    try {
-        saved = localStorage.getItem(DICTATION_MODE_STORAGE) || "audio_tm";
-    } catch (e) { /* ignore */ }
-    if (saved === "voice") {
-        saved = "audio_tm";
-    }
-    if (["audio_tm", "ai"].includes(saved)) {
-        $sel.val(saved);
-    }
-    $sel.off("change.risDictMode").on("change.risDictMode", function () {
-        const mode = $(this).val();
-        saveRadiologistDictationMode(mode);
-        applyRadiologistDictationMode(mode);
-    });
-    applyRadiologistDictationMode($sel.val());
+    applyRadiologistDictationMode("ai");
 }
 
 async function refreshRadiologistAiStatus() {
     const $box = $("#aiCloudStatus");
-    if (!$box.length || getRadiologistDictationMode() !== "ai") {
+    if (!$box.length) {
         return;
     }
-    $box.removeClass("d-none alert-success alert-warning alert-danger alert-light")
-        .addClass("alert-light")
-        .html('<span class="spinner-border spinner-border-sm me-1"></span> Comprobando conexión a la nube…');
+    // Solo mostrar avisos si la IA NO está disponible (ocultar “disponible”).
+    $box.addClass("d-none").removeClass("alert-success alert-warning alert-danger alert-light").empty();
 
     try {
         const response = await fetch(`${API_URL}/radiologist/ai-transcription/status`, {
@@ -173,64 +141,52 @@ async function refreshRadiologistAiStatus() {
         const data = await response.json().catch(() => ({}));
         radiologistAiStatus = data;
         const available = !!data.available;
-        const msg = data.message || (available ? "IA disponible." : "IA no disponible.");
-        $box
-            .removeClass("alert-light alert-success alert-warning alert-danger")
-            .addClass(available ? "alert-success" : "alert-warning")
-            .html(
-                available
-                    ? `<i class="bi bi-cloud-check me-1" aria-hidden="true"></i>${risEscapeHtml(msg)}`
-                    : `<i class="bi bi-cloud-slash me-1" aria-hidden="true"></i>${risEscapeHtml(msg)}`
-            );
-        syncAiTranscribeButton();
+        if (!available) {
+            const msg = data.message || "IA no disponible.";
+            $box
+                .removeClass("d-none")
+                .addClass("alert-warning")
+                .html(`<i class="bi bi-cloud-slash me-1" aria-hidden="true"></i>${risEscapeHtml(msg)}`);
+        }
     } catch (e) {
         radiologistAiStatus = { available: false };
         $box
-            .removeClass("alert-light alert-success")
+            .removeClass("d-none")
             .addClass("alert-danger")
             .html('<i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i> No se pudo comprobar el estado de la IA.');
-        syncAiTranscribeButton();
     }
 }
 
-function syncAiTranscribeButton() {
-    const mode = getRadiologistDictationMode();
-    const $btn = $("#btnAiTranscribe");
-    if (!$btn.length) {
-        return;
-    }
-    if (mode !== "ai") {
-        $btn.addClass("d-none").prop("disabled", true);
-        return;
-    }
-    $btn.removeClass("d-none");
-    const aiOk = radiologistAiStatus == null || radiologistAiStatus.available !== false;
-    $btn.prop("disabled", !audioBlob || !currentRadioStudy || !aiOk);
+function setAiTranscribeProgress(on) {
+    $("#aiTranscribeProgress").toggleClass("d-none", !on);
 }
 
-async function enviarATranscripcionIa() {
+async function enviarATranscripcionIa(options = {}) {
+    const silentEmpty = !!options.silentEmpty;
     if (!currentRadioStudy || !audioBlob) {
-        if (typeof showToast === "function") {
-            showToast("Grabe un audio primero para transcribir con IA.", "warning");
+        if (!silentEmpty && typeof showToast === "function") {
+            showToast("Grabe un audio primero (panel derecho) para transcribir con IA.", "warning");
         }
-        return;
+        return false;
     }
+    saveRadiologistDictationMode("ai");
+    $("#selRadiologistDictationMode").val("ai");
+
     if (radiologistAiStatus && radiologistAiStatus.available === false) {
         if (typeof showToast === "function") {
             showToast(radiologistAiStatus.message || "IA no disponible (sin conexión a la nube).", "warning");
         }
         await refreshRadiologistAiStatus();
-        return;
+        return false;
     }
 
-    const $btn = $("#btnAiTranscribe");
-    const prevHtml = $btn.html();
+    setAiTranscribeProgress(true);
     try {
-        $btn.prop("disabled", true).html('<span class="spinner-border spinner-border-sm"></span> Transcribiendo…');
         const formData = new FormData();
         formData.append("audio", audioBlob, `dictado_${currentRadioStudy.study_id}.webm`);
         formData.append("study_id", currentRadioStudy.study_id);
-        formData.append("language", "es");
+        const lang = ($("#selDictationLang").val() || "es-CL").split("-")[0] || "es";
+        formData.append("language", lang);
 
         const token = localStorage.getItem("ris_token");
         const labId = localStorage.getItem("ris_lab_id");
@@ -256,16 +212,17 @@ async function enviarATranscripcionIa() {
         }
         currentDictationMethod = "ai";
         if (typeof showToast === "function") {
-            showToast("Texto transcrito con IA. Revíselo antes de firmar.", "success");
+            showToast("Texto insertado en el informe. Revíselo antes de firmar.", "success");
         }
+        return true;
     } catch (e) {
         if (typeof showToast === "function") {
             showToast(e.message || "Error al transcribir con IA", "danger");
         }
         await refreshRadiologistAiStatus();
+        return false;
     } finally {
-        $btn.html(prevHtml);
-        syncAiTranscribeButton();
+        setAiTranscribeProgress(false);
     }
 }
 
@@ -317,12 +274,6 @@ function initRadiologist() {
         .on("click.risRadiologistTranscribe", "#btnEnviarTranscripcion", function (e) {
             e.preventDefault();
             enviarATranscripcion();
-        });
-    $(document)
-        .off("click.risAiTranscribe", "#btnAiTranscribe")
-        .on("click.risAiTranscribe", "#btnAiTranscribe", function (e) {
-            e.preventDefault();
-            enviarATranscripcionIa();
         });
 
     if (radiologistRefreshInterval) clearInterval(radiologistRefreshInterval);
@@ -691,7 +642,6 @@ function cargarEstudioEnEditor(studyId) {
     $("#btnRecord").removeClass("d-none").prop("disabled", false).html('<i class="bi bi-mic me-1" aria-hidden="true"></i> Grabar audio');
     $("#btnStop").addClass("d-none");
     $("#recordingPulse").addClass("d-none");
-    syncAiTranscribeButton();
     applyRadiologistDictationMode();
 
     $("#btnDragon")
@@ -1033,7 +983,6 @@ function updateRecordingUi(mode) {
         $("#btnRecord").removeClass("d-none");
         $("#recordingPulse").addClass("d-none");
         updateAudioPreviewControlsUi();
-        syncAiTranscribeButton();
     }
 }
 
@@ -1142,7 +1091,8 @@ async function startAudioRecording() {
             updateRecordingUi(false);
             updateAudioPreviewControlsUi();
             $("#btnRecord").html('<i class="bi bi-mic me-1" aria-hidden="true"></i> Regrabar (sobrescribe)');
-            syncAiTranscribeButton();
+            // Como dictado por voz: al detener, transcribe e inserta solo.
+            await enviarATranscripcionIa({ silentEmpty: true });
         };
 
         // Sin timeslice: los chunks WebM con intervalo solo reproducen el tramo final (~5s).
@@ -1297,7 +1247,6 @@ function limpiarPantallaRadiologo() {
     $("#btnRecord").removeClass("d-none").prop("disabled", true).html('<i class="bi bi-mic me-1" aria-hidden="true"></i> Grabar audio');
     $("#btnStop").addClass("d-none");
     $("#recordingPulse").addClass("d-none");
-    syncAiTranscribeButton();
 
     if (isSplitScreen) toggleHistorialPanel(); // Cerrar split screen
 }
