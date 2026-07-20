@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ChecksRisAuthorization;
 use App\Http\Controllers\Concerns\FormatsAppointmentInbox;
+use App\Jobs\SyncAppointmentBundleToCloud;
 use Illuminate\Http\Request;
 use App\Models\Appointment;
 use App\Services\AiTranscriptionService;
@@ -331,8 +332,9 @@ class RadiologistController extends Controller
 
             DB::commit();
 
-            $appointment->load(['patient.persona', 'studies', 'supplies']);
-            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+            // Bundle recarga la cita desde DB y empaqueta audio_path en base64 hacia la nube
+            // (necesario para transcribir en otra sede). Evita SyncEntityToCloud con payload stale.
+            SyncAppointmentBundleToCloud::dispatch((string) $appointment->id, 'updated');
 
             return response()->json(['success' => true]);
 
@@ -485,6 +487,8 @@ class RadiologistController extends Controller
                         'status' => 'en_transcripcion',
                         'updated_at' => now()
                     ]);
+
+                SyncAppointmentBundleToCloud::dispatch((string) $study->appointment_id, 'updated');
             }
 
             return response()->json([
