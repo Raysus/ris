@@ -303,8 +303,9 @@ body {
 }
 
 .ris-radiologist-workspace #colEditor {
-    min-height: 0;
-    height: 100%;
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
 }
 
 .ris-anamnesis-radiologo-text {
@@ -2870,11 +2871,9 @@ body.recovery-page .card-recovery .card-body {
     resize: vertical;
     font-size: 1rem;
     line-height: 1.5;
-    flex: 1 1 auto;
-    flex-shrink: 1;
-    min-height: 280px;
-    height: min(42vh, 420px);
-    max-height: none;
+    flex: 0 0 auto;
+    min-height: 200px;
+    height: 220px;
     width: 100%;
     box-sizing: border-box;
 }
@@ -2882,24 +2881,24 @@ body.recovery-page .card-recovery .card-body {
 #colEditor {
     display: flex;
     flex-direction: column;
-    min-height: 0;
     flex: 1 1 auto;
-    height: 100%;
-    overflow: hidden;
+    min-height: 100%;
+    height: auto;
+    overflow: visible;
 }
 
 .ris-radiologist-workspace {
     display: flex;
     flex-direction: row;
-    align-items: stretch;
+    align-items: flex-start;
 }
 
 .ris-dictation-panels {
-    flex: 0 1 auto;
-    min-height: 0;
-    max-height: 46%;
-    overflow-x: hidden;
-    overflow-y: auto;
+    flex: 0 0 auto;
+    width: 100%;
+    max-height: none;
+    overflow: visible;
+    padding-bottom: 0.25rem;
 }
 .ris-ctrl-sm-w { max-width: 8rem; }
 .ris-text-xs { font-size: 0.72rem; }
