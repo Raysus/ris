@@ -87,21 +87,10 @@
                         <div id="listaExamenesRadiologo" class="mb-2 text-primary small ps-1"></div>
 
                         <textarea id="textoInforme"
-                            class="form-control border-0 shadow-sm flex-grow-1 mb-3 p-3 transition-all ris-report-textarea"
+                            class="form-control border-0 shadow-sm mb-3 p-3 transition-all ris-report-textarea"
                             placeholder="Redacte aquí el informe, dictado por voz o Dragon..." disabled></textarea>
 
-                        <div class="mb-2">
-                            <label for="selRadiologistDictationMode" class="form-label small fw-semibold mb-1">Destino del audio grabado</label>
-                            <select id="selRadiologistDictationMode" class="form-select form-select-sm" disabled>
-                                <option value="audio_tm">Audio a transcripción (secretaría)</option>
-                                <option value="ai">Transcripción con IA (nube)</option>
-                            </select>
-                            <p id="radiologistDictationModeHint" class="form-text mb-0 mt-1">
-                                El micrófono siempre está disponible. Elija si el audio va a secretaría o a IA en la nube.
-                            </p>
-                        </div>
-
-                        <div class="row g-2 mb-1">
+                        <div class="row g-2 mb-1 ris-dictation-panels">
                             <div class="col-12 col-xl-6" id="panelDictationVoice">
                                 <div class="bg-white p-3 rounded border border-primary shadow-sm mb-2 d-flex flex-column text-center">
                                     <h6 class="ris-section-title mb-2"><i class="bi bi-mic-fill me-1" aria-hidden="true"></i>Dictado por voz</h6>
@@ -120,6 +109,30 @@
                                     </button>
                                     <p id="browserDictationStatus" class="small text-muted mb-0 mt-2" aria-live="polite"></p>
                                 </div>
+
+                                <div class="bg-white p-3 rounded border border-info shadow-sm mb-2 d-flex flex-column text-center" id="panelAiTranscription">
+                                    <h6 class="ris-section-title mb-1 text-primary">
+                                        <i class="bi bi-stars me-1" aria-hidden="true"></i> Transcripción con IA
+                                    </h6>
+                                    <small class="text-muted mb-2">
+                                        Grabe el audio en el panel derecho y pulse aquí para pasarlo a texto en el informe.
+                                    </small>
+                                    <div id="aiCloudStatus" class="alert alert-light border py-2 small mb-2" role="status">
+                                        Comprobando disponibilidad de IA…
+                                    </div>
+                                    <button type="button" id="btnAiTranscribe" class="btn btn-sm btn-primary w-100" disabled>
+                                        <i class="bi bi-stars me-1" aria-hidden="true"></i> Transcribir con IA
+                                    </button>
+                                    <p id="radiologistDictationModeHint" class="form-text mb-0 mt-2">
+                                        El texto se inserta en el informe para que lo revise antes de firmar.
+                                    </p>
+                                    <!-- compat: modo IA implícito al usar este botón -->
+                                    <select id="selRadiologistDictationMode" class="d-none" aria-hidden="true" tabindex="-1">
+                                        <option value="audio_tm">audio_tm</option>
+                                        <option value="ai" selected>ai</option>
+                                    </select>
+                                </div>
+
                                 <div class="bg-white p-3 rounded border shadow-sm d-flex flex-column text-center">
                                     <h6 class="ris-section-title mb-1 text-success"><i class="bi bi-soundwave me-1" aria-hidden="true"></i>Dragon Medical <span class="text-muted fw-normal">(opcional)</span></h6>
                                     <small class="text-muted mb-2 text-start ris-text-xs">
@@ -136,7 +149,7 @@
                                     <h6 class="ris-section-title mb-1 text-danger" id="audioPanelTitle">
                                         <i class="bi bi-mic-fill me-1" aria-hidden="true"></i> Grabar audio
                                     </h6>
-                                    <small class="text-muted mb-2" id="audioPanelSubtitle">Micrófono del PC (máx. 10 min).</small>
+                                    <small class="text-muted mb-2" id="audioPanelSubtitle">Micrófono del PC (máx. 10 min). Use el audio para IA o para secretaría.</small>
                                     <div class="d-flex flex-wrap align-items-center justify-content-center gap-2 mb-2">
                                         <button type="button" id="btnConnectSpeechMike"
                                             class="btn btn-sm btn-outline-primary fw-bold">
@@ -147,7 +160,6 @@
                                         Al pulsar <b>Conectar</b>: ventana de Chrome con dispositivos Philips (o un aviso si ya
                                         tenía permiso). Luego texto verde «Conectado: …». Si no sale nada: use Chrome/Edge + HTTPS.
                                     </p>
-                                    <div id="aiCloudStatus" class="alert alert-light border py-2 small d-none mb-2" role="status"></div>
 
                                     <div class="d-flex flex-column justify-content-center align-items-center gap-2 w-100">
                                         <div id="recordingPulse" class="d-none text-danger fw-bold small">
@@ -172,9 +184,6 @@
                                         </button>
                                         <button type="button" id="btnStop" class="btn btn-sm btn-dark w-100 d-none">
                                             <i class="bi bi-stop-circle me-1" aria-hidden="true"></i> Detener
-                                        </button>
-                                        <button type="button" id="btnAiTranscribe" class="btn btn-sm btn-primary w-100 d-none" disabled>
-                                            <i class="bi bi-stars me-1" aria-hidden="true"></i> Transcribir con IA
                                         </button>
                                     </div>
                                 </div>
