@@ -60,6 +60,7 @@ class Laboratory extends Model
         'recepcion',
         'transcriptor',
         'tens',
+        'contador',
     ];
 
     public static function supportsMultiSiteView(?string $roleName): bool

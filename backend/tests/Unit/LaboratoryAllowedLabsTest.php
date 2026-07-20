@@ -21,5 +21,6 @@ class LaboratoryAllowedLabsTest extends TestCase
         $this->assertContains('radiologo', Laboratory::MULTI_SITE_OPERATIONAL_ROLES);
         $this->assertContains('recepcion', Laboratory::MULTI_SITE_OPERATIONAL_ROLES);
         $this->assertContains('tens', Laboratory::MULTI_SITE_OPERATIONAL_ROLES);
+        $this->assertContains('contador', Laboratory::MULTI_SITE_OPERATIONAL_ROLES);
     }
 }

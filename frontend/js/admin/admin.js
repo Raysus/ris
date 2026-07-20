@@ -120,6 +120,45 @@ function esAdminLogueado() {
     return perfil === 'sis_admin' || perfil === 'admin' || perfil === 'super_admin';
 }
 
+function esContadorLogueado() {
+    const perfil = (localStorage.getItem('ris_user_profile') || '').toLowerCase();
+    if (perfil === 'contador') return true;
+    try {
+        const data = JSON.parse(localStorage.getItem('ris_user_data') || '{}');
+        const roles = Array.isArray(data?.settings?.roles) ? data.settings.roles : [];
+        return roles.map((r) => String(r).toLowerCase()).includes('contador');
+    } catch (e) {
+        return false;
+    }
+}
+
+/** Contador: solo hub Reportes (sin directorio/operación/integraciones/sistema). */
+function aplicarRestriccionAdminContador() {
+    if (!esContadorLogueado() || esAdminLogueado()) return;
+
+    $(".admin-hub").each(function () {
+        const hub = String($(this).attr("data-admin-hub") || "").toLowerCase();
+        if (hub === "reportes") {
+            $(this).prop("open", true)
+                .find(".admin-hub-summary").attr("aria-expanded", "true");
+            return;
+        }
+        $(this).addClass("d-none").prop("open", false);
+    });
+
+    // Activar primer tab de reportes; desactivar Usuarios u otros.
+    const $usuarios = $('button[data-bs-target="#tab-usuarios"]');
+    $usuarios.removeClass("active").attr("aria-selected", "false");
+    $("#tab-usuarios").removeClass("show active");
+
+    const $firstReport = $('button[data-bs-target="#tab-honorarios"]');
+    if ($firstReport.length) {
+        $firstReport.addClass("active").attr("aria-selected", "true");
+        $("#tab-honorarios").addClass("show active");
+        $(".tab-pane").not("#tab-honorarios").removeClass("show active");
+    }
+}
+
 function esSysAdminLogueado() {
     if (typeof risIsSysAdmin === 'function') {
         return risIsSysAdmin();
@@ -184,23 +223,32 @@ async function cargarTiposLaboratorio() {
 function initAdmin() {
     if (typeof applyLabProfileUI === 'function') applyLabProfileUI();
     if (typeof risInitAdminHubs === 'function') risInitAdminHubs();
-    risPoblarSelectModalidades('#catGrupo');
-    risPoblarSelectModalidades('#tplGrupo');
-    risPoblarSelectModalidades('#salaGroup', RIS_MACHINE_MODALITY_OPTIONS);
-    window.RIS = window.RIS || { users: [], personas: [], config: {} };
-    renderListaUsuariosAdmin();
-    renderListaInsumosAdmin();
-    renderListaSalasAdmin();
-    renderCatalogoAdmin();
-    renderListaPlanesAdmin();
-    renderListaPlantillasAdmin();
-    cargarInsurancesAdmin();
-    cargarConfigCentro();
-    cargarCatalogoRoles();
+    aplicarRestriccionAdminContador();
 
-    if (typeof cargarPacientes === "function") cargarPacientes();
-    if (typeof refreshPacientesAdminActions === 'function') refreshPacientesAdminActions();
-    if (typeof cargarMedicosReferentesAdmin === 'function') cargarMedicosReferentesAdmin();
+    const soloContador = esContadorLogueado() && !esAdminLogueado();
+
+    if (!soloContador) {
+        risPoblarSelectModalidades('#catGrupo');
+        risPoblarSelectModalidades('#tplGrupo');
+        risPoblarSelectModalidades('#salaGroup', RIS_MACHINE_MODALITY_OPTIONS);
+        window.RIS = window.RIS || { users: [], personas: [], config: {} };
+        renderListaUsuariosAdmin();
+        renderListaInsumosAdmin();
+        renderListaSalasAdmin();
+        renderCatalogoAdmin();
+        renderListaPlanesAdmin();
+        renderListaPlantillasAdmin();
+        cargarInsurancesAdmin();
+        cargarConfigCentro();
+        cargarCatalogoRoles();
+
+        if (typeof cargarPacientes === "function") cargarPacientes();
+        if (typeof refreshPacientesAdminActions === 'function') refreshPacientesAdminActions();
+        if (typeof cargarMedicosReferentesAdmin === 'function') cargarMedicosReferentesAdmin();
+    } else {
+        window.RIS = window.RIS || { users: [], personas: [], config: {} };
+    }
+
     cargarCatalogosAgendaSemanal();
 
     const fechaActual = new Date();

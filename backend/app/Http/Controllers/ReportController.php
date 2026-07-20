@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ChecksRisAuthorization;
 use Illuminate\Http\Request;
 use App\Models\Appointment;
 use App\Models\Laboratory;
@@ -13,6 +14,15 @@ use Carbon\Carbon;
 
 class ReportController extends Controller
 {
+    use ChecksRisAuthorization;
+
+    private const REPORT_ROLES = ['admin', 'sis_admin', 'contador'];
+
+    private function assertReportAccess(Request $request): void
+    {
+        $this->assertAnyRole($request, self::REPORT_ROLES);
+    }
+
     private function getSecureAppointmentQuery()
     {
         $allowedLabs = config('app.allowed_lab_ids');
@@ -30,6 +40,7 @@ class ReportController extends Controller
 
     public function getHonorarios(Request $request)
     {
+        $this->assertReportAccess($request);
         $mesFiltro = $request->query('month');
 
         if (!$mesFiltro) {
@@ -84,7 +95,7 @@ class ReportController extends Controller
 
     public function getExamenesMensuales(Request $request)
     {
-        $mesFiltro = $request->query('month');
+        $this->assertReportAccess($request);        $mesFiltro = $request->query('month');
 
         if (!$mesFiltro) {
             $mesFiltro = date('Y-m');
@@ -145,7 +156,7 @@ class ReportController extends Controller
      */
     public function getNominaDiaria(Request $request)
     {
-        $fecha = $request->query('date', date('Y-m-d'));
+        $this->assertReportAccess($request);        $fecha = $request->query('date', date('Y-m-d'));
 
         try {
             $carbon = Carbon::parse($fecha);
@@ -167,7 +178,7 @@ class ReportController extends Controller
      */
     public function getNominaMensual(Request $request)
     {
-        $mesFiltro = $request->query('month', date('Y-m'));
+        $this->assertReportAccess($request);        $mesFiltro = $request->query('month', date('Y-m'));
 
         try {
             $inicio = Carbon::parse($mesFiltro . '-01')->startOfMonth();
@@ -437,7 +448,7 @@ class ReportController extends Controller
      */
     public function getAgendaSemanalMedico(Request $request)
     {
-        $destinationDoctorId = $request->query('destination_doctor_id');
+        $this->assertReportAccess($request);        $destinationDoctorId = $request->query('destination_doctor_id');
         if (!$destinationDoctorId) {
             return response()->json([
                 'success' => false,
@@ -601,7 +612,7 @@ class ReportController extends Controller
      */
     public function getConsolidatedMatrix(Request $request)
     {
-        $mes = $request->query('month', date('Y-m'));
+        $this->assertReportAccess($request);        $mes = $request->query('month', date('Y-m'));
         $anio = substr($mes, 0, 4);
         $mesNum = substr($mes, 5, 2);
 
