@@ -241,32 +241,65 @@ body {
 /* =========================================
    RESPONSIVE: páginas módulo (radiologist, etc.)
    ========================================= */
-.ris-radiologist-page {
+.ris-radiologist-page,
+.ris-split-page {
     display: flex;
     flex-direction: column;
-    min-height: 100%;
+    height: calc(100dvh - 7.5rem);
+    max-height: calc(100dvh - 7.5rem);
+    overflow: hidden;
+    min-height: 0;
 }
 
-.ris-radiologist-row {
+.ris-radiologist-row,
+.ris-split-row {
     flex: 1 1 auto;
     min-height: 0;
+    height: 100%;
 }
 
 .ris-radiologist-col-list,
-.ris-radiologist-col-main {
+.ris-radiologist-col-main,
+.ris-split-col-list,
+.ris-split-col-main {
     min-height: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
 }
 
-.ris-radiologist-card {
+.ris-radiologist-card,
+.ris-split-card {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    height: 100%;
     min-height: 0;
+    overflow: hidden;
 }
 
-.ris-radiologist-studies {
-    min-height: 0;
+.ris-radiologist-card > .card-header,
+.ris-radiologist-card > .card-footer,
+.ris-split-card > .card-header,
+.ris-split-card > .card-footer {
+    flex: 0 0 auto;
 }
 
-.ris-radiologist-workspace {
+.ris-radiologist-studies,
+.ris-split-list {
+    flex: 1 1 0;
     min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.ris-radiologist-workspace,
+.ris-split-card > .card-body {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
 }
 
 .ris-anamnesis-radiologo-text {
@@ -280,56 +313,46 @@ body {
     background-color: rgba(13, 110, 253, 0.06) !important;
 }
 
-/* Split pages: transcription / validation (lista izquierda + panel principal) */
-.ris-split-page {
+#appContent:has(.ris-radiologist-page),
+#appContent:has(.ris-split-page) {
+    overflow: hidden;
     display: flex;
     flex-direction: column;
-    min-height: 100%;
+    padding: 1rem 1.25rem;
 }
 
-.ris-split-row {
+#appContent:has(.ris-radiologist-page) > .ris-radiologist-page,
+#appContent:has(.ris-split-page) > .ris-split-page {
     flex: 1 1 auto;
-    min-height: 0;
+    height: 100%;
+    max-height: 100%;
 }
 
-.ris-split-col-list,
-.ris-split-col-main {
-    min-height: 0;
-}
-
-.ris-split-card {
-    min-height: 0;
-}
-
-.ris-split-list {
-    min-height: 0;
-}
-
-@media (min-width: 992px) {
+@media (max-width: 991.98px) {
+    .ris-radiologist-page,
     .ris-split-page {
-        height: calc(100vh - 64px - 4rem);
+        height: auto;
+        max-height: none;
+        overflow: visible;
     }
-}
 
-@media (max-width: 991.98px) {
+    .ris-radiologist-col-list,
+    .ris-radiologist-col-main,
+    .ris-split-col-list,
+    .ris-split-col-main {
+        height: auto;
+        max-height: none;
+    }
+
+    .ris-radiologist-card,
+    .ris-split-card {
+        height: auto;
+        max-height: none;
+    }
+
+    .ris-radiologist-studies,
     .ris-split-list {
-        max-height: 45vh;
-    }
-}
-
-@media (min-width: 992px) {
-    .ris-radiologist-page {
-        height: calc(100vh - 64px - 4rem); /* topbar + #appContent padding */
-    }
-}
-
-@media (max-width: 991.98px) {
-    .ris-radiologist-page {
-        min-height: 0;
-    }
-
-    .ris-radiologist-studies {
-        max-height: 45vh;
+        max-height: min(45dvh, 22rem);
     }
 
     .ris-radiologist-history {
