@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ChecksRisAuthorization;
 use Illuminate\Http\Request;
 use App\Models\Appointment;
 use App\Models\Machine;
@@ -11,6 +12,18 @@ use Carbon\Carbon;
 
 class DashboardController extends Controller
 {
+    use ChecksRisAuthorization;
+
+    private const DASHBOARD_ROLES = [
+        'admin', 'sis_admin', 'recepcion', 'tecnologo', 'radiologo',
+        'transcriptor', 'tens', 'contador', 'secretaria', 'secretario',
+    ];
+
+    private function assertDashboardAccess(Request $request): void
+    {
+        $this->assertAnyRole($request, self::DASHBOARD_ROLES);
+    }
+
     /**
      * Obtiene una consulta base de citas filtrada por los laboratorios permitidos del usuario.
      */
@@ -86,7 +99,7 @@ class DashboardController extends Controller
      */
     public function getMetrics(Request $request)
     {
-        // Determinamos la fecha a consultar (hoy por defecto)
+        $this->assertDashboardAccess($request);        // Determinamos la fecha a consultar (hoy por defecto)
         $fechaFiltro = $request->query('date') ? Carbon::parse($request->query('date')) : Carbon::today();
         $ayer = (clone $fechaFiltro)->subDay();
 

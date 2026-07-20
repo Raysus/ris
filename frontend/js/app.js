@@ -37,7 +37,7 @@ $(document).ready(async function () {
         : (profileName === 'admin' || esSysAdmin);
 
     const permisosModulos = {
-        "dashboard": ["admin", "recepcion", "tecnologo", "radiologo", "transcriptor", "tens", "sis_admin"],
+        "dashboard": ["admin", "recepcion", "tecnologo", "radiologo", "transcriptor", "tens", "sis_admin", "contador"],
         "agenda": ["admin", "recepcion", "secretaria", "secretario", "tens", "sis_admin"],
         "worklist": ["admin", "tecnologo", "tens", "sis_admin", "radiologo"],
         "atencion": ["admin", "tecnologo", "tens", "sis_admin", "radiologo"],
@@ -45,7 +45,7 @@ $(document).ready(async function () {
         "transcription": ["admin", "transcriptor", "sis_admin"],
         "validation": ["admin", "radiologo", "sis_admin"],
         "entrega": ["admin", "recepcion", "secretaria", "secretario", "sis_admin"],
-        "admin": ["admin", "sis_admin"]
+        "admin": ["admin", "sis_admin", "contador"]
     };
 
     $(".sidebar nav a").each(function () {
@@ -70,10 +70,13 @@ $(document).ready(async function () {
     }
 
     const esTecnologo = userRoles.includes('tecnologo') && !esClinicAdmin;
+    const esContador = (userRoles.includes('contador') || profileName === 'contador') && !esClinicAdmin;
     const paginaOperativaTm = typeof getOperationalTechnicianPage === 'function'
         ? getOperationalTechnicianPage()
         : 'worklist';
-    const defaultPage = esTecnologo ? paginaOperativaTm : (esSysAdmin ? 'admin' : 'agenda');
+    const defaultPage = esTecnologo
+        ? paginaOperativaTm
+        : (esContador ? 'dashboard' : (esSysAdmin ? 'admin' : 'agenda'));
     const lastPage = risResolveVisiblePage(localStorage.getItem("ris_last_page") || defaultPage);
     if (typeof loadPage === "function") {
         loadPage(lastPage);
@@ -188,7 +191,7 @@ function risResolveVisiblePage(preferred) {
     if (link && !link.classList.contains('d-none')) {
         return preferred;
     }
-    const order = ['agenda', 'admin', 'worklist', 'atencion', 'dashboard', 'radiologist', 'transcription', 'validation', 'entrega'];
+    const order = ['dashboard', 'admin', 'agenda', 'worklist', 'atencion', 'radiologist', 'transcription', 'validation', 'entrega'];
     for (const page of order) {
         const el = document.querySelector(`#sidebar nav a[data-page="${page}"]`);
         if (el && !el.classList.contains('d-none')) {
@@ -212,7 +215,7 @@ function risEnsureCurrentPageVisible() {
     }
 }
 
-const RIS_PERFILES_MULTI_SEDE = ['admin', 'radiologo', 'tecnologo', 'recepcion', 'transcriptor', 'tens'];
+const RIS_PERFILES_MULTI_SEDE = ['admin', 'radiologo', 'tecnologo', 'recepcion', 'transcriptor', 'tens', 'contador'];
 
 function risTieneVariasSedesAsignadas() {
     try {

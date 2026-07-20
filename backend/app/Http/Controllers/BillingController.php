@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ChecksRisAuthorization;
 use App\Models\Appointment;
 use App\Models\ElectronicDocument;
 use App\Services\DteService;
@@ -9,6 +10,7 @@ use Illuminate\Http\Request;
 
 class BillingController extends Controller
 {
+    use ChecksRisAuthorization;
     public function indexForAppointment(string $appointmentId)
     {
         $appointment = $this->secureAppointment($appointmentId);
@@ -58,7 +60,7 @@ class BillingController extends Controller
 
     public function list(Request $request)
     {
-        $this->assertAdmin($request);
+        $this->assertAnyRole($request, ['admin', 'sis_admin', 'contador']);
 
         $labId = $request->header('X-Lab-Id') ?: config('app.current_lab_id');
         $limit = min((int) $request->query('limit', 50), 200);
@@ -86,9 +88,6 @@ class BillingController extends Controller
 
     protected function assertAdmin(Request $request): void
     {
-        $role = $request->user()->tipoUsuario->name ?? '';
-        if (!in_array($role, ['admin', 'sis_admin'], true)) {
-            abort(403);
-        }
+        $this->assertAnyRole($request, ['admin', 'sis_admin']);
     }
 }

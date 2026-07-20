@@ -16,10 +16,16 @@ class PaymentController extends Controller
     use ChecksRisAuthorization;
 
     private const PAYMENT_ROLES = ['admin', 'sis_admin', 'recepcion', 'secretaria', 'secretario'];
+    private const CASH_CLOSE_ROLES = ['admin', 'sis_admin', 'recepcion', 'secretaria', 'secretario', 'contador'];
 
     private function assertPaymentAccess(Request $request): void
     {
         $this->assertAnyRole($request, self::PAYMENT_ROLES);
+    }
+
+    private function assertCashCloseAccess(Request $request): void
+    {
+        $this->assertAnyRole($request, self::CASH_CLOSE_ROLES);
     }
 
     private function resolveLabId(Request $request): ?string
@@ -384,7 +390,7 @@ class PaymentController extends Controller
      */
     public function getCashClose(Request $request)
     {
-        $this->assertPaymentAccess($request);
+        $this->assertCashCloseAccess($request);
         $fecha = $request->query('fecha') ? Carbon::parse($request->query('fecha')) : Carbon::now();
         $labId = $this->resolveLabId($request);
 
