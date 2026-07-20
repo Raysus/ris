@@ -1,0 +1,22 @@
+[Unit]
+Description=HealthTiCloud RIS Faster-Whisper (transcripción IA)
+After=network.target
+
+[Service]
+Type=simple
+User=userit
+Group=www-data
+WorkingDirectory=/var/www/ris.healthticloud.cl/deploy/whisper
+Environment=WHISPER_MODEL=small
+Environment=WHISPER_DEVICE=cpu
+Environment=WHISPER_COMPUTE_TYPE=int8
+Environment=WHISPER_BEAM_SIZE=5
+Environment=PATH=/var/www/ris.healthticloud.cl/deploy/whisper/bin:/var/www/ris.healthticloud.cl/deploy/whisper/.venv/bin:/usr/bin
+ExecStart=/var/www/ris.healthticloud.cl/deploy/whisper/.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8765 --workers 1
+Restart=always
+RestartSec=5
+# Primera carga del modelo puede tardar
+TimeoutStartSec=600
+
+[Install]
+WantedBy=multi-user.target

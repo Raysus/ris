@@ -11,7 +11,8 @@ class AiTranscriptionServiceTest extends TestCase
     {
         config([
             'ai_transcription.enabled' => false,
-            'ai_transcription.api_key' => 'sk-test',
+            'ai_transcription.provider' => 'faster_whisper',
+            'ai_transcription.whisper_url' => 'http://127.0.0.1:8765',
             'ai_transcription.proxy_to_cloud' => false,
             'cloud_sync.role' => 'cloud',
         ]);
@@ -21,6 +22,24 @@ class AiTranscriptionServiceTest extends TestCase
         $this->assertFalse($status['enabled']);
         $this->assertFalse($status['available']);
         $this->assertStringContainsString('desactivada', $status['message']);
+    }
+
+    public function test_cloud_without_whisper_url_reports_not_configured(): void
+    {
+        config([
+            'ai_transcription.enabled' => true,
+            'ai_transcription.provider' => 'faster_whisper',
+            'ai_transcription.whisper_url' => '',
+            'ai_transcription.api_key' => '',
+            'ai_transcription.proxy_to_cloud' => false,
+            'cloud_sync.role' => 'cloud',
+        ]);
+
+        $status = app(AiTranscriptionService::class)->status();
+
+        $this->assertFalse($status['configured']);
+        $this->assertFalse($status['available']);
+        $this->assertStringContainsString('faster-whisper', $status['message']);
     }
 
     public function test_local_without_cloud_url_is_not_configured(): void
