@@ -179,23 +179,7 @@ function abrirTranscripcion(id) {
         </div>
     `);
 
-    const contenedorExamenes = $("#listaExamenesTranscripcion");
-    contenedorExamenes.empty();
-
-    app.studies.forEach((study, idx) => {
-        const subExamenLabel = study.subExam ? ` - <small class="opacity-75">${study.subExam}</small>` : '';
-        const btn = $(`<button class="btn btn-sm btn-outline-dark fw-bold shadow-sm text-start"></button>`);
-        btn.html(`<i class="bi bi-file-earmark-medical me-1"></i> ${risEscapeHtml(study.exam)} ${subExamenLabel}`);
-
-        btn.on('click', () => {
-            $("#listaExamenesTranscripcion button").removeClass("btn-dark text-white").addClass("btn-outline-dark");
-            btn.removeClass("btn-outline-dark").addClass("btn-dark text-white");
-            cargarEstudioTranscripcion(study.study_id);
-        });
-        contenedorExamenes.append(btn);
-
-        if (idx === 0) btn.click();
-    });
+    renderListaExamenesTranscripcion(app.studies);
 
     $("#btnDevolverAudio").prop("disabled", false);
     $("#btnEnviarValidacion").prop("disabled", false);
@@ -203,10 +187,155 @@ function abrirTranscripcion(id) {
     $("#btnSubirDocumentoTrans").prop("disabled", false);
 }
 
+function renderListaExamenesTranscripcion(studies) {
+    const contenedorExamenes = $("#listaExamenesTranscripcion");
+    const $toolbar = $("#examenesTransToolbar");
+    contenedorExamenes.empty();
+
+    const list = Array.isArray(studies) ? studies : [];
+    if (!list.length) {
+        $toolbar.addClass("d-none");
+        return;
+    }
+
+    $toolbar.removeClass("d-none");
+    setupExamenesTransSeleccionUi();
+
+    list.forEach((study) => {
+        const subExamenLabel = study.subExam ? ` - <small class="opacity-75">${study.subExam}</small>` : "";
+        const sid = String(study.study_id);
+        const wrap = $(`
+            <div class="btn-group shadow-sm" role="group" data-trans-study-id="${risEscapeHtml(sid)}">
+                <label class="btn btn-sm btn-outline-dark fw-bold mb-0 d-flex align-items-center gap-1 ris-cursor-pointer">
+                    <input type="checkbox" class="form-check-input m-0 trans-exam-check" value="${risEscapeHtml(sid)}" checked>
+                    <span class="visually-hidden">Incluir examen</span>
+                </label>
+                <button type="button" class="btn btn-sm btn-outline-dark fw-bold text-start trans-exam-focus">
+                    <i class="bi bi-file-earmark-medical me-1" aria-hidden="true"></i>${risEscapeHtml(study.exam)}${subExamenLabel}
+                </button>
+            </div>
+        `);
+
+        wrap.find(".trans-exam-check").on("change", function () {
+            if ($(this).is(":checked") && currentTransStudy) {
+                // Al marcar un examen extra, copia el texto actual del editor.
+                study.reportText = $("#textoTranscripcion").val() || "";
+            }
+            actualizarHintExamenesTransSeleccion();
+            if (!$(this).is(":checked") && currentTransStudy && String(currentTransStudy.study_id) === sid) {
+                const next = getSelectedTranscriptionStudies().find((s) => String(s.study_id) !== sid);
+                if (next) {
+                    cargarEstudioTranscripcion(next.study_id);
+                }
+            }
+        });
+
+        wrap.find(".trans-exam-focus").on("click", function () {
+            cargarEstudioTranscripcion(study.study_id);
+            actualizarHintExamenesTransSeleccion();
+        });
+
+        contenedorExamenes.append(wrap);
+    });
+
+    // Por defecto: solo el primer examen marcado (evita sobrescribir otros al abrir).
+    contenedorExamenes.find(".trans-exam-check").prop("checked", false);
+    const $first = contenedorExamenes.find(".btn-group").first();
+    $first.find(".trans-exam-check").prop("checked", true);
+    $first.find(".trans-exam-focus").trigger("click");
+}
+
+function setupExamenesTransSeleccionUi() {
+    $("#btnSeleccionarTodosExamenesTrans")
+        .off("click.risTransExamSel")
+        .on("click.risTransExamSel", function () {
+            $("#listaExamenesTranscripcion .trans-exam-check").prop("checked", true);
+            actualizarHintExamenesTransSeleccion();
+        });
+
+    $("#btnSeleccionarNingunExamenTrans")
+        .off("click.risTransExamSel")
+        .on("click.risTransExamSel", function () {
+            $("#listaExamenesTranscripcion .trans-exam-check").prop("checked", false);
+            // Mantener al menos el examen en foco si hay uno.
+            if (currentTransStudy) {
+                const focusId = String(currentTransStudy.study_id);
+                $("#listaExamenesTranscripcion .trans-exam-check").filter(function () {
+                    return String($(this).val()) === focusId;
+                }).prop("checked", true);
+            }
+            actualizarHintExamenesTransSeleccion();
+        });
+}
+
+function getSelectedTranscriptionStudyIds() {
+    const ids = [];
+    $("#listaExamenesTranscripcion .trans-exam-check:checked").each(function () {
+        ids.push(String($(this).val()));
+    });
+    if (!ids.length && currentTransStudy) {
+        ids.push(String(currentTransStudy.study_id));
+    }
+    return ids;
+}
+
+function getSelectedTranscriptionStudies() {
+    if (!currentTranscriptionChain) return [];
+    const idSet = new Set(getSelectedTranscriptionStudyIds());
+    return (currentTranscriptionChain.studies || []).filter((s) => idSet.has(String(s.study_id)));
+}
+
+function actualizarHintExamenesTransSeleccion() {
+    const total = (currentTranscriptionChain?.studies || []).length;
+    const selected = getSelectedTranscriptionStudyIds().length;
+    const $hint = $("#hintExamenesTransSeleccion");
+    if (!total) {
+        $hint.text("");
+        return;
+    }
+    $hint.text(
+        selected === total
+            ? `Todos (${total})`
+            : `${selected} de ${total} examen${total === 1 ? "" : "es"}`
+    );
+
+    // Resaltar el examen en foco (audio/editor).
+    $("#listaExamenesTranscripcion .btn-group").each(function () {
+        const sid = String($(this).data("trans-study-id") || "");
+        const isFocus = currentTransStudy && String(currentTransStudy.study_id) === sid;
+        const $focusBtn = $(this).find(".trans-exam-focus");
+        const $checkLbl = $(this).find("label.btn");
+        if (isFocus) {
+            $focusBtn.removeClass("btn-outline-dark").addClass("btn-dark text-white");
+            $checkLbl.removeClass("btn-outline-dark").addClass("btn-dark text-white");
+        } else {
+            $focusBtn.removeClass("btn-dark text-white").addClass("btn-outline-dark");
+            $checkLbl.removeClass("btn-dark text-white").addClass("btn-outline-dark");
+        }
+    });
+}
+
 function persistTranscripcionActualEnMemoria() {
-    if (!currentTransStudy) return;
-    const txt = $("#textoTranscripcion").val();
-    currentTransStudy.reportText = txt;
+    // Solo el examen en foco: al cambiar de pestaña no se reescriben los demás.
+    if (currentTransStudy) {
+        currentTransStudy.reportText = $("#textoTranscripcion").val();
+    }
+}
+
+function aplicarTextoTranscripcionASeleccionados(text) {
+    const txt = text != null ? text : ($("#textoTranscripcion").val() || "");
+    const selected = getSelectedTranscriptionStudies();
+    if (selected.length) {
+        selected.forEach((s) => {
+            s.reportText = txt;
+        });
+        return selected;
+    }
+    if (currentTransStudy) {
+        currentTransStudy.reportText = txt;
+        return [currentTransStudy];
+    }
+    return [];
 }
 
 function construirPayloadInformesTranscripcion() {
@@ -258,6 +387,8 @@ function cargarEstudioTranscripcion(studyId) {
         $("#timeCurrent").text("0:00");
         $("#timeTotal").text("0:00");
     }
+
+    actualizarHintExamenesTransSeleccion();
 }
 
 function resetAudioPlaybackState() {
@@ -380,13 +511,15 @@ function iniciarAutoguardadoTrans() {
         if (!currentTranscriptionChain || !currentTransStudy) return;
 
         const textActual = $("#textoTranscripcion").val();
+        const targets = aplicarTextoTranscripcionASeleccionados(textActual);
+        if (!targets.length) return;
 
         try {
             const payload = {
-                reports: [{
-                    id: currentTransStudy.study_id,
-                    text: textActual
-                }]
+                reports: targets.map((s) => ({
+                    id: s.study_id,
+                    text: textActual,
+                })),
             };
 
             $("#autoSaveIndTrans").fadeIn().html('<i class="bi bi-arrow-repeat text-primary spinning"></i> Guardando...');
@@ -398,7 +531,6 @@ function iniciarAutoguardadoTrans() {
             });
 
             if (response.ok) {
-                currentTransStudy.reportText = textActual;
                 $("#autoSaveIndTrans").html('<i class="bi bi-cloud-arrow-up text-success me-1"></i>Guardado automáticamente').delay(2000).fadeOut();
             }
         } catch (e) {
@@ -409,7 +541,7 @@ function iniciarAutoguardadoTrans() {
 }
 
 $(document).on("input", "#textoTranscripcion", function () {
-    if (currentTransStudy) currentTransStudy.reportText = $(this).val();
+    aplicarTextoTranscripcionASeleccionados($(this).val());
 });
 
 async function enviarAValidacion() {
@@ -520,6 +652,8 @@ function limpiarPantallaTranscripcion() {
     `);
 
     $("#listaExamenesTranscripcion").empty();
+    $("#examenesTransToolbar").addClass("d-none");
+    $("#hintExamenesTransSeleccion").text("");
     $("#textoTranscripcion").val("").prop("disabled", true);
     $("#documentoTransAdjunto").addClass("d-none");
     $("#btnDevolverAudio").prop("disabled", true);
@@ -553,6 +687,13 @@ function setupDocumentoTranscripcionUi() {
                 }
                 return;
             }
+            const selected = getSelectedTranscriptionStudies();
+            if (!selected.length) {
+                if (typeof showToast === "function") {
+                    showToast("Marque al menos un examen para subir el documento.", "warning");
+                }
+                return;
+            }
             $("#inputDocumentoTrans").val("").trigger("click");
         });
 
@@ -572,12 +713,44 @@ function setupDocumentoTranscripcionUi() {
         });
 }
 
+async function subirDocumentoAEstudioTranscripcion(study, file, token, labId) {
+    const formData = new FormData();
+    formData.append("study_id", study.study_id);
+    formData.append("document", file, file.name);
+
+    const response = await fetch(
+        `${API_URL}/transcription/appointments/${currentTranscriptionChain.id}/report-document`,
+        {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}`, "X-Lab-Id": labId },
+            body: formData,
+        }
+    );
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.success) {
+        throw new Error(data.message || `No se pudo subir el documento (${study.exam || study.study_id}).`);
+    }
+
+    study.reportDocumentPath = data.path || null;
+    study.reportDocumentUrl = data.url || null;
+    if (data.reportText) {
+        study.reportText = data.reportText;
+    }
+    return data;
+}
+
 async function subirDocumentoInformeTranscripcion(file) {
     if (!currentTranscriptionChain || !currentTransStudy) return;
 
     const maxBytes = 20 * 1024 * 1024;
     if (file.size > maxBytes) {
         if (typeof showToast === "function") showToast("El archivo supera 20 MB.", "warning");
+        return;
+    }
+
+    const targets = getSelectedTranscriptionStudies();
+    if (!targets.length) {
+        if (typeof showToast === "function") showToast("Marque al menos un examen.", "warning");
         return;
     }
 
@@ -590,32 +763,25 @@ async function subirDocumentoInformeTranscripcion(file) {
         btn.prop("disabled", true).html('<span class="spinner-border spinner-border-sm"></span> Subiendo...');
         persistTranscripcionActualEnMemoria();
 
-        const formData = new FormData();
-        formData.append("study_id", currentTransStudy.study_id);
-        formData.append("document", file, file.name);
+        for (const study of targets) {
+            await subirDocumentoAEstudioTranscripcion(study, file, token, labId);
+        }
 
-        const response = await fetch(
-            `${API_URL}/transcription/appointments/${currentTranscriptionChain.id}/report-document`,
-            {
-                method: "POST",
-                headers: { Authorization: `Bearer ${token}`, "X-Lab-Id": labId },
-                body: formData,
+        if (currentTransStudy) {
+            if (currentTransStudy.reportText) {
+                $("#textoTranscripcion").val(currentTransStudy.reportText);
             }
-        );
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || !data.success) {
-            throw new Error(data.message || "No se pudo subir el documento.");
+            actualizarUiDocumentoTranscripcion(currentTransStudy);
         }
 
-        currentTransStudy.reportDocumentPath = data.path || null;
-        currentTransStudy.reportDocumentUrl = data.url || null;
-        if (data.reportText) {
-            currentTransStudy.reportText = data.reportText;
-            $("#textoTranscripcion").val(data.reportText);
-        }
-        actualizarUiDocumentoTranscripcion(currentTransStudy);
+        const n = targets.length;
         if (typeof showToast === "function") {
-            showToast("Documento de informe adjunto. Puede enviarlo a firma sin transcribir.", "success");
+            showToast(
+                n > 1
+                    ? `Documento adjunto en ${n} exámenes. Puede enviar a firma sin transcribir.`
+                    : "Documento de informe adjunto. Puede enviarlo a firma sin transcribir.",
+                "success"
+            );
         }
     } catch (e) {
         console.error(e);
@@ -627,40 +793,57 @@ async function subirDocumentoInformeTranscripcion(file) {
 
 async function quitarDocumentoInformeTranscripcion() {
     if (!currentTranscriptionChain || !currentTransStudy) return;
-    if (!(currentTransStudy.reportDocumentUrl || currentTransStudy.reportDocumentPath)) return;
 
+    const targets = getSelectedTranscriptionStudies().filter(
+        (s) => s.reportDocumentUrl || s.reportDocumentPath
+    );
+    if (!targets.length) {
+        if (typeof showToast === "function") showToast("Ningún examen seleccionado tiene documento.", "warning");
+        return;
+    }
+
+    const n = targets.length;
     const ok = typeof showConfirm === "function"
-        ? await showConfirm("¿Quitar el documento adjunto de este examen?", {
-            title: "Quitar documento",
-            confirmText: "Quitar",
-        })
-        : window.confirm("¿Quitar el documento adjunto?");
+        ? await showConfirm(
+            n > 1
+                ? `¿Quitar el documento adjunto de ${n} exámenes seleccionados?`
+                : "¿Quitar el documento adjunto de este examen?",
+            {
+                title: "Quitar documento",
+                confirmText: "Quitar",
+            }
+        )
+        : window.confirm(n > 1 ? `¿Quitar el documento de ${n} exámenes?` : "¿Quitar el documento adjunto?");
     if (!ok) return;
 
     const token = localStorage.getItem("ris_token");
     const labId = localStorage.getItem("ris_lab_id");
 
     try {
-        const response = await fetch(
-            `${API_URL}/transcription/appointments/${currentTranscriptionChain.id}/report-document?study_id=${encodeURIComponent(currentTransStudy.study_id)}`,
-            {
-                method: "DELETE",
-                headers: typeof risBuildAuthHeaders === "function"
-                    ? risBuildAuthHeaders()
-                    : {
-                        Authorization: `Bearer ${token}`,
-                        "X-Lab-Id": labId,
-                    },
+        for (const study of targets) {
+            const response = await fetch(
+                `${API_URL}/transcription/appointments/${currentTranscriptionChain.id}/report-document?study_id=${encodeURIComponent(study.study_id)}`,
+                {
+                    method: "DELETE",
+                    headers: typeof risBuildAuthHeaders === "function"
+                        ? risBuildAuthHeaders()
+                        : {
+                            Authorization: `Bearer ${token}`,
+                            "X-Lab-Id": labId,
+                        },
+                }
+            );
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.success) {
+                throw new Error(data.message || `No se pudo quitar el documento (${study.exam || study.study_id}).`);
             }
-        );
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || !data.success) {
-            throw new Error(data.message || "No se pudo quitar el documento.");
+            study.reportDocumentPath = null;
+            study.reportDocumentUrl = null;
         }
-        currentTransStudy.reportDocumentPath = null;
-        currentTransStudy.reportDocumentUrl = null;
         actualizarUiDocumentoTranscripcion(currentTransStudy);
-        if (typeof showToast === "function") showToast("Documento quitado.", "secondary");
+        if (typeof showToast === "function") {
+            showToast(n > 1 ? `Documento quitado de ${n} exámenes.` : "Documento quitado.", "secondary");
+        }
     } catch (e) {
         console.error(e);
         if (typeof showToast === "function") showToast(e.message || "Error al quitar documento.", "danger");
@@ -686,8 +869,9 @@ async function cargarPlantillasTranscripcion() {
                 item.find('a').on('click', () => {
                     const txt = $("#textoTranscripcion");
                     const currentVal = txt.val();
-                    txt.val(currentVal + (currentVal ? "\n" : "") + t.content).focus();
-                    if (currentTransStudy) currentTransStudy.reportText = txt.val();
+                    const next = currentVal + (currentVal ? "\n" : "") + t.content;
+                    txt.val(next).focus();
+                    aplicarTextoTranscripcionASeleccionados(next);
                 });
                 dropdown.append(item);
             });
