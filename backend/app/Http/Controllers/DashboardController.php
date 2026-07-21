@@ -14,10 +14,7 @@ class DashboardController extends Controller
 {
     use ChecksRisAuthorization;
 
-    private const DASHBOARD_ROLES = [
-        'admin', 'sis_admin', 'recepcion', 'tecnologo', 'radiologo',
-        'transcriptor', 'tens', 'contador', 'secretaria', 'secretario',
-    ];
+    private const DASHBOARD_ROLES = ['admin', 'sis_admin', 'contador'];
 
     private function assertDashboardAccess(Request $request): void
     {

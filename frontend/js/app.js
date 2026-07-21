@@ -37,7 +37,7 @@ $(document).ready(async function () {
         : (profileName === 'admin' || esSysAdmin);
 
     const permisosModulos = {
-        "dashboard": ["admin", "recepcion", "tecnologo", "radiologo", "transcriptor", "tens", "sis_admin", "contador"],
+        "dashboard": ["admin", "sis_admin", "contador"],
         "agenda": ["admin", "recepcion", "secretaria", "secretario", "tens", "sis_admin"],
         "worklist": ["admin", "tecnologo", "tens", "sis_admin", "radiologo"],
         "atencion": ["admin", "tecnologo", "tens", "sis_admin", "radiologo"],
