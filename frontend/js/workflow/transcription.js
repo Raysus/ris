@@ -878,9 +878,17 @@ async function subirDocumentoInformeTranscripcion(file) {
 async function quitarDocumentoInformeTranscripcion() {
     if (!currentTranscriptionChain || !currentTransStudy) return;
 
-    const targets = getSelectedTranscriptionStudies().filter(
+    let targets = getSelectedTranscriptionStudies().filter(
         (s) => s.reportDocumentUrl || s.reportDocumentPath
     );
+    // Si el examen en pantalla tiene documento pero no quedó marcado, igual permitir quitarlo.
+    if (
+        !targets.length
+        && currentTransStudy
+        && (currentTransStudy.reportDocumentUrl || currentTransStudy.reportDocumentPath)
+    ) {
+        targets = [currentTransStudy];
+    }
     if (!targets.length) {
         if (typeof showToast === "function") showToast("Ningún examen seleccionado tiene documento.", "warning");
         return;
@@ -890,14 +898,14 @@ async function quitarDocumentoInformeTranscripcion() {
     const ok = typeof showConfirm === "function"
         ? await showConfirm(
             n > 1
-                ? `¿Quitar el documento adjunto de ${n} exámenes seleccionados?`
-                : "¿Quitar el documento adjunto de este examen?",
+                ? `¿Eliminar el informe/documento de ${n} exámenes seleccionados?`
+                : "¿Eliminar el informe/documento de este examen?",
             {
-                title: "Quitar documento",
-                confirmText: "Quitar",
+                title: "Eliminar informe",
+                confirmText: "Eliminar",
             }
         )
-        : window.confirm(n > 1 ? `¿Quitar el documento de ${n} exámenes?` : "¿Quitar el documento adjunto?");
+        : window.confirm(n > 1 ? `¿Eliminar el informe de ${n} exámenes?` : "¿Eliminar el informe/documento?");
     if (!ok) return;
 
     const token = localStorage.getItem("ris_token");
@@ -905,32 +913,40 @@ async function quitarDocumentoInformeTranscripcion() {
 
     try {
         for (const study of targets) {
+            const studyId = encodeURIComponent(study.study_id);
             const response = await fetch(
-                `${API_URL}/transcription/appointments/${currentTranscriptionChain.id}/report-document?study_id=${encodeURIComponent(study.study_id)}`,
+                `${API_URL}/transcription/appointments/${currentTranscriptionChain.id}/report-document/${studyId}`,
                 {
                     method: "DELETE",
                     headers: typeof risBuildAuthHeaders === "function"
-                        ? risBuildAuthHeaders()
+                        ? risBuildAuthHeaders({ "Content-Type": "application/json" })
                         : {
                             Authorization: `Bearer ${token}`,
                             "X-Lab-Id": labId,
+                            "Content-Type": "application/json",
+                            Accept: "application/json",
                         },
+                    body: JSON.stringify({ study_id: study.study_id, clear_text: true }),
                 }
             );
             const data = await response.json().catch(() => ({}));
             if (!response.ok || !data.success) {
-                throw new Error(data.message || `No se pudo quitar el documento (${study.exam || study.study_id}).`);
+                throw new Error(data.message || `No se pudo eliminar el informe (${study.exam || study.study_id}).`);
             }
             study.reportDocumentPath = null;
             study.reportDocumentUrl = null;
+            study.reportText = "";
+        }
+        if (currentTransStudy) {
+            $("#textoTranscripcion").val(currentTransStudy.reportText || "");
         }
         actualizarUiDocumentoTranscripcion(currentTransStudy);
         if (typeof showToast === "function") {
-            showToast(n > 1 ? `Documento quitado de ${n} exámenes.` : "Documento quitado.", "secondary");
+            showToast(n > 1 ? `Informe eliminado en ${n} exámenes.` : "Informe eliminado.", "success");
         }
     } catch (e) {
         console.error(e);
-        if (typeof showToast === "function") showToast(e.message || "Error al quitar documento.", "danger");
+        if (typeof showToast === "function") showToast(e.message || "Error al eliminar informe.", "danger");
     }
 }
 
