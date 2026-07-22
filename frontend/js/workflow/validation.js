@@ -405,12 +405,13 @@ async function quitarDocumentoInformeValidacion() {
 
     try {
         const response = await fetch(
-            `${API_URL}/transcription/appointments/${currentValidationChain.id}/report-document?study_id=${encodeURIComponent(currentValStudy.study_id)}`,
+            `${API_URL}/transcription/appointments/${currentValidationChain.id}/report-document/${encodeURIComponent(currentValStudy.study_id)}`,
             {
                 method: "DELETE",
                 headers: typeof risBuildAuthHeaders === "function"
-                    ? risBuildAuthHeaders()
-                    : { Authorization: `Bearer ${token}`, "X-Lab-Id": labId },
+                    ? risBuildAuthHeaders({ "Content-Type": "application/json" })
+                    : { Authorization: `Bearer ${token}`, "X-Lab-Id": labId, "Content-Type": "application/json", Accept: "application/json" },
+                body: JSON.stringify({ study_id: currentValStudy.study_id, clear_text: true }),
             }
         );
         const data = await response.json().catch(() => ({}));

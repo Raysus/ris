@@ -201,10 +201,12 @@ class TranscriptionController extends Controller
         ]);
     }
 
-    public function deleteReportDocument(Request $request, $id)
+    public function deleteReportDocument(Request $request, $id, $studyId = null)
     {
         $this->assertReportDocumentAccess($request);
-        $studyId = $request->input('study_id') ?: $request->query('study_id');
+        $studyId = $studyId
+            ?: $request->input('study_id')
+            ?: $request->query('study_id');
         if (!$studyId) {
             return response()->json([
                 'success' => false,
@@ -232,29 +234,42 @@ class TranscriptionController extends Controller
             ], 404);
         }
 
-        if (!empty($study->report_document_path)) {
-            $old = ltrim((string) $study->report_document_path, '/');
-            if (str_starts_with($old, 'storage/')) {
-                $old = substr($old, strlen('storage/'));
-            }
-            if ($old !== '' && Storage::disk('public')->exists($old)) {
-                Storage::disk('public')->delete($old);
-            }
-        }
+        $this->deleteStoredReportDocumentFile($study->report_document_path ?? null);
 
         $reportText = trim((string) ($study->report ?? ''));
-        // Si solo había el placeholder del adjunto, limpiarlo para forzar un informe nuevo.
-        if ($reportText === '' || $reportText === 'Informe adjunto como documento.') {
-            $reportText = '';
+        $clearText = $request->boolean('clear_text', true);
+        // Placeholder de adjunto, o borrado explícito del informe generado/adjunto.
+        if (
+            $clearText
+            || $reportText === ''
+            || $reportText === 'Informe adjunto como documento.'
+        ) {
+            $reportText = null;
         }
 
         DB::table('appointment_studies')
             ->where('id', $study->id)
             ->update([
                 'report_document_path' => null,
-                'report' => $reportText !== '' ? $reportText : null,
+                'report' => $reportText,
                 'updated_at' => now(),
             ]);
+
+        DB::table('appointment_logs')->insert([
+            'id' => (string) Str::orderedUuid(),
+            'appointment_id' => $appointment->id,
+            'user_id' => $request->user()->id,
+            'action' => 'REPORT_DOCUMENT_REMOVED',
+            'details' => json_encode([
+                'study_id' => $study->id,
+                'mensaje' => 'Se eliminó el documento/informe de informe.',
+                'status' => $appointment->status,
+                'cleared_text' => $reportText === null,
+            ]),
+            'ip_address' => $request->ip(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
 
         $appointment->touch();
         $appointment->load(['patient.persona', 'studies', 'supplies']);
@@ -263,6 +278,34 @@ class TranscriptionController extends Controller
         }
 
         return response()->json(['success' => true]);
+    }
+
+    private function deleteStoredReportDocumentFile(?string $path): void
+    {
+        if ($path === null || trim($path) === '') {
+            return;
+        }
+
+        $old = ltrim((string) $path, '/');
+        if (str_starts_with($old, 'storage/')) {
+            $old = substr($old, strlen('storage/'));
+        }
+        if ($old === '') {
+            return;
+        }
+
+        try {
+            if (Storage::disk('public')->exists($old)) {
+                Storage::disk('public')->delete($old);
+            }
+        } catch (\Throwable $e) {
+            // No bloquear el borrado lógico si el archivo ya no está en disco.
+        }
+
+        $absolute = storage_path('app/public/' . $old);
+        if (is_file($absolute)) {
+            @unlink($absolute);
+        }
     }
 
     public function saveDraft(Request $request, $id)
