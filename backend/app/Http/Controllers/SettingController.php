@@ -244,6 +244,7 @@ class SettingController extends Controller
             'horaInicio' => '08:00:00',
             'horaFin' => '20:00:00',
             'intervalo' => '00:15:00',
+            'duracionMaximaCita' => '01:00:00',
             'colorInforme' => '#000000',
         ];
 

@@ -1002,6 +1002,32 @@ function calcularDuracionCita(_machineId, cantidadExamenes) {
     return minsPorBloque * qty;
 }
 
+function duracionMaximaCitaMinutos() {
+    return Math.max(
+        intervaloAMinutos(getAgendaScheduleConfig().intervalo),
+        intervaloAMinutos(getAgendaScheduleConfig().duracionMaximaCita || '01:00:00')
+    );
+}
+
+/** Duración total de la cita (suma de exámenes) con tope máximo configurable. */
+function calcularDuracionTotalCitaAcotada(estudiosOCantidad) {
+    const intervalo = intervaloAMinutos(getAgendaScheduleConfig().intervalo);
+    const maxMins = duracionMaximaCitaMinutos();
+    let total = 0;
+    if (Array.isArray(estudiosOCantidad)) {
+        estudiosOCantidad.forEach((s) => {
+            const mid = risResolveMachineId(s.machine || s.machine_id);
+            if (!mid && !s.machine_id && !s.machine) return;
+            const qty = parseInt(s.qty ?? s.quantity, 10) || 1;
+            total += calcularDuracionCita(mid || s.machine_id, qty);
+        });
+    } else {
+        total = Number(estudiosOCantidad) || 0;
+    }
+    if (total < intervalo) total = intervalo;
+    return Math.min(total, maxMins);
+}
+
 function risSnapDuracionMinutos(minutos) {
     const paso = intervaloAMinutos(getAgendaScheduleConfig().intervalo);
     const total = Math.max(paso, Number(minutos) || paso);
@@ -1009,7 +1035,7 @@ function risSnapDuracionMinutos(minutos) {
 }
 
 /**
- * Bloques secuenciales por examen (10 min c/u según intervalo del laboratorio).
+ * Un bloque continuo por sala (misma ventana), con tope de duración máxima.
  * @returns {{ machineId: string, start: Date, end: Date, studyLabel?: string }[]}
  */
 function risCalcularBloquesPorSala(item) {
@@ -1019,35 +1045,46 @@ function risCalcularBloquesPorSala(item) {
     if (Number.isNaN(startMs)) return [];
 
     const studies = item.studies || [];
-    let cursor = startMs;
-    const blocks = [];
+    const qtyByMachine = new Map();
+    const labelByMachine = new Map();
 
     if (studies.length > 0) {
         studies.forEach((s) => {
             const mid = risResolveMachineId(s.machine || s.machine_id);
             if (!mid) return;
             const qty = parseInt(s.qty ?? s.quantity, 10) || 1;
-            const mins = calcularDuracionCita(mid, qty);
-            const blockStart = new Date(cursor);
-            const blockEnd = new Date(cursor + mins * 60000);
-            cursor = blockEnd.getTime();
-            const sub = String(s.subExamName || s.subExam || '').trim();
-            const exam = String(s.examName || '').trim();
-            const studyLabel = sub || exam.replace(/^\[[^\]]+\]\s*/, '') || '';
-            blocks.push({ machineId: mid, start: blockStart, end: blockEnd, studyLabel });
+            qtyByMachine.set(mid, (qtyByMachine.get(mid) || 0) + qty);
+            if (!labelByMachine.has(mid)) {
+                const sub = String(s.subExamName || s.subExam || '').trim();
+                const exam = String(s.examName || '').trim();
+                labelByMachine.set(mid, sub || exam.replace(/^\[[^\]]+\]\s*/, '') || '');
+            }
         });
-        return blocks;
     }
 
-    const mid = risResolveMachineId(item.machine);
-    if (!mid) return [];
+    if (qtyByMachine.size === 0) {
+        const mid = risResolveMachineId(item.machine);
+        if (!mid) return [];
+        qtyByMachine.set(mid, 1);
+    }
 
-    const mins = calcularDuracionCita(mid, 1);
-    return [{
-        machineId: mid,
-        start: new Date(startMs),
-        end: new Date(startMs + mins * 60000),
-    }];
+    let totalQty = 0;
+    qtyByMachine.forEach((q) => { totalQty += q; });
+    const intervalo = intervaloAMinutos(getAgendaScheduleConfig().intervalo);
+    const cappedMins = Math.max(intervalo, Math.min(intervalo * Math.max(1, totalQty), duracionMaximaCitaMinutos()));
+    const blockStart = new Date(startMs);
+    const blockEnd = new Date(startMs + cappedMins * 60000);
+
+    const blocks = [];
+    qtyByMachine.forEach((_qty, mid) => {
+        blocks.push({
+            machineId: mid,
+            start: new Date(blockStart),
+            end: new Date(blockEnd),
+            studyLabel: labelByMachine.get(mid) || '',
+        });
+    });
+    return blocks;
 }
 
 function risHayColisionEnSala(machineId, start, end, excludeAppointmentId = null) {
@@ -1075,7 +1112,10 @@ function risResolverInicioDisponible(preferredStart, estudios, excludeAppointmen
         estudios.forEach((s) => {
             duracionTotalMinutos += calcularDuracionCita(s.machine_id, s.quantity);
         });
-        duracionTotalMinutos = risSnapDuracionMinutos(duracionTotalMinutos);
+        duracionTotalMinutos = Math.max(
+            intervaloMin,
+            Math.min(risSnapDuracionMinutos(duracionTotalMinutos), duracionMaximaCitaMinutos())
+        );
 
         const bloques = risCalcularBloquesPorSala({
             start,
@@ -1205,7 +1245,12 @@ function formatDateTimeLocal(value) {
 }
 
 function getAgendaScheduleConfig() {
-    const defaults = { horaInicio: '08:00:00', horaFin: '20:00:00', intervalo: '00:15:00' };
+    const defaults = {
+        horaInicio: '08:00:00',
+        horaFin: '20:00:00',
+        intervalo: '00:15:00',
+        duracionMaximaCita: '01:00:00',
+    };
     return { ...defaults, ...(window.RIS?.config || {}) };
 }
 
@@ -1285,6 +1330,7 @@ function sincronizarHorariosCitaModal(startValue, endValue) {
 function actualizarResumenBloquesCita() {
     const cfg = getAgendaScheduleConfig();
     const mins = intervaloAMinutos(cfg.intervalo);
+    const maxMins = duracionMaximaCitaMinutos();
     const startVal = $('#manualStartTime').val() || $('#selectedStart').val();
     const endVal = $('#manualEndTime').val();
     const $resumen = $('#agendaCitaBloquesResumen');
@@ -1292,7 +1338,7 @@ function actualizarResumenBloquesCita() {
 
     if (!startVal) {
         $ayuda.text('Seleccione un bloque libre en el calendario (vista Día/Semana) o ingrese fecha y hora abajo.');
-        $resumen.text(`Cada bloque del calendario = ${mins} minutos.`);
+        $resumen.text(`La cita usa un solo bloque continuo (máx. ${maxMins} min). Intervalo base: ${mins} min.`);
         return;
     }
 
@@ -1306,13 +1352,12 @@ function actualizarResumenBloquesCita() {
         const fin = new Date(endVal);
         if (!Number.isNaN(fin.getTime())) {
             const diffMin = Math.max(mins, Math.round((fin - inicio) / 60000));
-            const bloques = Math.max(1, Math.ceil(diffMin / mins));
             const finFmt = fin.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
-            $resumen.text(`Término estimado ${finFmt} · ${bloques} bloque(s) de ${mins} min (${diffMin} min total).`);
+            $resumen.text(`Término estimado ${finFmt} · un bloque de ${diffMin} min (máx. ${maxMins} min).`);
             return;
         }
     }
-    $resumen.text(`Cada examen = 1 bloque de ${mins} min en el calendario.`);
+    $resumen.text(`Varios exámenes = un solo bloque continuo (máx. ${maxMins} min).`);
 }
 
 function actualizarTerminoEstimadoDesdeExamenes() {
@@ -1326,9 +1371,7 @@ function actualizarTerminoEstimadoDesdeExamenes() {
         const qty = parseInt($(this).find('.eQty').val(), 10) || 1;
         totalMin += calcularDuracionCita(machine, qty);
     });
-    if (totalMin < intervaloAMinutos(getAgendaScheduleConfig().intervalo)) {
-        totalMin = intervaloAMinutos(getAgendaScheduleConfig().intervalo);
-    }
+    totalMin = calcularDuracionTotalCitaAcotada(totalMin);
     const fin = new Date(new Date(startVal).getTime() + totalMin * 60000);
     $('#manualEndTime').val(formatDateTimeLocal(fin));
     actualizarResumenBloquesCita();
@@ -2035,7 +2078,7 @@ function setupCalendar(el) {
         calendar = null;
     }
 
-    const configRIS = window.RIS.config || { horaInicio: '08:00:00', horaFin: '20:00:00', intervalo: '00:15:00' };
+    const configRIS = window.RIS.config || { horaInicio: '08:00:00', horaFin: '20:00:00', intervalo: '00:15:00', duracionMaximaCita: '01:00:00' };
     const recursosData = (window.RIS && window.RIS.resources) ? window.RIS.resources : [];
     const slotDur = normalizarDuracionFC(configRIS.intervalo);
 
@@ -2758,7 +2801,10 @@ async function guardarCita() {
     todosLosEstudios.forEach((s) => {
         duracionTotalMinutos += calcularDuracionCita(s.machine_id, s.quantity);
     });
-    duracionTotalMinutos = risSnapDuracionMinutos(duracionTotalMinutos);
+    duracionTotalMinutos = Math.max(
+        intervaloAMinutos(getAgendaScheduleConfig().intervalo),
+        Math.min(risSnapDuracionMinutos(duracionTotalMinutos), duracionMaximaCitaMinutos())
+    );
 
     let citaStart = new Date(startVal);
     if (Number.isNaN(citaStart.getTime())) {

@@ -725,15 +725,15 @@
                             <h6 class="fw-bold text-secondary mb-3 mt-4 border-bottom pb-2">Configuración de la Agenda
                             </h6>
                             <div class="row g-4 mb-4">
-                                <div class="col-md-4">
+                                <div class="col-md-3">
                                     <label for="cfgHoraInicio" class="form-label fw-bold small text-muted">Hora de Apertura</label>
                                     <input type="time" class="form-control" id="cfgHoraInicio">
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-md-3">
                                     <label for="cfgHoraFin" class="form-label fw-bold small text-muted">Hora de Cierre</label>
                                     <input type="time" class="form-control" id="cfgHoraFin">
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-md-3">
                                     <label for="cfgIntervalo" class="form-label fw-bold small text-muted">Intervalo Base (Bloques)</label>
                                     <select class="form-select" id="cfgIntervalo">
                                         <option value="00:10:00">10 Minutos</option>
@@ -742,6 +742,17 @@
                                         <option value="00:30:00">30 Minutos</option>
                                         <option value="01:00:00">1 Hora</option>
                                     </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="cfgDuracionMaximaCita" class="form-label fw-bold small text-muted">Duración máx. cita</label>
+                                    <select class="form-select" id="cfgDuracionMaximaCita">
+                                        <option value="00:30:00">30 Minutos</option>
+                                        <option value="00:45:00">45 Minutos</option>
+                                        <option value="01:00:00" selected>60 Minutos</option>
+                                        <option value="01:30:00">90 Minutos</option>
+                                        <option value="02:00:00">120 Minutos</option>
+                                    </select>
+                                    <div class="form-text">Tope del bloque único cuando hay varios exámenes.</div>
                                 </div>
                             </div>
                             <div class="row g-3 mb-4">

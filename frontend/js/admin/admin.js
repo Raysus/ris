@@ -1407,6 +1407,7 @@ async function cargarConfigCentro() {
                 $("#cfgHoraInicio").val(lab.settings.horaInicio || "");
                 $("#cfgHoraFin").val(lab.settings.horaFin || "");
                 $("#cfgIntervalo").val(lab.settings.intervalo || "00:15:00");
+                $("#cfgDuracionMaximaCita").val(lab.settings.duracionMaximaCita || "01:00:00");
                 $("#cfgColorInforme").val(lab.settings.colorInforme || "#000000");
                 $("#cfgShowAgendaOrigin").prop("checked", !!lab.settings.show_agenda_origin);
                 $("#cfgShowAgendaPriority").prop("checked", !!lab.settings.show_agenda_priority);
@@ -1562,6 +1563,7 @@ async function guardarConfigCentroAdmin() {
         horaInicio: $("#cfgHoraInicio").val(),
         horaFin: $("#cfgHoraFin").val(),
         intervalo: $("#cfgIntervalo").val(),
+        duracionMaximaCita: $("#cfgDuracionMaximaCita").val() || "01:00:00",
         colorInforme: $("#cfgColorInforme").val(),
         show_agenda_origin: $("#cfgShowAgendaOrigin").is(":checked"),
         show_agenda_priority: $("#cfgShowAgendaPriority").is(":checked"),
