@@ -1003,9 +1003,12 @@ function calcularDuracionCita(_machineId, cantidadExamenes) {
 }
 
 function risSnapDuracionMinutos(minutos) {
-    const paso = intervaloAMinutos(getAgendaScheduleConfig().intervalo);
+    const cfg = getAgendaScheduleConfig();
+    const paso = intervaloAMinutos(cfg.intervalo);
+    const max = intervaloAMinutos(cfg.duracionMaximaCita || '00:45:00');
     const total = Math.max(paso, Number(minutos) || paso);
-    return Math.ceil(total / paso) * paso;
+    const snapped = Math.ceil(total / paso) * paso;
+    return Math.min(snapped, Math.max(paso, max));
 }
 
 /**
@@ -1205,7 +1208,14 @@ function formatDateTimeLocal(value) {
 }
 
 function getAgendaScheduleConfig() {
-    const defaults = { horaInicio: '08:00:00', horaFin: '20:00:00', intervalo: '00:15:00' };
+    const defaults = {
+        horaInicio: '08:00:00',
+        horaFin: '20:00:00',
+        intervalo: '00:15:00',
+        duracionMaximaCita: '00:45:00',
+    };
+    return { ...defaults, ...(window.RIS?.config || {}) };
+}
     return { ...defaults, ...(window.RIS?.config || {}) };
 }
 

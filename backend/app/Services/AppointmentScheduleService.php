@@ -28,6 +28,7 @@ class AppointmentScheduleService
         $lab = Laboratory::findOrFail($laboratoryId);
         $schedule = $lab->resolveScheduleSettings();
         $intervalMinutes = $this->intervalMinutesFromSetting($schedule['intervalo'] ?? '00:15:00');
+        $maxMinutes = $this->intervalMinutesFromSetting($schedule['duracionMaximaCita'] ?? '00:45:00');
 
         $preferred = $this->roundToInterval(
             $preferredStart->copy()->timezone(LabTimezone::name()),
@@ -41,7 +42,7 @@ class AppointmentScheduleService
         );
 
         if ($allowOverbook) {
-            $candidateBlocks = $this->buildBlocks($preferred, $studies, $intervalMinutes, $fallbackMachineId);
+            $candidateBlocks = $this->buildBlocks($preferred, $studies, $intervalMinutes, $fallbackMachineId, $maxMinutes);
 
             if ($candidateBlocks === []) {
                 throw new \RuntimeException('Debe indicar al menos un examen con sala asignada.');
@@ -68,7 +69,7 @@ class AppointmentScheduleService
         $shiftMinutes = 0;
 
         for ($attempt = 0; $attempt < $maxAttempts; $attempt++) {
-            $candidateBlocks = $this->buildBlocks($cursor, $studies, $intervalMinutes, $fallbackMachineId);
+            $candidateBlocks = $this->buildBlocks($cursor, $studies, $intervalMinutes, $fallbackMachineId, $maxMinutes);
 
             if ($candidateBlocks === []) {
                 throw new \RuntimeException('Debe indicar al menos un examen con sala asignada.');
@@ -105,11 +106,14 @@ class AppointmentScheduleService
         array $studies,
         int $intervalMinutes,
         ?string $fallbackMachineId = null,
+        ?int $maxMinutes = null,
     ): array {
         $cursor = $start instanceof CarbonInterface
             ? $start->copy()->timezone(LabTimezone::name())
             : LabTimezone::parseScheduleTime((string) $start);
         $blocks = [];
+        $cap = $maxMinutes;
+        $usedMinutes = 0;
 
         if ($studies !== []) {
             foreach ($studies as $study) {
@@ -117,8 +121,17 @@ class AppointmentScheduleService
                 if ($machineId === '') {
                     continue;
                 }
+                if ($cap !== null && $usedMinutes >= $cap) {
+                    break;
+                }
                 $qty = max(1, (int) ($study['quantity'] ?? 1));
                 $mins = $intervalMinutes * $qty;
+                if ($cap !== null) {
+                    $mins = min($mins, $cap - $usedMinutes);
+                }
+                if ($mins < 1) {
+                    break;
+                }
                 $blockStart = $cursor->copy();
                 $blockEnd = $cursor->copy()->addMinutes($mins);
                 $blocks[] = [
@@ -127,6 +140,7 @@ class AppointmentScheduleService
                     'end' => $blockEnd,
                 ];
                 $cursor = $blockEnd;
+                $usedMinutes += $mins;
             }
 
             return $blocks;
@@ -137,8 +151,12 @@ class AppointmentScheduleService
             return [];
         }
 
+        $mins = $intervalMinutes;
+        if ($cap !== null) {
+            $mins = min($mins, $cap);
+        }
         $blockStart = $cursor->copy();
-        $blockEnd = $cursor->copy()->addMinutes($intervalMinutes);
+        $blockEnd = $cursor->copy()->addMinutes($mins);
 
         return [[
             'machine_id' => $machineId,

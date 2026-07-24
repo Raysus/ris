@@ -126,7 +126,7 @@ class Laboratory extends Model
     /**
      * Horario de agenda: valores propios o, en sucursales, heredados de la matriz.
      *
-     * @return array{horaInicio: string, horaFin: string, intervalo: string}
+     * @return array{horaInicio: string, horaFin: string, intervalo: string, duracionMaximaCita: string}
      */
     public function resolveScheduleSettings(): array
     {
@@ -134,9 +134,10 @@ class Laboratory extends Model
             'horaInicio' => '08:00:00',
             'horaFin' => '20:00:00',
             'intervalo' => '00:15:00',
+            'duracionMaximaCita' => '00:45:00',
         ];
 
-        $keys = ['horaInicio', 'horaFin', 'intervalo'];
+        $keys = ['horaInicio', 'horaFin', 'intervalo', 'duracionMaximaCita'];
         $own = SettingsArray::normalize($this->settings);
         $parent = [];
 
