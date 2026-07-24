@@ -47,7 +47,7 @@ class WorklistService
                 '[' . ($patient->birth_date ? \Carbon\Carbon::parse($patient->birth_date)->format('Ymd') : '') . ']',
                 '[' . ($dicomImport->normalizePatientSex($patient->gender) ?: 'O') . ']',
                 '[' . ($appointment->study_instance_uid ?? '1.2.3.4.5.' . time()) . ']',
-                '[' . strtoupper($appointment->exam_name ?? 'ESTUDIO') . ']',
+                '[' . $dicomImport->toDicomProcedureDescription((string) ($appointment->exam_name ?? 'ESTUDIO')) . ']',
                 '[' . ($appointment->modality ?? 'DX') . ']', // DX (Rayos), CT (Scanner), etc.
                 '[ORTHANC]', // AE Title (debe coincidir con la config del equipo)
                 '[' . $wlDateTime['date'] . ']',
