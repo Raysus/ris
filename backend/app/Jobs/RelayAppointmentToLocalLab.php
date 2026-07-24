@@ -3,6 +3,8 @@
 namespace App\Jobs;
 
 use App\Models\Appointment;
+use App\Services\CloudSyncFilePackager;
+use App\Support\CloudSyncTransport;
 use App\Support\LaboratorySyncRelay;
 use App\Support\RisHttp;
 use Illuminate\Bus\Queueable;
@@ -11,11 +13,10 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Nube → laboratorio LAN: replica cambios de cita (estado clínico, estudios, etc.).
+ * Nube → laboratorio LAN: replica citas con metadatos y, en segunda fase, audios/PDFs completos.
  */
 class RelayAppointmentToLocalLab implements ShouldQueue, ShouldBeUnique
 {
@@ -25,11 +26,13 @@ class RelayAppointmentToLocalLab implements ShouldQueue, ShouldBeUnique
 
     public string $action;
 
-    public int $tries = 3;
+    public int $tries = 5;
 
-    public int $backoff = 20;
+    public int $backoff = 30;
 
-    public int $uniqueFor = 60;
+    public int $uniqueFor = 180;
+
+    public int $timeout = 600;
 
     public function __construct(string $appointmentId, string $action = 'updated')
     {
@@ -55,9 +58,40 @@ class RelayAppointmentToLocalLab implements ShouldQueue, ShouldBeUnique
             return;
         }
 
-        $appointment = Appointment::with([
+        $appointment = $this->loadAppointment();
+        if (!$appointment?->patient?->persona || !$appointment->laboratory) {
+            return;
+        }
+
+        $persona = $appointment->patient->persona->toArray();
+        $paciente = $appointment->patient->toArray();
+        $paciente['persona'] = $persona;
+        $catalog = $this->buildCatalogChunks($appointment);
+
+        // Fase 1: estado clínico sin binarios (rápido).
+        $metaPayload = $this->buildAppointmentPayload($appointment, false);
+        $this->postToLab($appointment, $metaPayload, $persona, $paciente, $catalog);
+
+        // Fase 2: audios, PDFs de informe, órdenes, etc.
+        $appointment = $this->loadAppointment();
+        if (!$appointment) {
+            return;
+        }
+
+        $filePayload = $this->buildAppointmentPayload($appointment, true);
+        if (!CloudSyncFilePackager::payloadHasBase64($filePayload)) {
+            return;
+        }
+
+        $this->postToLab($appointment, $filePayload, null, null, []);
+    }
+
+    private function loadAppointment(): ?Appointment
+    {
+        return Appointment::with([
             'patient.persona',
             'studies.exam',
+            'studies.subExam',
             'studies.machine',
             'supplies',
             'machine',
@@ -66,18 +100,29 @@ class RelayAppointmentToLocalLab implements ShouldQueue, ShouldBeUnique
             'insurancePlan',
             'laboratory',
         ])->find($this->appointmentId);
+    }
 
-        if (!$appointment?->patient?->persona || !$appointment->laboratory) {
-            return;
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildAppointmentPayload(Appointment $appointment, bool $includeFiles): array
+    {
+        $payload = $appointment->toArray();
+        if ($appointment->relationLoaded('supplies')) {
+            $payload['supplies'] = $appointment->supplies
+                ->map(fn ($supply) => [
+                    'id' => $supply->id,
+                    'quantity' => (int) ($supply->pivot->quantity ?? 1),
+                    'price' => (float) ($supply->pivot->price_charged ?? 0),
+                    'price_charged' => (float) ($supply->pivot->price_charged ?? 0),
+                ])
+                ->values()
+                ->all();
         }
 
-        $persona = $appointment->patient->persona->toArray();
-        $paciente = $appointment->patient->toArray();
-        $paciente['persona'] = $persona;
+        CloudSyncFilePackager::packAppointmentPayload($payload, $includeFiles);
 
-        $catalog = $this->buildCatalogChunks($appointment);
-
-        $this->postToLab($appointment, $appointment->toArray(), $persona, $paciente, $catalog);
+        return $includeFiles ? $payload : CloudSyncFilePackager::withoutBase64($payload);
     }
 
     /**
@@ -130,8 +175,7 @@ class RelayAppointmentToLocalLab implements ShouldQueue, ShouldBeUnique
         ?array $persona = null,
         ?array $paciente = null,
         array $catalog = [],
-    ): void
-    {
+    ): void {
         $relayUrl = LaboratorySyncRelay::resolveUrl($appointment->laboratory);
         if ($relayUrl === null) {
             return;
@@ -144,7 +188,12 @@ class RelayAppointmentToLocalLab implements ShouldQueue, ShouldBeUnique
             return;
         }
 
-        $http = RisHttp::client(30)->withToken($secret)->acceptJson()->asJson();
+        $timeout = max(
+            CloudSyncTransport::timeoutForPayload($appointmentPayload),
+            CloudSyncFilePackager::payloadHasBase64($appointmentPayload) ? 300 : 30
+        );
+
+        $http = RisHttp::client($timeout)->withToken($secret)->acceptJson()->asJson();
 
         $body = [
             'action' => $this->action,
@@ -163,8 +212,16 @@ class RelayAppointmentToLocalLab implements ShouldQueue, ShouldBeUnique
         $response = $http->post($relayUrl, $body);
 
         if ($response->failed()) {
+            $status = $response->status();
+            if ($status === 413 && CloudSyncFilePackager::payloadHasBase64($appointmentPayload)) {
+                Log::error('Appointment relay: lab rechazó archivos por tamaño (413). Aumente client_max_body_size / nginx.', [
+                    'appointment_id' => $appointment->id,
+                    'relay_url' => $relayUrl,
+                ]);
+            }
+
             throw new \RuntimeException(
-                'Appointment relay falló (' . $response->status() . ') en ' . $relayUrl . ': ' . $response->body()
+                'Appointment relay falló (' . $status . ') en ' . $relayUrl . ': ' . $response->body()
             );
         }
 
@@ -173,6 +230,7 @@ class RelayAppointmentToLocalLab implements ShouldQueue, ShouldBeUnique
             'action' => $this->action,
             'laboratory' => $appointment->laboratory?->name,
             'relay_url' => $relayUrl,
+            'with_files' => CloudSyncFilePackager::payloadHasBase64($appointmentPayload),
         ]);
     }
 }

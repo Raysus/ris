@@ -41,7 +41,7 @@ class AppointmentObserver
             if (LaboratorySyncRelay::shouldRelayFromCloud($appointment->laboratory)) {
                 $appointmentId = $appointment->id;
                 \Illuminate\Support\Facades\DB::afterCommit(
-                    fn () => RelayAppointmentToLocalLab::dispatchSync($appointmentId, $action)
+                    fn () => RelayAppointmentToLocalLab::dispatch($appointmentId, $action)
                 );
             }
 

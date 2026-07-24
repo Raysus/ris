@@ -909,6 +909,23 @@ class CloudEntitySyncService
                 }
             }
         }
+
+        if (!empty($data['previous_reports_paths_base64']) && is_array($data['previous_reports_paths_base64'])) {
+            $paths = [];
+            foreach ($data['previous_reports_paths_base64'] as $item) {
+                if (!is_array($item) || empty($item['base64'])) {
+                    continue;
+                }
+                $path = $this->storeBase64File((string) $item['base64'], 'report_document_path');
+                if ($path) {
+                    $paths[] = $path;
+                }
+            }
+            if ($paths !== []) {
+                $data['previous_reports_paths'] = $paths;
+            }
+            unset($data['previous_reports_paths_base64']);
+        }
     }
 
     private function storeBase64File(string $payload, string $prefix): ?string

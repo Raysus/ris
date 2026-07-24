@@ -50,7 +50,7 @@ class CloudSyncFilePackager
     }
 
     /**
-     * Incrusta archivos de cita (orden médica, encuesta, audio de estudios) como base64.
+     * Incrusta archivos de cita (orden médica, encuesta, audio de estudios, PDF informe) como base64.
      *
      * @param  array<string, mixed>  $payload
      */
@@ -60,6 +60,35 @@ class CloudSyncFilePackager
             return;
         }
         self::packEntityPayload($payload, true);
+        self::packPreviousReports($payload);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private static function packPreviousReports(array &$payload): void
+    {
+        if (empty($payload['previous_reports_paths']) || !is_array($payload['previous_reports_paths'])) {
+            return;
+        }
+
+        $packed = [];
+        foreach ($payload['previous_reports_paths'] as $path) {
+            if (!is_string($path) || $path === '') {
+                continue;
+            }
+            $base64 = self::fileToBase64($path);
+            if ($base64) {
+                $packed[] = [
+                    'path' => $path,
+                    'base64' => $base64,
+                ];
+            }
+        }
+
+        if ($packed !== []) {
+            $payload['previous_reports_paths_base64'] = $packed;
+        }
     }
 
     /**
@@ -70,7 +99,13 @@ class CloudSyncFilePackager
      */
     public static function withoutBase64(array $payload): array
     {
-        unset($payload['audio_path_base64'], $payload['medical_order_path_base64'], $payload['survey_path_base64'], $payload['signature_path_base64']);
+        unset(
+            $payload['audio_path_base64'],
+            $payload['medical_order_path_base64'],
+            $payload['survey_path_base64'],
+            $payload['signature_path_base64'],
+            $payload['previous_reports_paths_base64']
+        );
 
         if (isset($payload['studies']) && is_array($payload['studies'])) {
             foreach ($payload['studies'] as $key => $study) {

@@ -15,14 +15,43 @@ class CloudSyncTransport
         return (int) config('cloud_sync.http_timeout', 15);
     }
 
-    /** Timeout mayor cuando el payload incluye audio (base64 pesado). */
+    /** Timeout mayor cuando el payload incluye audio/PDF (base64 pesado). */
     public static function timeoutForPayload(array $payload): int
     {
-        if (self::payloadHasAudio($payload)) {
+        if (self::payloadHasHeavyFiles($payload)) {
             return (int) config('cloud_sync.http_timeout_audio', 120);
         }
 
         return self::defaultTimeout();
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    public static function payloadHasHeavyFiles(array $payload): bool
+    {
+        if (self::payloadHasAudio($payload)) {
+            return true;
+        }
+
+        foreach ($payload as $key => $value) {
+            if (is_string($key) && str_ends_with($key, '_base64') && $value) {
+                return true;
+            }
+        }
+
+        if (isset($payload['studies']) && is_array($payload['studies'])) {
+            foreach ($payload['studies'] as $study) {
+                if (!is_array($study)) {
+                    continue;
+                }
+                if (!empty($study['report_document_path_base64']) || !empty($study['report_document_path'])) {
+                    return true;
+                }
+            }
+        }
+
+        return !empty($payload['previous_reports_paths_base64']);
     }
 
     /**
