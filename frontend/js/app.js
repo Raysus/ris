@@ -170,7 +170,76 @@ $(document).ready(async function () {
     }
 
     risEnsureCurrentPageVisible();
+
+    if (esClinicAdmin || esSysAdmin
+        || userRoles.includes('admin') || userRoles.includes('sis_admin')
+        || profileName === 'admin' || profileName === 'sis_admin') {
+        risStartSupportAlertPolling();
+    }
 });
+
+let _risSupportAlertTimer = null;
+let _risSupportAlertSince = null;
+let _risSupportKnownOpen = null;
+
+function risUpdateSupportBadge(openCount) {
+    const $badge = $('#supportAlertBadge');
+    if (!$badge.length) return;
+    const n = Number(openCount) || 0;
+    if (n > 0) {
+        $badge.text(n > 99 ? '99+' : String(n)).removeClass('d-none');
+    } else {
+        $badge.addClass('d-none').text('0');
+    }
+}
+
+async function risPollSupportAlerts(announceNew) {
+    if (typeof API_URL === 'undefined') return;
+    if (typeof risRequireConcreteLabId === 'function' && !risRequireConcreteLabId(false)) {
+        return;
+    }
+
+    try {
+        const qs = _risSupportAlertSince
+            ? `?since=${encodeURIComponent(_risSupportAlertSince)}`
+            : '';
+        const response = await fetch(`${API_URL}/support/alerts${qs}`, {
+            headers: typeof risBuildAuthHeaders === 'function'
+                ? risBuildAuthHeaders({ Accept: 'application/json' })
+                : { Accept: 'application/json', Authorization: `Bearer ${localStorage.getItem('ris_token') || ''}` },
+        });
+        if (response.status === 403) return;
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.success) return;
+
+        const payload = data.data || {};
+        risUpdateSupportBadge(payload.open_count);
+
+        if (announceNew && _risSupportKnownOpen !== null) {
+            const latest = Array.isArray(payload.latest) ? payload.latest : [];
+            if (latest.length > 0 && typeof showToast === 'function') {
+                const first = latest[0];
+                showToast(`Nueva solicitud de soporte: ${first.subject || 'Sin asunto'}`, 'warning');
+            }
+        }
+
+        _risSupportKnownOpen = payload.open_count;
+        if (payload.server_time) {
+            _risSupportAlertSince = payload.server_time;
+        }
+    } catch (_) {
+        // silencioso: red intermitente
+    }
+}
+
+function risStartSupportAlertPolling() {
+    if (_risSupportAlertTimer) return;
+    risPollSupportAlerts(false);
+    _risSupportAlertTimer = setInterval(() => risPollSupportAlerts(true), 45000);
+}
+
+window.risPollSupportAlerts = risPollSupportAlerts;
+window.risUpdateSupportBadge = risUpdateSupportBadge;
 
 /** En 1366×768 y similares, sidebar colapsado por defecto para ganar ancho útil. */
 function risApplyLaptopLayout() {

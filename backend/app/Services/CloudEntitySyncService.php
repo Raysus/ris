@@ -16,6 +16,7 @@ use App\Models\ReportTemplate;
 use App\Models\Service;
 use App\Models\SubExam;
 use App\Models\Supply;
+use App\Models\SupportTicket;
 use App\Models\TipoUsuario;
 use App\Models\User;
 use App\Support\CloudSyncMode;
@@ -97,7 +98,26 @@ class CloudEntitySyncService
                     }
                 }
 
+                if ($class === SupportTicket::class) {
+                    $this->sanitizeSupportTicketForeignKeys($attrs);
+                    if (empty($attrs['created_by'])) {
+                        Log::warning('Cloud sync SupportTicket omitido: created_by desconocido', [
+                            'id' => $id,
+                        ]);
+
+                        return;
+                    }
+                }
+
+                $existed = $this->findCatalogRecordById($class, (string) $id) !== null;
                 $this->upsertCatalogEntity($class, $id, $attrs);
+
+                if ($class === SupportTicket::class && !$existed && in_array($action, ['created', 'updated'], true)) {
+                    $ticket = SupportTicket::query()->find($id);
+                    if ($ticket) {
+                        app(SupportTicketNotificationService::class)->notifyStaffOfNewTicket($ticket);
+                    }
+                }
             });
         } finally {
             self::$applying = false;
@@ -419,6 +439,23 @@ class CloudEntitySyncService
     private function usesSoftDeletes(string $class): bool
     {
         return in_array(SoftDeletes::class, class_uses_recursive($class), true);
+    }
+
+    private function sanitizeSupportTicketForeignKeys(array &$attrs): void
+    {
+        if (!empty($attrs['assigned_to']) && !User::query()->whereKey($attrs['assigned_to'])->exists()) {
+            $attrs['assigned_to'] = null;
+        }
+
+        if (!empty($attrs['created_by']) && !User::query()->whereKey($attrs['created_by'])->exists()) {
+            $attrs['created_by'] = null;
+        }
+
+        if (!empty($attrs['laboratory_id']) && !Laboratory::query()->whereKey($attrs['laboratory_id'])->exists()) {
+            Log::warning('Cloud sync SupportTicket: laboratory_id desconocido', [
+                'laboratory_id' => $attrs['laboratory_id'],
+            ]);
+        }
     }
 
     private function resolveModelClass(string $modelKey): ?string

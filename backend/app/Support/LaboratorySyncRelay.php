@@ -42,4 +42,24 @@ class LaboratorySyncRelay
     {
         return CloudSyncMode::isCloud() && self::resolveUrl($lab) !== null;
     }
+
+    /** URL genérica nube → lab para entidades (tickets de soporte, etc.). */
+    public static function resolveEntityUrl(?Laboratory $lab): ?string
+    {
+        $appointmentUrl = self::resolveUrl($lab);
+        if ($appointmentUrl === null) {
+            return null;
+        }
+
+        if (str_contains($appointmentUrl, '/local-sync/appointment')) {
+            return str_replace('/local-sync/appointment', '/local-sync/entity', $appointmentUrl);
+        }
+
+        return rtrim($appointmentUrl, '/') . '/../entity';
+    }
+
+    public static function shouldRelayEntityFromCloud(?Laboratory $lab): bool
+    {
+        return CloudSyncMode::isCloud() && self::resolveEntityUrl($lab) !== null;
+    }
 }

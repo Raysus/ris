@@ -152,6 +152,9 @@ async function supportCreateTicket() {
         }
         bootstrap.Modal.getInstance(document.getElementById('modalNuevoTicket'))?.hide();
         showToast('Solicitud enviada', 'success');
+        if (typeof risPollSupportAlerts === 'function') {
+            risPollSupportAlerts(false);
+        }
         await supportLoadMine();
         const tab = document.getElementById('tab-mis-tickets');
         if (tab && !tab.classList.contains('active')) {
@@ -340,6 +343,9 @@ async function supportSaveAdminUpdate() {
         }
         showToast('Ticket actualizado', 'success');
         bootstrap.Modal.getInstance(document.getElementById('modalDetalleTicket'))?.hide();
+        if (typeof risPollSupportAlerts === 'function') {
+            risPollSupportAlerts(false);
+        }
         await Promise.all([supportLoadMine(), supportLoadQueue()]);
     } catch (err) {
         showToast(err.message || 'Error al guardar', 'danger');

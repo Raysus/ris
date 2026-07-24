@@ -114,6 +114,42 @@ class SupportTicketController extends Controller
         return response()->json(['success' => true, 'data' => $tickets]);
     }
 
+    /** Contador/lista corta para badge y toast de admin/sis_admin. */
+    public function alerts(Request $request)
+    {
+        $this->assertAnyRole($request, self::STAFF_ROLES);
+
+        $since = $request->query('since');
+        $base = $this->scopedQuery($request)
+            ->whereIn('status', ['abierto', 'en_curso']);
+
+        $openCount = (clone $base)->count();
+
+        $latestQuery = (clone $base)
+            ->with(['creator.persona'])
+            ->orderByDesc('created_at');
+
+        if ($since) {
+            try {
+                $latestQuery->where('created_at', '>', \Carbon\Carbon::parse($since));
+            } catch (\Throwable) {
+                // ignore invalid since
+            }
+        }
+
+        $latest = $latestQuery->limit(5)->get()->map(fn (SupportTicket $t) => $this->serializeTicket($t));
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'open_count' => $openCount,
+                'new_count' => $latest->count(),
+                'latest' => $latest,
+                'server_time' => now()->toIso8601String(),
+            ],
+        ]);
+    }
+
     public function store(Request $request)
     {
         $data = $request->validate([

@@ -115,5 +115,7 @@ return [
         'ReferringDoctor' => \App\Models\ReferringDoctor::class,
         'App\Models\ReferringDoctor' => \App\Models\ReferringDoctor::class,
         'AppointmentLog' => \App\Models\AppointmentLog::class,
+        'SupportTicket' => \App\Models\SupportTicket::class,
+        'App\Models\SupportTicket' => \App\Models\SupportTicket::class,
     ],
 ];

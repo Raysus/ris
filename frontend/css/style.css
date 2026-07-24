@@ -174,10 +174,20 @@ body {
     flex: 1 1 auto;
 }
 
-.sidebar-nav-footer {
-    margin-top: auto;
-    padding-top: 0.75rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.12);
+.sidebar-nav-footer a {
+    position: relative;
+}
+
+.sidebar-nav-footer #supportAlertBadge {
+    font-size: 0.65rem;
+    min-width: 1.25rem;
+}
+
+.sidebar.collapsed .sidebar-nav-footer #supportAlertBadge {
+    position: absolute;
+    top: 0.35rem;
+    right: 0.35rem;
+    margin: 0 !important;
 }
 
 .sidebar nav a {

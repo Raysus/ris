@@ -31,6 +31,7 @@ use App\Http\Controllers\CloudSyncController;
 use App\Http\Controllers\CloudSyncInboundController;
 use App\Http\Controllers\AiTranscriptionController;
 use App\Http\Controllers\LocalAppointmentSyncController;
+use App\Http\Controllers\LocalEntitySyncController;
 use App\Http\Controllers\LocalMwlRelayController;
 use App\Http\Controllers\LocalReceiptRelayController;
 use App\Http\Controllers\Hl7Controller;
@@ -52,6 +53,7 @@ Route::middleware('cloud.sync')->group(function () {
     Route::post('/integrations/local-mwl/relay', [LocalMwlRelayController::class, 'receive']);
     Route::post('/integrations/local-receipt/print', [LocalReceiptRelayController::class, 'receive']);
     Route::post('/integrations/local-sync/appointment', [LocalAppointmentSyncController::class, 'receive']);
+    Route::post('/integrations/local-sync/entity', [LocalEntitySyncController::class, 'receive']);
 });
 
 Route::middleware('portal.integration')->group(function () {
@@ -205,6 +207,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::get('/lab-profile', LabProfileController::class);
 
     // MÓDULO SOPORTE
+    Route::get('/support/alerts', [SupportTicketController::class, 'alerts']);
     Route::get('/support/tickets', [SupportTicketController::class, 'index']);
     Route::post('/support/tickets', [SupportTicketController::class, 'store']);
     Route::get('/support/tickets/{id}', [SupportTicketController::class, 'show']);
