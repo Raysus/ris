@@ -1029,9 +1029,12 @@ function calcularDuracionTotalCitaAcotada(estudiosOCantidad) {
 }
 
 function risSnapDuracionMinutos(minutos) {
-    const paso = intervaloAMinutos(getAgendaScheduleConfig().intervalo);
+    const cfg = getAgendaScheduleConfig();
+    const paso = intervaloAMinutos(cfg.intervalo);
+    const max = intervaloAMinutos(cfg.duracionMaximaCita || '01:00:00');
     const total = Math.max(paso, Number(minutos) || paso);
-    return Math.ceil(total / paso) * paso;
+    const snapped = Math.ceil(total / paso) * paso;
+    return Math.min(snapped, Math.max(paso, max));
 }
 
 /**
