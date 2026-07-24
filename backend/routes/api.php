@@ -39,6 +39,7 @@ use App\Http\Controllers\BillingController;
 use App\Http\Controllers\FhirController;
 use App\Http\Controllers\LabProfileController;
 use App\Http\Controllers\PatientPortalIntegrationController;
+use App\Http\Controllers\SupportTicketController;
 
 Route::get('/health', HealthController::class);
 
@@ -202,6 +203,12 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::get('/viewer-study', [ViewerConfigController::class, 'resolveStudy']);
     Route::get('/viewer-study-uid', [ViewerConfigController::class, 'resolveStudyUid']);
     Route::get('/lab-profile', LabProfileController::class);
+
+    // MÓDULO SOPORTE
+    Route::get('/support/tickets', [SupportTicketController::class, 'index']);
+    Route::post('/support/tickets', [SupportTicketController::class, 'store']);
+    Route::get('/support/tickets/{id}', [SupportTicketController::class, 'show']);
+    Route::patch('/support/tickets/{id}', [SupportTicketController::class, 'update']);
 
     // MÓDULO ADMINISTRACIÓN: SECCIÓN DE PLANES Y CONVENIOS
     Route::get('/plans', [PlanController::class, 'index']);

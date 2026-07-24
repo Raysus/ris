@@ -24,6 +24,7 @@ const RIS_MODULE_SCRIPTS = {
     entrega: ["/js/shared/reportDocument.js", "/js/workflow/entrega.js"],
     dashboard: "/js/dashboard/dashboard.js",
     admin: "/js/admin/admin.js",
+    support: "/js/workflow/support.js",
 };
 
 const RIS_MODULE_INIT = {
@@ -36,6 +37,7 @@ const RIS_MODULE_INIT = {
     entrega: "initEntrega",
     dashboard: "initDashboard",
     admin: "initAdmin",
+    support: "initSupport",
 };
 
 const _loadedScriptBases = new Set();

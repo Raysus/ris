@@ -1,0 +1,299 @@
+<div class="container-fluid p-3 h-100 support-page">
+    <div class="card shadow-sm border-0 h-100 d-flex flex-column">
+        <div class="card-header bg-white py-3 border-bottom">
+            <div class="ris-page-header mb-0">
+                <div class="ris-page-header__main">
+                    <h1 class="ris-page-title">
+                        <i class="bi bi-life-preserver me-2" aria-hidden="true"></i>Soporte
+                    </h1>
+                    <p class="ris-page-subtitle">Ayuda rápida e instrucciones, o abra una solicitud al equipo</p>
+                </div>
+            </div>
+            <ul class="nav nav-tabs card-header-tabs mt-3" id="supportTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="tab-ayuda" data-bs-toggle="tab" data-bs-target="#pane-ayuda"
+                        type="button" role="tab" aria-controls="pane-ayuda" aria-selected="true">
+                        <i class="bi bi-question-circle me-1" aria-hidden="true"></i>Ayuda
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="tab-mis-tickets" data-bs-toggle="tab" data-bs-target="#pane-mis-tickets"
+                        type="button" role="tab" aria-controls="pane-mis-tickets" aria-selected="false">
+                        <i class="bi bi-ticket-detailed me-1" aria-hidden="true"></i>Mis solicitudes
+                    </button>
+                </li>
+                <li class="nav-item d-none" role="presentation" id="tab-cola-wrap">
+                    <button class="nav-link" id="tab-cola" data-bs-toggle="tab" data-bs-target="#pane-cola"
+                        type="button" role="tab" aria-controls="pane-cola" aria-selected="false">
+                        <i class="bi bi-inbox me-1" aria-hidden="true"></i>Cola
+                    </button>
+                </li>
+            </ul>
+        </div>
+
+        <div class="card-body flex-grow-1 overflow-auto">
+            <div class="tab-content" id="supportTabContent">
+                <div class="tab-pane fade show active" id="pane-ayuda" role="tabpanel" aria-labelledby="tab-ayuda">
+                    <div class="row g-4">
+                        <div class="col-lg-6">
+                            <h2 class="h5 fw-bold mb-3">Preguntas frecuentes</h2>
+                            <div class="accordion" id="supportFaq">
+                                <div class="accordion-item">
+                                    <h3 class="accordion-header">
+                                        <button class="accordion-button" type="button" data-bs-toggle="collapse"
+                                            data-bs-target="#faq1" aria-expanded="true" aria-controls="faq1">
+                                            No aparecen imágenes en el visor / worklist
+                                        </button>
+                                    </h3>
+                                    <div id="faq1" class="accordion-collapse collapse show" data-bs-parent="#supportFaq">
+                                        <div class="accordion-body small text-secondary">
+                                            Verifique que el estudio se envió al PACS y que el Accession coincide.
+                                            En sedes locales, confirme que el Bridge RIS esté en ejecución.
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="accordion-item">
+                                    <h3 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                            data-bs-target="#faq2" aria-expanded="false" aria-controls="faq2">
+                                            El escáner o la impresora no responden
+                                        </button>
+                                    </h3>
+                                    <div id="faq2" class="accordion-collapse collapse" data-bs-parent="#supportFaq">
+                                        <div class="accordion-body small text-secondary">
+                                            El Bridge local intermedia escáner e impresora. Revise el instructivo de
+                                            escáner y reinicie el Bridge si hace falta.
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="accordion-item">
+                                    <h3 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                            data-bs-target="#faq3" aria-expanded="false" aria-controls="faq3">
+                                            La pedalera de dictado no funciona
+                                        </button>
+                                    </h3>
+                                    <div id="faq3" class="accordion-collapse collapse" data-bs-parent="#supportFaq">
+                                        <div class="accordion-body small text-secondary">
+                                            Consulte la guía de su modelo (LFH2330 o ACC2330). Compruebe USB y permisos
+                                            del navegador para dispositivos.
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="accordion-item">
+                                    <h3 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                            data-bs-target="#faq4" aria-expanded="false" aria-controls="faq4">
+                                            ¿Cómo reporto un error del sistema?
+                                        </button>
+                                    </h3>
+                                    <div id="faq4" class="accordion-collapse collapse" data-bs-parent="#supportFaq">
+                                        <div class="accordion-body small text-secondary">
+                                            Use la pestaña <strong>Mis solicitudes</strong>, indique el módulo y
+                                            describa qué ocurrió (idealmente con Accession o RUT si aplica).
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <h2 class="h5 fw-bold mb-3">Instructivos y descargas</h2>
+                            <div class="list-group list-group-flush border rounded">
+                                <a class="list-group-item list-group-item-action d-flex align-items-start gap-2"
+                                    href="downloads/INSTRUCTIVO_Escaner_RIS_Bridge.pdf" target="_blank" rel="noopener">
+                                    <i class="bi bi-file-earmark-pdf text-danger mt-1" aria-hidden="true"></i>
+                                    <span>
+                                        <span class="fw-semibold d-block">Instructivo escáner + Bridge</span>
+                                        <span class="small text-secondary">PDF</span>
+                                    </span>
+                                </a>
+                                <a class="list-group-item list-group-item-action d-flex align-items-start gap-2"
+                                    href="downloads/GUIA-Pedalera-LFH2330.txt" target="_blank" rel="noopener">
+                                    <i class="bi bi-file-text text-primary mt-1" aria-hidden="true"></i>
+                                    <span>
+                                        <span class="fw-semibold d-block">Guía pedalera LFH2330</span>
+                                        <span class="small text-secondary">Texto</span>
+                                    </span>
+                                </a>
+                                <a class="list-group-item list-group-item-action d-flex align-items-start gap-2"
+                                    href="downloads/GUIA-Pedalera-ACC2330.txt" target="_blank" rel="noopener">
+                                    <i class="bi bi-file-text text-primary mt-1" aria-hidden="true"></i>
+                                    <span>
+                                        <span class="fw-semibold d-block">Guía pedalera ACC2330</span>
+                                        <span class="small text-secondary">Texto</span>
+                                    </span>
+                                </a>
+                                <a class="list-group-item list-group-item-action d-flex align-items-start gap-2"
+                                    href="downloads/GUIA-Bridge-Mac-Horos.txt" target="_blank" rel="noopener">
+                                    <i class="bi bi-apple text-secondary mt-1" aria-hidden="true"></i>
+                                    <span>
+                                        <span class="fw-semibold d-block">Bridge en Mac / Horos</span>
+                                        <span class="small text-secondary">Texto</span>
+                                    </span>
+                                </a>
+                                <a class="list-group-item list-group-item-action d-flex align-items-start gap-2"
+                                    href="downloads/ris-local-bridge-windows.zip" download>
+                                    <i class="bi bi-download text-success mt-1" aria-hidden="true"></i>
+                                    <span>
+                                        <span class="fw-semibold d-block">Bridge local (Windows)</span>
+                                        <span class="small text-secondary">ZIP</span>
+                                    </span>
+                                </a>
+                                <a class="list-group-item list-group-item-action d-flex align-items-start gap-2"
+                                    href="downloads/index.html" target="_blank" rel="noopener">
+                                    <i class="bi bi-folder2-open text-secondary mt-1" aria-hidden="true"></i>
+                                    <span>
+                                        <span class="fw-semibold d-block">Índice de descargas</span>
+                                        <span class="small text-secondary">Ver todos los archivos</span>
+                                    </span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade" id="pane-mis-tickets" role="tabpanel" aria-labelledby="tab-mis-tickets">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                        <p class="text-secondary small mb-0">Sus tickets en la sede activa</p>
+                        <button type="button" class="btn btn-primary btn-sm fw-bold" id="btnNuevoTicket">
+                            <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Nueva solicitud
+                        </button>
+                    </div>
+                    <div class="table-responsive ris-table-scroll border rounded">
+                        <table class="table table-hover align-middle mb-0 ris-data-table" id="tablaMisTickets">
+                            <thead class="sticky-top">
+                                <tr>
+                                    <th class="ps-3">Asunto</th>
+                                    <th>Módulo</th>
+                                    <th>Prioridad</th>
+                                    <th>Estado</th>
+                                    <th>Fecha</th>
+                                    <th class="text-center pe-3 ris-col-actions">Ver</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade" id="pane-cola" role="tabpanel" aria-labelledby="tab-cola">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                        <p class="text-secondary small mb-0">Cola del laboratorio (admin)</p>
+                        <div class="d-flex gap-2 align-items-center">
+                            <label for="filtroColaEstado" class="visually-hidden">Filtrar estado</label>
+                            <select id="filtroColaEstado" class="form-select form-select-sm" style="width: auto;">
+                                <option value="">Todos</option>
+                                <option value="abierto" selected>Abiertos</option>
+                                <option value="en_curso">En curso</option>
+                                <option value="resuelto">Resueltos</option>
+                                <option value="cerrado">Cerrados</option>
+                            </select>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="btnRefreshCola">
+                                <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-responsive ris-table-scroll border rounded">
+                        <table class="table table-hover align-middle mb-0 ris-data-table" id="tablaColaTickets">
+                            <thead class="sticky-top">
+                                <tr>
+                                    <th class="ps-3">Asunto</th>
+                                    <th>Solicitante</th>
+                                    <th>Módulo</th>
+                                    <th>Prioridad</th>
+                                    <th>Estado</th>
+                                    <th>Fecha</th>
+                                    <th class="text-center pe-3 ris-col-actions">Atender</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalNuevoTicket" tabindex="-1" aria-labelledby="modalNuevoTicketTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header border-0 pb-0">
+                <h2 class="modal-title fs-5 fw-bold" id="modalNuevoTicketTitle">Nueva solicitud</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <form id="formNuevoTicket">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="ticketSubject" class="form-label fw-semibold">Asunto</label>
+                        <input type="text" class="form-control" id="ticketSubject" required maxlength="200"
+                            placeholder="Resumen breve del problema">
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label for="ticketModule" class="form-label fw-semibold">Módulo</label>
+                            <select class="form-select" id="ticketModule" required>
+                                <option value="general">General</option>
+                                <option value="agenda">Agenda</option>
+                                <option value="worklist">Lista de trabajo</option>
+                                <option value="radiologist">Radiólogo</option>
+                                <option value="transcription">Transcripción</option>
+                                <option value="validation">Validación</option>
+                                <option value="entrega">Entrega</option>
+                                <option value="admin">Administración</option>
+                                <option value="visor">Visor / PACS</option>
+                                <option value="bridge">Bridge / escáner</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="ticketPriority" class="form-label fw-semibold">Prioridad</label>
+                            <select class="form-select" id="ticketPriority">
+                                <option value="baja">Baja</option>
+                                <option value="normal" selected>Normal</option>
+                                <option value="alta">Alta</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-0">
+                        <label for="ticketBody" class="form-label fw-semibold">Descripción</label>
+                        <textarea class="form-control" id="ticketBody" rows="5" required maxlength="5000"
+                            placeholder="Detalle qué ocurre, pasos para reproducirlo y datos útiles (Accession, RUT…)"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-light fw-bold" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary fw-bold" id="btnSubmitTicket">Enviar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalDetalleTicket" tabindex="-1" aria-labelledby="modalDetalleTicketTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header border-0 pb-0">
+                <h2 class="modal-title fs-5 fw-bold" id="modalDetalleTicketTitle">Detalle</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body" id="detalleTicketBody"></div>
+            <div class="modal-footer border-0 d-none" id="detalleTicketAdminFooter">
+                <div class="w-100">
+                    <label for="ticketAdminReply" class="form-label fw-semibold">Respuesta / nota</label>
+                    <textarea class="form-control mb-2" id="ticketAdminReply" rows="3" maxlength="5000"></textarea>
+                    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center">
+                        <select class="form-select form-select-sm" id="ticketAdminStatus" style="width: auto;">
+                            <option value="abierto">Abierto</option>
+                            <option value="en_curso">En curso</option>
+                            <option value="resuelto">Resuelto</option>
+                            <option value="cerrado">Cerrado</option>
+                        </select>
+                        <button type="button" class="btn btn-primary fw-bold btn-sm" id="btnGuardarTicketAdmin">
+                            Guardar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -45,12 +45,22 @@ $(document).ready(async function () {
         "transcription": ["admin", "transcriptor", "sis_admin"],
         "validation": ["admin", "radiologo", "sis_admin"],
         "entrega": ["admin", "recepcion", "secretaria", "secretario", "sis_admin"],
-        "admin": ["admin", "sis_admin", "contador"]
+        "admin": ["admin", "sis_admin", "contador"],
+        "support": [
+            "admin", "sis_admin", "recepcion", "secretaria", "secretario",
+            "tecnologo", "tens", "radiologo", "transcriptor", "contador"
+        ]
     };
 
     $(".sidebar nav a").each(function () {
         const page = $(this).attr("data-page");
         if (!page || !permisosModulos[page]) return;
+
+        // Soporte: visible para todos los roles autenticados
+        if (page === "support") {
+            $(this).removeClass("d-none");
+            return;
+        }
 
         const tieneRolPermitido = userRoles.some(rol => permisosModulos[page].includes(rol));
         const puedeVer = esClinicAdmin || tieneRolPermitido;
