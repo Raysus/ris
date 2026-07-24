@@ -1216,8 +1216,6 @@ function getAgendaScheduleConfig() {
     };
     return { ...defaults, ...(window.RIS?.config || {}) };
 }
-    return { ...defaults, ...(window.RIS?.config || {}) };
-}
 
 function intervaloAMinutos(intervalo) {
     const partes = String(intervalo || '00:15:00').split(':');
