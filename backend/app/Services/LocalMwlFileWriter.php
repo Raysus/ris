@@ -460,7 +460,8 @@ class LocalMwlFileWriter
     private function dumpTag(string $tag, string $vr, string $value, int $indent = 0): string
     {
         $pad = str_repeat(' ', $indent);
-        $escaped = str_replace('\\', '\\\\', trim($value));
+        // dump2dcm delimita con [ ]: escapar backslash y eliminar corchetes residuales
+        $escaped = str_replace(['\\', '[', ']'], ['\\\\', '(', ')'], trim($value));
 
         return $pad . '(' . $tag . ') ' . $vr . ' [' . $escaped . ']';
     }

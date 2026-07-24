@@ -783,7 +783,7 @@ class WorklistController extends Controller
                 continue;
             }
 
-            $procedureDesc = $dicomImport->toDicomAscii((string) ($study->exam_name ?? $study->sub_exam_name ?? ''));
+            $procedureDesc = $dicomImport->toDicomProcedureDescription((string) ($study->exam_name ?? $study->sub_exam_name ?? ''));
             $stationAe = $machine->ae_title ?: ('SALA_' . $machine->id);
             $modality = $this->resolveWorklistModality($study, $machine);
 
@@ -842,7 +842,7 @@ class WorklistController extends Controller
             $tags['InstitutionName'] = $institution;
         }
 
-        $procedure = $dicomImport->toDicomAscii((string) $procedureDescription);
+        $procedure = $dicomImport->toDicomProcedureDescription((string) $procedureDescription);
         if ($procedure !== '') {
             $tags['RequestedProcedureDescription'] = $procedure;
         }

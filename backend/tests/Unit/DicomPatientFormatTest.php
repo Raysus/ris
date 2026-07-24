@@ -49,6 +49,22 @@ class DicomPatientFormatTest extends TestCase
         $this->assertSame('VASQUEZ HERTLING^ALAN GERARDO', $pn);
     }
 
+    public function test_procedure_description_strips_bracket_codes_for_fuji(): void
+    {
+        $desc = $this->service->toDicomProcedureDescription('[0401049] RX COLUMNA LUMBAR');
+
+        $this->assertSame('RX COLUMNA LUMBAR', $desc);
+        $this->assertStringNotContainsString('[', $desc);
+        $this->assertStringNotContainsString(']', $desc);
+    }
+
+    public function test_to_dicom_ascii_removes_brackets_and_control_chars(): void
+    {
+        $text = $this->service->toDicomAscii("Ñandú [code] test\x00");
+
+        $this->assertSame('NANDU TEST', $text);
+    }
+
     public function test_resolve_persona_name_fields_with_legacy_columns(): void
     {
         $persona = (object) [

@@ -44,4 +44,34 @@ class WorklistTagNormalizerTest extends TestCase
 
         $this->assertSame($fullName, $tags['PatientName']);
     }
+
+    public function test_procedure_description_strips_fonasa_brackets(): void
+    {
+        $normalizer = new WorklistTagNormalizer;
+
+        $tags = $normalizer->normalize(
+            [
+                'PatientName' => 'TEST^PACIENTE',
+                'PatientID' => '123456789',
+                'AccessionNumber' => 'ACC123',
+                'RequestedProcedureID' => 'ACC123',
+                'RequestedProcedureDescription' => '[0401051] RX PELVIS',
+            ],
+            [[
+                'Modality' => 'CR',
+                'ScheduledStationAETitle' => 'FCR_PANO',
+                'ScheduledProcedureStepStartDate' => '20260708',
+                'ScheduledProcedureStepStartTime' => '120000',
+                'ScheduledProcedureStepID' => '1',
+                'RequestedProcedureDescription' => '[0401051] RX PELVIS',
+            ]],
+            'ACC123',
+            'wlmscpfs',
+            true,
+        );
+
+        $this->assertSame('RX PELVIS', $tags['RequestedProcedureDescription']);
+        $this->assertSame('RX PELVIS', $tags['ScheduledProcedureStepSequence'][0]['ScheduledProcedureStepDescription']);
+        $this->assertStringNotContainsString('[', $tags['RequestedProcedureDescription']);
+    }
 }

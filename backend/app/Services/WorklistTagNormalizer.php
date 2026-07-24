@@ -37,31 +37,36 @@ class WorklistTagNormalizer
             return $tags;
         }
 
-        $tags['ReferringPhysicianName'] = (string) ($tags['ReferringPhysicianName'] ?? '');
-        $tags['RequestingPhysician'] = (string) ($tags['RequestingPhysician'] ?? '');
-        $tags['RequestingService'] = (string) ($tags['RequestingService'] ?? '');
-        $tags['AdmissionID'] = (string) ($tags['AdmissionID'] ?? '');
-        $tags['CurrentPatientLocation'] = (string) ($tags['CurrentPatientLocation'] ?? '');
-        $tags['PatientState'] = (string) ($tags['PatientState'] ?? '');
-        $tags['RequestedProcedurePriority'] = (string) ($tags['RequestedProcedurePriority'] ?? '');
-        $tags['NamesOfIntendedRecipientsOfResults'] = (string) ($tags['NamesOfIntendedRecipientsOfResults'] ?? '');
-        $tags['RequestedProcedureComments'] = (string) ($tags['RequestedProcedureComments'] ?? '');
+        $tags['ReferringPhysicianName'] = $this->sanitizeLo((string) ($tags['ReferringPhysicianName'] ?? ''));
+        $tags['RequestingPhysician'] = $this->sanitizeLo((string) ($tags['RequestingPhysician'] ?? ''));
+        $tags['RequestingService'] = $this->sanitizeLo((string) ($tags['RequestingService'] ?? ''));
+        $tags['AdmissionID'] = $this->sanitizeLo((string) ($tags['AdmissionID'] ?? ''));
+        $tags['CurrentPatientLocation'] = $this->sanitizeLo((string) ($tags['CurrentPatientLocation'] ?? ''));
+        $tags['PatientState'] = $this->sanitizeLo((string) ($tags['PatientState'] ?? ''));
+        $tags['RequestedProcedurePriority'] = $this->sanitizeLo((string) ($tags['RequestedProcedurePriority'] ?? ''));
+        $tags['NamesOfIntendedRecipientsOfResults'] = $this->sanitizeLo((string) ($tags['NamesOfIntendedRecipientsOfResults'] ?? ''));
+        $tags['RequestedProcedureComments'] = $this->sanitizeLo((string) ($tags['RequestedProcedureComments'] ?? ''));
 
         $mwlAccession = self::compactAccession($accessionNumber);
         $tags['AccessionNumber'] = $mwlAccession;
         $tags['RequestedProcedureID'] = $mwlAccession;
         $tags['PatientID'] = $this->truncate(trim((string) ($tags['PatientID'] ?? '')), self::SH_MAX);
-        $tags['PatientName'] = $this->truncatePatientName((string) ($tags['PatientName'] ?? ''));
+        $tags['PatientName'] = $this->truncatePatientName(
+            $this->sanitizePatientName((string) ($tags['PatientName'] ?? ''))
+        );
 
         if (!empty($tags['RequestedProcedureDescription'])) {
             $tags['RequestedProcedureDescription'] = $this->truncate(
-                (string) $tags['RequestedProcedureDescription'],
+                $this->sanitizeLo((string) $tags['RequestedProcedureDescription']),
                 self::SH_MAX
             );
         }
 
         if (!empty($tags['InstitutionName'])) {
-            $tags['InstitutionName'] = $this->truncate((string) $tags['InstitutionName'], 64);
+            $tags['InstitutionName'] = $this->truncate(
+                $this->sanitizeLo((string) $tags['InstitutionName']),
+                64
+            );
         }
 
         $defaultDesc = trim((string) ($tags['RequestedProcedureDescription'] ?? ''));
@@ -156,17 +161,27 @@ class WorklistTagNormalizer
 
         $step['ScheduledStationAETitle'] = $station;
         $step['ScheduledStationName'] = $this->truncate(
-            trim((string) ($step['ScheduledStationName'] ?? '')) !== ''
-                ? (string) $step['ScheduledStationName']
-                : ($station !== '' ? $station : 'STATION'),
+            $this->sanitizeLo(
+                trim((string) ($step['ScheduledStationName'] ?? '')) !== ''
+                    ? (string) $step['ScheduledStationName']
+                    : ($station !== '' ? $station : 'STATION')
+            ),
             self::SH_MAX
         );
         $step['ScheduledProcedureStepStatus'] = (string) ($step['ScheduledProcedureStepStatus'] ?? 'SCHEDULED');
-        $step['ScheduledPerformingPhysicianName'] = (string) ($step['ScheduledPerformingPhysicianName'] ?? '');
+        $step['ScheduledPerformingPhysicianName'] = $this->sanitizeLo(
+            (string) ($step['ScheduledPerformingPhysicianName'] ?? '')
+        );
         $step['ScheduledProcedureStepDescription'] = $this->truncate(
-            $desc !== '' ? strtoupper($desc) : 'EXAMEN',
+            $this->sanitizeLo($desc !== '' ? $desc : 'EXAMEN'),
             self::SH_MAX
         );
+        if (!empty($step['RequestedProcedureDescription'])) {
+            $step['RequestedProcedureDescription'] = $this->truncate(
+                $this->sanitizeLo((string) $step['RequestedProcedureDescription']),
+                self::SH_MAX
+            );
+        }
         $step['ScheduledProcedureStepID'] = self::compactStepId(
             $accessionNumber,
             (string) ($step['ScheduledProcedureStepID'] ?? '1')
@@ -174,6 +189,30 @@ class WorklistTagNormalizer
         $step['Modality'] = (string) ($step['Modality'] ?? 'OT');
 
         return $step;
+    }
+
+    /** LO/SH seguros para Fuji FCR (sin [códigos] ni caracteres de dump DICOM). */
+    private function sanitizeLo(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+
+        $value = preg_replace('/\[[^\]]*\]/', ' ', $value) ?? $value;
+        $value = str_replace(['[', ']', '{', '}', '<', '>', '|', '"', "'", '\\', '`', '^'], ' ', $value);
+        $value = preg_replace('/[^\x20-\x7E]/', '', $value) ?? '';
+        $value = preg_replace('/\s+/', ' ', $value) ?? '';
+
+        return strtoupper(trim($value));
+    }
+
+    private function sanitizePatientName(string $patientName): string
+    {
+        $parts = explode('^', $patientName);
+        $clean = array_map(fn (string $part): string => $this->sanitizeLo($part), $parts);
+
+        return implode('^', array_filter($clean, fn (string $p): bool => $p !== ''));
     }
 
     private function truncatePatientName(string $patientName): string

@@ -64,22 +64,40 @@ class DicomImportService
     }
 
     /**
-     * Texto seguro para equipos legacy (Fuji FCR): ASCII + ISO_IR 100.
-     * Elimina tildes y caracteres fuera de Latin-1 básico.
+     * Texto seguro para equipos legacy (Fuji FCR / Orthanc MWL / dump2dcm).
+     * ASCII + sin corchetes ni caracteres que rompan el dump DICOM `[valor]`.
      */
-    public function toDicomAscii(string $text): string
+    public function toDicomAscii(string $text, bool $allowCaret = false): string
     {
         $text = trim($text);
         if ($text === '') {
             return '';
         }
 
+        // Quitar códigos tipo [0401051] (Fonasa/prestación) — Fuji 31404 “caracteres extraños”.
+        $text = preg_replace('/\[[^\]]*\]/', ' ', $text) ?? $text;
+
         $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $text);
         if ($ascii === false || $ascii === '') {
             $ascii = preg_replace('/[^\x20-\x7E]/', '', $text) ?? '';
         }
 
-        return strtoupper(preg_replace('/\s+/', ' ', $ascii));
+        // dump2dcm usa [valor]: corchetes/backslashes rompen el archivo .wl
+        $ascii = str_replace(['[', ']', '{', '}', '<', '>', '|', '"', "'", '\\', '`'], ' ', $ascii);
+        if (!$allowCaret) {
+            $ascii = str_replace('^', ' ', $ascii);
+        }
+
+        $ascii = preg_replace('/[^\x20-\x7E]/', '', $ascii) ?? '';
+        $ascii = preg_replace('/\s+/', ' ', $ascii) ?? '';
+
+        return strtoupper(trim($ascii));
+    }
+
+    /** Descripción de procedimiento MWL (sin códigos entre corchetes). */
+    public function toDicomProcedureDescription(string $text): string
+    {
+        return $this->toDicomAscii($text, false);
     }
 
     /**
@@ -137,13 +155,16 @@ class DicomImportService
         return strtoupper(trim("{$names} {$lastName1} {$lastName2}"));
     }
 
-    /** PN para MWL en consolas Fuji FCR (ISO_IR 100, sin tildes). */
+    /** PN para MWL en consolas Fuji FCR (ISO_IR 100, sin tildes ni corchetes). */
     public function formatPatientNameDicomWorklist(string $names, string $lastName1, ?string $lastName2 = null): string
     {
         $raw = $this->formatPatientNameDicom($names, $lastName1, $lastName2);
         $parts = explode('^', $raw);
 
-        return implode('^', array_map(fn (string $part): string => $this->toDicomAscii($part), $parts));
+        return implode('^', array_map(
+            fn (string $part): string => $this->toDicomAscii($part, false),
+            $parts
+        ));
     }
 
     /** Sexo DICOM (0010,0040): M, F u omitir si no se conoce. */
