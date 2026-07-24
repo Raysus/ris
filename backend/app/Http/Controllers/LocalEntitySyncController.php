@@ -17,6 +17,35 @@ class LocalEntitySyncController extends Controller
             ], 403);
         }
 
+        if ($request->has('chunks')) {
+            $validated = $request->validate([
+                'chunks' => 'required|array|min:1',
+                'chunks.*.model' => 'required|string|max:120',
+                'chunks.*.action' => 'required|string|in:created,updated,deleted',
+                'chunks.*.data' => 'required|array',
+            ]);
+
+            try {
+                foreach ($validated['chunks'] as $chunk) {
+                    $sync->apply($chunk['model'], $chunk['action'], $chunk['data']);
+                }
+            } catch (\Throwable $e) {
+                report($e);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Error aplicando lote desde la nube: ' . $e->getMessage(),
+                ], 422);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Lote aplicado en el laboratorio local.',
+                'relayed' => true,
+                'count' => count($validated['chunks']),
+            ]);
+        }
+
         $validated = $request->validate([
             'model' => 'required|string|max:120',
             'action' => 'required|string|in:created,updated,deleted',

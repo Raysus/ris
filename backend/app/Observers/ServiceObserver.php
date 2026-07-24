@@ -3,22 +3,24 @@
 namespace App\Observers;
 
 use App\Models\Service;
-use App\Jobs\SyncEntityToCloud;
+use App\Support\Concerns\DispatchesBidirectionalCloudSync;
 
 class ServiceObserver
 {
-    public function created(Service $service)
+    use DispatchesBidirectionalCloudSync;
+
+    public function created(Service $service): void
     {
-        SyncEntityToCloud::dispatch('Service', 'created', $service->toArray());
+        $this->dispatchBidirectionalSync('Service', 'created', $service);
     }
 
-    public function updated(Service $service)
+    public function updated(Service $service): void
     {
-        SyncEntityToCloud::dispatch('Service', 'updated', $service->toArray());
+        $this->dispatchBidirectionalSync('Service', 'updated', $service);
     }
 
-    public function deleted(Service $service)
+    public function deleted(Service $service): void
     {
-        SyncEntityToCloud::dispatch('Service', 'deleted', ['id' => $service->id]);
+        $this->dispatchBidirectionalSync('Service', 'deleted', $service);
     }
 }

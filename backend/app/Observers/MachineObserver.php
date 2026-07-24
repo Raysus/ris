@@ -3,22 +3,24 @@
 namespace App\Observers;
 
 use App\Models\Machine;
-use App\Jobs\SyncEntityToCloud;
+use App\Support\Concerns\DispatchesBidirectionalCloudSync;
 
 class MachineObserver
 {
-    public function created(Machine $machine)
+    use DispatchesBidirectionalCloudSync;
+
+    public function created(Machine $machine): void
     {
-        SyncEntityToCloud::dispatch('Machine', 'created', $machine->toArray());
+        $this->dispatchBidirectionalSync('Machine', 'created', $machine);
     }
 
-    public function updated(Machine $machine)
+    public function updated(Machine $machine): void
     {
-        SyncEntityToCloud::dispatch('Machine', 'updated', $machine->toArray());
+        $this->dispatchBidirectionalSync('Machine', 'updated', $machine);
     }
 
-    public function deleted(Machine $machine)
+    public function deleted(Machine $machine): void
     {
-        SyncEntityToCloud::dispatch('Machine', 'deleted', ['id' => $machine->id]);
+        $this->dispatchBidirectionalSync('Machine', 'deleted', $machine);
     }
 }

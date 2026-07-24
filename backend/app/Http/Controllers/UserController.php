@@ -6,7 +6,9 @@ use App\Http\Controllers\Concerns\ChecksRisAuthorization;
 use App\Models\User;
 use App\Models\Persona;
 use App\Services\KeycloakService;
+use App\Jobs\RelayUserBundleToLocalLab;
 use App\Jobs\SyncUserBundleToCloud;
+use App\Support\CloudSyncMode;
 use App\Observers\AppointmentObserver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -212,7 +214,11 @@ class UserController extends Controller
             AppointmentObserver::$suppressRelatedSync = false;
         }
 
-        SyncUserBundleToCloud::dispatch($user->id, $userAction);
+        if (CloudSyncMode::isCloud()) {
+            RelayUserBundleToLocalLab::dispatch($user->id, $userAction);
+        } elseif (CloudSyncMode::canPushToCloud()) {
+            SyncUserBundleToCloud::dispatch($user->id, $userAction);
+        }
 
         return response()->json([
             'success' => true,

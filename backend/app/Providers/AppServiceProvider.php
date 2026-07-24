@@ -34,8 +34,10 @@ use App\Observers\ReportTemplateObserver;
 use App\Observers\UserObserver;
 
 use App\Models\AppointmentLog;
+use App\Models\Payment;
 use App\Models\SupportTicket;
 use App\Observers\AppointmentLogObserver;
+use App\Observers\PaymentObserver;
 use App\Observers\SupportTicketObserver;
 
 class AppServiceProvider extends ServiceProvider
@@ -69,5 +71,6 @@ class AppServiceProvider extends ServiceProvider
         User::observe(UserObserver::class);
         AppointmentLog::observe(AppointmentLogObserver::class);
         SupportTicket::observe(SupportTicketObserver::class);
+        Payment::observe(PaymentObserver::class);
     }
 }

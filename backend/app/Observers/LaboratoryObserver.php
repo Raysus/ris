@@ -3,22 +3,24 @@
 namespace App\Observers;
 
 use App\Models\Laboratory;
-use App\Jobs\SyncEntityToCloud;
+use App\Support\Concerns\DispatchesBidirectionalCloudSync;
 
 class LaboratoryObserver
 {
-    public function created(Laboratory $laboratory)
+    use DispatchesBidirectionalCloudSync;
+
+    public function created(Laboratory $laboratory): void
     {
-        SyncEntityToCloud::dispatch('Laboratory', 'created', $laboratory->toArray());
+        $this->dispatchBidirectionalSync('Laboratory', 'created', $laboratory);
     }
 
-    public function updated(Laboratory $laboratory)
+    public function updated(Laboratory $laboratory): void
     {
-        SyncEntityToCloud::dispatch('Laboratory', 'updated', $laboratory->toArray());
+        $this->dispatchBidirectionalSync('Laboratory', 'updated', $laboratory);
     }
 
-    public function deleted(Laboratory $laboratory)
+    public function deleted(Laboratory $laboratory): void
     {
-        SyncEntityToCloud::dispatch('Laboratory', 'deleted', ['id' => $laboratory->id]);
+        $this->dispatchBidirectionalSync('Laboratory', 'deleted', $laboratory);
     }
 }

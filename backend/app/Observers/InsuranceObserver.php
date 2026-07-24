@@ -3,22 +3,24 @@
 namespace App\Observers;
 
 use App\Models\Insurance;
-use App\Jobs\SyncEntityToCloud;
+use App\Support\Concerns\DispatchesBidirectionalCloudSync;
 
 class InsuranceObserver
 {
-    public function created(Insurance $insurance)
+    use DispatchesBidirectionalCloudSync;
+
+    public function created(Insurance $insurance): void
     {
-        SyncEntityToCloud::dispatch('Insurance', 'created', $insurance->toArray());
+        $this->dispatchBidirectionalSync('Insurance', 'created', $insurance);
     }
 
-    public function updated(Insurance $insurance)
+    public function updated(Insurance $insurance): void
     {
-        SyncEntityToCloud::dispatch('Insurance', 'updated', $insurance->toArray());
+        $this->dispatchBidirectionalSync('Insurance', 'updated', $insurance);
     }
 
-    public function deleted(Insurance $insurance)
+    public function deleted(Insurance $insurance): void
     {
-        SyncEntityToCloud::dispatch('Insurance', 'deleted', ['id' => $insurance->id]);
+        $this->dispatchBidirectionalSync('Insurance', 'deleted', $insurance);
     }
 }

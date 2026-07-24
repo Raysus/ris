@@ -2,13 +2,12 @@
 
 namespace App\Observers;
 
-use App\Jobs\RelaySupportTicketToLocalLab;
+use App\Jobs\RelayEntityToLocalLab;
 use App\Jobs\SyncEntityToCloud;
 use App\Models\SupportTicket;
 use App\Services\CloudEntitySyncService;
 use App\Services\SupportTicketNotificationService;
 use App\Support\CloudSyncMode;
-use App\Support\LaboratorySyncRelay;
 use Illuminate\Support\Facades\DB;
 
 class SupportTicketObserver
@@ -35,29 +34,23 @@ class SupportTicketObserver
             return;
         }
 
-        if (CloudSyncMode::isCloud()) {
-            $ticket->loadMissing('laboratory');
-            if (LaboratorySyncRelay::shouldRelayEntityFromCloud($ticket->laboratory)) {
-                $ticketId = $ticket->id;
-                DB::afterCommit(
-                    fn () => RelaySupportTicketToLocalLab::dispatch($ticketId, $action)
-                );
-            }
-
-            return;
-        }
-
-        if (!CloudSyncMode::canPushToCloud()) {
-            return;
-        }
-
         $payload = $action === 'deleted'
             ? ['id' => $ticket->id]
             : $ticket->toArray();
 
-        DB::afterCommit(
-            fn () => SyncEntityToCloud::dispatch('SupportTicket', $action, $payload)
-        );
+        if (CloudSyncMode::isCloud()) {
+            DB::afterCommit(
+                fn () => RelayEntityToLocalLab::dispatch('SupportTicket', $action, $ticket->id, $payload)
+            );
+
+            return;
+        }
+
+        if (CloudSyncMode::canPushToCloud()) {
+            DB::afterCommit(
+                fn () => SyncEntityToCloud::dispatch('SupportTicket', $action, $payload)
+            );
+        }
     }
 
     private function notifyIfLocalOrCloudCreate(SupportTicket $ticket): void

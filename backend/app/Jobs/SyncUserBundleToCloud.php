@@ -90,6 +90,22 @@ class SyncUserBundleToCloud implements ShouldQueue, ShouldQueueAfterCommit, Shou
             ],
         ];
 
+        foreach ($user->laboratories as $lab) {
+            $pivot = $user->laboratories()->where('laboratories.id', $lab->id)->first()?->pivot;
+            if ($pivot) {
+                $chunks[] = [
+                    'model' => 'App\Models\LaboratoryUser',
+                    'action' => 'updated',
+                    'data' => [
+                        'id' => $pivot->id,
+                        'laboratory_id' => $lab->id,
+                        'user_id' => $user->id,
+                        'is_primary' => (bool) $pivot->is_primary,
+                    ],
+                ];
+            }
+        }
+
         try {
             foreach ($chunks as $chunk) {
                 $response = $http->withHeaders($headers)->post($cloudUrl, $chunk);

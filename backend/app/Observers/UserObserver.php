@@ -2,35 +2,52 @@
 
 namespace App\Observers;
 
+use App\Jobs\RelayUserBundleToLocalLab;
+use App\Jobs\SyncUserBundleToCloud;
 use App\Models\User;
-use App\Jobs\SyncEntityToCloud;
+use App\Services\CloudEntitySyncService;
+use App\Support\CloudSyncMode;
+use Illuminate\Support\Facades\DB;
 
 class UserObserver
 {
-    public function created(User $user)
+    public function created(User $user): void
     {
-        if (AppointmentObserver::$suppressRelatedSync) {
-            return;
-        }
-
-        SyncEntityToCloud::dispatch('User', 'created', $user->toArray());
+        $this->dispatchUserSync($user, 'created');
     }
 
-    public function updated(User $user)
+    public function updated(User $user): void
     {
-        if (AppointmentObserver::$suppressRelatedSync) {
-            return;
-        }
-
-        SyncEntityToCloud::dispatch('User', 'updated', $user->toArray());
+        $this->dispatchUserSync($user, 'updated');
     }
 
-    public function deleted(User $user)
+    public function deleted(User $user): void
     {
+        $this->dispatchUserSync($user, 'deleted');
+    }
+
+    private function dispatchUserSync(User $user, string $action): void
+    {
+        if (CloudEntitySyncService::$applying) {
+            return;
+        }
+
         if (AppointmentObserver::$suppressRelatedSync) {
             return;
         }
 
-        SyncEntityToCloud::dispatch('User', 'deleted', ['id' => $user->id]);
+        if (CloudSyncMode::isCloud()) {
+            DB::afterCommit(
+                fn () => RelayUserBundleToLocalLab::dispatch($user->id, $action)
+            );
+
+            return;
+        }
+
+        if (CloudSyncMode::canPushToCloud()) {
+            DB::afterCommit(
+                fn () => SyncUserBundleToCloud::dispatch($user->id, $action)
+            );
+        }
     }
 }

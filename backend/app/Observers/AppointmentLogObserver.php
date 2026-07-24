@@ -3,13 +3,14 @@
 namespace App\Observers;
 
 use App\Models\AppointmentLog;
-use App\Jobs\SyncEntityToCloud;
+use App\Support\Concerns\DispatchesBidirectionalCloudSync;
 
 class AppointmentLogObserver
 {
-    public function created(AppointmentLog $log)
+    use DispatchesBidirectionalCloudSync;
+
+    public function created(AppointmentLog $log): void
     {
-        // Enviamos solo este log específico a la nube
-        SyncEntityToCloud::dispatch('AppointmentLog', 'created', $log->toArray());
+        $this->dispatchBidirectionalSync('AppointmentLog', 'created', $log);
     }
 }

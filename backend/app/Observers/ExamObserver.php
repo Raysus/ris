@@ -3,22 +3,24 @@
 namespace App\Observers;
 
 use App\Models\Exam;
-use App\Jobs\SyncEntityToCloud;
+use App\Support\Concerns\DispatchesBidirectionalCloudSync;
 
 class ExamObserver
 {
-    public function created(Exam $exam)
+    use DispatchesBidirectionalCloudSync;
+
+    public function created(Exam $exam): void
     {
-        SyncEntityToCloud::dispatch('Exam', 'created', $exam->toArray());
+        $this->dispatchBidirectionalSync('Exam', 'created', $exam);
     }
 
-    public function updated(Exam $exam)
+    public function updated(Exam $exam): void
     {
-        SyncEntityToCloud::dispatch('Exam', 'updated', $exam->toArray());
+        $this->dispatchBidirectionalSync('Exam', 'updated', $exam);
     }
 
-    public function deleted(Exam $exam)
+    public function deleted(Exam $exam): void
     {
-        SyncEntityToCloud::dispatch('Exam', 'deleted', ['id' => $exam->id]);
+        $this->dispatchBidirectionalSync('Exam', 'deleted', $exam);
     }
 }

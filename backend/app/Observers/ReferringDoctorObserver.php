@@ -3,22 +3,24 @@
 namespace App\Observers;
 
 use App\Models\ReferringDoctor;
-use App\Jobs\SyncEntityToCloud;
+use App\Support\Concerns\DispatchesBidirectionalCloudSync;
 
 class ReferringDoctorObserver
 {
-    public function created(ReferringDoctor $referringDoctor)
+    use DispatchesBidirectionalCloudSync;
+
+    public function created(ReferringDoctor $doctor): void
     {
-        SyncEntityToCloud::dispatch('ReferringDoctor', 'created', $referringDoctor->toArray());
+        $this->dispatchBidirectionalSync('ReferringDoctor', 'created', $doctor);
     }
 
-    public function updated(ReferringDoctor $referringDoctor)
+    public function updated(ReferringDoctor $doctor): void
     {
-        SyncEntityToCloud::dispatch('ReferringDoctor', 'updated', $referringDoctor->toArray());
+        $this->dispatchBidirectionalSync('ReferringDoctor', 'updated', $doctor);
     }
 
-    public function deleted(ReferringDoctor $referringDoctor)
+    public function deleted(ReferringDoctor $doctor): void
     {
-        SyncEntityToCloud::dispatch('ReferringDoctor', 'deleted', ['id' => $referringDoctor->id]);
+        $this->dispatchBidirectionalSync('ReferringDoctor', 'deleted', $doctor);
     }
 }

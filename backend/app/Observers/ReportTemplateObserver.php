@@ -3,22 +3,24 @@
 namespace App\Observers;
 
 use App\Models\ReportTemplate;
-use App\Jobs\SyncEntityToCloud;
+use App\Support\Concerns\DispatchesBidirectionalCloudSync;
 
 class ReportTemplateObserver
 {
-    public function created(ReportTemplate $reportTemplate)
+    use DispatchesBidirectionalCloudSync;
+
+    public function created(ReportTemplate $template): void
     {
-        SyncEntityToCloud::dispatch('ReportTemplate', 'created', $reportTemplate->toArray());
+        $this->dispatchBidirectionalSync('ReportTemplate', 'created', $template);
     }
 
-    public function updated(ReportTemplate $reportTemplate)
+    public function updated(ReportTemplate $template): void
     {
-        SyncEntityToCloud::dispatch('ReportTemplate', 'updated', $reportTemplate->toArray());
+        $this->dispatchBidirectionalSync('ReportTemplate', 'updated', $template);
     }
 
-    public function deleted(ReportTemplate $reportTemplate)
+    public function deleted(ReportTemplate $template): void
     {
-        SyncEntityToCloud::dispatch('ReportTemplate', 'deleted', ['id' => $reportTemplate->id]);
+        $this->dispatchBidirectionalSync('ReportTemplate', 'deleted', $template);
     }
 }

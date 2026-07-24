@@ -117,5 +117,7 @@ return [
         'AppointmentLog' => \App\Models\AppointmentLog::class,
         'SupportTicket' => \App\Models\SupportTicket::class,
         'App\Models\SupportTicket' => \App\Models\SupportTicket::class,
+        'Payment' => \App\Models\Payment::class,
+        'App\Models\Payment' => \App\Models\Payment::class,
     ],
 ];

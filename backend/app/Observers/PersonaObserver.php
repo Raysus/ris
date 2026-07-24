@@ -2,29 +2,31 @@
 
 namespace App\Observers;
 
-use App\Jobs\SyncEntityToCloud;
 use App\Models\Persona;
+use App\Support\Concerns\DispatchesBidirectionalCloudSync;
 
 class PersonaObserver
 {
-    public function created(Persona $persona)
+    use DispatchesBidirectionalCloudSync;
+
+    public function created(Persona $persona): void
     {
         if (AppointmentObserver::$suppressRelatedSync) {
             return;
         }
-        SyncEntityToCloud::dispatch('Persona', 'created', $persona->toArray());
+        $this->dispatchBidirectionalSync('Persona', 'created', $persona);
     }
 
-    public function updated(Persona $persona)
+    public function updated(Persona $persona): void
     {
         if (AppointmentObserver::$suppressRelatedSync) {
             return;
         }
-        SyncEntityToCloud::dispatch('Persona', 'updated', $persona->toArray());
+        $this->dispatchBidirectionalSync('Persona', 'updated', $persona);
     }
 
-    public function deleted(Persona $persona)
+    public function deleted(Persona $persona): void
     {
-        SyncEntityToCloud::dispatch('Persona', 'deleted', ['id' => $persona->id]);
+        $this->dispatchBidirectionalSync('Persona', 'deleted', $persona);
     }
 }

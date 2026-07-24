@@ -3,22 +3,24 @@
 namespace App\Observers;
 
 use App\Models\Supply;
-use App\Jobs\SyncEntityToCloud;
+use App\Support\Concerns\DispatchesBidirectionalCloudSync;
 
 class SupplyObserver
 {
-    public function created(Supply $supply)
+    use DispatchesBidirectionalCloudSync;
+
+    public function created(Supply $supply): void
     {
-        SyncEntityToCloud::dispatch('Supply', 'created', $supply->toArray());
+        $this->dispatchBidirectionalSync('Supply', 'created', $supply);
     }
 
-    public function updated(Supply $supply)
+    public function updated(Supply $supply): void
     {
-        SyncEntityToCloud::dispatch('Supply', 'updated', $supply->toArray());
+        $this->dispatchBidirectionalSync('Supply', 'updated', $supply);
     }
 
-    public function deleted(Supply $supply)
+    public function deleted(Supply $supply): void
     {
-        SyncEntityToCloud::dispatch('Supply', 'deleted', ['id' => $supply->id]);
+        $this->dispatchBidirectionalSync('Supply', 'deleted', $supply);
     }
 }
