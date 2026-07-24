@@ -216,8 +216,10 @@ async function enviarATranscripcionIa(options = {}) {
         }
         return true;
     } catch (e) {
-        if (typeof showToast === "function") {
+        if (!silentEmpty && typeof showToast === "function") {
             showToast(e.message || "Error al transcribir con IA", "danger");
+        } else {
+            console.warn("enviarATranscripcionIa (silencioso):", e);
         }
         await refreshRadiologistAiStatus();
         return false;
@@ -778,20 +780,29 @@ async function enviarATranscripcion() {
                 body: formData
             });
 
-            if (response.ok) {
-                showToast(
-                    tieneAudio
-                        ? "🎙️ Audio subido y transferido a Transcripción exitosamente."
-                        : "✅ Examen enviado a Transcripción. Puede adjuntar el audio más tarde.",
-                    "success"
-                );
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || data.success === false) {
+                throw new Error(data.message || `Error en el servidor (${response.status})`);
+            }
+
+            showToast(
+                tieneAudio
+                    ? "🎙️ Audio subido y transferido a Transcripción exitosamente."
+                    : "✅ Examen enviado a Transcripción. Puede adjuntar el audio más tarde.",
+                "success"
+            );
+            try {
                 limpiarPantallaRadiologo();
                 cargarEstudiosRadiologo();
-            } else {
-                throw new Error("Error en el servidor");
+            } catch (cleanupErr) {
+                console.warn("enviarATranscripcion cleanup:", cleanupErr);
             }
         } catch (e) {
-            showToast(tieneAudio ? "❌ Error al subir el archivo de audio" : "❌ Error al enviar a transcripción", "danger");
+            console.error("enviarATranscripcion:", e);
+            showToast(
+                (e && e.message) || (tieneAudio ? "❌ Error al subir el archivo de audio" : "❌ Error al enviar a transcripción"),
+                "danger"
+            );
         } finally {
             btn.prop('disabled', false).html('<i class="bi bi-headphones me-1"></i> Enviar a Transcripción');
         }
@@ -1091,8 +1102,10 @@ async function startAudioRecording() {
             updateRecordingUi(false);
             updateAudioPreviewControlsUi();
             $("#btnRecord").html('<i class="bi bi-mic me-1" aria-hidden="true"></i> Regrabar (sobrescribe)');
-            // Como dictado por voz: al detener, transcribe e inserta solo.
-            await enviarATranscripcionIa({ silentEmpty: true });
+            // Solo auto-transcribe con IA si el modo activo es IA (evita toast de error al enviar a TM).
+            if (getRadiologistDictationMode() === "ai") {
+                await enviarATranscripcionIa({ silentEmpty: true });
+            }
         };
 
         // Sin timeslice: los chunks WebM con intervalo solo reproducen el tramo final (~5s).

@@ -36,26 +36,44 @@ class AppointmentObserver
             return;
         }
 
-        if (CloudSyncMode::isCloud()) {
-            $appointment->loadMissing('laboratory');
-            if (LaboratorySyncRelay::shouldRelayFromCloud($appointment->laboratory)) {
-                $appointmentId = $appointment->id;
-                \Illuminate\Support\Facades\DB::afterCommit(
-                    fn () => RelayAppointmentToLocalLab::dispatch($appointmentId, $action)
-                );
+        try {
+            if (CloudSyncMode::isCloud()) {
+                $appointment->loadMissing('laboratory');
+                if (LaboratorySyncRelay::shouldRelayFromCloud($appointment->laboratory)) {
+                    $appointmentId = $appointment->id;
+                    \Illuminate\Support\Facades\DB::afterCommit(
+                        function () use ($appointmentId, $action) {
+                            try {
+                                RelayAppointmentToLocalLab::dispatch($appointmentId, $action);
+                            } catch (\Throwable $e) {
+                                \Illuminate\Support\Facades\Log::warning('AppointmentObserver: relay omitido', [
+                                    'appointment_id' => $appointmentId,
+                                    'action' => $action,
+                                    'error' => $e->getMessage(),
+                                ]);
+                            }
+                        }
+                    );
+                }
+
+                return;
             }
 
-            return;
-        }
+            if ($action === 'deleted') {
+                SyncEntityToCloud::dispatch('App\Models\Appointment', 'deleted', ['id' => $appointment->id]);
 
-        if ($action === 'deleted') {
-            SyncEntityToCloud::dispatch('App\Models\Appointment', 'deleted', ['id' => $appointment->id]);
+                return;
+            }
 
-            return;
-        }
-
-        if (CloudSyncMode::canPushToCloud()) {
-            SyncAppointmentBundleToCloud::dispatch($appointment->id, $action)->afterCommit();
+            if (CloudSyncMode::canPushToCloud()) {
+                SyncAppointmentBundleToCloud::dispatch($appointment->id, $action)->afterCommit();
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('AppointmentObserver: sync omitido', [
+                'appointment_id' => $appointment->id,
+                'action' => $action,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 }

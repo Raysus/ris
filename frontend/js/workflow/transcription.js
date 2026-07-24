@@ -664,8 +664,15 @@ async function enviarAValidacion() {
         const result = await response.json();
 
         if (response.ok && result.success) {
-            limpiarPantallaTranscripcion();
-            cargarListaTranscripcion();
+            if (typeof showToast === 'function') {
+                showToast('Enviado a validación/firma.', 'success');
+            }
+            try {
+                limpiarPantallaTranscripcion();
+                cargarListaTranscripcion();
+            } catch (cleanupErr) {
+                console.warn('enviarAValidacion cleanup:', cleanupErr);
+            }
         } else {
             throw new Error(result.message || "Error al validar");
         }

@@ -406,16 +406,6 @@ class TranscriptionController extends Controller
             ]);
 
             DB::commit();
-
-            $appointment->load(['patient.persona', 'studies', 'supplies']);
-
-            // Verificamos que el job exista antes de dispararlo para evitar errores 500 adicionales
-            if (class_exists('\App\Jobs\SyncEntityToCloud')) {
-                \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
-            }
-
-            return response()->json(['success' => true]);
-
         } catch (\Exception $e) {
             DB::rollBack();
             \Log::error("Error en validación de transcripción: " . $e->getMessage());
@@ -424,6 +414,21 @@ class TranscriptionController extends Controller
                 'message' => 'Error interno: ' . $e->getMessage()
             ], 500);
         }
+
+        // Sync post-commit: el estado ya quedó en para_firma; no devolver 500 por sync.
+        try {
+            $appointment->load(['patient.persona', 'studies', 'supplies']);
+            if (class_exists('\App\Jobs\SyncEntityToCloud')) {
+                \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+            }
+        } catch (\Throwable $e) {
+            \Log::warning('sendToValidation: sync post-envío omitido', [
+                'appointment_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return response()->json(['success' => true]);
     }
 
     public function returnToDoctor(Request $request, $id)
@@ -460,16 +465,22 @@ class TranscriptionController extends Controller
             ]);
 
             DB::commit();
-
-            $appointment->touch();
-            $appointment->load(['patient.persona', 'studies', 'supplies']);
-            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
-
-            return response()->json(['success' => true]);
-
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
+
+        try {
+            $appointment->touch();
+            $appointment->load(['patient.persona', 'studies', 'supplies']);
+            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+        } catch (\Throwable $e) {
+            \Log::warning('returnToDoctor: sync post-devolución omitido', [
+                'appointment_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return response()->json(['success' => true]);
     }
 }

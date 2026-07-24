@@ -331,17 +331,30 @@ class RadiologistController extends Controller
             ]);
 
             DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::warning('sendToTranscription falló', [
+                'appointment_id' => $id,
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
 
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+
+        // Sync post-commit: no debe convertir un envío ya guardado en HTTP 500.
+        try {
             // Bundle recarga la cita desde DB y empaqueta audio_path en base64 hacia la nube
             // (necesario para transcribir en otra sede). Evita SyncEntityToCloud con payload stale.
             SyncAppointmentBundleToCloud::dispatch((string) $appointment->id, 'updated');
-
-            return response()->json(['success' => true]);
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        } catch (\Throwable $e) {
+            Log::warning('sendToTranscription: sync post-envío omitido', [
+                'appointment_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
         }
+
+        return response()->json(['success' => true]);
     }
 
     public function validations(Request $request)
@@ -431,19 +444,31 @@ class RadiologistController extends Controller
                 'created_at' => now(),
                 'updated_at' => now()
             ]);
-
-            $appointment->load(['patient.persona', 'studies', 'supplies']);
-            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
-
-            return response()->json(['success' => true]);
-
         } catch (\Exception $e) {
+            Log::warning('rejectTranscription falló', [
+                'appointment_id' => $id,
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Error en el servidor',
                 'error_real' => $e->getMessage()
             ], 500);
         }
+
+        try {
+            $appointment->load(['patient.persona', 'studies', 'supplies']);
+            \App\Jobs\SyncEntityToCloud::dispatch('App\Models\Appointment', 'updated', $appointment->toArray());
+        } catch (\Throwable $e) {
+            Log::warning('rejectTranscription: sync post-devolución omitido', [
+                'appointment_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return response()->json(['success' => true]);
     }
 
     public function uploadStudyAudio(Request $request, $studyId)
