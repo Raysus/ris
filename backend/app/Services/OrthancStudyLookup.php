@@ -30,6 +30,9 @@ class OrthancStudyLookup
         }
 
         if ($appointment?->study_instance_uid && $this->looksLikeStudyInstanceUid($appointment->study_instance_uid)) {
+            app(OrthancDuplicateStudyService::class)
+                ->ensureSingleStudyForUid($appointment->study_instance_uid, $bearerToken);
+
             $enriched = $this->enrichFromOrthancStudyId(
                 $this->orthancBaseUrl(),
                 null,
@@ -43,6 +46,9 @@ class OrthancStudyLookup
         }
 
         if ($this->looksLikeStudyInstanceUid($accessionNumber)) {
+            app(OrthancDuplicateStudyService::class)
+                ->ensureSingleStudyForUid($accessionNumber, $bearerToken);
+
             return $this->enrichFromOrthancStudyId(
                 $this->orthancBaseUrl(),
                 null,
@@ -96,6 +102,9 @@ class OrthancStudyLookup
             if ($studyInstanceUid === null || !$this->looksLikeStudyInstanceUid($studyInstanceUid)) {
                 return null;
             }
+
+            app(OrthancDuplicateStudyService::class)
+                ->ensureSingleStudyForUid($studyInstanceUid, $bearerToken);
 
             return $this->enrichFromOrthancStudyId(
                 $orthancBase,
